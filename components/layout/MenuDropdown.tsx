@@ -1,0 +1,253 @@
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import Link from 'next/link';
+import { cn } from '@/lib/utils/cn';
+import { buttonVariants } from '@/lib/utils/button-variants';
+
+export interface MenuDropdownItem {
+  id: string;
+  label: string;
+  href: string;
+  badge?: 'new' | 'hot' | 'sale';
+  icon?: string;
+}
+
+interface MenuDropdownProps {
+  label: string;
+  href?: string;
+  items: MenuDropdownItem[];
+  className?: string;
+  trigger?: 'hover' | 'click';
+  icon?: string; // Icon to display before label
+  highlight?: boolean; // Whether to highlight this menu item (for gifting/emotional products)
+}
+
+/**
+ * Menu Dropdown Component (Reusable)
+ * 
+ * Dropdown menu với hover hoặc click trigger
+ * Mobile-first với touch-friendly interactions
+ */
+export function MenuDropdown({
+  label,
+  href,
+  items,
+  className,
+  trigger = 'hover',
+  icon,
+  highlight = false,
+}: MenuDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLAnchorElement>(null);
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  // Mount check for portal
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Calculate dropdown position when opening
+  useEffect(() => {
+    if (isOpen && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        dropdownRef.current && 
+        !dropdownRef.current.contains(event.target as Node) &&
+        triggerRef.current &&
+        !triggerRef.current.contains(event.target as Node)
+      ) {
+        setIsOpen(false);
+      }
+    };
+
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Handle hover (desktop only)
+  const handleMouseEnter = () => {
+    if (trigger === 'hover' && window.innerWidth >= 1024) {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+        timeoutRef.current = null;
+      }
+      setIsOpen(true);
+    }
+  };
+
+  const handleMouseLeave = () => {
+    if (trigger === 'hover' && window.innerWidth >= 1024) {
+      // Clear any existing timeout
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      // Set new timeout to close menu
+      // Increased delay to 250ms to prevent accidental closure
+      // when user's mouse briefly moves outside the menu area
+      timeoutRef.current = setTimeout(() => {
+        setIsOpen(false);
+        timeoutRef.current = null;
+      }, 250);
+    }
+  };
+
+  // Handle click (mobile and desktop)
+  const handleClick = (e: React.MouseEvent) => {
+    if (trigger === 'click' || window.innerWidth < 1024) {
+      e.preventDefault();
+      setIsOpen(!isOpen);
+    }
+  };
+
+  const handleItemClick = () => {
+    setIsOpen(false);
+  };
+
+  if (!items || items.length === 0) {
+    // No dropdown, just a link
+    return (
+      <Link
+        href={href || '#'}
+        className={cn(
+          'text-sm font-medium text-text-main hover:text-primary transition-colors',
+          'min-h-[44px] flex items-center px-3',
+          className
+        )}
+      >
+        {label}
+      </Link>
+    );
+  }
+
+  return (
+    <div
+      ref={dropdownRef}
+      className="relative overflow-visible"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      {/* Trigger Button/Link */}
+      <Link
+        ref={triggerRef}
+        href={href || '#'}
+        onClick={handleClick}
+        className={cn(
+          'text-sm font-medium transition-colors',
+          'min-h-[44px] flex items-center px-3 gap-1.5',
+          'relative z-50', // Ensure trigger is above other elements
+          // Highlight styling for gifting/emotional products
+          highlight
+            ? cn(
+                'bg-accent/10 text-accent hover:bg-accent/20 rounded-full px-4',
+                'font-semibold shadow-sm',
+                isOpen && 'bg-accent/20'
+              )
+            : cn(
+                'text-text-main hover:text-primary',
+                isOpen && 'text-primary'
+              ),
+          className
+        )}
+      >
+        {icon && <span className="text-base flex-shrink-0">{icon}</span>}
+        <span>{label}</span>
+        <span className="text-xs">▼</span>
+      </Link>
+
+      {/* Invisible Buffer Zone - Bridge between trigger and dropdown */}
+      {isOpen && mounted && typeof document !== 'undefined' && createPortal(
+        <div
+          className="fixed pointer-events-auto"
+          style={{
+            top: `${dropdownPosition.top - 8}px`, // 8px buffer above dropdown
+            left: `${dropdownPosition.left}px`,
+            width: `${Math.max(dropdownPosition.width, 200)}px`,
+            height: '8px',
+          }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+          aria-hidden="true"
+        />,
+        document.body
+      )}
+
+      {/* Dropdown Menu - Rendered via Portal to bypass stacking contexts */}
+      {isOpen && mounted && createPortal(
+        <div
+          ref={dropdownRef}
+          className={cn(
+            'fixed bg-background border border-border rounded-lg shadow-xl',
+            'min-w-[200px] z-[60] py-2',
+            'animate-[slideDown_0.2s_ease-out]',
+            'pointer-events-auto', // Ensure dropdown can receive mouse events
+            // Add padding to create invisible buffer zone around dropdown
+            'before:absolute before:inset-[-8px] before:pointer-events-auto'
+          )}
+          style={{
+            top: `${dropdownPosition.top}px`,
+            left: `${dropdownPosition.left}px`,
+            minWidth: `${Math.max(dropdownPosition.width, 200)}px`,
+          }}
+          onMouseEnter={handleMouseEnter}
+          onMouseLeave={handleMouseLeave}
+        >
+          {items.map((item) => (
+            <Link
+              key={item.id}
+              href={item.href}
+              onClick={handleItemClick}
+              className={cn(
+                'block px-4 py-2 text-sm text-text-main hover:bg-muted hover:text-primary',
+                'transition-colors min-h-[44px] flex items-center justify-between',
+                'focus:outline-none focus:bg-muted'
+              )}
+            >
+              <span className="flex items-center gap-2 flex-1 min-w-0">
+                {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
+                <span className="truncate">{item.label}</span>
+              </span>
+              {item.badge && (
+                <span
+                  className={cn(
+                    'text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium',
+                    'whitespace-nowrap',
+                    item.badge === 'new' && 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+                    item.badge === 'hot' && 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+                    item.badge === 'sale' && 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                  )}
+                >
+                  {item.badge === 'new' && 'Mới'}
+                  {item.badge === 'hot' && 'Hot'}
+                  {item.badge === 'sale' && 'Sale'}
+                </span>
+              )}
+            </Link>
+          ))}
+        </div>,
+        document.body
+      )}
+    </div>
+  );
+}
+

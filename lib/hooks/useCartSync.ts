@@ -1,0 +1,97 @@
+'use client';
+
+import { useCartStore, type CartItem } from '@/lib/store/cartStore';
+import { validateProductDimensions } from '@/lib/utils/productValidation';
+import { useToastContext } from '@/components/providers/ToastProvider';
+
+/**
+ * Hook để quản lý cart (chỉ local - không có authentication)
+ * Guest checkout: Tất cả users đều dùng local cart
+ */
+export function useCartSync() {
+  const { items: localItems, clearCart, addItem, updateQuantity, removeItem } = useCartStore();
+  
+  // Toast context để hiển thị warnings
+  let showToast: ((message: string, type?: 'info' | 'warning' | 'error' | 'success') => void) | null = null;
+  try {
+    const toastContext = useToastContext();
+    showToast = toastContext.showToast;
+  } catch {
+    // ToastProvider chưa được wrap, sẽ dùng console.warn
+  }
+
+  /**
+   * Add item to cart (local only - guest checkout)
+   */
+  const addToCart = async (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
+    // Validate product dimensions (for shipping calculation)
+    const validation = validateProductDimensions(
+      item.length,
+      item.width,
+      item.height
+    );
+
+    if (!validation.isValid && showToast && validation.warningMessage) {
+      showToast(validation.warningMessage, 'warning');
+    }
+
+    // Add to local cart
+    // Note: addItem expects Omit<CartItem, 'quantity'> and always adds quantity: 1
+    // So we need to use updateQuantity after adding
+    const quantity = item.quantity || 1;
+    const itemWithoutQuantity: Omit<CartItem, 'quantity'> = {
+      productId: item.productId,
+      productName: item.productName,
+      price: item.price,
+      image: item.image,
+      length: item.length,
+      width: item.width,
+      height: item.height,
+      weight: item.weight,
+      volumetricWeight: item.volumetricWeight,
+      serverKey: item.serverKey,
+    };
+    
+    // Add item first (will have quantity: 1)
+    addItem(itemWithoutQuantity);
+    
+    // Then update quantity if needed
+    if (quantity > 1) {
+      updateQuantity(item.productId, quantity);
+    }
+  };
+
+  /**
+   * Update item quantity in cart
+   */
+  const updateCartItem = (productId: number, quantity: number) => {
+    if (quantity <= 0) {
+      removeFromCart(productId);
+    } else {
+      updateQuantity(productId, quantity);
+    }
+  };
+
+  /**
+   * Remove item from cart
+   */
+  const removeFromCart = (productId: number) => {
+    removeItem(productId);
+  };
+
+  /**
+   * Clear entire cart
+   */
+  const clearCartItems = () => {
+    clearCart();
+  };
+
+  return {
+    items: localItems,
+    addToCart,
+    updateCartItem,
+    removeFromCart,
+    clearCart: clearCartItems,
+    totalItems: localItems.reduce((sum, item) => sum + item.quantity, 0),
+  };
+}
