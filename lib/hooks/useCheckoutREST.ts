@@ -1,8 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useCartStore } from '@/lib/store/cartStore';
 import type { WooCommerceOrderCreateInput } from '@/types/woocommerce';
 
 export interface CheckoutFormData {
@@ -64,22 +62,17 @@ function getPaymentMethodTitle(method: string): string {
 }
 
 export function useCheckoutREST() {
-  const router = useRouter();
-  const { items, getTotalPrice, clearCart } = useCartStore();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const submitOrder = async (formData: CheckoutFormData) => {
+  const submitOrder = async (
+    formData: CheckoutFormData,
+    lineItems: Array<{ product_id: number; quantity: number }>
+  ) => {
     setIsProcessing(true);
     setError(null);
 
     try {
-      // Build line items from cart
-      const lineItems = items.map((item) => ({
-        product_id: item.productId,
-        quantity: item.quantity,
-      }));
-
       // Use shipping address if provided, otherwise use billing
       const shippingAddress = {
         first_name: formData.shippingFirstName || formData.firstName,
@@ -153,16 +146,16 @@ export function useCheckoutREST() {
 
       const orderId = order.id;
 
-      // Clear cart after successful order
-      clearCart();
-
       // Store payment method in localStorage for order confirmation
       if (formData.paymentMethod) {
         localStorage.setItem(`order_${orderId}_paymentMethod`, formData.paymentMethod);
       }
 
-      // Redirect to confirmation page
-      router.push(`/order-confirmation?orderId=${orderId}&paymentMethod=${formData.paymentMethod}&total=${getTotalPrice()}`);
+      // Return order data for component to handle redirect
+      return {
+        orderId,
+        order,
+      };
     } catch (err: any) {
       setError(err?.message || 'Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại.');
       console.error('Order creation error:', err);
@@ -175,8 +168,6 @@ export function useCheckoutREST() {
     submitOrder,
     isProcessing,
     error,
-    cartItems: items,
-    totalPrice: getTotalPrice(),
   };
 }
 

@@ -23,7 +23,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
 
   if (loading && products.length === 0) {
     return (
-      <div className="container-mobile py-8">
+      <div className="w-full">
         <ProductListSkeleton count={8} />
       </div>
     );
@@ -31,7 +31,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
 
   if (error) {
     return (
-      <div className="container-mobile py-8">
+      <div className="w-full">
         <ErrorState
           title="Không thể tải sản phẩm"
           message={error.message || 'Có lỗi xảy ra khi tải sản phẩm. Vui lòng thử lại sau.'}
@@ -46,14 +46,14 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
 
   if (products.length === 0 && !loading) {
     return (
-      <div className="container-mobile py-8">
+      <div className="w-full">
         <NoProductsFoundState />
       </div>
     );
   }
 
   return (
-    <div className="container-mobile py-8">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-6">
         {totalCount > 0 && (
           <p className="text-sm text-text-muted">
@@ -64,7 +64,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
       </div>
 
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
           {products.map((product) => {
             if (!product || !product.name) {
               return null;

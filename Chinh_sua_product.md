@@ -689,35 +689,35 @@ export default function ProductPage() {
 
   const mainImage = product.image?.sourceUrl || '/images/teddy-placeholder.png';
   const galleryImages = [product.image, ...(product.galleryImages || [])].filter(Boolean);
-
+  
   return (
     <>
       {/* SEO Schema */}
       {/* ... existing schema code ... */}
       
       <div className="container-mobile py-8 md:py-16">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          
-          {/* CỘT TRÁI - Ảnh & Chi tiết */}
-          <div className="lg:col-span-7 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* CỘT TRÁI - Ảnh & Chi tiết */}
+        <div className="lg:col-span-7 space-y-8">
             <ProductGallery 
               images={galleryImages}
               productName={product.name}
             />
-            
+          
             {/* Phần Đặc điểm nổi bật */}
-            <ProductHighlights 
-              description={product.description}
-              attributes={product.attributes}
+          <ProductHighlights 
+             description={product.description}
+             attributes={product.attributes}
               material={product.material}
               origin={product.origin}
-            />
-          </div>
+          />
+        </div>
 
-          {/* CỘT PHẢI - Thông tin mua hàng (Sticky) */}
-          <div className="lg:col-span-5">
-            <div className="sticky top-24 space-y-6">
-              {/* Component chọn Size/Màu và Nút Mua */}
+        {/* CỘT PHẢI - Thông tin mua hàng (Sticky) */}
+        <div className="lg:col-span-5">
+          <div className="sticky top-24 space-y-6">
+            {/* Component chọn Size/Màu và Nút Mua */}
               <ProductInfo 
                 product={product}
                 onAddToCart={(variationId) => {
@@ -733,25 +733,25 @@ export default function ProductPage() {
                 productId={product.databaseId}
                 productName={product.name}
               />
-              
-              {/* Voucher Placeholder */}
-              <div className="border-t border-b py-4 border-dashed border-pink-200">
-                <p className="font-bold text-sm mb-2 text-text-main">VOUCHER KHUYẾN MÃI:</p>
+            
+            {/* Voucher Placeholder */}
+            <div className="border-t border-b py-4 border-dashed border-pink-200">
+               <p className="font-bold text-sm mb-2 text-text-main">VOUCHER KHUYẾN MÃI:</p>
                 {/* VoucherSection component (optional) */}
-              </div>
+            </div>
 
               {/* Icon Chính sách */}
-              <TrustBadges />
-            </div>
+            <TrustBadges />
           </div>
         </div>
+      </div>
 
         {/* Related Products */}
         <RelatedProducts
           productId={product.databaseId || 0}
           excludeId={product.databaseId || undefined}
         />
-      </div>
+    </div>
     </>
   );
 }

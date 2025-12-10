@@ -1,8 +1,6 @@
 'use client';
 
 import { useCartStore, type CartItem } from '@/lib/store/cartStore';
-import { validateProductDimensions } from '@/lib/utils/productValidation';
-import { useToastContext } from '@/components/providers/ToastProvider';
 
 /**
  * Hook để quản lý cart (chỉ local - không có authentication)
@@ -10,31 +8,11 @@ import { useToastContext } from '@/components/providers/ToastProvider';
  */
 export function useCartSync() {
   const { items: localItems, clearCart, addItem, updateQuantity, removeItem } = useCartStore();
-  
-  // Toast context để hiển thị warnings
-  let showToast: ((message: string, type?: 'info' | 'warning' | 'error' | 'success') => void) | null = null;
-  try {
-    const toastContext = useToastContext();
-    showToast = toastContext.showToast;
-  } catch {
-    // ToastProvider chưa được wrap, sẽ dùng console.warn
-  }
 
   /**
    * Add item to cart (local only - guest checkout)
    */
   const addToCart = async (item: Omit<CartItem, 'quantity'> & { quantity?: number }) => {
-    // Validate product dimensions (for shipping calculation)
-    const validation = validateProductDimensions(
-      item.length,
-      item.width,
-      item.height
-    );
-
-    if (!validation.isValid && showToast && validation.warningMessage) {
-      showToast(validation.warningMessage, 'warning');
-    }
-
     // Add to local cart
     // Note: addItem expects Omit<CartItem, 'quantity'> and always adds quantity: 1
     // So we need to use updateQuantity after adding

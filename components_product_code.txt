@@ -10,6 +10,7 @@ import { useCartSync } from '@/lib/hooks/useCartSync';
 import { type CartItem } from '@/lib/store/cartStore';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
 
 interface AddToCartButtonProps {
   product: Omit<CartItem, 'quantity'>;
@@ -26,6 +27,8 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
     setIsAdding(true);
     try {
       await addToCart(product);
+      // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá»
+      useQuickCheckoutStore.getState().onOpen();
     } catch (error) {
       console.error('Error adding to cart:', error);
     } finally {
@@ -72,14 +75,16 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Select } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
+import { Slider } from '@/components/ui/slider';
 import { useProductFilters, type ProductFilters as ProductFiltersType } from '@/lib/hooks/useProductFilters';
 import { useCategoriesREST } from '@/lib/hooks/useCategoriesREST';
 import { X } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import { formatPrice } from '@/lib/utils/format';
 
 interface AdvancedFiltersProps {
   className?: string;
@@ -92,16 +97,29 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
     filters.category ? [filters.category] : []
   );
-  const [priceRange, setPriceRange] = useState({
-    min: filters.minPrice || 0,
-    max: filters.maxPrice || 1000000,
-  });
+  // Price range constants
+  const MIN_PRICE = 0;
+  const MAX_PRICE = 1000000;
+  
+  const [priceRange, setPriceRange] = useState<[number, number]>([
+    filters.minPrice || MIN_PRICE,
+    filters.maxPrice || MAX_PRICE,
+  ]);
+
+  // Sync priceRange vá»›i filters khi filters thay Ä‘á»•i tá»« bÃªn ngoÃ i (URL params)
+  useEffect(() => {
+    setPriceRange([
+      filters.minPrice || MIN_PRICE,
+      filters.maxPrice || MAX_PRICE,
+    ]);
+  }, [filters.minPrice, filters.maxPrice]);
 
   const hasActiveFilters = 
     filters.category || 
     filters.minPrice || 
     filters.maxPrice || 
     filters.material || 
+    filters.size ||
     filters.sortBy;
 
   const handleCategoryToggle = (categorySlug: string) => {
@@ -117,20 +135,117 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
     });
   };
 
-  const handlePriceRangeChange = (type: 'min' | 'max', value: number) => {
-    const newRange = { ...priceRange, [type]: value };
-    setPriceRange(newRange);
+  const handlePriceRangeChange = (values: number[]) => {
+    const [min, max] = values;
+    setPriceRange([min, max]);
     
     updateFilters({
-      minPrice: newRange.min > 0 ? newRange.min : undefined,
-      maxPrice: newRange.max < 1000000 ? newRange.max : undefined,
+      minPrice: min > MIN_PRICE ? min : undefined,
+      maxPrice: max < MAX_PRICE ? max : undefined,
     });
   };
 
+  // Material options
+  const materialOptions = [
+    { value: 'BÃ´ng gÃ²n 4D', label: 'BÃ´ng gÃ²n 4D' },
+    { value: 'BÃ´ng gÃ²n 3D', label: 'BÃ´ng gÃ²n 3D' },
+    { value: 'Váº£i ná»‰', label: 'Váº£i ná»‰' },
+    { value: 'Váº£i lÃ´ng', label: 'Váº£i lÃ´ng' },
+  ];
+
+  // Size options
+  const sizeOptions = [
+    { value: 'Nhá»', label: 'Nhá» (< 30cm)' },
+    { value: 'Vá»«a', label: 'Vá»«a (30-50cm)' },
+    { value: 'Lá»›n', label: 'Lá»›n (50-80cm)' },
+    { value: 'Ráº¥t lá»›n', label: 'Ráº¥t lá»›n (> 80cm)' },
+  ];
+
+  // Active filters for display as badges
+  const activeFilters = useMemo(() => {
+    const active: Array<{ key: string; label: string; value: string }> = [];
+    
+    if (filters.category) {
+      const category = categories.find(c => 
+        c.slug === filters.category || c.databaseId?.toString() === filters.category
+      );
+      if (category) {
+        active.push({ key: 'category', label: 'Danh má»¥c', value: category.name });
+      }
+    }
+    
+    if (filters.minPrice) {
+      active.push({ 
+        key: 'minPrice', 
+        label: 'GiÃ¡ tá»«', 
+        value: formatPrice(filters.minPrice) 
+      });
+    }
+    
+    if (filters.maxPrice && filters.maxPrice < MAX_PRICE) {
+      active.push({ 
+        key: 'maxPrice', 
+        label: 'GiÃ¡ Ä‘áº¿n', 
+        value: formatPrice(filters.maxPrice) 
+      });
+    }
+    
+    if (filters.material) {
+      active.push({ key: 'material', label: 'Cháº¥t liá»‡u', value: filters.material });
+    }
+    
+    if (filters.size) {
+      active.push({ key: 'size', label: 'KÃ­ch thÆ°á»›c', value: filters.size });
+    }
+    
+    if (filters.sortBy) {
+      const sortLabels: Record<string, string> = {
+        price_asc: 'GiÃ¡: Tháº¥p Ä‘áº¿n cao',
+        price_desc: 'GiÃ¡: Cao Ä‘áº¿n tháº¥p',
+        name_asc: 'TÃªn: A-Z',
+        name_desc: 'TÃªn: Z-A',
+        newest: 'Má»›i nháº¥t',
+      };
+      active.push({ 
+        key: 'sortBy', 
+        label: 'Sáº¯p xáº¿p', 
+        value: sortLabels[filters.sortBy] || filters.sortBy 
+      });
+    }
+    
+    return active;
+  }, [filters, categories]);
+
   const handleClearAll = () => {
     setSelectedCategories([]);
-    setPriceRange({ min: 0, max: 1000000 });
+    setPriceRange([MIN_PRICE, MAX_PRICE]);
     clearFilters();
+  };
+
+  const handleRemoveFilter = (key: string) => {
+    switch (key) {
+      case 'category':
+        setSelectedCategories([]);
+        updateFilters({ category: undefined });
+        break;
+      case 'minPrice':
+        updateFilters({ minPrice: undefined });
+        setPriceRange([MIN_PRICE, priceRange[1]]);
+        break;
+      case 'maxPrice':
+        updateFilters({ maxPrice: undefined });
+        setPriceRange([priceRange[0], MAX_PRICE]);
+        break;
+      case 'material':
+        updateFilters({ material: undefined });
+        break;
+      case 'size':
+        updateFilters({ size: undefined });
+        break;
+      case 'sortBy':
+        updateFilters({ sortBy: undefined });
+        break;
+    }
   };
 
   return (
@@ -176,6 +291,35 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
           </div>
 
           <div className="space-y-6">
+            {/* Active Filters - Badges */}
+            {activeFilters.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-text-main mb-2">
+                  Bá»™ lá»c Ä‘ang Ã¡p dá»¥ng
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {activeFilters.map((filter) => (
+                    <div
+                      key={filter.key}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 border border-pink-200 rounded-full text-sm"
+                    >
+                      <span className="text-text-main">
+                        <span className="font-medium">{filter.label}:</span>{' '}
+                        {filter.value}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveFilter(filter.key)}
+                        className="ml-1 hover:bg-pink-100 rounded-full p-0.5 transition-colors"
+                        aria-label={`XÃ³a bá»™ lá»c ${filter.label}`}
+                      >
+                        <X className="w-3.5 h-3.5 text-text-muted hover:text-destructive" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Multiple Categories Filter */}
             <div>
               <label className="block text-sm font-medium text-text-main mb-3">
@@ -224,81 +368,91 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
               <label className="block text-sm font-medium text-text-main mb-3">
                 Khoáº£ng giÃ¡
               </label>
-              <div className="space-y-3">
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    placeholder="Tá»«"
-                    value={priceRange.min > 0 ? priceRange.min : ''}
-                    onChange={(e) =>
-                      handlePriceRangeChange('min', Number(e.target.value) || 0)
-                    }
-                    className="flex-1"
-                    min="0"
-                  />
-                  <Input
-                    type="number"
-                    placeholder="Äáº¿n"
-                    value={priceRange.max < 1000000 ? priceRange.max : ''}
-                    onChange={(e) =>
-                      handlePriceRangeChange(
-                        'max',
-                        Number(e.target.value) || 1000000
-                      )
-                    }
-                    className="flex-1"
-                    min="0"
-                  />
-                </div>
-                {/* Simple Range Display */}
-                <div className="text-xs text-text-muted">
-                  {priceRange.min > 0 && priceRange.max < 1000000
-                    ? `${priceRange.min.toLocaleString('vi-VN')}Ä‘ - ${priceRange.max.toLocaleString('vi-VN')}Ä‘`
-                    : priceRange.min > 0
-                    ? `Tá»« ${priceRange.min.toLocaleString('vi-VN')}Ä‘`
-                    : priceRange.max < 1000000
-                    ? `Äáº¿n ${priceRange.max.toLocaleString('vi-VN')}Ä‘`
-                    : 'Táº¥t cáº£ má»©c giÃ¡'}
+              <div className="space-y-4">
+                <Slider
+                  value={priceRange}
+                  onValueChange={handlePriceRangeChange}
+                  min={MIN_PRICE}
+                  max={MAX_PRICE}
+                  step={10000}
+                  className="w-full"
+                />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-muted">
+                    {formatPrice(priceRange[0])}
+                  </span>
+                  <span className="font-medium text-primary px-3 py-1 bg-pink-50 rounded-full">
+                    {priceRange[0] > MIN_PRICE || priceRange[1] < MAX_PRICE
+                      ? `${formatPrice(priceRange[0])} - ${formatPrice(priceRange[1])}`
+                      : 'Táº¥t cáº£ má»©c giÃ¡'}
+                  </span>
+                  <span className="text-text-muted">
+                    {formatPrice(priceRange[1])}
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* Material Filter */}
+            {/* Material Filter - Button Chips */}
             <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
+              <label className="block text-sm font-medium text-text-main mb-3">
                 Cháº¥t liá»‡u
               </label>
-              <Select
-                value={filters.material || ''}
-                onChange={(e) =>
-                  updateFilters({ material: e.target.value || undefined })
-                }
-              >
-                <option value="">Táº¥t cáº£</option>
-                <option value="BÃ´ng gÃ²n 4D">BÃ´ng gÃ²n 4D</option>
-                <option value="BÃ´ng gÃ²n 3D">BÃ´ng gÃ²n 3D</option>
-                <option value="Váº£i ná»‰">Váº£i ná»‰</option>
-                <option value="Váº£i lÃ´ng">Váº£i lÃ´ng</option>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                {materialOptions.map((option) => {
+                  const isSelected = filters.material === option.value;
+                  return (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        updateFilters({
+                          material: isSelected ? undefined : option.value,
+                        })
+                      }
+                      className={cn(
+                        'min-h-[44px]',
+                        isSelected && 'bg-primary text-primary-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
 
-            {/* Size Filter (if available) */}
+            {/* Size Filter - Button Chips */}
             <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
+              <label className="block text-sm font-medium text-text-main mb-3">
                 KÃ­ch thÆ°á»›c
               </label>
-              <Select
-                value={filters.size || ''}
-                onChange={(e) =>
-                  updateFilters({ size: e.target.value || undefined })
-                }
-              >
-                <option value="">Táº¥t cáº£</option>
-                <option value="Nhá»">Nhá» (&lt; 30cm)</option>
-                <option value="Vá»«a">Vá»«a (30-50cm)</option>
-                <option value="Lá»›n">Lá»›n (50-80cm)</option>
-                <option value="Ráº¥t lá»›n">Ráº¥t lá»›n (&gt; 80cm)</option>
-              </Select>
+              <div className="flex flex-wrap gap-2">
+                {sizeOptions.map((option) => {
+                  const isSelected = filters.size === option.value;
+                  return (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        updateFilters({
+                          size: isSelected ? undefined : option.value,
+                        })
+                      }
+                      className={cn(
+                        'min-h-[44px]',
+                        isSelected && 'bg-primary text-primary-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </Button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Sort */}
@@ -324,6 +478,132 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
             </div>
           </div>
         </Card>
+      </div>
+    </div>
+  );
+}
+
+
+
+
+--- FILE: components\product\FilterForm.tsx ---
+
+
+'use client';
+
+import { Select } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { useProductFilters, type ProductFilters as ProductFiltersType } from '@/lib/hooks/useProductFilters';
+import { useCategoriesREST } from '@/lib/hooks/useCategoriesREST';
+
+interface FilterFormProps {
+  className?: string;
+}
+
+/**
+ * FilterForm - Sub-component chá»©a form lá»c sáº£n pháº©m
+ * TÃ¡i sá»­ dá»¥ng cho cáº£ Mobile (trong Sheet) vÃ  Desktop (trong Sidebar)
+ */
+export function FilterForm({ className }: FilterFormProps) {
+  const { filters, updateFilters } = useProductFilters();
+  const { categories, loading: categoriesLoading } = useCategoriesREST();
+
+  return (
+    <div className={`space-y-4 ${className || ''}`}>
+      {/* Category Filter */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Danh má»¥c
+        </label>
+        <Select
+          value={filters.category || ''}
+          onChange={(e) =>
+            updateFilters({ category: e.target.value || undefined })
+          }
+        >
+          <option value="">Táº¥t cáº£ danh má»¥c</option>
+          {categoriesLoading ? (
+            <option disabled>Äang táº£i...</option>
+          ) : (
+            categories.map((category) => (
+              <option key={category.id} value={category.slug || category.databaseId?.toString()}>
+                {category.name} ({category.count || 0})
+              </option>
+            ))
+          )}
+        </Select>
+      </div>
+
+      {/* Price Range */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Khoáº£ng giÃ¡
+        </label>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            placeholder="Tá»«"
+            value={filters.minPrice || ''}
+            onChange={(e) =>
+              updateFilters({
+                minPrice: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            className="flex-1"
+          />
+          <Input
+            type="number"
+            placeholder="Äáº¿n"
+            value={filters.maxPrice || ''}
+            onChange={(e) =>
+              updateFilters({
+                maxPrice: e.target.value ? Number(e.target.value) : undefined,
+              })
+            }
+            className="flex-1"
+          />
+        </div>
+      </div>
+
+      {/* Material Filter */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Cháº¥t liá»‡u
+        </label>
+        <Select
+          value={filters.material || ''}
+          onChange={(e) =>
+            updateFilters({ material: e.target.value || undefined })
+          }
+        >
+          <option value="">Táº¥t cáº£</option>
+          <option value="BÃ´ng gÃ²n 4D">BÃ´ng gÃ²n 4D</option>
+          <option value="BÃ´ng gÃ²n 3D">BÃ´ng gÃ²n 3D</option>
+          <option value="Váº£i ná»‰">Váº£i ná»‰</option>
+          <option value="Váº£i lÃ´ng">Váº£i lÃ´ng</option>
+        </Select>
+      </div>
+
+      {/* Sort */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Sáº¯p xáº¿p
+        </label>
+        <Select
+          value={filters.sortBy || ''}
+          onChange={(e) =>
+            updateFilters({
+              sortBy: (e.target.value as ProductFiltersType['sortBy']) || undefined,
+            })
+          }
+        >
+          <option value="">Máº·c Ä‘á»‹nh</option>
+          <option value="price_asc">GiÃ¡: Tháº¥p Ä‘áº¿n cao</option>
+          <option value="price_desc">GiÃ¡: Cao Ä‘áº¿n tháº¥p</option>
+          <option value="name_asc">TÃªn: A-Z</option>
+          <option value="name_desc">TÃªn: Z-A</option>
+          <option value="newest">Má»›i nháº¥t</option>
+        </Select>
       </div>
     </div>
   );
@@ -410,6 +690,7 @@ import type { MappedProduct } from '@/lib/utils/productMapper';
 import { ShoppingCart, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getColorHex } from '@/lib/utils/colorMapping';
+import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
 
 interface ProductCardProps {
   product: MappedProduct;
@@ -501,19 +782,14 @@ export function ProductCard({ product }: ProductCardProps) {
     return product.onSale;
   }, [selectedVariation, product]);
   
-  // Early return sau khi Ä‘Ã£ gá»i táº¥t cáº£ hooks
-  if (!product || !product.name) return null;
-  
-  const isOutOfStock = product.stockStatus === 'outofstock';
-
-  // Extract Size and Color attributes from product
+  // Extract Size and Color attributes from product (trÆ°á»›c early return Ä‘á»ƒ dÃ¹ng trong useMemo)
   // Fallback to mock data if attributes not available
-  const sizeAttribute = product.attributes?.find(
+  const sizeAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('size') || 
                attr.name.toLowerCase().includes('kÃ­ch thÆ°á»›c') ||
                attr.name.toLowerCase().includes('kich thuoc')
   );
-  const colorAttribute = product.attributes?.find(
+  const colorAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('color') || 
                attr.name.toLowerCase().includes('mÃ u') ||
                attr.name.toLowerCase().includes('mau')
@@ -527,6 +803,53 @@ export function ProductCard({ product }: ProductCardProps) {
   const displaySizes = availableSizes.slice(0, 4);
   const displayColors = availableColors.slice(0, 4);
   const remainingColors = availableColors.length - displayColors.length;
+
+  // Build product URL vá»›i query params cho selected attributes
+  // Format: /products/slug?attribute_pa_size=60cm&attribute_pa_color=do
+  const productUrl = useMemo(() => {
+    if (!product) return '';
+    
+    const baseUrl = `/products/${product.slug || product.databaseId}`;
+    const params = new URLSearchParams();
+    
+    // Helper function Ä‘á»ƒ táº¡o slug tá»« attribute name
+    const createAttributeSlug = (name: string): string => {
+      return name.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/Ä‘/g, 'd')
+        .replace(/Ä/g, 'D')
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+    };
+    
+    // ThÃªm size attribute náº¿u cÃ³
+    if (selectedSize && sizeAttribute) {
+      // WooCommerce format: attribute_pa_{slug}
+      // VÃ­ dá»¥: attribute_pa_size hoáº·c attribute_pa_kich-thuoc
+      const sizeAttrSlug = createAttributeSlug(sizeAttribute.name);
+      const attrKey = `attribute_pa_${sizeAttrSlug}`;
+      // Encode giÃ¡ trá»‹ size (cÃ³ thá»ƒ chá»©a kÃ½ tá»± Ä‘áº·c biá»‡t)
+      params.append(attrKey, selectedSize);
+    }
+    
+    // ThÃªm color attribute náº¿u cÃ³
+    if (selectedColor && colorAttribute) {
+      const colorAttrSlug = createAttributeSlug(colorAttribute.name);
+      const attrKey = `attribute_pa_${colorAttrSlug}`;
+      // Normalize tÃªn mÃ u thÃ nh slug (vÃ­ dá»¥: "Äá»" -> "do", "Há»“ng" -> "hong")
+      const colorValue = createAttributeSlug(selectedColor);
+      params.append(attrKey, colorValue);
+    }
+    
+    const queryString = params.toString();
+    return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+  }, [product, selectedSize, selectedColor, sizeAttribute, colorAttribute]);
+  
+  // Early return sau khi Ä‘Ã£ gá»i táº¥t cáº£ hooks
+  if (!product || !product.name) return null;
+  
+  const isOutOfStock = product.stockStatus === 'outofstock';
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -546,7 +869,20 @@ export function ProductCard({ product }: ProductCardProps) {
       image: product.image?.sourceUrl,
       quantity: 1,
       variationId: selectedVariation?.id,
+      length: product.length || undefined,
+      width: product.width || undefined,
+      height: product.height || undefined,
+      weight: product.weight ? parseFloat(product.weight) : undefined,
+      volumetricWeight: product.volumetricWeight || undefined,
     });
+
+    // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá»
+    try {
+      useQuickCheckoutStore.getState().onOpen();
+      console.log('[ProductCard] QuickCheckoutModal opened');
+    } catch (error) {
+      console.error('[ProductCard] Error opening QuickCheckoutModal:', error);
+    }
   };
 
   return (
@@ -556,7 +892,7 @@ export function ProductCard({ product }: ProductCardProps) {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* 1. Product Image Area */}
-      <Link href={`/products/${product.slug || product.databaseId}`} className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50">
+      <Link href={productUrl} className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50">
         <Image
           src={imageUrl}
           alt={product.image?.altText || product.name}
@@ -594,7 +930,7 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* 2. Content Area */}
       <div className="flex flex-col gap-1">
         {/* TÃªn sáº£n pháº©m */}
-        <Link href={`/products/${product.slug}`}>
+        <Link href={productUrl}>
           <h3 className="font-heading text-sm md:text-base font-bold text-gray-700 line-clamp-2 min-h-[2.5rem] group-hover:text-pink-600 transition-colors">
             {product.name}
           </h3>
@@ -663,11 +999,11 @@ export function ProductCard({ product }: ProductCardProps) {
                 <button
                   key={idx}
                   className={cn(
-                    "relative w-6 h-6 rounded-full border shadow-sm hover:scale-110 transition-transform",
-                    // Náº¿u lÃ  mÃ u tráº¯ng hoáº·c kem thÃ¬ thÃªm viá»n Ä‘áº­m hÆ¡n Ä‘á»ƒ dá»… nhÃ¬n
+                    "relative w-6 h-6 rounded-full border-2 shadow-sm hover:scale-110 transition-transform",
+                    // ThÃªm viá»n xÃ¡m cho táº¥t cáº£ mÃ u Ä‘á»ƒ dá»… nhÃ¬n hÆ¡n
                     ['#FFFFFF', '#FDFBF7', 'trang', 'kem'].includes(lookupKey) || lookupKey === 'tráº¯ng' || lookupKey === 'kem'
-                      ? "border-gray-300" 
-                      : "border-transparent"
+                      ? "border-gray-400" 
+                      : "border-gray-300"
                   )}
                   style={{ backgroundColor: bgColor }}
                   title={`MÃ u: ${colorName}`}
@@ -811,167 +1147,402 @@ export function ProductDescription({
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Select } from '@/components/ui/select';
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetFooter,
+} from '@/components/ui/sheet';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Input } from '@/components/ui/input';
-import { useProductFilters, type ProductFilters as ProductFiltersType } from '@/lib/hooks/useProductFilters';
-import { useCategoriesREST } from '@/lib/hooks/useCategoriesREST';
+import { useProductFilters } from '@/lib/hooks/useProductFilters';
+import { FilterForm } from './FilterForm';
+import {
+  Filter,
+  ChevronDown,
+  Sparkles,
+  ArrowDownWideNarrow,
+  ArrowUpNarrowWide,
+  Crown,
+  Percent,
+  DollarSign,
+  Ruler,
+  Palette,
+  X,
+} from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import { formatPrice } from '@/lib/utils/format';
 
 export function ProductFilters() {
   const { filters, updateFilters, clearFilters } = useProductFilters();
-  const { categories, loading: categoriesLoading } = useCategoriesREST();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
+  const [pricePopoverOpen, setPricePopoverOpen] = useState(false);
+  const [sizePopoverOpen, setSizePopoverOpen] = useState(false);
+  const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
 
   const hasActiveFilters = 
     filters.category || 
     filters.minPrice || 
     filters.maxPrice || 
-    filters.material || 
+    filters.material ||
+    filters.size ||
+    filters.color ||
     filters.sortBy;
 
+  // Äáº¿m sá»‘ lÆ°á»£ng filter Ä‘ang active
+  const activeFiltersCount = [
+    filters.category,
+    filters.minPrice,
+    filters.maxPrice,
+    filters.material,
+    filters.size,
+    filters.color,
+    filters.sortBy,
+  ].filter(Boolean).length;
+
+  // Sort options
+  const sortOptions = [
+    { value: 'newest', label: 'Má»›i nháº¥t', icon: Sparkles },
+    { value: 'price_desc', label: 'GiÃ¡ cao - tháº¥p', icon: ArrowDownWideNarrow },
+    { value: 'price_asc', label: 'GiÃ¡ tháº¥p - cao', icon: ArrowUpNarrowWide },
+    { value: 'hot', label: 'Khuyáº¿n mÃ£i hot', icon: Percent },
+    { value: 'bestseller', label: 'BÃ¡n cháº¡y nháº¥t', icon: Crown },
+  ];
+
+  // Size options
+  const sizeOptions = [
+    { value: 'Nhá»', label: 'Nhá» (< 30cm)' },
+    { value: 'Vá»«a', label: 'Vá»«a (30-50cm)' },
+    { value: 'Lá»›n', label: 'Lá»›n (50-80cm)' },
+    { value: 'Ráº¥t lá»›n', label: 'Ráº¥t lá»›n (> 80cm)' },
+  ];
+
+  // Color options (cÃ³ thá»ƒ má»Ÿ rá»™ng sau)
+  const colorOptions = [
+    { value: 'Äá»', label: 'Äá»' },
+    { value: 'Há»“ng', label: 'Há»“ng' },
+    { value: 'Xanh', label: 'Xanh' },
+    { value: 'Tráº¯ng', label: 'Tráº¯ng' },
+    { value: 'VÃ ng', label: 'VÃ ng' },
+  ];
+
+  const handlePriceApply = () => {
+    setPricePopoverOpen(false);
+  };
+
+  const handleSizeSelect = (size: string) => {
+    updateFilters({
+      size: filters.size === size ? undefined : size,
+    });
+  };
+
+  const handleColorSelect = (color: string) => {
+    updateFilters({
+      color: filters.color === color ? undefined : color,
+    });
+  };
+
   return (
-    <div className="w-full">
-      {/* Mobile: Collapsible Filter Button */}
-      <div className="md:hidden mb-4">
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => setIsOpen(!isOpen)}
-        >
-          {isOpen ? 'ÄÃ³ng bá»™ lá»c' : 'Bá»™ lá»c sáº£n pháº©m'}
-          {hasActiveFilters && (
-            <span className="ml-2 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs">
-              !
-            </span>
-          )}
-        </Button>
-      </div>
-
-      {/* Filter Panel */}
-      <div
-        className={`${
-          isOpen ? 'block' : 'hidden'
-        } md:block space-y-4`}
-      >
-        <Card className="p-4 md:p-6">
-          <h3 className="font-heading text-lg font-semibold mb-4">
-            Bá»™ lá»c
-          </h3>
-
-          <div className="space-y-4">
-            {/* Category Filter */}
-            <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
-                Danh má»¥c
-              </label>
-              <Select
-                value={filters.category || ''}
-                onChange={(e) =>
-                  updateFilters({ category: e.target.value || undefined })
-                }
-              >
-                <option value="">Táº¥t cáº£ danh má»¥c</option>
-                {categoriesLoading ? (
-                  <option disabled>Äang táº£i...</option>
-                ) : (
-                  categories.map((category) => (
-                    <option key={category.id} value={category.slug || category.databaseId?.toString()}>
-                      {category.name} ({category.count || 0})
-                    </option>
-                  ))
-                )}
-              </Select>
-            </div>
-
-            {/* Price Range */}
-            <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
-                Khoáº£ng giÃ¡
-              </label>
-              <div className="flex gap-2">
-                <Input
-                  type="number"
-                  placeholder="Tá»«"
-                  value={filters.minPrice || ''}
-                  onChange={(e) =>
-                    updateFilters({
-                      minPrice: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  className="flex-1"
-                />
-                <Input
-                  type="number"
-                  placeholder="Äáº¿n"
-                  value={filters.maxPrice || ''}
-                  onChange={(e) =>
-                    updateFilters({
-                      maxPrice: e.target.value ? Number(e.target.value) : undefined,
-                    })
-                  }
-                  className="flex-1"
-                />
-              </div>
-            </div>
-
-            {/* Material Filter */}
-            <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
-                Cháº¥t liá»‡u
-              </label>
-              <Select
-                value={filters.material || ''}
-                onChange={(e) =>
-                  updateFilters({ material: e.target.value || undefined })
-                }
-              >
-                <option value="">Táº¥t cáº£</option>
-                <option value="BÃ´ng gÃ²n 4D">BÃ´ng gÃ²n 4D</option>
-                <option value="BÃ´ng gÃ²n 3D">BÃ´ng gÃ²n 3D</option>
-                <option value="Váº£i ná»‰">Váº£i ná»‰</option>
-                <option value="Váº£i lÃ´ng">Váº£i lÃ´ng</option>
-              </Select>
-            </div>
-
-            {/* Sort */}
-            <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
-                Sáº¯p xáº¿p
-              </label>
-              <Select
-                value={filters.sortBy || ''}
-                onChange={(e) =>
-                  updateFilters({
-                    sortBy: (e.target.value as typeof filters.sortBy) || undefined,
-                  })
-                }
-              >
-                <option value="">Máº·c Ä‘á»‹nh</option>
-                <option value="price_asc">GiÃ¡: Tháº¥p Ä‘áº¿n cao</option>
-                <option value="price_desc">GiÃ¡: Cao Ä‘áº¿n tháº¥p</option>
-                <option value="name_asc">TÃªn: A-Z</option>
-                <option value="name_desc">TÃªn: Z-A</option>
-                <option value="newest">Má»›i nháº¥t</option>
-              </Select>
-            </div>
-
-            {/* Clear Filters */}
-            {hasActiveFilters && (
+    <div className="w-full space-y-4">
+      {/* DÃ²ng 1: Chá»n theo tiÃªu chÃ­ (Filter Group) */}
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold text-text-main">Chá»n theo tiÃªu chÃ­</h4>
+        <div className="flex flex-wrap gap-2">
+          {/* NÃºt Bá»™ lá»c - Má»Ÿ Sheet */}
+          <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+            <SheetTrigger asChild>
               <Button
                 variant="outline"
-                className="w-full"
-                onClick={clearFilters}
+                className="rounded-sm gap-2 h-9"
               >
-                XÃ³a bá»™ lá»c
+                <Filter className="w-4 h-4" />
+                <span>Bá»™ lá»c</span>
+                {hasActiveFilters && (
+                  <span className="ml-1 bg-primary text-primary-foreground rounded-full min-w-[18px] h-4.5 px-1 flex items-center justify-center text-[10px] font-semibold">
+                    {activeFiltersCount}
+                  </span>
+                )}
               </Button>
-            )}
-          </div>
-        </Card>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[85vw] sm:max-w-sm overflow-y-auto">
+              <SheetHeader>
+                <SheetTitle className="text-left font-heading">
+                  Bá»™ lá»c sáº£n pháº©m
+                </SheetTitle>
+              </SheetHeader>
+
+              <div className="mt-6">
+                <FilterForm />
+              </div>
+
+              <SheetFooter className="flex-col gap-2 sm:flex-row mt-8 pb-4 border-t pt-4">
+                {hasActiveFilters && (
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => {
+                      clearFilters();
+                      setIsSheetOpen(false);
+                    }}
+                  >
+                    <X className="w-4 h-4 mr-2" />
+                    XÃ³a bá»™ lá»c
+                  </Button>
+                )}
+                <Button
+                  className="w-full sm:w-auto"
+                  onClick={() => setIsSheetOpen(false)}
+                >
+                  Ãp dá»¥ng
+                </Button>
+              </SheetFooter>
+            </SheetContent>
+          </Sheet>
+
+          {/* NÃºt GiÃ¡ bÃ¡n - Popover */}
+          <Popover open={pricePopoverOpen} onOpenChange={setPricePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "rounded-sm gap-2 h-9",
+                  (filters.minPrice || filters.maxPrice) && "border-primary text-primary bg-pink-50"
+                )}
+              >
+                <DollarSign className="w-4 h-4" />
+                <span>GiÃ¡ bÃ¡n</span>
+                {(filters.minPrice || filters.maxPrice) && (
+                  <span className="text-xs">â€¢</span>
+                )}
+                <ChevronDown className="w-3.5 h-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="start">
+              <div className="space-y-3">
+                <h5 className="font-semibold text-sm text-text-main">Khoáº£ng giÃ¡</h5>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    placeholder="Tá»«"
+                    value={filters.minPrice || ''}
+                    onChange={(e) =>
+                      updateFilters({
+                        minPrice: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="flex-1"
+                  />
+                  <Input
+                    type="number"
+                    placeholder="Äáº¿n"
+                    value={filters.maxPrice || ''}
+                    onChange={(e) =>
+                      updateFilters({
+                        maxPrice: e.target.value ? Number(e.target.value) : undefined,
+                      })
+                    }
+                    className="flex-1"
+                  />
+                </div>
+                {(filters.minPrice || filters.maxPrice) && (
+                  <div className="text-xs text-text-muted">
+                    {filters.minPrice && filters.maxPrice
+                      ? `${formatPrice(filters.minPrice)} - ${formatPrice(filters.maxPrice)}`
+                      : filters.minPrice
+                      ? `Tá»« ${formatPrice(filters.minPrice)}`
+                      : `Äáº¿n ${formatPrice(filters.maxPrice)}`}
+                  </div>
+                )}
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => {
+                      updateFilters({ minPrice: undefined, maxPrice: undefined });
+                    }}
+                  >
+                    XÃ³a
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    onClick={handlePriceApply}
+                  >
+                    Ãp dá»¥ng
+                  </Button>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* NÃºt KÃ­ch thÆ°á»›c - Popover */}
+          <Popover open={sizePopoverOpen} onOpenChange={setSizePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "rounded-sm gap-2 h-9",
+                  filters.size && "border-primary text-primary bg-pink-50"
+                )}
+              >
+                <Ruler className="w-4 h-4" />
+                <span>KÃ­ch thÆ°á»›c</span>
+                {filters.size && (
+                  <span className="text-xs">â€¢</span>
+                )}
+                <ChevronDown className="w-3.5 h-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="start">
+              <div className="space-y-3">
+                <h5 className="font-semibold text-sm text-text-main">Chá»n kÃ­ch thÆ°á»›c</h5>
+                <div className="space-y-2">
+                  {sizeOptions.map((option) => {
+                    const isSelected = filters.size === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => handleSizeSelect(option.value)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-sm border transition-colors",
+                          isSelected
+                            ? "border-primary bg-pink-50 text-primary font-medium"
+                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {filters.size && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      updateFilters({ size: undefined });
+                    }}
+                  >
+                    XÃ³a lá»c
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+
+          {/* NÃºt MÃ u sáº¯c - Popover */}
+          <Popover open={colorPopoverOpen} onOpenChange={setColorPopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                className={cn(
+                  "rounded-sm gap-2 h-9",
+                  filters.color && "border-primary text-primary bg-pink-50"
+                )}
+              >
+                <Palette className="w-4 h-4" />
+                <span>MÃ u sáº¯c</span>
+                {filters.color && (
+                  <span className="text-xs">â€¢</span>
+                )}
+                <ChevronDown className="w-3.5 h-3.5" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-64" align="start">
+              <div className="space-y-3">
+                <h5 className="font-semibold text-sm text-text-main">Chá»n mÃ u sáº¯c</h5>
+                <div className="space-y-2">
+                  {colorOptions.map((option) => {
+                    const isSelected = filters.color === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        onClick={() => handleColorSelect(option.value)}
+                        className={cn(
+                          "w-full text-left px-3 py-2 rounded-sm border transition-colors",
+                          isSelected
+                            ? "border-primary bg-pink-50 text-primary font-medium"
+                            : "border-border hover:border-primary/50 hover:bg-muted/50"
+                        )}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {filters.color && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => {
+                      updateFilters({ color: undefined });
+                    }}
+                  >
+                    XÃ³a lá»c
+                  </Button>
+                )}
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+      </div>
+
+      {/* DÃ²ng 2: Sáº¯p xáº¿p theo (Sort Group) */}
+      <div className="space-y-2">
+        <h4 className="text-sm font-semibold text-text-main">Sáº¯p xáº¿p theo</h4>
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-2 -mx-1 px-1">
+          {sortOptions.map((option) => {
+            const Icon = option.icon;
+            const isSelected = filters.sortBy === option.value || 
+              (!filters.sortBy && option.value === 'newest'); // Máº·c Ä‘á»‹nh "Má»›i nháº¥t"
+            const actualSelected = filters.sortBy === option.value;
+            
+            return (
+              <button
+                key={option.value}
+                onClick={() => {
+                  // Náº¿u click vÃ o option Ä‘Ã£ chá»n, bá» chá»n (vá» máº·c Ä‘á»‹nh)
+                  if (actualSelected) {
+                    updateFilters({ sortBy: undefined });
+                  } else {
+                    // Map giÃ¡ trá»‹ custom sang giÃ¡ trá»‹ trong hook
+                    let sortValue: 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'newest' | undefined;
+                    if (option.value === 'hot' || option.value === 'bestseller') {
+                      // Táº¡m thá»i dÃ¹ng newest cho hot vÃ  bestseller (cÃ³ thá»ƒ má»Ÿ rá»™ng sau)
+                      sortValue = 'newest';
+                    } else {
+                      sortValue = option.value as typeof sortValue;
+                    }
+                    updateFilters({ sortBy: sortValue });
+                  }
+                }}
+                className={cn(
+                  "flex items-center gap-1.5 px-3 py-1.5 rounded-sm border whitespace-nowrap transition-all",
+                  "min-h-[36px] touch-manipulation",
+                  isSelected
+                    ? "border-primary bg-pink-50 text-primary font-medium"
+                    : "border-border bg-muted/50 text-text-muted hover:border-primary/50 hover:text-text-main"
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                <span className="text-sm">{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
 }
-
 
 
 
@@ -1069,14 +1640,15 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
 
       {/* Thumbnails */}
       {thumbnails.length > 1 && (
-        <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+        <div className="flex md:grid md:grid-cols-5 gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory md:overflow-x-visible md:snap-none">
           {thumbnails.map((img, index) => (
             <button
               key={index}
               onClick={() => setSelectedImageIndex(index)}
               className={cn(
-                "relative aspect-square overflow-hidden rounded-xl transition-all",
+                "relative aspect-square overflow-hidden rounded-xl transition-all flex-shrink-0 snap-center",
                 "border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                "w-20 h-20 md:w-auto md:h-auto", // Fixed size on mobile for consistent scrolling
                 selectedImageIndex === index
                   ? "border-primary scale-105"
                   : "border-transparent hover:border-pink-300"
@@ -1089,7 +1661,7 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
                 alt={img.altText || `HÃ¬nh ${index + 1}`}
                 fill
                 className="object-cover"
-                sizes="(max-width: 768px) 25vw, 12.5vw"
+                sizes="(max-width: 768px) 80px, 12.5vw"
               />
             </button>
           ))}
@@ -1233,7 +1805,8 @@ export function ProductHighlights({
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils/format';
 import { useCartSync } from '@/lib/hooks/useCartSync';
@@ -1242,7 +1815,8 @@ import { QuantitySelector } from '@/components/product/QuantitySelector';
 import { getColorHex } from '@/lib/utils/colorMapping';
 import { cn } from '@/lib/utils/cn';
 import type { MappedProduct } from '@/lib/utils/productMapper';
-import { Gift, ShoppingCart, Check, Loader2 } from 'lucide-react';
+import { Gift, ShoppingCart, Check, Loader2, Zap } from 'lucide-react';
+import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
 
 interface ProductInfoProps {
   product: MappedProduct;
@@ -1252,11 +1826,12 @@ interface ProductInfoProps {
 
 export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoProps) {
   const { addToCart } = useCartSync();
+  const searchParams = useSearchParams();
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [isAdding, setIsAdding] = useState(false);
-  const [addingType, setAddingType] = useState<'gift' | 'buy' | null>(null);
+  const [addingType, setAddingType] = useState<'gift' | 'buy' | 'quick' | null>(null);
 
   // Fetch variations if product is variable type
   // Always call useProductVariations with consistent signature to avoid hooks violation
@@ -1315,17 +1890,13 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
     return product.onSale;
   }, [selectedVariation, product]);
 
-  if (!product || !product.name) return null;
-
-  const isOutOfStock = product.stockStatus === 'outofstock';
-
-  // Extract Size and Color attributes
-  const sizeAttribute = product.attributes?.find(
+  // Extract Size and Color attributes (trÆ°á»›c early return Ä‘á»ƒ dÃ¹ng trong useEffect)
+  const sizeAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('size') || 
                attr.name.toLowerCase().includes('kÃ­ch thÆ°á»›c') ||
                attr.name.toLowerCase().includes('kich thuoc')
   );
-  const colorAttribute = product.attributes?.find(
+  const colorAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('color') || 
                attr.name.toLowerCase().includes('mÃ u') ||
                attr.name.toLowerCase().includes('mau')
@@ -1337,20 +1908,69 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   const displaySizes = availableSizes.slice(0, 4);
   const displayColors = availableColors.slice(0, 4);
 
-  const handleAddToCartClick = async (isGift: boolean = false) => {
+  // Äá»c query params tá»« URL vÃ  tá»± Ä‘á»™ng chá»n size/color
+  useEffect(() => {
+    if (!product || !product.attributes) return;
+
+    // Helper function Ä‘á»ƒ táº¡o slug tá»« attribute name (giá»‘ng logic trong ProductCard)
+    const createAttributeSlug = (name: string): string => {
+      return name.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/Ä‘/g, 'd')
+        .replace(/Ä/g, 'D')
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+    };
+
+    // TÃ¬m size attribute vÃ  Ä‘á»c tá»« URL
+    if (sizeAttribute) {
+      const sizeAttrSlug = createAttributeSlug(sizeAttribute.name);
+      const attrKey = `attribute_pa_${sizeAttrSlug}`;
+      const sizeFromUrl = searchParams.get(attrKey);
+      
+      if (sizeFromUrl && availableSizes.includes(sizeFromUrl)) {
+        setSelectedSize(sizeFromUrl);
+      }
+    }
+
+    // TÃ¬m color attribute vÃ  Ä‘á»c tá»« URL
+    if (colorAttribute) {
+      const colorAttrSlug = createAttributeSlug(colorAttribute.name);
+      const attrKey = `attribute_pa_${colorAttrSlug}`;
+      const colorFromUrl = searchParams.get(attrKey);
+      
+      if (colorFromUrl) {
+        // TÃ¬m mÃ u khá»›p (cÃ³ thá»ƒ lÃ  slug hoáº·c tÃªn Ä‘áº§y Ä‘á»§)
+        const matchedColor = availableColors.find((color) => {
+          const colorSlug = createAttributeSlug(color);
+          return colorSlug === colorFromUrl || color.toLowerCase() === colorFromUrl.toLowerCase();
+        });
+        
+        if (matchedColor) {
+          setSelectedColor(matchedColor);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, product, sizeAttribute, colorAttribute]);
+
+  if (!product || !product.name) return null;
+
+  const isOutOfStock = product.stockStatus === 'outofstock';
+
+  const handleAddToCartClick = async (isGift: boolean = false, isQuickCheckout: boolean = false) => {
     // Validation: Náº¿u product cÃ³ variations nhÆ°ng chÆ°a chá»n size
+    // Tá»± Ä‘á»™ng chá»n size Ä‘áº§u tiÃªn vÃ  tiáº¿p tá»¥c thÃªm vÃ o giá» (khÃ´ng return)
     if (product.type === 'variable' && availableSizes.length > 0 && !selectedSize) {
-      // CÃ³ thá»ƒ hiá»ƒn thá»‹ warning hoáº·c tá»± Ä‘á»™ng chá»n size Ä‘áº§u tiÃªn
-      // Táº¡m thá»i tá»± Ä‘á»™ng chá»n size Ä‘áº§u tiÃªn
       if (availableSizes.length > 0) {
         setSelectedSize(availableSizes[0]);
-        // Return early, sáº½ trigger re-render vÃ  user cÃ³ thá»ƒ click láº¡i
-        return;
+        // KHÃ”NG return - Ä‘á»ƒ code tiáº¿p tá»¥c cháº¡y vÃ  thÃªm vÃ o giá» ngay trong láº§n báº¥m Ä‘áº§u tiÃªn
       }
     }
 
     setIsAdding(true);
-    setAddingType(isGift ? 'gift' : 'buy');
+    setAddingType(isGift ? 'gift' : isQuickCheckout ? 'quick' : 'buy');
 
     try {
       const priceToUse = selectedVariation 
@@ -1378,6 +1998,14 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
 
       if (onAddToCart) {
         onAddToCart(selectedVariation?.id, isGift);
+      }
+
+      // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá» (cho cáº£ "ThÃªm giá» hÃ ng" vÃ  "Mua ngay")
+      try {
+        useQuickCheckoutStore.getState().onOpen();
+        console.log('[ProductInfo] QuickCheckoutModal opened');
+      } catch (error) {
+        console.error('[ProductInfo] Error opening QuickCheckoutModal:', error);
       }
     } catch (error) {
       console.error('Error adding to cart:', error);
@@ -1480,9 +2108,9 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
                     // Style khi Ä‘Æ°á»£c chá»n: ring effect vÃ  scale
                     isSelected 
                       ? "border-pink-600 ring-2 ring-pink-500 ring-offset-2 scale-110" 
-                      : "border-gray-200 hover:scale-105 hover:border-pink-300",
-                    // Border Ä‘áº­m hÆ¡n cho mÃ u sÃ¡ng
-                    isLightColor && !isSelected && "border-gray-300"
+                      : isLightColor
+                        ? "border-gray-400 hover:scale-105 hover:border-pink-300"
+                        : "border-gray-300 hover:scale-105 hover:border-pink-300"
                   )}
                   style={{ backgroundColor: bgColor }}
                   title={`MÃ u: ${colorName}`}
@@ -1541,24 +2169,44 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
 
           {/* 3. Gift Button */}
           <Button 
-            className="rounded-full bg-pink-400 hover:bg-pink-500 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-pink-200 font-bold"
+            className="rounded-full bg-pink-400 hover:bg-pink-500 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-pink-200 font-bold !flex items-center justify-center"
             disabled={isOutOfStock || isAdding}
             onClick={() => handleAddToCartClick(true)}
             aria-label="Gá»­i táº·ng sáº£n pháº©m"
           >
             {isAdding && addingType === 'gift' ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                Äang thÃªm...
+                <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                <span className="whitespace-nowrap">Äang thÃªm...</span>
               </>
             ) : (
               <>
-                <Gift className="w-3.5 h-3.5 md:w-4 md:h-4" />
-                Gá»¬I Táº¶NG
+                <Gift className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
+                <span className="whitespace-nowrap">Gá»¬I Táº¶NG</span>
               </>
             )}
           </Button>
         </div>
+
+        {/* Quick Checkout Button - Mua ngay */}
+        <Button
+          className="w-full rounded-full bg-[#D6336C] hover:bg-[#BE185D] text-white border-none px-6 h-10 md:h-12 min-h-[44px] text-sm md:text-base gap-2 font-bold !flex items-center justify-center"
+          disabled={isOutOfStock || isAdding}
+          onClick={() => handleAddToCartClick(false, true)}
+          aria-label="Mua ngay"
+        >
+          {isAdding && addingType === 'quick' ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
+              <span className="whitespace-nowrap">Äang xá»­ lÃ½...</span>
+            </>
+          ) : (
+            <>
+              <Zap className="w-4 h-4 flex-shrink-0" />
+              <span className="whitespace-nowrap">Mua ngay</span>
+            </>
+          )}
+        </Button>
       </div>
     </div>
   );
@@ -1595,7 +2243,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
 
   if (loading && products.length === 0) {
     return (
-      <div className="container-mobile py-8">
+      <div className="w-full">
         <ProductListSkeleton count={8} />
       </div>
     );
@@ -1603,7 +2251,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
 
   if (error) {
     return (
-      <div className="container-mobile py-8">
+      <div className="w-full">
         <ErrorState
           title="KhÃ´ng thá»ƒ táº£i sáº£n pháº©m"
           message={error.message || 'CÃ³ lá»—i xáº£y ra khi táº£i sáº£n pháº©m. Vui lÃ²ng thá»­ láº¡i sau.'}
@@ -1618,14 +2266,14 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
 
   if (products.length === 0 && !loading) {
     return (
-      <div className="container-mobile py-8">
+      <div className="w-full">
         <NoProductsFoundState />
       </div>
     );
   }
 
   return (
-    <div className="container-mobile py-8">
+    <div className="w-full">
       <div className="flex items-center justify-between mb-6">
         {totalCount > 0 && (
           <p className="text-sm text-text-muted">
@@ -1636,7 +2284,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
       </div>
 
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
           {products.map((product) => {
             if (!product || !product.name) {
               return null;

@@ -12,6 +12,7 @@ import type { MappedProduct } from '@/lib/utils/productMapper';
 import { ShoppingCart, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getColorHex } from '@/lib/utils/colorMapping';
+import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
 
 interface ProductCardProps {
   product: MappedProduct;
@@ -103,19 +104,14 @@ export function ProductCard({ product }: ProductCardProps) {
     return product.onSale;
   }, [selectedVariation, product]);
   
-  // Early return sau khi đã gọi tất cả hooks
-  if (!product || !product.name) return null;
-  
-  const isOutOfStock = product.stockStatus === 'outofstock';
-
-  // Extract Size and Color attributes from product
+  // Extract Size and Color attributes from product (trước early return để dùng trong useMemo)
   // Fallback to mock data if attributes not available
-  const sizeAttribute = product.attributes?.find(
+  const sizeAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('size') || 
                attr.name.toLowerCase().includes('kích thước') ||
                attr.name.toLowerCase().includes('kich thuoc')
   );
-  const colorAttribute = product.attributes?.find(
+  const colorAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('color') || 
                attr.name.toLowerCase().includes('màu') ||
                attr.name.toLowerCase().includes('mau')
@@ -129,6 +125,53 @@ export function ProductCard({ product }: ProductCardProps) {
   const displaySizes = availableSizes.slice(0, 4);
   const displayColors = availableColors.slice(0, 4);
   const remainingColors = availableColors.length - displayColors.length;
+
+  // Build product URL với query params cho selected attributes
+  // Format: /products/slug?attribute_pa_size=60cm&attribute_pa_color=do
+  const productUrl = useMemo(() => {
+    if (!product) return '';
+    
+    const baseUrl = `/products/${product.slug || product.databaseId}`;
+    const params = new URLSearchParams();
+    
+    // Helper function để tạo slug từ attribute name
+    const createAttributeSlug = (name: string): string => {
+      return name.toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/đ/g, 'd')
+        .replace(/Đ/g, 'D')
+        .replace(/\s+/g, '-')
+        .replace(/[^a-z0-9-]/g, '');
+    };
+    
+    // Thêm size attribute nếu có
+    if (selectedSize && sizeAttribute) {
+      // WooCommerce format: attribute_pa_{slug}
+      // Ví dụ: attribute_pa_size hoặc attribute_pa_kich-thuoc
+      const sizeAttrSlug = createAttributeSlug(sizeAttribute.name);
+      const attrKey = `attribute_pa_${sizeAttrSlug}`;
+      // Encode giá trị size (có thể chứa ký tự đặc biệt)
+      params.append(attrKey, selectedSize);
+    }
+    
+    // Thêm color attribute nếu có
+    if (selectedColor && colorAttribute) {
+      const colorAttrSlug = createAttributeSlug(colorAttribute.name);
+      const attrKey = `attribute_pa_${colorAttrSlug}`;
+      // Normalize tên màu thành slug (ví dụ: "Đỏ" -> "do", "Hồng" -> "hong")
+      const colorValue = createAttributeSlug(selectedColor);
+      params.append(attrKey, colorValue);
+    }
+    
+    const queryString = params.toString();
+    return queryString ? `${baseUrl}?${queryString}` : baseUrl;
+  }, [product, selectedSize, selectedColor, sizeAttribute, colorAttribute]);
+  
+  // Early return sau khi đã gọi tất cả hooks
+  if (!product || !product.name) return null;
+  
+  const isOutOfStock = product.stockStatus === 'outofstock';
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -148,7 +191,20 @@ export function ProductCard({ product }: ProductCardProps) {
       image: product.image?.sourceUrl,
       quantity: 1,
       variationId: selectedVariation?.id,
+      length: product.length || undefined,
+      width: product.width || undefined,
+      height: product.height || undefined,
+      weight: product.weight ? parseFloat(product.weight) : undefined,
+      volumetricWeight: product.volumetricWeight || undefined,
     });
+
+    // Mở QuickCheckoutModal sau khi thêm vào giỏ
+    try {
+      useQuickCheckoutStore.getState().onOpen();
+      console.log('[ProductCard] QuickCheckoutModal opened');
+    } catch (error) {
+      console.error('[ProductCard] Error opening QuickCheckoutModal:', error);
+    }
   };
 
   return (
@@ -158,7 +214,7 @@ export function ProductCard({ product }: ProductCardProps) {
       onMouseLeave={() => setIsHovered(false)}
     >
       {/* 1. Product Image Area */}
-      <Link href={`/products/${product.slug || product.databaseId}`} className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50">
+      <Link href={productUrl} className="relative aspect-square w-full overflow-hidden rounded-xl bg-gray-50">
         <Image
           src={imageUrl}
           alt={product.image?.altText || product.name}
@@ -196,7 +252,7 @@ export function ProductCard({ product }: ProductCardProps) {
       {/* 2. Content Area */}
       <div className="flex flex-col gap-1">
         {/* Tên sản phẩm */}
-        <Link href={`/products/${product.slug}`}>
+        <Link href={productUrl}>
           <h3 className="font-heading text-sm md:text-base font-bold text-gray-700 line-clamp-2 min-h-[2.5rem] group-hover:text-pink-600 transition-colors">
             {product.name}
           </h3>
@@ -265,11 +321,11 @@ export function ProductCard({ product }: ProductCardProps) {
                 <button
                   key={idx}
                   className={cn(
-                    "relative w-6 h-6 rounded-full border shadow-sm hover:scale-110 transition-transform",
-                    // Nếu là màu trắng hoặc kem thì thêm viền đậm hơn để dễ nhìn
+                    "relative w-6 h-6 rounded-full border-2 shadow-sm hover:scale-110 transition-transform",
+                    // Thêm viền xám cho tất cả màu để dễ nhìn hơn
                     ['#FFFFFF', '#FDFBF7', 'trang', 'kem'].includes(lookupKey) || lookupKey === 'trắng' || lookupKey === 'kem'
-                      ? "border-gray-300" 
-                      : "border-transparent"
+                      ? "border-gray-400" 
+                      : "border-gray-300"
                   )}
                   style={{ backgroundColor: bgColor }}
                   title={`Màu: ${colorName}`}

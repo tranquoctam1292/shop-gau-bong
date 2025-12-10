@@ -69,10 +69,11 @@ shop-gau-bong/
 │   ├── layout.tsx         # Root layout
 │   └── page.tsx           # Homepage
 ├── components/             # React Components
-│   ├── ui/                # Base UI components (Shadcn)
-│   ├── product/           # Product components
-│   ├── cart/              # Cart components
-│   └── layout/            # Layout components
+│   ├── ui/                # Base UI components (Shadcn: Button, Card, Sheet, Popover, Slider, etc.)
+│   ├── product/           # Product components (ProductCard, ProductList, ProductFilters, ProductInfo, etc.)
+│   ├── cart/              # Cart components (CartDrawer, CartButton)
+│   ├── checkout/          # Checkout components (QuickCheckoutModal, OrderSummarySection, CheckoutFormSection)
+│   └── layout/            # Layout components (Header, Footer, NavigationMenu, MobileMenu)
 ├── lib/                    # Utilities
 │   ├── api/               # API client
 │   │   └── woocommerce.ts # WooCommerce REST API client
@@ -122,14 +123,17 @@ Xem file `docs/DESIGN_SYSTEM.md` để biết:
 ## 🔑 Tính năng chính
 
 - ✅ Product listing & detail pages với filters và search
-- ✅ Product variations (size, color) với dynamic pricing
+- ✅ **Modern Product Filters** - Horizontal layout (Shopee/Lazada style) với Filter Group và Sort Group chips
+- ✅ Product variations (size, color) với dynamic pricing và URL query params preservation
 - ✅ Shopping cart với volumetric weight calculation
 - ✅ Guest checkout (no authentication required)
+- ✅ Quick Checkout Modal - Popup checkout không cần chuyển trang
 - ✅ Checkout flow với address selector (Province/District/Ward)
 - ✅ Payment integration (VietQR, MoMo, COD, Bank Transfer)
 - ✅ Order management
 - ✅ React Query caching cho performance optimization
 - ✅ Mobile-first responsive design (90% mobile traffic)
+- ✅ Optimized product list layout - Full-width filters, reduced gaps on mobile
 
 ## 📄 License
 

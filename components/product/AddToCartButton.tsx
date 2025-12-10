@@ -5,6 +5,7 @@ import { useCartSync } from '@/lib/hooks/useCartSync';
 import { type CartItem } from '@/lib/store/cartStore';
 import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
 
 interface AddToCartButtonProps {
   product: Omit<CartItem, 'quantity'>;
@@ -21,6 +22,8 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
     setIsAdding(true);
     try {
       await addToCart(product);
+      // Mở QuickCheckoutModal sau khi thêm vào giỏ
+      useQuickCheckoutStore.getState().onOpen();
     } catch (error) {
       console.error('Error adding to cart:', error);
     } finally {

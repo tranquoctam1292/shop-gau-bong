@@ -405,6 +405,8 @@ const finalWeight = Math.max(actualWeight || 0, volumetricWeight || 0);
 
 **⚠️ IMPORTANT:** Variable products support size and color attributes. Variations are fetched lazily to optimize performance.
 
+**URL Query Params:** When users select size/color on ProductCard, the selection is preserved in URL query params (e.g., `?attribute_pa_size=60cm&attribute_pa_color=do`). ProductInfo component automatically reads these params and pre-selects the variation on product detail page.
+
 ### Variation Structure
 
 ```typescript

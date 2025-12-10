@@ -148,12 +148,6 @@ export default function OrderConfirmationPage() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link 
               href="/products" 
-              className={buttonVariants({ variant: 'outline' })}
-            >
-              Tiếp tục mua sắm
-            </Link>
-            <Link 
-              href="/products" 
               className={buttonVariants()}
             >
               Tiếp tục mua sắm

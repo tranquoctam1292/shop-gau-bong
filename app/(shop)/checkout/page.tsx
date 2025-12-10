@@ -20,7 +20,7 @@ import { AddressSelector } from '@/components/checkout/AddressSelector';
 
 export default function CheckoutPage() {
   const router = useRouter();
-  const { items, getTotalPrice } = useCartStore();
+  const { items, getTotalPrice, clearCart } = useCartStore();
   const { submitOrder, isProcessing, error } = useCheckoutREST();
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<CheckoutFormData>({
@@ -131,7 +131,22 @@ export default function CheckoutPage() {
     }
 
     setValidationErrors([]);
-    await submitOrder(formData);
+    
+    // Build line items from cart
+    const lineItems = items.map((item) => ({
+      product_id: item.productId,
+      quantity: item.quantity,
+    }));
+    
+    const result = await submitOrder(formData, lineItems);
+    
+    if (result) {
+      // Clear cart after successful order
+      clearCart();
+      
+      // Redirect to order confirmation page
+      router.push(`/order-confirmation?orderId=${result.orderId}&paymentMethod=${formData.paymentMethod}&total=${totalPrice}`);
+    }
   };
 
   const nextStep = () => {

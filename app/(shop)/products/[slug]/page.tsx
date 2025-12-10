@@ -9,7 +9,6 @@ import { ProductInfo } from '@/components/product/ProductInfo';
 import { QuickOrderBox } from '@/components/product/QuickOrderBox';
 import { ProductHighlights } from '@/components/product/ProductHighlights';
 import { ProductDescription } from '@/components/product/ProductDescription';
-import { VoucherSection } from '@/components/product/VoucherSection';
 import { ProductPromotions } from '@/components/product/ProductPromotions';
 
 export default function ProductPage() {
@@ -104,13 +103,12 @@ export default function ProductPage() {
             <ProductInfo product={product} />
             
             {/* QuickOrderBox */}
-            <QuickOrderBox 
-              productId={product.databaseId}
-              productName={product.name}
-            />
-            
-            {/* Voucher Section */}
-            <VoucherSection />
+            {product.databaseId && (
+              <QuickOrderBox 
+                productId={product.databaseId}
+                productName={product.name}
+              />
+            )}
             
             {/* Product Promotions */}
             <ProductPromotions 
@@ -145,10 +143,12 @@ export default function ProductPage() {
       </div>
 
       {/* Related Products */}
-      <RelatedProducts
-        productId={product.databaseId || 0}
-        excludeId={product.databaseId || undefined}
-      />
+      {product.databaseId && (
+        <RelatedProducts
+          productId={product.databaseId}
+          excludeId={product.databaseId}
+        />
+      )}
       </div>
     </>
   );

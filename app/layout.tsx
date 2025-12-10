@@ -5,6 +5,7 @@ import { CategoriesProvider } from '@/lib/providers/CategoriesProvider';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
+import { QuickCheckoutModal } from '@/components/checkout/QuickCheckoutModal';
 import './globals.css';
 
 const inter = Inter({
@@ -100,6 +101,7 @@ export default function RootLayout({
                 {children}
               </main>
               <Footer />
+              <QuickCheckoutModal />
             </CategoriesProvider>
           </ToastProvider>
         </QueryProvider>
