@@ -11,6 +11,8 @@ export interface CartItem {
   quantity: number;
   // Variation ID (for variable products)
   variationId?: number;
+  // Gift flag (for "GỬI TẶNG" button)
+  isGift?: boolean;
   // Product specs for shipping calculation
   length?: number | null;
   width?: number | null;

@@ -41,7 +41,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   try {
     // Fetch products using REST API
     const products = await wcApi.getProducts({ per_page: 100, status: 'publish' });
-    const productPages: MetadataRoute.Sitemap = (products || []).map((product) => ({
+    // Ensure products is an array (not { data, headers })
+    const productsArray = Array.isArray(products) ? products : (products as any)?.data || [];
+    const productPages: MetadataRoute.Sitemap = productsArray.map((product: any) => ({
       url: `${baseUrl}/products/${product.slug}`,
       lastModified: product.date_modified ? new Date(product.date_modified) : new Date(),
       changeFrequency: 'weekly' as const,

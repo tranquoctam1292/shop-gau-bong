@@ -11,7 +11,8 @@
 **⚠️ IMPORTANT:** Project đã migrated từ **WPGraphQL** sang **WooCommerce REST API** để tránh compatibility issues và duplicate field errors.
 
 **Previous:** WPGraphQL với GraphQL queries  
-**Current:** WooCommerce REST API với Next.js API routes proxy
+**Current:** WooCommerce REST API với Next.js API routes proxy  
+**Status:** ✅ Migration completed. All GraphQL references removed.
 
 ---
 
@@ -146,8 +147,8 @@ Maps WooCommerce REST API format → Frontend format (tương thích với compo
 
 ```typescript
 interface MappedProduct {
-  id: string;                     // GraphQL ID format (for compatibility)
   databaseId: number;             // WooCommerce product ID
+  id: string;                     // Legacy format (for compatibility)
   name: string;
   slug: string;
   price: string;
@@ -398,12 +399,124 @@ const finalWeight = Math.max(actualWeight || 0, volumetricWeight || 0);
 
 ---
 
+---
+
+## 🎨 Product Variations
+
+**⚠️ IMPORTANT:** Variable products support size and color attributes. Variations are fetched lazily to optimize performance.
+
+### Variation Structure
+
+```typescript
+interface WooCommerceVariation {
+  id: number;                      // Variation ID
+  price: string;                   // Variation price
+  regular_price: string;           // Regular price
+  sale_price: string;              // Sale price (if on sale)
+  on_sale: boolean;                 // Is on sale?
+  stock_status: 'instock' | 'outofstock' | 'onbackorder';
+  attributes: Array<{
+    id: number;
+    name: string;                  // e.g., 'pa_size', 'pa_color'
+    option: string;                // e.g., '60cm', '#FF0000'
+  }>;
+  image: {
+    src: string;
+    alt: string;
+  } | null;
+}
+```
+
+### Product Attributes
+
+```typescript
+interface WooCommerceProductAttribute {
+  id: number;
+  name: string;                    // e.g., 'pa_size', 'pa_color'
+  slug: string;                    // e.g., 'pa-size', 'pa-color'
+  options: string[];               // Available options
+  variation: boolean;               // Can be used for variations
+  visible: boolean;                 // Show in product page
+}
+```
+
+### Fetching Variations
+
+**API Route:**
+- `GET /api/woocommerce/products/[id]/variations` - Get all variations for a product
+
+**Hook:**
+```typescript
+import { useProductVariations } from '@/lib/hooks/useProductVariations';
+
+// Lazy loading: Only fetch when needed
+const { data: variations, isLoading } = useProductVariations(productId, {
+  enabled: isHovered || selectedSize !== null, // Fetch on hover or size selection
+});
+```
+
+**React Query Caching:**
+- Variations are cached for 5 minutes (`staleTime: 5 * 60 * 1000`)
+- Automatic request deduplication (same productId = single request)
+- Background refetching enabled
+
+### Usage in ProductCard
+
+```typescript
+// Display size options (up to 4)
+const sizeAttribute = product.attributes?.find(a => a.name === 'pa_size');
+const displaySizes = sizeAttribute?.options.slice(0, 4) || [];
+
+// Display color options (up to 4)
+const colorAttribute = product.attributes?.find(a => a.name === 'pa_color');
+const displayColors = colorAttribute?.options.slice(0, 4) || [];
+
+// Dynamic pricing based on selected variation
+const selectedVariation = variations?.find(v => 
+  v.attributes.some(a => a.name === 'pa_size' && a.option === selectedSize)
+);
+const displayPrice = selectedVariation?.price || product.price;
+```
+
+---
+
+## ⚡ React Query Integration
+
+**Provider:** `lib/providers/QueryProvider.tsx`
+
+**Configuration:**
+- `staleTime`: 5 minutes (default)
+- `gcTime`: 10 minutes (garbage collection)
+- `retry`: 1 time on failure
+- `refetchOnWindowFocus`: false (to reduce unnecessary requests)
+
+**Usage:**
+```typescript
+import { useQuery } from '@tanstack/react-query';
+
+const { data, isLoading, error } = useQuery({
+  queryKey: ['variations', productId],
+  queryFn: () => fetchVariations(productId),
+  staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+});
+```
+
+**Benefits:**
+- Automatic caching and deduplication
+- Background refetching
+- Loading and error states
+- Optimistic updates support
+
+---
+
 ## 🔗 Related Files
 
 - `lib/api/woocommerce.ts` - REST API client
 - `lib/utils/productMapper.ts` - Product mapper
-- `types/woocommerce.ts` - TypeScript type definitions
+- `types/woocommerce.ts` - TypeScript type definitions (includes `WooCommerceVariation`)
 - `app/api/woocommerce/**/route.ts` - Next.js API route proxies
+- `lib/hooks/useProductVariations.ts` - React Query hook for variations
+- `lib/providers/QueryProvider.tsx` - React Query provider setup
 
 ---
 
@@ -411,4 +524,6 @@ const finalWeight = Math.max(actualWeight || 0, volumetricWeight || 0);
 
 - [WooCommerce REST API Documentation](https://woocommerce.github.io/woocommerce-rest-api-docs/)
 - [WooCommerce REST API Authentication](https://woocommerce.github.io/woocommerce-rest-api-docs/#authentication)
+- [WooCommerce Product Variations](https://woocommerce.github.io/woocommerce-rest-api-docs/#product-variations)
+- [React Query Documentation](https://tanstack.com/query/latest)
 

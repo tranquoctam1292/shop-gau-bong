@@ -11,41 +11,7 @@ import { cn } from '@/lib/utils/cn';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { ShoppingCart, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
-// 1. Thêm bản đồ màu khớp với Slug/Tên trong WordPress
-const COLOR_MAP: Record<string, string> = {
-  // Màu cơ bản
-  'den': '#000000',
-  'đen': '#000000',
-  'do': '#EF4444',
-  'đỏ': '#EF4444',
-  'trang': '#FFFFFF',
-  'trắng': '#FFFFFF',
-  'vang': '#FCD34D',
-  'vàng': '#FCD34D',
-  'xam': '#9CA3AF',
-  'xám': '#9CA3AF',
-  'tim': '#8B5CF6',
-  'tím': '#8B5CF6',
-  // Tông Hồng (Rất quan trọng cho shop gấu)
-  'hong': '#F472B6',
-  'hồng': '#F472B6',
-  'hong-dam': '#DB2777',
-  'hồng đậm': '#DB2777',
-  'hong-nhat': '#FBCFE8',
-  'hồng nhạt': '#FBCFE8',
-  // Tông Nâu/Kem (Gấu Teddy)
-  'kem': '#FDFBF7', // Màu kem ấm
-  'nau': '#78350F',
-  'nâu': '#78350F',
-  'nau-nhat': '#B45309',
-  'nâu nhạt': '#B45309',
-  // Tông Xanh
-  'xanh-duong': '#3B82F6',
-  'xanh dương': '#3B82F6',
-  'xanh-la': '#10B981',
-  'xanh lá': '#10B981',
-};
+import { getColorHex } from '@/lib/utils/colorMapping';
 
 interface ProductCardProps {
   product: MappedProduct;
@@ -292,7 +258,7 @@ export function ProductCard({ product }: ProductCardProps) {
               const lookupKey = colorName.toLowerCase().trim();
               
               // Lấy mã Hex từ Map, nếu không thấy thì thử dùng chính nó (nếu là mã Hex), hoặc fallback về xám
-              const bgColor = COLOR_MAP[lookupKey] || (colorName.startsWith('#') ? colorName : '#E5E7EB');
+              const bgColor = getColorHex(colorName) || (colorName.startsWith('#') ? colorName : '#E5E7EB');
               const isSelected = selectedColor === colorName;
               
               return (

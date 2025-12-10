@@ -103,11 +103,9 @@ export function useCheckoutREST() {
           phone: formData.phone,
           address_1: formData.billingAddress1,
           address_2: formData.billingAddress2 || '',
-          city: buildCityString(
-            formData.billingProvinceName,
-            formData.billingDistrictName,
-            formData.billingWardName
-          ) || formData.billingCity,
+          city: [formData.billingProvinceName, formData.billingDistrictName, formData.billingWardName]
+            .filter(Boolean)
+            .join(', ') || formData.billingCity,
           postcode: formData.billingPostcode,
           country: formData.billingCountry,
         },

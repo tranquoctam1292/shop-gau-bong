@@ -88,7 +88,7 @@ export function HeroCarousel({
           style={{ transform: `translateX(-${currentIndex * 100}%)` }}
         >
           {slides.map((slide, index) => (
-            <div key={slide.id || index} className="min-w-full">
+            <div key={index} className="min-w-full">
               <HeroSlide {...slide} index={index} />
             </div>
           ))}

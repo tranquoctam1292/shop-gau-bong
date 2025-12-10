@@ -121,6 +121,8 @@
 @layer utilities {
   .container-mobile {
     @apply w-full px-4 md:px-8;
+    /* Max-width responsive: 1280px cho desktop vừa, 1400px cho desktop lớn */
+    @apply lg:max-w-[1280px] 2xl:max-w-[1400px] mx-auto;
     /* Removed overflow-x-hidden to prevent clipping dropdowns */
     /* Use overflow-x-hidden only on specific sections that need it */
   }

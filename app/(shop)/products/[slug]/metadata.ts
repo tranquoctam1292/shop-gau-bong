@@ -12,7 +12,9 @@ export async function generateMetadata({ params }: ProductPageProps): Promise<Me
   try {
     // Fetch product by slug using REST API
     const products = await wcApi.getProducts({ slug: params.slug, per_page: 1 });
-    const product = products?.[0];
+    // Ensure products is an array (not { data, headers })
+    const productsArray = Array.isArray(products) ? products : (products as any)?.data || [];
+    const product = productsArray[0];
 
     if (!product) {
       return {

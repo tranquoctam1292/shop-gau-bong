@@ -45,6 +45,7 @@ export function useCartSync() {
       price: item.price,
       image: item.image,
       variationId: item.variationId,
+      isGift: item.isGift,
       length: item.length,
       width: item.width,
       height: item.height,

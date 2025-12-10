@@ -8,16 +8,17 @@ Website thương mại điện tử bán gấu bông được xây dựng với 
 - **Next.js 14+** - React framework với App Router
 - **TypeScript** - Type safety
 - **Tailwind CSS** - Styling với Design System
-- **Apollo Client** - GraphQL client
-- **GraphQL Code Generator** - Auto-generate TypeScript types
-- **Zustand** - State management
+- **React Query (@tanstack/react-query)** - Data fetching, caching, and deduplication
+- **Zustand** - State management (cart state with localStorage persistence)
+- **Shadcn UI** - UI component library
 - **React Hook Form + Zod** - Form handling & validation
+- **Lucide React** - Icon library
 
 ### Backend
 - **WordPress 6.0+** - Headless CMS
 - **WooCommerce** - E-commerce plugin
-- **WPGraphQL** - GraphQL API cho WordPress
-- **WPGraphQL WooCommerce** - GraphQL extension cho WooCommerce
+- **WooCommerce REST API** - Native REST API (v3)
+- **ACF (Advanced Custom Fields)** - Custom fields for products
 
 ## 📋 Yêu cầu hệ thống
 
@@ -44,17 +45,13 @@ Copy file `.env.example` thành `.env.local` và điền thông tin:
 
 ```env
 NEXT_PUBLIC_WORDPRESS_URL=https://your-wordpress-site.com
-NEXT_PUBLIC_GRAPHQL_ENDPOINT=https://your-wordpress-site.com/graphql
+WOOCOMMERCE_CONSUMER_KEY=ck_xxxxx
+WOOCOMMERCE_CONSUMER_SECRET=cs_xxxxx
 ```
 
-### 4. Generate GraphQL types
-```bash
-npm run codegen
-```
+**Lưu ý:** WooCommerce REST API credentials được lưu trong `.env.local` (không commit lên Git).
 
-**Lưu ý:** Cần WordPress endpoint sẵn sàng để generate types.
-
-### 5. Chạy development server
+### 4. Chạy development server
 ```bash
 npm run dev
 ```
@@ -66,24 +63,34 @@ Mở [http://localhost:3000](http://localhost:3000) trong trình duyệt.
 ```
 shop-gau-bong/
 ├── app/                    # Next.js App Router
-│   ├── (auth)/            # Auth routes
 │   ├── (shop)/            # Shop routes
+│   ├── api/               # API routes (WooCommerce proxy)
+│   │   └── woocommerce/   # WooCommerce REST API routes
 │   ├── layout.tsx         # Root layout
 │   └── page.tsx           # Homepage
 ├── components/             # React Components
-│   └── ui/                # Base UI components
+│   ├── ui/                # Base UI components (Shadcn)
+│   ├── product/           # Product components
+│   ├── cart/              # Cart components
+│   └── layout/            # Layout components
 ├── lib/                    # Utilities
-│   ├── api/               # GraphQL client & queries
-│   │   ├── graphql.ts     # Apollo Client setup
-│   │   ├── queries/       # GraphQL queries
-│   │   └── mutations/     # GraphQL mutations
-│   ├── utils/            # Helper functions
+│   ├── api/               # API client
+│   │   └── woocommerce.ts # WooCommerce REST API client
+│   ├── hooks/             # Custom React hooks
+│   │   ├── useProductsREST.ts
+│   │   ├── useProductVariations.ts
+│   │   └── useCartSync.ts
+│   ├── store/             # Zustand stores
+│   │   └── cartStore.ts   # Cart state management
+│   ├── utils/             # Helper functions
 │   │   ├── shipping.ts    # Volumetric weight calculation
 │   │   ├── format.ts      # Price formatting
+│   │   ├── productMapper.ts # Product data mapper
 │   │   └── cn.ts          # Class name utility
-│   └── providers/        # React providers
+│   └── providers/         # React providers
+│       └── QueryProvider.tsx # React Query provider
 ├── types/                 # TypeScript types
-│   └── generated/        # Auto-generated từ GraphQL
+│   └── woocommerce.ts     # WooCommerce REST API types
 ├── docs/                  # Documentation
 └── public/                # Static assets
 ```
@@ -95,8 +102,6 @@ shop-gau-bong/
 - `npm run start` - Chạy production server
 - `npm run lint` - Chạy ESLint
 - `npm run type-check` - TypeScript type checking
-- `npm run codegen` - Generate GraphQL types
-- `npm run codegen:watch` - Watch mode cho codegen
 
 ## 🎨 Design System
 
@@ -108,21 +113,23 @@ Xem file `docs/DESIGN_SYSTEM.md` để biết:
 
 ## 📚 Tài liệu
 
-- [Kế hoạch dự án](./KE_HOACH_DU_AN.md)
-- [Theo dõi tiến độ](./TIEN_DO_DU_AN.md)
-- [Hướng dẫn cấu hình](./HUONG_DAN_CAU_HINH.md)
-- [Schema Context](./docs/SCHEMA_CONTEXT.md)
-- [API Patterns](./docs/API_PATTERNS.graphql)
+- [Schema Context](./docs/SCHEMA_CONTEXT.md) - WooCommerce REST API structure
+- [Design System](./docs/DESIGN_SYSTEM.md) - Color palette, typography, components
+- [WooCommerce Variations Guide](./docs/WOOCOMMERCE_VARIATIONS_GUIDE.md) - How to add product variations
+- [Setup WooCommerce REST API](./docs/SETUP_WOOCOMMERCE_REST_API.md) - API configuration
+- [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
 
 ## 🔑 Tính năng chính
 
-- ✅ Product listing & detail pages
+- ✅ Product listing & detail pages với filters và search
+- ✅ Product variations (size, color) với dynamic pricing
 - ✅ Shopping cart với volumetric weight calculation
-- ✅ User authentication
-- ✅ Checkout flow
-- ✅ Payment integration (VietQR, MoMo, ZaloPay)
+- ✅ Guest checkout (no authentication required)
+- ✅ Checkout flow với address selector (Province/District/Ward)
+- ✅ Payment integration (VietQR, MoMo, COD, Bank Transfer)
 - ✅ Order management
-- ✅ Mobile-first responsive design
+- ✅ React Query caching cho performance optimization
+- ✅ Mobile-first responsive design (90% mobile traffic)
 
 ## 📄 License
 

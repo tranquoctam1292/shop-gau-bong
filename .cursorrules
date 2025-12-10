@@ -35,11 +35,18 @@ Before implementing any feature, you MUST reference the following sources based 
   - *Good:* `getMetaValue(wcProduct.meta_data, 'length')` (use helper)
 - **Type Safety:** Use `types/woocommerce.ts` types. Never use `any`.
 - **ACF Fields:** ACF fields are in `meta_data` array, not direct properties. Use `getMetaValue()` helper.
+- **React Query:** Use `@tanstack/react-query` for data fetching, caching, and deduplication. Configured globally via `QueryProvider`.
+  - *Use for:* Product variations, product lists, categories
+  - *Benefits:* Automatic caching, request deduplication, background refetching
+  - *Example:* `useProductVariations(productId)` with lazy loading
 
 ## 2. Frontend (Next.js & UI)
 - Framework: Next.js 14+ (App Router).
 - Styling: Tailwind CSS + Shadcn UI.
 - **Image Handling:** Next.js `Image` component is mandatory. Fallback to placeholder if source is null.
+- **State Management:** Zustand for cart state (localStorage persistence), React Query for server state.
+- **Product Variations:** Support variable products with size and color attributes. Use `useProductVariations` hook for lazy loading.
+- **Button Styling:** Use `buttonVariants` from `lib/utils/button-variants.ts`. Default variant includes gradient and shadow effects. Ghost variant for subtle buttons.
 
 # MOBILE FIRST MASTERY (STRICT)
 ## 1. Responsive Philosophy
@@ -73,9 +80,11 @@ Before implementing any feature, you MUST reference the following sources based 
 # BUSINESS LOGIC RULES
 - **Language:** UI text MUST be **Vietnamese**. Code comments in English/Vietnamese.
 - **Payment:** Prioritize **VietQR** & **MoMo**. COD and Bank Transfer are also supported.
-- **Cart:** Guest checkout only. No user authentication required. Cart is stored locally (Zustand).
+- **Cart:** Guest checkout only. No user authentication required. Cart is stored locally (Zustand). Cart supports product variations (size, color) via `variationId`.
 - **Homepage:** Each product section displays **8 products** (2 rows × 4 columns on desktop, 2 columns × 4 rows on mobile).
 - **Homepage Sections:** Hero Carousel, New Arrivals, Bigsize Products, Category Products, Trending Products, Categories Grid, Featured Products, Best Sellers, Video Section, Stories Section, Store Locations. (Customer Photos section has been removed)
+- **Product Variations:** Products can have size and color variations. Display up to 4 size options and 4 color options on ProductCard. Dynamic pricing based on selected variation.
+- **Cart UI:** CartDrawer uses Shadcn Sheet component. Cart button uses ghost variant with hover effect. Buttons have proper padding (`px-10 py-5`) and text centering.
 
 # RESPONSE GUIDELINES
 - **Code First:** Provide robust, copy-pasteable code blocks.

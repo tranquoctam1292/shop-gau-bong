@@ -1,24 +1,22 @@
 'use client';
 
-import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { formatPrice } from '@/lib/utils/format';
 import { useProductREST } from '@/lib/hooks/useProductREST';
-import { QuantitySelector } from '@/components/product/QuantitySelector';
 import { RelatedProducts } from '@/components/product/RelatedProducts';
-import { useCartSync } from '@/lib/hooks/useCartSync';
 import { generateProductSchema, generateBreadcrumbSchema } from '@/lib/utils/schema';
+import { ProductGallery } from '@/components/product/ProductGallery';
+import { ProductInfo } from '@/components/product/ProductInfo';
+import { QuickOrderBox } from '@/components/product/QuickOrderBox';
+import { ProductHighlights } from '@/components/product/ProductHighlights';
+import { ProductDescription } from '@/components/product/ProductDescription';
+import { VoucherSection } from '@/components/product/VoucherSection';
+import { ProductPromotions } from '@/components/product/ProductPromotions';
 
 export default function ProductPage() {
   const params = useParams();
   const slug = params.slug as string;
-  const [quantity, setQuantity] = useState(1);
 
   const { product, loading, error } = useProductREST(slug, 'slug');
-  const { addToCart } = useCartSync();
 
   if (loading) {
     return (
@@ -44,35 +42,8 @@ export default function ProductPage() {
     );
   }
 
-  const mainImage = product.image?.sourceUrl || '/images/teddy-placeholder.png';
   const galleryImages = product.galleryImages || [];
-  const price = product.price || null;
-  const formattedPrice = formatPrice(price);
   const isInStock = product.stockStatus === 'instock' || product.stockStatus === 'IN_STOCK';
-
-  // Get product specs (từ mapped product)
-  const length = product.length;
-  const width = product.width;
-  const height = product.height;
-  const volumetricWeight = product.volumetricWeight;
-  const material = product.material;
-  const origin = product.origin;
-
-  const handleAddToCart = async () => {
-    for (let i = 0; i < quantity; i++) {
-      await addToCart({
-        productId: product.databaseId,
-        productName: product.name,
-        price: product.price || '0',
-        image: product.image?.sourceUrl,
-        length: length || undefined,
-        width: width || undefined,
-        height: height || undefined,
-        weight: product.weight ? parseFloat(product.weight) : undefined,
-        volumetricWeight: volumetricWeight || undefined,
-      });
-    }
-  };
 
   // Generate structured data for SEO
   const productSchema = generateProductSchema({
@@ -113,155 +84,74 @@ export default function ProductPage() {
         />
       )}
       <div className="container-mobile py-8 md:py-16">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
-        {/* Product Images */}
-        <div className="space-y-4">
-          <div className="relative aspect-square w-full overflow-hidden rounded-2xl">
-            <Image
-              src={mainImage}
-              alt={product.image?.altText || product.name || 'Gấu bông'}
-              fill
-              className="object-cover"
-              priority
-              sizes="(max-width: 768px) 100vw, 50vw"
+      {/* Mobile: Flex column với order, Desktop: Grid */}
+      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8">
+        {/* CỘT TRÁI - Ảnh & Chi tiết (7/12 columns) */}
+        <div className="lg:col-span-7 flex flex-col lg:block space-y-8">
+          {/* ProductGallery - Mobile: order-1 */}
+          <div className="order-1">
+            <ProductGallery 
+              images={[product.image, ...galleryImages].filter(Boolean).map(img => ({
+                sourceUrl: img?.sourceUrl || '/images/teddy-placeholder.png',
+                altText: img?.altText || product.name
+              }))}
+              productName={product.name}
             />
           </div>
-          {galleryImages.length > 0 && (
-            <div className="grid grid-cols-4 gap-2">
-              {galleryImages.slice(0, 4).map((img, index: number) => (
-                <div key={index} className="relative aspect-square overflow-hidden rounded-xl">
-                  <Image
-                    src={img.sourceUrl || '/images/teddy-placeholder.png'}
-                    alt={img.altText || `Hình ${index + 1}`}
-                    fill
-                    className="object-cover"
-                    sizes="(max-width: 768px) 25vw, 12.5vw"
-                  />
-                </div>
-              ))}
+          
+          {/* ProductHighlights - Mobile: order-6, Desktop: order-2 */}
+          <div className="order-6 lg:order-none">
+            <ProductHighlights 
+              description={product.description}
+              attributes={product.attributes}
+              material={product.material ?? undefined}
+              origin={product.origin ?? undefined}
+              variations={undefined} // Will be fetched by ProductInfo, can be passed here if needed
+            />
+          </div>
+          
+          {/* ProductDescription - Mobile: order-7, Desktop: order-3 */}
+          {product.description && (
+            <div className="order-7 lg:order-none">
+              <ProductDescription content={product.description} />
             </div>
           )}
         </div>
 
-        {/* Product Info */}
-        <div className="space-y-6">
-          <div>
-            <h1 className="font-heading text-2xl md:text-3xl mb-2">
-              {product.name}
-            </h1>
-            {product.sku && (
-              <p className="text-sm text-text-muted">
-                SKU: {product.sku}
-              </p>
-            )}
-          </div>
-
-          <div className="flex items-center gap-4">
-            <p className="text-3xl font-bold text-primary">
-              {formattedPrice}
-            </p>
-            {product.onSale && product.regularPrice && product.regularPrice !== product.price && (
-              <p className="text-lg text-text-muted line-through">
-                {formatPrice(product.regularPrice)}
-              </p>
-            )}
-          </div>
-
-          {/* Product Specs */}
-          {(length || width || height || material || origin) && (
-            <Card className="p-6">
-              <h3 className="font-heading text-lg font-semibold mb-4">
-                Thông số sản phẩm
-              </h3>
-              <div className="space-y-2 text-sm">
-                {length && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Chiều dài:</span>
-                    <span className="font-medium">{length} cm</span>
-                  </div>
-                )}
-                {width && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Chiều rộng:</span>
-                    <span className="font-medium">{width} cm</span>
-                  </div>
-                )}
-                {height && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Chiều cao:</span>
-                    <span className="font-medium">{height} cm</span>
-                  </div>
-                )}
-                {volumetricWeight && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Cân nặng quy đổi:</span>
-                    <span className="font-medium">{volumetricWeight} kg</span>
-                  </div>
-                )}
-                {material && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Chất liệu:</span>
-                    <span className="font-medium">{material}</span>
-                  </div>
-                )}
-                {origin && (
-                  <div className="flex justify-between">
-                    <span className="text-text-muted">Xuất xứ:</span>
-                    <span className="font-medium">{origin}</span>
-                  </div>
-                )}
-              </div>
-            </Card>
-          )}
-
-          {/* Stock Status */}
-          <div>
-            {isInStock ? (
-              <p className="text-green-600 font-medium">✓ Còn hàng</p>
-            ) : (
-              <p className="text-destructive font-medium">✗ Hết hàng</p>
-            )}
-          </div>
-
-          {/* Quantity & Add to Cart */}
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
-                Số lượng
-              </label>
-              <QuantitySelector
-                value={quantity}
-                onChange={setQuantity}
-                min={1}
-                max={product.stockQuantity || 99}
-                disabled={!isInStock}
+        {/* CỘT PHẢI - Thông tin mua hàng (5/12 columns, Sticky) */}
+        <div className="lg:col-span-5 flex flex-col lg:block">
+          <div className="lg:sticky lg:top-24 space-y-6 flex flex-col lg:block">
+            {/* ProductInfo - Mobile: order-2 */}
+            <div className="order-2 lg:order-none">
+              <ProductInfo product={product} />
+            </div>
+            
+            {/* QuickOrderBox - Mobile: order-3 */}
+            <div className="order-3 lg:order-none">
+              <QuickOrderBox 
+                productId={product.databaseId}
+                productName={product.name}
               />
             </div>
-            <Button
-              className="w-full"
-              size="lg"
-              disabled={!isInStock}
-              onClick={handleAddToCart}
-            >
-              {isInStock ? `Thêm ${quantity} vào giỏ hàng` : 'Hết hàng'}
-            </Button>
-            <Button variant="outline" className="w-full" size="lg">
-              Yêu thích
-            </Button>
-          </div>
-
-          {/* Description */}
-          {product.description && (
-            <Card className="p-6">
-              <h3 className="font-heading text-lg font-semibold mb-4">
-                Mô tả sản phẩm
-              </h3>
-              <div
-                className="prose prose-sm max-w-none text-text-main"
-                dangerouslySetInnerHTML={{ __html: product.description }}
+            
+            {/* Voucher Section - Mobile: order-4 */}
+            <div className="order-4 lg:order-none">
+              <VoucherSection />
+            </div>
+            
+            {/* Product Promotions - Mobile: order-5 */}
+            <div className="order-5 lg:order-none">
+              <ProductPromotions 
+                promotions={{
+                  freeGift: true,
+                  freeCard: true,
+                  freeShip: true,
+                  warranty: true,
+                  rewardPoints: true,
+                }}
               />
-            </Card>
-          )}
+            </div>
+          </div>
         </div>
       </div>
 
