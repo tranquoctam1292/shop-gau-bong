@@ -68,25 +68,38 @@ export default function CartPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => updateCartItem(item.productId, item.quantity - 1)}
-                      className="h-10 w-10 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateCartItem(item.productId, item.quantity - 1, item.variationId);
+                      }}
+                      className="h-10 w-10 p-0 min-h-[44px] min-w-[44px] touch-manipulation"
+                      aria-label="Giảm số lượng"
+                      disabled={item.quantity <= 1}
                     >
                       −
                     </Button>
-                    <span className="w-12 text-center font-medium">{item.quantity}</span>
+                    <span className="w-12 text-center font-medium min-w-[44px]">{item.quantity}</span>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => updateCartItem(item.productId, item.quantity + 1)}
-                      className="h-10 w-10 p-0"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        updateCartItem(item.productId, item.quantity + 1, item.variationId);
+                      }}
+                      className="h-10 w-10 p-0 min-h-[44px] min-w-[44px] touch-manipulation"
+                      aria-label="Tăng số lượng"
                     >
                       +
                     </Button>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => removeFromCart(item.productId)}
-                      className="ml-auto text-destructive"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeFromCart(item.productId, item.variationId);
+                      }}
+                      className="ml-auto text-destructive hover:text-destructive hover:bg-destructive/10 min-h-[44px] px-4 touch-manipulation"
+                      aria-label="Xóa sản phẩm"
                     >
                       Xóa
                     </Button>

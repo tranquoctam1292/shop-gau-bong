@@ -700,6 +700,110 @@ export function ProductCard({ product }: ProductCardProps) {
 
 
 
+--- FILE: components\product\ProductDescription.tsx ---
+
+
+'use client';
+
+import { useState, useRef, useEffect } from 'react';
+import { cn } from '@/lib/utils/cn';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+
+interface ProductDescriptionProps {
+  content: string;
+  className?: string;
+  maxHeight?: number; // Max height in pixels when collapsed (default: 300)
+}
+
+export function ProductDescription({ 
+  content, 
+  className,
+  maxHeight = 300 
+}: ProductDescriptionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [needsExpandButton, setNeedsExpandButton] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+
+  // Check if content exceeds maxHeight
+  useEffect(() => {
+    if (contentRef.current && !isExpanded) {
+      const height = contentRef.current.scrollHeight;
+      setNeedsExpandButton(height > maxHeight);
+    }
+  }, [content, maxHeight, isExpanded]);
+
+  if (!content || !content.trim()) {
+    return null;
+  }
+
+  return (
+    <div className={cn('bg-white rounded-2xl p-4 md:p-6', className)}>
+      <h3 className="font-heading text-lg font-semibold mb-4 text-text-main">
+        MÃ´ táº£ sáº£n pháº©m
+      </h3>
+      
+      <div className="relative">
+        {/* Content Container */}
+        <div
+          ref={contentRef}
+          className={cn(
+            'overflow-hidden transition-all duration-300 ease-in-out',
+            !isExpanded && needsExpandButton ? `max-h-[${maxHeight}px]` : 'max-h-none'
+          )}
+          style={{
+            maxHeight: !isExpanded && needsExpandButton ? `${maxHeight}px` : 'none',
+          }}
+        >
+          {/* HTML Content with Typography Plugin */}
+          <div
+            className="prose prose-sm md:prose-base max-w-none prose-headings:font-heading prose-headings:text-text-main prose-p:text-text-main prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-text-main prose-strong:font-semibold prose-ul:text-text-main prose-ol:text-text-main prose-li:text-text-main prose-img:rounded-lg prose-img:max-w-full prose-img:h-auto prose-img:my-4 prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg"
+            dangerouslySetInnerHTML={{ __html: content }}
+          />
+        </div>
+
+        {/* Gradient Fade Effect (only when collapsed and needs expand) */}
+        {!isExpanded && needsExpandButton && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
+            style={{
+              background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1))',
+            }}
+          />
+        )}
+      </div>
+
+      {/* Expand/Collapse Button */}
+      {needsExpandButton && (
+        <div className="flex justify-center mt-4">
+          <Button
+            variant="outline"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="border-pink-200 text-primary hover:bg-pink-50 hover:border-pink-300 min-h-[44px] px-6"
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? 'Thu gá»n mÃ´ táº£' : 'Xem thÃªm mÃ´ táº£'}
+          >
+            {isExpanded ? (
+              <>
+                <ChevronUp className="w-4 h-4 mr-2" />
+                Thu gá»n
+              </>
+            ) : (
+              <>
+                <ChevronDown className="w-4 h-4 mr-2" />
+                Xem thÃªm
+              </>
+            )}
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+
 --- FILE: components\product\ProductFilters.tsx ---
 
 
@@ -879,6 +983,7 @@ export function ProductFilters() {
 import { useState } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils/cn';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface ProductGalleryProps {
   images: Array<{
@@ -899,6 +1004,27 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
   const mainImage = allImages[selectedImageIndex] || allImages[0];
   const thumbnails = allImages.slice(0, 5); // Limit to 5 thumbnails
 
+  // Circular navigation handlers
+  const handlePrevious = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setSelectedImageIndex((prev) => {
+      if (prev === 0) {
+        return allImages.length - 1; // Loop to last image
+      }
+      return prev - 1;
+    });
+  };
+
+  const handleNext = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    setSelectedImageIndex((prev) => {
+      if (prev === allImages.length - 1) {
+        return 0; // Loop to first image
+      }
+      return prev + 1;
+    });
+  };
+
   return (
     <div className="space-y-4">
       {/* Main Image */}
@@ -913,9 +1039,32 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
         />
         
         {/* Badge Logo "GB" */}
-        <div className="absolute top-4 left-4 bg-white/90 p-1 rounded-full shadow-sm w-6 h-6 flex items-center justify-center">
+        <div className="absolute top-4 left-4 bg-white/90 p-1 rounded-full shadow-sm w-6 h-6 flex items-center justify-center z-10">
           <span className="text-[8px] font-extrabold text-pink-500">GB</span>
         </div>
+
+        {/* Navigation Arrows - Only show if more than 1 image */}
+        {allImages.length > 1 && (
+          <>
+            {/* Previous Button */}
+            <button
+              onClick={handlePrevious}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-2 rounded-full shadow-md transition-all z-10 w-10 h-10 flex items-center justify-center"
+              aria-label="HÃ¬nh trÆ°á»›c"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+
+            {/* Next Button */}
+            <button
+              onClick={handleNext}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-gray-800 p-2 rounded-full shadow-md transition-all z-10 w-10 h-10 flex items-center justify-center"
+              aria-label="HÃ¬nh tiáº¿p theo"
+            >
+              <ChevronRight className="w-5 h-5" />
+            </button>
+          </>
+        )}
       </div>
 
       {/* Thumbnails */}

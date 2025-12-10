@@ -86,73 +86,62 @@ export default function ProductPage() {
       <div className="container-mobile py-8 md:py-16">
       {/* Mobile: Flex column với order, Desktop: Grid */}
       <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8">
-        {/* CỘT TRÁI - Ảnh & Chi tiết (7/12 columns) */}
-        <div className="lg:col-span-7 flex flex-col lg:block space-y-8">
-          {/* ProductGallery - Mobile: order-1 */}
-          <div className="order-1">
-            <ProductGallery 
-              images={[product.image, ...galleryImages].filter(Boolean).map(img => ({
-                sourceUrl: img?.sourceUrl || '/images/teddy-placeholder.png',
-                altText: img?.altText || product.name
-              }))}
-              productName={product.name}
-            />
-          </div>
-          
-          {/* ProductHighlights - Mobile: order-6, Desktop: order-2 */}
-          <div className="order-6 lg:order-none">
-            <ProductHighlights 
-              description={product.description}
-              attributes={product.attributes}
-              material={product.material ?? undefined}
-              origin={product.origin ?? undefined}
-              variations={undefined} // Will be fetched by ProductInfo, can be passed here if needed
-            />
-          </div>
-          
-          {/* ProductDescription - Mobile: order-7, Desktop: order-3 */}
-          {product.description && (
-            <div className="order-7 lg:order-none">
-              <ProductDescription content={product.description} />
-            </div>
-          )}
+        {/* ProductGallery - Mobile: order-1, Desktop: Cột trái */}
+        <div className="order-1 lg:col-span-7">
+          <ProductGallery 
+            images={[product.image, ...galleryImages].filter(Boolean).map(img => ({
+              sourceUrl: img?.sourceUrl || '/images/teddy-placeholder.png',
+              altText: img?.altText || product.name
+            }))}
+            productName={product.name}
+          />
         </div>
 
-        {/* CỘT PHẢI - Thông tin mua hàng (5/12 columns, Sticky) */}
-        <div className="lg:col-span-5 flex flex-col lg:block">
-          <div className="lg:sticky lg:top-24 space-y-6 flex flex-col lg:block">
-            {/* ProductInfo - Mobile: order-2 */}
-            <div className="order-2 lg:order-none">
-              <ProductInfo product={product} />
-            </div>
+        {/* Cột phải - Sticky container cho desktop, các phần tử riêng lẻ cho mobile */}
+        <div className="order-2 lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
+          <div className="space-y-6">
+            {/* ProductInfo */}
+            <ProductInfo product={product} />
             
-            {/* QuickOrderBox - Mobile: order-3 */}
-            <div className="order-3 lg:order-none">
-              <QuickOrderBox 
-                productId={product.databaseId}
-                productName={product.name}
-              />
-            </div>
+            {/* QuickOrderBox */}
+            <QuickOrderBox 
+              productId={product.databaseId}
+              productName={product.name}
+            />
             
-            {/* Voucher Section - Mobile: order-4 */}
-            <div className="order-4 lg:order-none">
-              <VoucherSection />
-            </div>
+            {/* Voucher Section */}
+            <VoucherSection />
             
-            {/* Product Promotions - Mobile: order-5 */}
-            <div className="order-5 lg:order-none">
-              <ProductPromotions 
-                promotions={{
-                  freeGift: true,
-                  freeCard: true,
-                  freeShip: true,
-                  warranty: true,
-                  rewardPoints: true,
-                }}
-              />
-            </div>
+            {/* Product Promotions */}
+            <ProductPromotions 
+              promotions={{
+                freeGift: true,
+                freeCard: true,
+                freeShip: true,
+                warranty: true,
+                rewardPoints: true,
+              }}
+            />
           </div>
         </div>
+        
+        {/* ProductHighlights - Mobile: order-6, Desktop: Cột trái */}
+        <div className="order-6 lg:col-span-7">
+          <ProductHighlights 
+            description={product.description}
+            attributes={product.attributes}
+            material={product.material ?? undefined}
+            origin={product.origin ?? undefined}
+            variations={undefined}
+          />
+        </div>
+        
+        {/* ProductDescription - Mobile: order-7, Desktop: Cột trái */}
+        {product.description && (
+          <div className="order-7 lg:col-span-7">
+            <ProductDescription content={product.description} />
+          </div>
+        )}
       </div>
 
       {/* Related Products */}

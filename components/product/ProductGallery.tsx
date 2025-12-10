@@ -89,14 +89,15 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
 
       {/* Thumbnails */}
       {thumbnails.length > 1 && (
-        <div className="grid grid-cols-4 md:grid-cols-5 gap-2">
+        <div className="flex md:grid md:grid-cols-5 gap-2 overflow-x-auto scrollbar-hide snap-x snap-mandatory md:overflow-x-visible md:snap-none">
           {thumbnails.map((img, index) => (
             <button
               key={index}
               onClick={() => setSelectedImageIndex(index)}
               className={cn(
-                "relative aspect-square overflow-hidden rounded-xl transition-all",
+                "relative aspect-square overflow-hidden rounded-xl transition-all flex-shrink-0 snap-center",
                 "border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                "w-20 h-20 md:w-auto md:h-auto", // Fixed size on mobile for consistent scrolling
                 selectedImageIndex === index
                   ? "border-primary scale-105"
                   : "border-transparent hover:border-pink-300"
@@ -109,7 +110,7 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
                 alt={img.altText || `Hình ${index + 1}`}
                 fill
                 className="object-cover"
-                sizes="(max-width: 768px) 25vw, 12.5vw"
+                sizes="(max-width: 768px) 80px, 12.5vw"
               />
             </button>
           ))}
