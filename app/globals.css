@@ -7,58 +7,94 @@
 
 @layer base {
   :root {
-    /* Shadcn UI CSS Variables (for compatibility) */
-    --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    /* --- BẢNG MÀU MỚI: NGỌT NGÀO & ẤM ÁP --- */
+    /* Tông màu Hồng Pastel (Chủ đạo) phối với Nâu Chocolate Sữa (Văn bản) và Kem (Nền) */
+    
+    /* Background: Màu Kem Sữa (Creamy White) - Thay vì trắng tinh */
+    --background: 30 33% 98%; /* #FDFBF9 */
+    --foreground: 15 25% 35%; /* Nâu đất nhẹ cho text thường */
+
+    /* Card: Trắng nhưng hơi ám hồng nhẹ */
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 15 25% 35%;
+
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --popover-foreground: 15 25% 35%;
+
+    /* Primary: Màu Hồng Đào Đậm (Cho nút Mua Hàng, Giá tiền) */
+    /* Đây là điểm nhấn quan trọng nhất để tạo sự dễ thương */
+    /* Cập nhật: Đậm hơn để đạt chuẩn WCAG contrast ratio 4.5:1 */
+    --primary: 339 65% 52%; /* #D6336C - Màu hồng đậm chuẩn, đạt WCAG AA */
+    --primary-foreground: 0 0% 100%; /* Chữ trắng trên nền hồng */
+
+    /* Secondary: Màu Nâu Nhạt (Cho các thẻ phụ, nền button phụ) */
+    --secondary: 25 40% 90%; /* #F5EBE6 */
+    --secondary-foreground: 25 30% 30%; /* Nâu đậm */
+
+    /* Muted: Xám ấm */
+    --muted: 30 20% 96%;
+    --muted-foreground: 25 10% 55%;
+
+    /* Accent: Màu Hồng Phấn Nhạt (Cho hiệu ứng Hover menu) */
+    --accent: 345 80% 96%; /* #FFF0F5 */
+    --accent-foreground: 345 90% 45%;
+
+    /* Destructive: Đỏ cam */
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 3.9%;
-    --radius: 0.5rem;
-    --chart-1: 12 76% 61%;
-    --chart-2: 173 58% 39%;
-    --chart-3: 197 37% 24%;
-    --chart-4: 43 74% 66%;
-    --chart-5: 27 87% 67%;
+
+    --border: 25 20% 90%;
+    --input: 25 20% 90%;
+    --ring: 339 65% 52%; /* Focus ring màu hồng đậm (match với primary) */
+
+    /* Bo góc tròn trịa hơn */
+    --radius: 1rem;
+    
+    /* Chart colors - Warm, friendly palette */
+    --chart-1: 12 76% 61%; /* Warm coral */
+    --chart-2: 350 65% 65%; /* Soft pink */
+    --chart-3: 30 50% 55%; /* Warm brown */
+    --chart-4: 43 74% 66%; /* Warm yellow */
+    --chart-5: 27 87% 67%; /* Warm orange */
   }
   .dark {
-    --background: 0 0% 3.9%;
-    --foreground: 0 0% 98%;
-    --card: 0 0% 3.9%;
-    --card-foreground: 0 0% 98%;
-    --popover: 0 0% 3.9%;
-    --popover-foreground: 0 0% 98%;
-    --primary: 0 0% 98%;
-    --primary-foreground: 0 0% 9%;
-    --secondary: 0 0% 14.9%;
-    --secondary-foreground: 0 0% 98%;
-    --muted: 0 0% 14.9%;
-    --muted-foreground: 0 0% 63.9%;
-    --accent: 0 0% 14.9%;
-    --accent-foreground: 0 0% 98%;
-    --destructive: 0 62.8% 30.6%;
+    /* Dark mode với tông màu ấm - Phù hợp với shop gấu bông */
+    --background: 25 15% 8%; /* Warm dark brown background */
+    --foreground: 30 20% 95%; /* Warm off-white text */
+    
+    --card: 25 15% 10%;
+    --card-foreground: 30 20% 95%;
+    
+    --popover: 25 15% 10%;
+    --popover-foreground: 30 20% 95%;
+    
+    /* Primary: Màu be ấm trong dark mode */
+    --primary: 30 40% 70%; /* Warm beige */
+    --primary-foreground: 25 30% 15%; /* Dark brown */
+    
+    --secondary: 25 20% 18%;
+    --secondary-foreground: 30 20% 90%;
+    
+    --muted: 25 15% 20%;
+    --muted-foreground: 30 15% 65%;
+    
+    /* Accent: Màu hồng nhạt trong dark mode */
+    --accent: 350 50% 25%; /* Deep rose */
+    --accent-foreground: 350 60% 85%; /* Light pink text */
+    
+    --destructive: 0 62.8% 50%;
     --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 14.9%;
-    --input: 0 0% 14.9%;
-    --ring: 0 0% 83.1%;
-    --chart-1: 220 70% 50%;
-    --chart-2: 160 60% 45%;
-    --chart-3: 30 80% 55%;
-    --chart-4: 280 65% 60%;
-    --chart-5: 340 75% 55%;
+    
+    --border: 25 20% 25%;
+    --input: 25 20% 25%;
+    --ring: 350 60% 60%; /* Soft rose for focus */
+    
+    /* Chart colors - Warm palette for dark mode */
+    --chart-1: 12 70% 55%;
+    --chart-2: 350 60% 60%;
+    --chart-3: 30 45% 50%;
+    --chart-4: 43 65% 60%;
+    --chart-5: 27 75% 60%;
   }
 }
 
@@ -130,6 +166,28 @@
     to {
       transform: translateX(0);
     }
+  }
+}
+
+/* Button Primary - Candy-like gradient effect for teddy bear shop */
+/* Cập nhật: Dùng màu đậm hơn để đạt chuẩn WCAG contrast ratio */
+/* Loại bỏ shadow khi hover để giao diện gọn gàng hơn */
+@layer components {
+  .button-primary-gradient {
+    /* Gradient từ hồng nhạt đến hồng đậm (#D6336C) */
+    background-image: linear-gradient(to bottom right, #E85A8A, #D6336C) !important;
+    box-shadow: none;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .button-primary-gradient:hover {
+    box-shadow: none;
+    transform: translateY(-1px);
+  }
+  
+  .button-primary-gradient:active {
+    box-shadow: none;
+    transform: translateY(0);
   }
 }
 

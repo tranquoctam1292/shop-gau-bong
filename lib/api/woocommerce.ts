@@ -217,6 +217,14 @@ export const wcApi = {
   getProduct: (id: number) => wcFetch<any>(`/products/${id}`),
 
   /**
+   * Get product variations
+   * 
+   * @param productId - Product ID
+   * @returns Array of variation objects
+   */
+  getProductVariations: (productId: number) => wcFetch<any[]>(`/products/${productId}/variations`),
+
+  /**
    * Search products
    * 
    * @param search - Search term

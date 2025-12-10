@@ -2,6 +2,7 @@
 
 import { lazy, Suspense, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { ShoppingBag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { buttonVariants } from '@/lib/utils/button-variants';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,9 +41,9 @@ export function Header() {
     <>
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-visible">
         <div className="container-mobile flex h-16 items-center justify-between gap-4 relative overflow-visible">
-          {/* Logo */}
+          {/* Logo - Handwriting font for soft, friendly feel */}
           <Link href="/" className="flex items-center space-x-2 flex-shrink-0">
-            <span className="font-heading text-xl font-bold text-primary">
+            <span className="font-logo text-xl font-semibold text-primary">
               🧸 Shop Gấu Bông
             </span>
           </Link>
@@ -80,7 +81,18 @@ export function Header() {
             >
               🔍
             </button>
-            <Suspense fallback={<Button variant="ghost" size="icon" disabled>🛒</Button>}>
+            <Suspense fallback={
+              <Button 
+                disabled
+                className={cn(
+                  'relative bg-pink-50 text-pink-600',
+                  'rounded-full w-10 h-10 p-0',
+                  'border border-pink-200 shadow-sm'
+                )}
+              >
+                <ShoppingBag className="w-5 h-5" strokeWidth={2.5} />
+              </Button>
+            }>
               <CartDrawer />
             </Suspense>
           </div>

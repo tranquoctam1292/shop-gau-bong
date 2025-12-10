@@ -111,7 +111,7 @@ export default function CartPage() {
             <h2 className="font-heading text-xl font-semibold mb-4">
               Tóm tắt đơn hàng
             </h2>
-            <div className="space-y-3 mb-6">
+            <div className="flex flex-col gap-3 mb-6">
               <div className="flex justify-between text-sm">
                 <span className="text-text-muted">Tạm tính:</span>
                 <span className="font-medium">{formatPrice(totalPrice.toString())}</span>
@@ -140,16 +140,34 @@ export default function CartPage() {
                 </p>
               )}
             </div>
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Link 
                 href="/checkout" 
-                className={cn(buttonVariants({ size: 'lg' }), 'w-full')}
+                className={cn(
+                  buttonVariants({ size: 'lg' }), 
+                  'w-full',
+                  // Override inline-flex thành flex để hoạt động tốt với w-full
+                  '!flex items-center justify-center',
+                  // Tăng padding lớn hơn để button có nền rộng hơn
+                  '!px-10 !py-5', // 40px horizontal, 20px vertical
+                  'min-h-[56px]', // Chiều cao tối thiểu 56px
+                  'text-center' // Căn giữa text
+                )}
               >
                 Thanh toán
               </Link>
               <Link 
                 href="/products" 
-                className={cn(buttonVariants({ variant: 'outline' }), 'w-full')}
+                className={cn(
+                  buttonVariants({ variant: 'outline', size: 'lg' }), 
+                  'w-full',
+                  // Override inline-flex thành flex để hoạt động tốt với w-full
+                  '!flex items-center justify-center',
+                  // Tăng padding lớn hơn để button có nền rộng hơn
+                  '!px-10 !py-5', // 40px horizontal, 20px vertical
+                  'min-h-[56px]', // Chiều cao tối thiểu 56px
+                  'text-center' // Căn giữa text
+                )}
               >
                 Tiếp tục mua sắm
               </Link>

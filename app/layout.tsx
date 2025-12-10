@@ -1,7 +1,8 @@
 import type { Metadata } from 'next';
-import { Inter, Nunito } from 'next/font/google';
+import { Inter, Nunito, Fredoka } from 'next/font/google';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import { CategoriesProvider } from '@/lib/providers/CategoriesProvider';
+import { QueryProvider } from '@/lib/providers/QueryProvider';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import './globals.css';
@@ -16,6 +17,15 @@ const nunito = Nunito({
   subsets: ['latin', 'vietnamese'],
   variable: '--font-nunito',
   display: 'swap',
+});
+
+// Handwriting font for logo - Soft, friendly, perfect for teddy bear shop
+// Note: Fredoka only supports 'latin', 'latin-ext', 'hebrew' subsets
+const fredoka = Fredoka({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-fredoka',
+  display: 'swap',
+  weight: ['400', '500', '600'],
 });
 
 import { getDefaultMetadata, generateOpenGraphTags, generateTwitterCardTags } from '@/lib/utils/metadata';
@@ -80,17 +90,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="vi" className={`${inter.variable} ${nunito.variable}`}>
+    <html lang="vi" className={`${inter.variable} ${nunito.variable} ${fredoka.variable}`}>
       <body className="min-h-screen bg-background flex flex-col">
-        <ToastProvider>
-          <CategoriesProvider>
-            <Header />
-            <main className="flex-1 relative z-0">
-              {children}
-            </main>
-            <Footer />
-          </CategoriesProvider>
-        </ToastProvider>
+        <QueryProvider>
+          <ToastProvider>
+            <CategoriesProvider>
+              <Header />
+              <main className="flex-1 relative z-0">
+                {children}
+              </main>
+              <Footer />
+            </CategoriesProvider>
+          </ToastProvider>
+        </QueryProvider>
       </body>
     </html>
   );

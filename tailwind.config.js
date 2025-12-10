@@ -30,8 +30,11 @@ module.exports = {
   				foreground: 'hsl(var(--accent-foreground))'
   			},
   			background: 'hsl(var(--background))',
-  			'text-main': '#4A4A4A',
-  			'text-muted': '#888888',
+  			// Cập nhật màu text tĩnh - Nâu Chocolate thay vì xám công nghiệp
+  			'text-main': '#5D4037', // Nâu Chocolate (thay vì #4A4A4A)
+  			'text-muted': '#9E8882', // Nâu xám nhạt (thay vì #888888)
+  			// Thêm màu nền ấm áp
+  			'warm-cream': '#FDFBF7',
   			border: 'hsl(var(--border))',
   			input: 'hsl(var(--input))',
   			ring: 'hsl(var(--ring))',
@@ -67,6 +70,11 @@ module.exports = {
   			],
   			heading: [
   				'Nunito',
+  				'sans-serif'
+  			],
+  			logo: [
+  				'var(--font-fredoka)',
+  				'Fredoka',
   				'sans-serif'
   			]
   		},

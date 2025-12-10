@@ -16,11 +16,11 @@ import { HeroBanners } from '@/components/home/HeroBanners';
  * 
  * Main landing page với các sections:
  * 1. Hero Banner Carousel (from CMS)
- * 2. Sản phẩm mới nhất
- * 3. Gấu Bông Bigsize
- * 4. Gấu Teddy (category products)
- * 5. Thú Bông Hot (trending)
- * 6. Categories Grid
+ * 2. Categories Grid - Danh mục sản phẩm (ngay sau Hero)
+ * 3. Sản phẩm mới nhất
+ * 4. Gấu Bông Bigsize
+ * 5. Gấu Teddy (category products)
+ * 6. Thú Bông Hot (trending)
  * 7. Featured Products
  * 8. Best Sellers
  */
@@ -29,6 +29,9 @@ export default function HomePage() {
     <main className="min-h-screen">
       {/* Hero Banner Carousel - Fetched from CMS */}
       <HeroBanners />
+
+      {/* Categories Grid - Danh mục sản phẩm - Ngay sau Hero Section */}
+      <CategoryGrid />
 
       {/* Sản phẩm mới nhất */}
       <NewArrivals />
@@ -46,9 +49,6 @@ export default function HomePage() {
 
       {/* Thú Bông Hot */}
       <TrendingProducts />
-
-      {/* Categories Grid - 4 cols x 2 rows desktop, 2 cols mobile */}
-      <CategoryGrid />
 
       {/* Featured Products */}
       <FeaturedProducts />

@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useCartSync } from '@/lib/hooks/useCartSync';
 import { type CartItem } from '@/lib/store/cartStore';
 import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
 
 interface AddToCartButtonProps {
   product: Omit<CartItem, 'quantity'>;
@@ -30,17 +31,30 @@ export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
     }
   };
 
-  // Fix hydration: Normalize text để đảm bảo render nhất quán
-  const buttonText = isAdding ? 'Đã thêm ✓' : disabled ? 'Hết hàng' : 'Thêm vào giỏ hàng';
+  // Button text - Hiển thị loading state với spinner
+  const getButtonContent = () => {
+    if (isAdding) {
+      return (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Đang thêm...
+        </>
+      );
+    }
+    if (disabled) {
+      return 'Hết hàng';
+    }
+    return 'Thêm vào giỏ hàng';
+  };
 
   return (
     <Button
-      className="w-full"
+      className="w-full relative"
       size="lg"
       disabled={disabled || isAdding}
       onClick={handleAddToCart}
     >
-      {buttonText}
+      {getButtonContent()}
     </Button>
   );
 }

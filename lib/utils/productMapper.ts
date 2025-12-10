@@ -51,6 +51,19 @@ export interface MappedProduct {
     name: string;
     slug: string;
   }>;
+  // Product attributes for variants (Size, Color, etc.)
+  attributes?: Array<{
+    id: number;
+    name: string;
+    options: string[];
+    position: number;
+    visible: boolean;
+    variation: boolean;
+  }>;
+  // Product type: simple, variable, grouped, external
+  type?: 'simple' | 'variable' | 'grouped' | 'external';
+  // Variation IDs (for variable products)
+  variations?: number[];
 }
 
 /**
@@ -105,6 +118,12 @@ export function mapWooCommerceProduct(wcProduct: WooCommerceProduct): MappedProd
     origin: origin || null,
     categories: wcProduct.categories || [],
     tags: wcProduct.tags || [],
+    // Map attributes for variant selection
+    attributes: wcProduct.attributes || [],
+    // Product type
+    type: wcProduct.type || 'simple',
+    // Variation IDs (for variable products)
+    variations: wcProduct.variations || [],
   };
 }
 

@@ -44,6 +44,7 @@ export function useCartSync() {
       productName: item.productName,
       price: item.price,
       image: item.image,
+      variationId: item.variationId,
       length: item.length,
       width: item.width,
       height: item.height,
@@ -57,26 +58,26 @@ export function useCartSync() {
     
     // Then update quantity if needed
     if (quantity > 1) {
-      updateQuantity(item.productId, quantity);
+      updateQuantity(item.productId, quantity, item.variationId);
     }
   };
 
   /**
    * Update item quantity in cart
    */
-  const updateCartItem = (productId: number, quantity: number) => {
+  const updateCartItem = (productId: number, quantity: number, variationId?: number) => {
     if (quantity <= 0) {
-      removeFromCart(productId);
+      removeFromCart(productId, variationId);
     } else {
-      updateQuantity(productId, quantity);
+      updateQuantity(productId, quantity, variationId);
     }
   };
 
   /**
    * Remove item from cart
    */
-  const removeFromCart = (productId: number) => {
-    removeItem(productId);
+  const removeFromCart = (productId: number, variationId?: number) => {
+    removeItem(productId, variationId);
   };
 
   /**

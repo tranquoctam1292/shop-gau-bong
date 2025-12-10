@@ -4,6 +4,15 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import Image from 'next/image';
+import { 
+  ShoppingBag, 
+  Sparkles, 
+  Flame, 
+  Package, 
+  Star, 
+  Tag,
+  Heart 
+} from 'lucide-react';
 import { useCategoriesContext } from '@/lib/providers/CategoriesProvider';
 import { cn } from '@/lib/utils/cn';
 
@@ -36,12 +45,13 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
   }, []);
 
   // Calculate menu position when opening
+  // Use viewport position (getBoundingClientRect) since mega menu uses position: fixed
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setMenuPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
+        top: rect.bottom + 4, // Viewport position, no need for scrollY
+        left: rect.left, // Viewport position, no need for scrollX
         width: rect.width,
       });
     }
@@ -96,14 +106,47 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
     }
   };
 
-  // Quick filter items (bộ lọc nhanh)
+  // Quick filter items (bộ lọc nhanh) - Using Lucide React icons instead of emoji
   const quickFilters = [
-    { id: 'all', label: 'Tất cả sản phẩm', href: '/products', icon: '🛍️' },
-    { id: 'new', label: 'Hàng mới', href: '/products?sort=newest', icon: '✨', badge: 'new' },
-    { id: 'popular', label: 'Bán chạy', href: '/products?sort=popularity', icon: '🔥', badge: 'hot' },
-    { id: 'bigsize', label: 'Bigsize', href: '/products?size=bigsize', icon: '🐻' },
-    { id: 'featured', label: 'Nổi bật', href: '/products?featured=true', icon: '⭐' },
-    { id: 'sale', label: 'Giảm giá', href: '/products?on_sale=true', icon: '💰', badge: 'sale' },
+    { 
+      id: 'all', 
+      label: 'Tất cả sản phẩm', 
+      href: '/products', 
+      icon: <ShoppingBag className="w-4 h-4 text-primary" />
+    },
+    { 
+      id: 'new', 
+      label: 'Hàng mới', 
+      href: '/products?sort=newest', 
+      icon: <Sparkles className="w-4 h-4 text-yellow-500" />, 
+      badge: 'new' 
+    },
+    { 
+      id: 'popular', 
+      label: 'Bán chạy', 
+      href: '/products?sort=popularity', 
+      icon: <Flame className="w-4 h-4 text-orange-500" />, 
+      badge: 'hot' 
+    },
+    { 
+      id: 'bigsize', 
+      label: 'Bigsize', 
+      href: '/products?size=bigsize', 
+      icon: <Package className="w-4 h-4 text-amber-600" />
+    },
+    { 
+      id: 'featured', 
+      label: 'Nổi bật', 
+      href: '/products?featured=true', 
+      icon: <Star className="w-4 h-4 text-yellow-500" />
+    },
+    { 
+      id: 'sale', 
+      label: 'Giảm giá', 
+      href: '/products?on_sale=true', 
+      icon: <Tag className="w-4 h-4 text-green-600" />, 
+      badge: 'sale' 
+    },
   ];
 
   // Build category groups using parentId (sustainable approach)
@@ -274,8 +317,8 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
         <div
           className="fixed pointer-events-auto"
           style={{
-            top: `${menuPosition.top - 8}px`, // 8px buffer above menu
-            left: `${menuPosition.left}px`,
+            top: `${menuPosition.top - 8}px`, // 8px buffer above menu (viewport position)
+            left: `${menuPosition.left}px`, // Viewport position
             width: `${menuPosition.width}px`,
             height: '8px',
           }}
@@ -339,7 +382,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
                             </div>
                           ) : (
                             <div className="w-10 h-10 flex-shrink-0 rounded-lg bg-muted flex items-center justify-center shadow-sm">
-                              <span className="text-lg">🧸</span>
+                              <Heart className="w-5 h-5 text-accent-foreground/60" />
                             </div>
                           )}
                           <div className="flex-1 min-w-0">
@@ -390,7 +433,9 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
                         'min-h-[44px]'
                       )}
                     >
-                      <span className="text-xl flex-shrink-0">{filter.icon}</span>
+                      <span className="flex-shrink-0 flex items-center justify-center">
+                        {filter.icon}
+                      </span>
                       <div className="flex-1 min-w-0 flex items-center justify-between">
                         <span className="font-medium text-sm text-text-main group-hover:text-primary transition-colors">
                           {filter.label}

@@ -141,7 +141,7 @@ export function EnhancedSearchBar({ onSearch, autoFocus = false }: EnhancedSearc
             value={searchQuery}
             onChange={(e) => handleInputChange(e.target.value)}
             onFocus={handleInputFocus}
-            className="w-full pr-10"
+            className="w-full pr-10 rounded-full border-2 border-border focus:border-primary transition-colors"
           />
           {searchQuery && (
             <button

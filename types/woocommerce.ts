@@ -363,6 +363,67 @@ export interface WooCommerceOrderUpdateInput {
 }
 
 /**
+ * WooCommerce Product Variation Type
+ * 
+ * @see https://woocommerce.github.io/woocommerce-rest-api-docs/#product-variations
+ */
+export interface WooCommerceVariation {
+  id: number;
+  date_created: string;
+  date_created_gmt: string;
+  date_modified: string;
+  date_modified_gmt: string;
+  description: string;
+  permalink: string;
+  sku: string;
+  price: string;
+  regular_price: string;
+  sale_price: string;
+  date_on_sale_from: string | null;
+  date_on_sale_from_gmt: string | null;
+  date_on_sale_to: string | null;
+  date_on_sale_to_gmt: string | null;
+  on_sale: boolean;
+  status: 'draft' | 'pending' | 'private' | 'publish';
+  purchasable: boolean;
+  virtual: boolean;
+  downloadable: boolean;
+  downloads: any[];
+  download_limit: number;
+  download_expiry: number;
+  tax_status: 'taxable' | 'shipping' | 'none';
+  tax_class: string;
+  manage_stock: boolean;
+  stock_quantity: number | null;
+  stock_status: 'instock' | 'outofstock' | 'onbackorder';
+  backorders: 'no' | 'notify' | 'yes';
+  backorders_allowed: boolean;
+  backordered: boolean;
+  weight: string;
+  dimensions: {
+    length: string;
+    width: string;
+    height: string;
+  };
+  image: {
+    id: number;
+    src: string;
+    name: string;
+    alt: string;
+  } | null;
+  attributes: Array<{
+    id: number;
+    name: string;
+    option: string;
+  }>;
+  meta_data: Array<{
+    id: number;
+    key: string;
+    value: string | number | object | null;
+  }>;
+}
+
+/**
  * Helper type để extract ACF fields từ Product meta_data
  */
 export interface ProductACFFields {

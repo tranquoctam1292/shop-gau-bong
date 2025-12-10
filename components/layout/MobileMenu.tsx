@@ -197,12 +197,14 @@ function MobileSubmenu({ label, items, onItemClick }: MobileSubmenuProps) {
           'min-h-[44px] flex items-center justify-between',
           'focus:outline-none focus:ring-2 focus:ring-primary',
           'touch-manipulation', // Better touch handling
-          // Special styling for gifting menu
+          // Special styling for gifting menu - Sweet pink theme
           isGiftingMenu
             ? cn(
-                'bg-accent/10 text-accent hover:bg-accent/20',
-                'font-semibold shadow-sm',
-                isExpanded && 'bg-accent/20'
+                'bg-[#FFEFF4] text-[#D6336C] border-2 border-[#FCC2D7]', // Hồng ngọt ngào, viền đậm
+                'font-extrabold shadow-[0_2px_10px_rgba(255,192,203,0.3)]', // Đổ bóng hồng
+                'active:scale-95 transition-transform duration-200', // Hiệu ứng nảy nhẹ khi click
+                'rounded-full',
+                isExpanded && 'bg-[#FFE0E8] border-[#F99BB8]' // Darker when expanded
               )
             : cn(
                 'text-text-main hover:bg-muted hover:text-primary'

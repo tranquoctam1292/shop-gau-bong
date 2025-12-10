@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Gift } from 'lucide-react';
 import { MenuDropdown, type MenuDropdownItem } from './MenuDropdown';
 import { ShopMegaMenu } from './ShopMegaMenu';
 import { cn } from '@/lib/utils/cn';
@@ -56,7 +57,7 @@ export function NavigationMenu() {
         label="Chọn Quà Tặng"
         items={occasionsItems}
         trigger="hover"
-        icon="🎁"
+        icon={<Gift className="w-4 h-4 text-pink-500" />}
         highlight={true}
       />
 

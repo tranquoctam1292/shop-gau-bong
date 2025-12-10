@@ -20,7 +20,7 @@ interface MenuDropdownProps {
   items: MenuDropdownItem[];
   className?: string;
   trigger?: 'hover' | 'click';
-  icon?: string; // Icon to display before label
+  icon?: string | React.ReactNode; // Icon to display before label (string for emoji, ReactNode for Lucide icons)
   highlight?: boolean; // Whether to highlight this menu item (for gifting/emotional products)
 }
 
@@ -52,12 +52,13 @@ export function MenuDropdown({
   }, []);
 
   // Calculate dropdown position when opening
+  // Use viewport position (getBoundingClientRect) since dropdown uses position: fixed
   useEffect(() => {
     if (isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setDropdownPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX,
+        top: rect.bottom + 4, // Viewport position, no need for scrollY
+        left: rect.left, // Viewport position, no need for scrollX
         width: rect.width,
       });
     }
@@ -156,12 +157,14 @@ export function MenuDropdown({
           'text-sm font-medium transition-colors',
           'min-h-[44px] flex items-center px-3 gap-1.5',
           'relative z-50', // Ensure trigger is above other elements
-          // Highlight styling for gifting/emotional products
+          // Highlight styling for gifting/emotional products - Sweet pink theme
           highlight
             ? cn(
-                'bg-accent/10 text-accent hover:bg-accent/20 rounded-full px-4',
-                'font-semibold shadow-sm',
-                isOpen && 'bg-accent/20'
+                'bg-[#FFEFF4] text-[#D6336C] border-2 border-[#FCC2D7]', // Hồng ngọt ngào, viền đậm
+                'font-extrabold shadow-[0_2px_10px_rgba(255,192,203,0.3)]', // Đổ bóng hồng
+                'hover:scale-105 transition-transform duration-200', // Hiệu ứng nảy nhẹ
+                'rounded-full px-5 mx-1',
+                isOpen && 'bg-[#FFE0E8] border-[#F99BB8]' // Darker when open
               )
             : cn(
                 'text-text-main hover:text-primary',
@@ -180,8 +183,8 @@ export function MenuDropdown({
         <div
           className="fixed pointer-events-auto"
           style={{
-            top: `${dropdownPosition.top - 8}px`, // 8px buffer above dropdown
-            left: `${dropdownPosition.left}px`,
+            top: `${dropdownPosition.top - 8}px`, // 8px buffer above dropdown (viewport position)
+            left: `${dropdownPosition.left}px`, // Viewport position
             width: `${Math.max(dropdownPosition.width, 200)}px`,
             height: '8px',
           }}
