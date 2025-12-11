@@ -1,6 +1,6 @@
 # 🧸 Shop Gấu Bông - E-commerce Website
 
-Website thương mại điện tử bán gấu bông được xây dựng với **WordPress (Headless CMS)** và **Next.js 14 (App Router)**.
+Website thương mại điện tử bán gấu bông được xây dựng với **Custom CMS (MongoDB)** và **Next.js 14 (App Router)**.
 
 ## 🚀 Tech Stack
 
@@ -13,19 +13,19 @@ Website thương mại điện tử bán gấu bông được xây dựng với 
 - **Shadcn UI** - UI component library
 - **React Hook Form + Zod** - Form handling & validation
 - **Lucide React** - Icon library
+- **Tiptap** - Rich text editor (for blog posts)
 
 ### Backend
-- **WordPress 6.0+** - Headless CMS
-- **WooCommerce** - E-commerce plugin
-- **WooCommerce REST API** - Native REST API (v3)
-- **ACF (Advanced Custom Fields)** - Custom fields for products
+- **MongoDB** - NoSQL database
+- **Next.js API Routes** - Custom API endpoints
+- **NextAuth.js** - Authentication for admin panel
+- **MongoDB Native Driver** - Database access
 
 ## 📋 Yêu cầu hệ thống
 
 - Node.js 18+
 - npm hoặc yarn
-- WordPress hosting với PHP 8.0+
-- MySQL 5.7+
+- MongoDB (local hoặc MongoDB Atlas)
 
 ## 🛠️ Cài đặt
 
@@ -44,12 +44,15 @@ npm install
 Copy file `.env.example` thành `.env.local` và điền thông tin:
 
 ```env
-NEXT_PUBLIC_WORDPRESS_URL=https://your-wordpress-site.com
-WOOCOMMERCE_CONSUMER_KEY=ck_xxxxx
-WOOCOMMERCE_CONSUMER_SECRET=cs_xxxxx
+MONGODB_URI=mongodb://localhost:27017/shop-gau-bong
+# hoặc MongoDB Atlas:
+# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/shop-gau-bong
+MONGODB_DB_NAME=shop-gau-bong
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-secret-key-here
 ```
 
-**Lưu ý:** WooCommerce REST API credentials được lưu trong `.env.local` (không commit lên Git).
+**Lưu ý:** MongoDB connection string và NextAuth secret được lưu trong `.env.local` (không commit lên Git).
 
 ### 4. Chạy development server
 ```bash
@@ -64,8 +67,11 @@ Mở [http://localhost:3000](http://localhost:3000) trong trình duyệt.
 shop-gau-bong/
 ├── app/                    # Next.js App Router
 │   ├── (shop)/            # Shop routes
-│   ├── api/               # API routes (WooCommerce proxy)
-│   │   └── woocommerce/   # WooCommerce REST API routes
+│   ├── admin/             # Admin panel routes
+│   ├── api/               # API routes
+│   │   ├── cms/           # Public CMS API routes
+│   │   ├── admin/         # Admin API routes (authenticated)
+│   │   └── auth/          # NextAuth.js routes
 │   ├── layout.tsx         # Root layout
 │   └── page.tsx           # Homepage
 ├── components/             # React Components

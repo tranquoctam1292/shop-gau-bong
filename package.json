@@ -29,7 +29,9 @@
     "test:hooks-api": "tsx scripts/test-hooks-api.ts",
     "migrate:wordpress-to-mongodb": "tsx scripts/migrate-wordpress-to-mongodb.ts",
     "migrate:verify": "tsx scripts/verify-migration.ts",
-    "create:admin-user": "tsx scripts/create-admin-user.ts"
+    "create:admin-user": "tsx scripts/create-admin-user.ts",
+    "import:woocommerce": "tsx scripts/import-products-from-woocommerce.ts",
+    "test:product-management": "tsx scripts/test-product-management.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.3.0",

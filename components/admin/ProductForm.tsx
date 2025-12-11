@@ -17,6 +17,15 @@ import { GiftFeaturesSection } from './products/GiftFeaturesSection';
 import { MediaExtendedSection } from './products/MediaExtendedSection';
 import { CollectionComboSection } from './products/CollectionComboSection';
 import { TemplateSelector } from './products/TemplateSelector';
+import { ProductFormLayout } from './products/ProductFormLayout';
+import { PublishBox } from './products/sidebar/PublishBox';
+import { CategoriesBox } from './products/sidebar/CategoriesBox';
+import { TagsBox } from './products/sidebar/TagsBox';
+import { FeaturedImageBox } from './products/sidebar/FeaturedImageBox';
+import { ProductGalleryBox } from './products/sidebar/ProductGalleryBox';
+import { ProductDataBox } from './products/sidebar/ProductDataBox';
+import { ProductLinksBox } from './products/sidebar/ProductLinksBox';
+import { ClassicEditor } from './products/ClassicEditor';
 
 interface ProductVariant {
   id: string;
@@ -89,7 +98,8 @@ interface ProductFormData {
   description: string;
   shortDescription: string;
   sku: string;
-  category: string;
+  category: string; // Keep for backward compatibility
+  categories?: string[]; // Multiple categories support
   tags: string[];
   variants: EnhancedVariant[];
   images: string[];
@@ -128,12 +138,14 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     shortDescription: '',
     sku: '',
     category: '',
+    categories: [],
     tags: [],
     variants: [],
     images: [],
     isHot: false,
     isActive: true,
     status: 'draft',
+    visibility: 'public',
     productDetails: {},
     seo: {},
     giftFeatures: {
@@ -146,8 +158,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     collectionCombo: {},
     ...initialData,
   });
-  const [tagInput, setTagInput] = useState('');
-  const [imageInput, setImageInput] = useState('');
 
   // Fetch categories
   useEffect(() => {
@@ -192,6 +202,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               shortDescription: product.shortDescription || '',
               sku: product.sku || '',
               category: product.categories[0]?.id?.toString() || '',
+              categories: product.categories?.map((c) => c.id?.toString()).filter(Boolean) || [],
               tags: product.tags?.map((t) => t.name) || [],
               variants: product.attributes
                 ?.find((a) => a.name === 'Size')
@@ -224,23 +235,98 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     }
   }, [productId, initialData]);
 
+  // Prepare payload helper
+  const preparePayload = () => {
+    // Validate required fields
+    if (!formData.name.trim()) {
+      alert('Vui lòng nhập tên sản phẩm');
+      return null;
+    }
+
+    // Auto-generate slug if empty
+    let slug = formData.slug.trim();
+    if (!slug) {
+      slug = formData.name
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+    }
+
+    // Calculate min/max price from variants
+    let minPrice = 0;
+    let maxPrice: number | undefined = undefined;
+    
+    if (formData.variants.length > 0) {
+      const prices = formData.variants
+        .map((v) => v.price)
+        .filter((p) => !isNaN(p) && p >= 0);
+      
+      if (prices.length > 0) {
+        minPrice = Math.min(...prices);
+        if (prices.length > 1) {
+          maxPrice = Math.max(...prices);
+        }
+      }
+    }
+
+    // Validate minPrice
+    if (minPrice < 0 || isNaN(minPrice)) {
+      alert('Giá sản phẩm không hợp lệ');
+      return null;
+    }
+
+    // Map categories to categoryIds if needed
+    // Support both single category (backward compatibility) and multiple categories
+    let categoryIds: string[] = [];
+    
+    if (formData.categories && formData.categories.length > 0) {
+      // Use multiple categories if available
+      categoryIds = formData.categories
+        .map((catId) => {
+          const category = categories.find((c) => c.id === catId || c.databaseId?.toString() === catId);
+          return category?.id || catId;
+        })
+        .filter(Boolean);
+    } else if (formData.category) {
+      // Fallback to single category
+      const selectedCategory = categories.find((c) => c.id === formData.category || c.name === formData.category);
+      if (selectedCategory) {
+        categoryIds = [selectedCategory.id];
+      }
+    }
+
+    return {
+      ...formData,
+      slug,
+      minPrice,
+      maxPrice,
+      category: categoryIds[0] || formData.category || undefined, // Keep for backward compatibility
+      categories: categoryIds.length > 0 ? categoryIds : undefined,
+      tags: formData.tags.filter((t) => t.trim().length > 0),
+    };
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    await handleSave('publish');
+  };
+
+  const handleSave = async (saveStatus: 'draft' | 'publish' = 'draft') => {
     setLoading(true);
 
     try {
-      // Calculate min/max price from variants
-      const prices = formData.variants.length > 0
-        ? formData.variants.map((v) => v.price)
-        : [0];
-      const minPrice = Math.min(...prices);
-      const maxPrice = formData.variants.length > 1 ? Math.max(...prices) : undefined;
+      const payload = preparePayload();
+      if (!payload) {
+        setLoading(false);
+        return;
+      }
 
-      const payload = {
-        ...formData,
-        minPrice,
-        maxPrice,
-        tags: formData.tags,
+      // Override status based on save action
+      const finalPayload = {
+        ...payload,
+        status: saveStatus,
       };
 
       const url = productId
@@ -251,7 +337,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(finalPayload),
       });
 
       if (!response.ok) {
@@ -260,8 +346,17 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         return;
       }
 
-      router.push('/admin/products');
-      router.refresh();
+      const result = await response.json();
+      
+      // If creating new product, update productId for preview
+      if (!productId && result.product?._id) {
+        // Update URL with new product ID
+        router.push(`/admin/products/${result.product._id}/edit`);
+        router.refresh();
+      } else {
+        // Just refresh if editing
+        router.refresh();
+      }
     } catch (error) {
       console.error('Error saving product:', error);
       alert('Có lỗi xảy ra khi lưu sản phẩm');
@@ -270,41 +365,17 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     }
   };
 
+  const handlePublish = async () => {
+    await handleSave('publish');
+  };
+
+  const handleSaveDraft = async () => {
+    await handleSave('draft');
+  };
+
   // Variant management functions removed - now handled by VariantFormEnhanced component
-
-  const addTag = () => {
-    if (tagInput.trim() && !formData.tags.includes(tagInput.trim())) {
-      setFormData((prev) => ({
-        ...prev,
-        tags: [...prev.tags, tagInput.trim()],
-      }));
-      setTagInput('');
-    }
-  };
-
-  const removeTag = (tag: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      tags: prev.tags.filter((t) => t !== tag),
-    }));
-  };
-
-  const addImage = () => {
-    if (imageInput.trim() && !formData.images.includes(imageInput.trim())) {
-      setFormData((prev) => ({
-        ...prev,
-        images: [...prev.images, imageInput.trim()],
-      }));
-      setImageInput('');
-    }
-  };
-
-  const removeImage = (image: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      images: prev.images.filter((img) => img !== image),
-    }));
-  };
+  // Tag management functions removed - now handled by TagsBox component
+  // Image management functions removed - now handled by FeaturedImageBox and ProductGalleryBox
 
   const handleLoadTemplate = (templateData: any) => {
     // Merge template data với form data hiện tại
@@ -342,21 +413,143 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     }
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      {/* Template Selector */}
-      <TemplateSelector
-        onLoadTemplate={handleLoadTemplate}
-        onSaveTemplate={handleSaveTemplate}
-        currentFormData={formData}
+  // Fetch popular tags (from existing products)
+  const fetchPopularTags = async (): Promise<string[]> => {
+    try {
+      // Fetch tags from API or use existing tags from products
+      // For now, return empty array - can be enhanced later
+      return [];
+    } catch (error) {
+      console.error('Error fetching popular tags:', error);
+      return [];
+    }
+  };
+
+  // Sidebar content
+  const sidebarContent = (
+    <>
+      {/* Publish Box */}
+      <PublishBox
+        status={formData.status}
+        isActive={formData.isActive}
+        visibility={formData.visibility}
+        onStatusChange={(status) => setFormData((prev) => ({ ...prev, status }))}
+        onIsActiveChange={(isActive) => setFormData((prev) => ({ ...prev, isActive }))}
+        onVisibilityChange={(visibility) => setFormData((prev) => ({ ...prev, visibility }))}
+        onPublish={handlePublish}
+        onSaveDraft={handleSaveDraft}
+        loading={loading}
+        productId={productId}
+        productSlug={formData.slug}
       />
+
+      {/* Categories Box */}
+      <CategoriesBox
+        categories={categories}
+        selectedCategories={formData.categories || (formData.category ? [formData.category] : [])}
+        onCategoriesChange={(categoryIds) => {
+          setFormData((prev) => ({
+            ...prev,
+            categories: categoryIds,
+            category: categoryIds[0] || '', // Keep for backward compatibility
+          }));
+        }}
+      />
+
+      {/* Tags Box */}
+      <TagsBox
+        tags={formData.tags}
+        onTagsChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+        onFetchPopularTags={fetchPopularTags}
+      />
+
+      {/* Featured Image Box */}
+      <FeaturedImageBox
+        featuredImage={formData.images[0]}
+        onImageChange={(imageUrl) => {
+          setFormData((prev) => ({
+            ...prev,
+            images: prev.images.length > 0
+              ? [imageUrl, ...prev.images.slice(1)]
+              : [imageUrl],
+          }));
+        }}
+        onImageRemove={() => {
+          setFormData((prev) => ({
+            ...prev,
+            images: prev.images.slice(1),
+          }));
+        }}
+      />
+
+      {/* Product Gallery Box */}
+      <ProductGalleryBox
+        images={formData.images}
+        featuredImageIndex={0}
+        onImagesChange={(images) => {
+          setFormData((prev) => ({ ...prev, images }));
+        }}
+        onSetFeatured={(index) => {
+          const newImages = [...formData.images];
+          const [featuredImage] = newImages.splice(index, 1);
+          newImages.unshift(featuredImage);
+          setFormData((prev) => ({ ...prev, images: newImages }));
+        }}
+      />
+
+      {/* Product Data Box */}
+      <ProductDataBox
+        sku={formData.sku}
+        onSkuChange={(sku) => setFormData((prev) => ({ ...prev, sku }))}
+        length={formData.length}
+        width={formData.width}
+        height={formData.height}
+        weight={formData.weight}
+        onLengthChange={(length) => setFormData((prev) => ({ ...prev, length }))}
+        onWidthChange={(width) => setFormData((prev) => ({ ...prev, width }))}
+        onHeightChange={(height) => setFormData((prev) => ({ ...prev, height }))}
+        onWeightChange={(weight) => setFormData((prev) => ({ ...prev, weight }))}
+      />
+
+      {/* Product Links Box */}
+      <ProductLinksBox
+        slug={formData.slug}
+        productId={productId}
+        status={formData.status}
+        onSlugChange={(slug) => setFormData((prev) => ({ ...prev, slug }))}
+      />
+    </>
+  );
+
+  // Header content
+  const headerContent = (
+    <div>
+      <Input
+        type="text"
+        placeholder="Nhập tên sản phẩm..."
+        value={formData.name}
+        onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+        className="text-2xl font-bold border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+      />
+    </div>
+  );
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <ProductFormLayout header={headerContent} sidebar={sidebarContent}>
+        {/* Template Selector */}
+        <TemplateSelector
+          onLoadTemplate={handleLoadTemplate}
+          onSaveTemplate={handleSaveTemplate}
+          currentFormData={formData}
+        />
 
       {/* Basic Information */}
       <Card>
         <CardHeader>
           <CardTitle>Thông tin cơ bản</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
           <div>
             <Label htmlFor="name">Tên sản phẩm *</Label>
             <Input
@@ -364,16 +557,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               value={formData.name}
               onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
               required
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="slug">Slug *</Label>
-            <Input
-              id="slug"
-              value={formData.slug}
-              onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
-              required
+              className="mt-2"
             />
           </div>
 
@@ -384,42 +568,20 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               value={formData.shortDescription}
               onChange={(e) => setFormData((prev) => ({ ...prev, shortDescription: e.target.value }))}
               rows={3}
+              className="mt-2"
+              placeholder="Mô tả ngắn gọn về sản phẩm (hiển thị trong danh sách sản phẩm)"
             />
           </div>
 
           <div>
             <Label htmlFor="description">Mô tả chi tiết</Label>
-            <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
-              rows={6}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="sku">SKU</Label>
-            <Input
-              id="sku"
-              value={formData.sku}
-              onChange={(e) => setFormData((prev) => ({ ...prev, sku: e.target.value }))}
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="category">Danh mục</Label>
-            <Select
-              id="category"
-              value={formData.category}
-              onChange={(e) => setFormData((prev) => ({ ...prev, category: e.target.value }))}
-            >
-              <option value="">Chọn danh mục</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.databaseId}>
-                  {cat.name}
-                </option>
-              ))}
-            </Select>
+            <div className="mt-2">
+              <ClassicEditor
+                value={formData.description}
+                onChange={(html) => setFormData((prev) => ({ ...prev, description: html }))}
+                placeholder="Mô tả đầy đủ về sản phẩm (hiển thị trong trang chi tiết)"
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -431,101 +593,20 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         baseSku={formData.sku}
       />
 
-      {/* Images */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Hình ảnh</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="URL hình ảnh"
-              value={imageInput}
-              onChange={(e) => setImageInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addImage())}
-            />
-            <Button type="button" onClick={addImage} variant="outline">
-              <Plus className="w-4 h-4 mr-2" />
-              Thêm
-            </Button>
-          </div>
-          {formData.images.length > 0 && (
-            <div className="grid grid-cols-4 gap-4">
-              {formData.images.map((img, idx) => (
-                <div key={idx} className="relative group">
-                  <img
-                    src={img}
-                    alt={`Product ${idx + 1}`}
-                    className="w-full h-32 object-cover rounded"
-                  />
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100"
-                    onClick={() => removeImage(img)}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {/* Additional Information */}
       <Card>
         <CardHeader>
           <CardTitle>Thông tin bổ sung</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="length">Chiều dài (cm)</Label>
-            <Input
-              id="length"
-              type="number"
-              min="0"
-              value={formData.length || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, length: parseFloat(e.target.value) || undefined }))}
-            />
-          </div>
-          <div>
-            <Label htmlFor="width">Chiều rộng (cm)</Label>
-            <Input
-              id="width"
-              type="number"
-              min="0"
-              value={formData.width || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, width: parseFloat(e.target.value) || undefined }))}
-            />
-          </div>
-          <div>
-            <Label htmlFor="height">Chiều cao (cm)</Label>
-            <Input
-              id="height"
-              type="number"
-              min="0"
-              value={formData.height || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, height: parseFloat(e.target.value) || undefined }))}
-            />
-          </div>
-          <div>
-            <Label htmlFor="weight">Trọng lượng (kg)</Label>
-            <Input
-              id="weight"
-              type="number"
-              min="0"
-              value={formData.weight || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, weight: parseFloat(e.target.value) || undefined }))}
-            />
-          </div>
+        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <Label htmlFor="material">Chất liệu</Label>
             <Input
               id="material"
               value={formData.material || ''}
               onChange={(e) => setFormData((prev) => ({ ...prev, material: e.target.value }))}
+              className="mt-2"
+              placeholder="VD: Cotton, Polyester..."
             />
           </div>
           <div>
@@ -534,48 +615,10 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               id="origin"
               value={formData.origin || ''}
               onChange={(e) => setFormData((prev) => ({ ...prev, origin: e.target.value }))}
+              className="mt-2"
+              placeholder="VD: Việt Nam, Trung Quốc..."
             />
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Tags */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tags</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Input
-              placeholder="Nhập tag"
-              value={tagInput}
-              onChange={(e) => setTagInput(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-            />
-            <Button type="button" onClick={addTag} variant="outline">
-              <Plus className="w-4 h-4 mr-2" />
-              Thêm
-            </Button>
-          </div>
-          {formData.tags.length > 0 && (
-            <div className="flex flex-wrap gap-2">
-              {formData.tags.map((tag) => (
-                <span
-                  key={tag}
-                  className="inline-flex items-center gap-2 px-3 py-1 bg-gray-100 rounded-full text-sm"
-                >
-                  {tag}
-                  <button
-                    type="button"
-                    onClick={() => removeTag(tag)}
-                    className="hover:text-red-600"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                </span>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 
@@ -617,58 +660,29 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         onChange={(collectionCombo) => setFormData((prev) => ({ ...prev, collectionCombo }))}
       />
 
-      {/* Status */}
+      {/* Product Flags */}
       <Card>
         <CardHeader>
-          <CardTitle>Trạng thái</CardTitle>
+          <CardTitle>Thiết lập sản phẩm</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.isActive}
-                onChange={(e) => setFormData((prev) => ({ ...prev, isActive: e.target.checked }))}
-              />
-              <span>Kích hoạt</span>
-            </label>
-            <label className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="checkbox"
                 checked={formData.isHot}
                 onChange={(e) => setFormData((prev) => ({ ...prev, isHot: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
               />
-              <span>Sản phẩm hot</span>
+              <span className="text-sm">Sản phẩm nổi bật</span>
             </label>
-          </div>
-          <div>
-            <Label htmlFor="status">Trạng thái xuất bản</Label>
-            <Select
-              id="status"
-              value={formData.status}
-              onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as 'draft' | 'publish' }))}
-            >
-              <option value="draft">Bản nháp</option>
-              <option value="publish">Xuất bản</option>
-            </Select>
+            <p className="text-xs text-muted-foreground">
+              (Hiển thị sản phẩm này ở vị trí nổi bật trên trang chủ)
+            </p>
           </div>
         </CardContent>
       </Card>
-
-      {/* Actions */}
-      <div className="flex justify-end gap-4">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => router.back()}
-        >
-          Hủy
-        </Button>
-        <Button type="submit" disabled={loading}>
-          <Save className="w-4 h-4 mr-2" />
-          {loading ? 'Đang lưu...' : productId ? 'Cập nhật' : 'Tạo mới'}
-        </Button>
-      </div>
+      </ProductFormLayout>
     </form>
   );
 }

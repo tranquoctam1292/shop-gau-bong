@@ -232,6 +232,111 @@ images: {
 
 ---
 
+## Deployment Strategy
+
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────┐
+│              LOCAL DEVELOPMENT (XAMPP)                  │
+│  ┌──────────────────┐                                   │
+│  │  LOCAL ENV       │                                   │
+│  │  WordPress       │                                   │
+│  │  + WooCommerce   │                                   │
+│  │  localhost/      │                                   │
+│  │  wordpress       │                                   │
+│  └──────────────────┘                                   │
+└─────────────────────────────────────────────────────────┘
+            │
+┌───────────▼──────────┐
+│  NEXT.JS LOCAL        │
+│  (localhost:3000)    │
+└──────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│                    HOSTING PROVIDER                     │
+│  ┌──────────────────┐      ┌──────────────────┐       │
+│  │  STAGING ENV     │      │  PRODUCTION ENV  │       │
+│  │  WordPress       │      │  WordPress       │       │
+│  │  + WooCommerce   │      │  + WooCommerce   │       │
+│  │  staging.domain  │      │  domain.com      │       │
+│  └──────────────────┘      └──────────────────┘       │
+└─────────────────────────────────────────────────────────┘
+            │                          │
+┌───────────▼──────────┐    ┌──────────▼──────────┐
+│  NEXT.JS STAGING      │    │  NEXT.JS PRODUCTION │
+│  (Vercel/Netlify)     │    │  (Vercel/Netlify)   │
+│  staging-app.domain   │    │  app.domain.com     │
+└──────────────────────┘    └─────────────────────┘
+```
+
+### Environment Strategy
+
+1. **Local Development:**
+   - WordPress trên XAMPP
+   - Next.js trên localhost:3000
+   - Development database
+
+2. **Staging:**
+   - WordPress staging environment
+   - Next.js staging deployment (Vercel preview)
+   - Staging database
+
+3. **Production:**
+   - WordPress production environment
+   - Next.js production deployment (Vercel)
+   - Production database
+
+---
+
+## Deployment Summary
+
+### Pre-Deployment Checklist
+
+#### Code Quality
+- ✅ **TypeScript:** Không có TypeScript errors (`npm run type-check` pass)
+- ✅ **Code Cleanup:** Đã loại bỏ tất cả `console.log` debug code
+- ✅ **Dependencies:** Tất cả dependencies đã được cài đặt, không có deprecated packages
+
+#### Security
+- ✅ **Environment Variables:** `.env.local` đã được ignore trong `.gitignore`
+- ✅ **Security Headers:** Đã được cấu hình trong `vercel.json`:
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+  - `X-XSS-Protection: 1; mode=block`
+  - `Referrer-Policy: strict-origin-when-cross-origin`
+- ✅ **API Security:** Tất cả WooCommerce API calls chỉ qua Next.js API routes
+
+#### Configuration Files
+- ✅ **next.config.js:** Đã được cấu hình đúng:
+  - `reactStrictMode: true`
+  - Image optimization settings
+  - `poweredByHeader: false`
+- ✅ **vercel.json:** Đã được cấu hình với security headers và build commands
+- ✅ **package.json:** Node version requirements đã được set (>= 18.0.0)
+
+### Build Warnings
+
+**Suspense Boundaries:**
+- Một số pages cần wrap `useSearchParams()` trong Suspense boundary
+- Xem `PRE_DEPLOYMENT_CHECKLIST.md` cho chi tiết
+
+### Post-Deployment
+
+1. **Verify:**
+   - Test tất cả API routes
+   - Test checkout flow
+   - Test payment methods
+   - Test mobile responsiveness
+
+2. **Monitor:**
+   - Vercel logs
+   - Error tracking
+   - Performance metrics
+
+---
+
 **Last Updated:** 2025-01-XX  
+**Status:** Consolidated from DEPLOYMENT_STRATEGY.md and DEPLOYMENT_SUMMARY.md  
 **Status:** Consolidated from DEPLOY_001-006 files
 

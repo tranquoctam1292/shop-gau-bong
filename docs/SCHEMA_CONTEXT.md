@@ -1,529 +1,421 @@
-# 📊 Schema Context - WooCommerce REST API
+# 📊 Schema Context - Custom CMS (MongoDB)
 
 **Last Updated:** 2025-01-XX  
-**API Method:** WooCommerce REST API (v3)  
-**Base URL:** `/wp-json/wc/v3/`
+**Database:** MongoDB  
+**API Method:** Next.js API Routes  
+**Base URL:** `/api/cms/` (public) và `/api/admin/` (admin)
 
 ---
 
 ## 🔄 Migration Note
 
-**⚠️ IMPORTANT:** Project đã migrated từ **WPGraphQL** sang **WooCommerce REST API** để tránh compatibility issues và duplicate field errors.
+**⚠️ IMPORTANT:** Project đã migrated từ **WordPress/WooCommerce** sang **Custom CMS với MongoDB**.
 
-**Previous:** WPGraphQL với GraphQL queries  
-**Current:** WooCommerce REST API với Next.js API routes proxy  
-**Status:** ✅ Migration completed. All GraphQL references removed.
+**Previous:** WordPress + WooCommerce REST API  
+**Current:** Custom CMS với MongoDB + Next.js API Routes  
+**Status:** ✅ Migration completed. All WordPress/WooCommerce references removed from active code.
+
+**Note:** Migration scripts và documentation cũ vẫn có thể reference WordPress/WooCommerce cho historical purposes.
 
 ---
 
-## 📦 WooCommerce Product Structure
+## 📦 MongoDB Product Structure
 
-### Core Product Fields
+### Core Product Document
 
 ```typescript
-interface WooCommerceProduct {
-  id: number;                    // Product ID
-  name: string;                  // Product name
-  slug: string;                  // URL slug
-  type: 'simple' | 'variable' | 'grouped' | 'external';
-  status: 'draft' | 'pending' | 'private' | 'publish';
-  featured: boolean;             // Featured product flag
-  price: string;                  // Current price (sale or regular)
-  regular_price: string;         // Regular price
-  sale_price: string;            // Sale price (empty if not on sale)
-  on_sale: boolean;              // Is on sale?
-  stock_status: 'instock' | 'outofstock' | 'onbackorder';
-  stock_quantity: number | null;
-  sku: string;                    // SKU
-  description: string;           // Full description
-  short_description: string;     // Short description
+interface MongoProduct {
+  _id: ObjectId;                    // MongoDB ObjectId
+  name: string;                     // Product name
+  slug: string;                     // URL slug (unique)
+  type: 'simple' | 'variable';      // Product type
+  status: 'draft' | 'publish';       // Product status
+  featured: boolean;                 // Featured product flag
+  price: number;                     // Current price (sale or regular)
+  regularPrice?: number;            // Regular price
+  salePrice?: number;               // Sale price (if on sale)
+  onSale: boolean;                 // Is on sale?
+  stockStatus: 'instock' | 'outofstock' | 'onbackorder';
+  stockQuantity?: number;           // Stock quantity
+  sku?: string;                     // SKU
+  description?: string;             // Full description
+  shortDescription?: string;        // Short description
+  images: string[];                  // Array of image URLs
+  category: string;                  // Category ID (ObjectId as string)
+  categories?: string[];            // Additional category IDs
+  tags?: string[];                  // Product tags
+  variants?: MongoVariant[];         // Product variations
+  // Dimensions
+  length?: number;                  // Length in cm
+  width?: number;                   // Width in cm
+  height?: number;                  // Height in cm
+  weight?: number;                  // Weight in kg
+  volumetricWeight?: number;         // Calculated: (L * W * H) / 6000
+  material?: string;                // Material
+  origin?: string;                  // Origin
+  // Advanced fields (from CMS sync)
+  productDetails?: {
+    ageRecommendation?: string;
+    careInstructions?: string;
+    safetyInformation?: string;
+    productSpecifications?: string;
+    sizeGuide?: string;
+    materialDetails?: string;
+    warrantyInformation?: string;
+  };
+  seo?: {
+    seoTitle?: string;
+    seoDescription?: string;
+    seoKeywords?: string[];
+    ogImage?: string;
+    canonicalUrl?: string;
+    robotsMeta?: string;
+  };
+  giftFeatures?: {
+    giftWrapping: boolean;
+    giftWrappingPrice?: number;
+    giftMessageEnabled: boolean;
+    giftMessageMaxLength?: number;
+    giftCardEnabled: boolean;
+    giftCardTypes?: string[];
+    giftDeliveryDateEnabled: boolean;
+    giftCategories?: string[];
+    giftSuggestions?: string[];
+  };
+  mediaExtended?: {
+    videos?: Array<{
+      url: string;
+      type: 'youtube' | 'vimeo' | 'upload';
+      thumbnail?: string;
+    }>;
+    view360Images?: string[];
+    imageAltTexts?: Record<string, string>;
+  };
+  collectionCombo?: {
+    collections?: string[];
+    comboProducts?: string[];
+    bundleProducts?: Array<{
+      productId: string;
+      quantity: number;
+      discount?: number;
+    }>;
+    relatedProducts?: string[];
+    upsellProducts?: string[];
+    crossSellProducts?: string[];
+  };
+  // Metadata
+  createdAt: Date;
+  updatedAt: Date;
+  minPrice?: number;                // Calculated from variants
+  maxPrice?: number;                // Calculated from variants
+}
+```
+
+### Product Variants
+
+```typescript
+interface MongoVariant {
+  _id: ObjectId;                    // Variant ID
+  productId: ObjectId;              // Parent product ID
+  name: string;                     // Variant name (e.g., "Size: L, Color: Red")
+  sku?: string;                     // Variant SKU
+  price: number;                    // Variant price
+  regularPrice?: number;            // Regular price
+  salePrice?: number;               // Sale price
+  stockStatus: 'instock' | 'outofstock' | 'onbackorder';
+  stockQuantity?: number;           // Stock quantity
+  attributes: {
+    size?: string;                  // Size attribute value
+    color?: string;                 // Color attribute value
+    [key: string]: string | undefined;
+  };
+  image?: string;                   // Variant-specific image
+  createdAt: Date;
+  updatedAt: Date;
 }
 ```
 
 ### Product Images
 
-```typescript
-images: Array<{
-  id: number;
-  src: string;                    // Image URL
-  name: string;                   // Image filename
-  alt: string;                    // Alt text
-}>;
-```
-
-**Usage:**
+**Structure:**
+- `images: string[]` - Array of image URLs
 - First image (`images[0]`) = Main product image
 - Remaining images = Gallery images
+- Variant-specific images stored in `variants[].image`
+
+**Usage:**
+```typescript
+const mainImage = product.images[0] || '/images/teddy-placeholder.png';
+const galleryImages = product.images.slice(1);
+```
 
 ### Product Categories
 
 ```typescript
-categories: Array<{
-  id: number;
-  name: string;
-  slug: string;
-}>;
+interface MongoCategory {
+  _id: ObjectId;                    // Category ID
+  name: string;                     // Category name
+  slug: string;                     // URL slug (unique)
+  description?: string;             // Category description
+  parentId?: string;               // Parent category ID (for hierarchical)
+  image?: string;                   // Category image URL
+  position?: number;                // Display order
+  createdAt: Date;
+  updatedAt: Date;
+}
 ```
 
 ### Product Tags
 
-```typescript
-tags: Array<{
-  id: number;
-  name: string;
-  slug: string;
-}>;
-```
-
-### Product Dimensions
-
-```typescript
-dimensions: {
-  length: string;    // e.g., "30" (cm)
-  width: string;    // e.g., "25" (cm)
-  height: string;   // e.g., "35" (cm)
-};
-weight: string;     // e.g., "0.5" (kg)
-```
-
----
-
-## 🎯 ACF Custom Fields (Meta Data)
-
-**⚠️ CRITICAL:** ACF fields được lưu trong `meta_data` array, không phải direct properties.
-
-### Meta Data Structure
-
-```typescript
-meta_data: Array<{
-  id: number;
-  key: string;        // ACF field key
-  value: any;         // ACF field value
-}>;
-```
-
-### ACF Fields for Products
-
-| Field Key | Type | Description | Usage |
-|-----------|------|-------------|-------|
-| `length` | `number` | Chiều dài (cm) | Shipping calculation |
-| `width` | `number` | Chiều rộng (cm) | Shipping calculation |
-| `height` | `number` | Chiều cao (cm) | Shipping calculation |
-| `volumetric_weight` | `number` | Cân nặng quy đổi thể tích | Shipping calculation |
-| `material` | `string` | Chất liệu | Product specs |
-| `origin` | `string` | Xuất xứ | Product specs |
-
-### Accessing ACF Fields
-
-**Helper Function:**
-```typescript
-// lib/api/woocommerce.ts
-export function getMetaValue(
-  metaData: Array<{ key: string; value: any }>,
-  key: string
-): any {
-  const meta = metaData?.find((m) => m.key === key);
-  return meta?.value;
-}
-```
+**Structure:**
+- `tags?: string[]` - Array of tag strings (simple strings, not objects)
 
 **Usage:**
 ```typescript
-const length = getMetaValue(product.meta_data, 'length');
-const width = getMetaValue(product.meta_data, 'width');
-const height = getMetaValue(product.meta_data, 'height');
-const volumetricWeight = getMetaValue(product.meta_data, 'volumetric_weight');
+const productTags = product.tags || [];
 ```
 
 ---
 
-## 📐 Product Mapper
+## 🗄️ Database Collections
 
-**File:** `lib/utils/productMapper.ts`
+### Collections Structure
 
-Maps WooCommerce REST API format → Frontend format (tương thích với components hiện tại).
+```typescript
+// Access via lib/db.ts
+const collections = await getCollections();
 
-### Mapped Product Type
+// Available collections:
+collections.products      // Product documents
+collections.categories    // Category documents
+collections.orders        // Order documents
+collections.orderItems    // Order line items
+collections.users         // User documents (admin)
+collections.banners       // Banner documents
+collections.posts         // Blog post documents
+collections.authors       // Author documents
+collections.comments      // Comment documents
+collections.postCategories // Blog category documents
+collections.postTags       // Blog tag documents
+collections.productTemplates // Product template documents
+collections.productReviews  // Product review documents
+collections.productAnalytics // Product analytics documents
+```
 
+---
+
+## 🔄 Data Mapping
+
+### Frontend Product Format
+
+Products from MongoDB are mapped to frontend format using `mapMongoProduct()`:
+
+```typescript
+// lib/utils/productMapper.ts
+import { mapMongoProduct } from '@/lib/utils/productMapper';
+
+// In API route
+const product = await collections.products.findOne({ slug });
+const mappedProduct = mapMongoProduct(product);
+```
+
+**Mapped Product Structure:**
 ```typescript
 interface MappedProduct {
-  databaseId: number;             // WooCommerce product ID
-  id: string;                     // Legacy format (for compatibility)
+  id: string;                      // _id.toString()
+  databaseId: string;              // _id.toString() (for compatibility)
   name: string;
   slug: string;
-  price: string;
-  regularPrice: string;
-  salePrice: string;
+  price: number;
+  regularPrice?: number;
+  salePrice?: number;
   onSale: boolean;
-  image: {
-    sourceUrl: string;
-    altText: string;
-  } | null;
-  galleryImages: Array<{
-    sourceUrl: string;
-    altText: string;
-  }>;
-  length: number | null;          // From ACF meta_data
-  width: number | null;           // From ACF meta_data
-  height: number | null;          // From ACF meta_data
-  volumetricWeight: number | null; // From ACF meta_data
-  material: string | null;        // From ACF meta_data
-  origin: string | null;          // From ACF meta_data
-  categories: Array<{
-    id: number;
-    name: string;
-    slug: string;
-  }>;
-  tags: Array<{
-    id: number;
-    name: string;
-    slug: string;
-  }>;
   stockStatus: string;
-  stockQuantity: number | null;
-  weight: string | null;
-}
-```
-
-**Mapping Function:**
-```typescript
-import { mapWooCommerceProduct } from '@/lib/utils/productMapper';
-
-const mappedProduct = mapWooCommerceProduct(wcProduct);
-```
-
----
-
-## 🛒 WooCommerce Order Structure
-
-### Order Create Input
-
-```typescript
-interface WooCommerceOrderCreateInput {
-  payment_method: string;         // e.g., 'cod', 'bacs', 'momo'
-  payment_method_title: string;   // e.g., 'Thanh toán khi nhận hàng (COD)'
-  set_paid: boolean;              // false for COD/bank transfer
-  billing: {
-    first_name: string;
-    last_name: string;
-    email: string;
-    phone: string;
-    address_1: string;
-    address_2?: string;
-    city: string;
-    postcode: string;
-    country: string;              // e.g., 'VN'
-  };
-  shipping: {
-    first_name: string;
-    last_name: string;
-    address_1: string;
-    address_2?: string;
-    city: string;
-    postcode: string;
-    country: string;
-  };
-  line_items: Array<{
-    product_id: number;
-    quantity: number;
-  }>;
-  shipping_lines?: Array<{
-    method_id: string;
-    method_title: string;
-    total: string;
-  }>;
-  customer_note?: string;
-}
-```
-
-### Order Response
-
-```typescript
-interface WooCommerceOrder {
-  id: number;
-  number: string;                 // Order number (display)
-  status: string;                 // e.g., 'pending', 'processing', 'completed'
-  date_created: string;           // ISO 8601 format
-  total: string;                  // Total amount
-  currency: string;               // e.g., 'VND'
-  payment_method: string;
-  payment_method_title: string;
-  billing: { /* ... */ };
-  shipping: { /* ... */ };
-  line_items: Array<{
-    id: number;
+  images: string[];
+  categories: Array<{
+    id: string;
+    databaseId: string;
     name: string;
-    sku: string;
-    quantity: number;
-    price: string;
-    total: string;
+    slug: string;
   }>;
-  shipping_total: string;
-  total_tax: string;
-  customer_note?: string;
+  // ... other fields
 }
 ```
 
 ---
 
-## 📂 WooCommerce Category Structure
+## 📡 API Routes
+
+### Public API Routes (`/api/cms/*`)
+
+**Products:**
+- `GET /api/cms/products` - List products (with filters, pagination)
+- `GET /api/cms/products/[id]` - Get single product
+- `GET /api/cms/products/[id]/variations` - Get product variations
+- `GET /api/cms/products/[id]/reviews` - Get product reviews
+- `POST /api/cms/products/[id]/reviews` - Submit product review
+
+**Categories:**
+- `GET /api/cms/categories` - List categories
+
+**Orders:**
+- `POST /api/cms/orders` - Create order
+
+**Banners:**
+- `GET /api/cms/banners` - Get active banners
+
+**Blog:**
+- `GET /api/cms/posts` - List blog posts
+- `GET /api/cms/posts/[slug]` - Get single blog post
+
+### Admin API Routes (`/api/admin/*`)
+
+**Products:**
+- `GET /api/admin/products` - List products (admin)
+- `POST /api/admin/products` - Create product
+- `GET /api/admin/products/[id]` - Get single product
+- `PUT /api/admin/products/[id]` - Update product
+- `DELETE /api/admin/products/[id]` - Delete product
+- `POST /api/admin/products/[id]/duplicate` - Duplicate product
+- `GET /api/admin/products/[id]/reviews` - Get product reviews
+- `POST /api/admin/products/[id]/reviews` - Create review
+- `GET /api/admin/products/[id]/analytics` - Get product analytics
+
+**Categories:**
+- `GET /api/admin/categories` - List categories
+- `POST /api/admin/categories` - Create category
+- `GET /api/admin/categories/[id]` - Get single category
+- `PUT /api/admin/categories/[id]` - Update category
+- `DELETE /api/admin/categories/[id]` - Delete category
+
+**Orders:**
+- `GET /api/admin/orders` - List orders
+- `GET /api/admin/orders/[id]` - Get single order
+- `PUT /api/admin/orders/[id]` - Update order
+
+**Blog:**
+- `GET /api/admin/posts` - List posts
+- `POST /api/admin/posts` - Create post
+- `GET /api/admin/posts/[id]` - Get single post
+- `PUT /api/admin/posts/[id]` - Update post
+- `DELETE /api/admin/posts/[id]` - Delete post
+
+**Authentication:**
+- All admin routes require authentication via NextAuth.js
+- Use `requireAdmin()` helper from `lib/auth.ts`
+
+---
+
+## 🔐 Database Connection
+
+### Connection Setup
 
 ```typescript
-interface WooCommerceCategory {
-  id: number;
-  name: string;
-  slug: string;
-  count: number;                  // Product count
-  image: {
-    src: string;
-    alt: string;
-  } | null;
-}
+// lib/db.ts
+import { connectDB, getCollections } from '@/lib/db';
+
+// Connect to MongoDB
+const client = await connectDB();
+
+// Get collections
+const collections = await getCollections();
+const product = await collections.products.findOne({ slug: 'product-slug' });
 ```
 
----
+### Environment Variables
 
-## 🔌 API Endpoints (via Next.js Proxy)
-
-**⚠️ IMPORTANT:** All WooCommerce REST API calls go through Next.js API routes to secure credentials.
-
-### Products
-
-- `GET /api/woocommerce/products` - List products
-- `GET /api/woocommerce/products/[id]` - Get single product
-
-**Query Parameters:**
-- `per_page`: Number of products (default: 10, max: 100)
-- `page`: Page number
-- `search`: Search term
-- `featured`: `true`/`false` - Featured products only
-- `category`: Category slug
-- `orderby`: `date`, `popularity`, `price`, `rating`
-- `order`: `asc`/`desc`
-- `status`: `publish` (default)
-
-### Categories
-
-- `GET /api/woocommerce/categories` - List categories
-
-**Query Parameters:**
-- `per_page`: Number of categories (default: 10, max: 100)
-- `orderby`: `id`, `name`, `slug`, `count`
-- `order`: `asc`/`desc`
-- `hide_empty`: `true`/`false` - Hide empty categories
-
-### Orders
-
-- `GET /api/woocommerce/orders` - List orders
-- `POST /api/woocommerce/orders` - Create order
-- `GET /api/woocommerce/orders/[id]` - Get single order
-- `PUT /api/woocommerce/orders/[id]` - Update order
-
----
-
-## 🔐 Authentication
-
-### WooCommerce REST API Keys
-
-**Environment Variables:**
 ```env
-WOOCOMMERCE_CONSUMER_KEY=ck_xxxxx
-WOOCOMMERCE_CONSUMER_SECRET=cs_xxxxx
+MONGODB_URI=mongodb://localhost:27017/shop-gau-bong
+# or
+MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/shop-gau-bong
+MONGODB_DB_NAME=shop-gau-bong
 ```
-
-**Alternative: WordPress Application Password**
-```env
-WORDPRESS_USERNAME=admin
-WORDPRESS_APP_PASSWORD=xxxx xxxx xxxx xxxx xxxx xxxx
-```
-
-**⚠️ SECURITY:** Credentials chỉ được sử dụng trong Next.js API routes (server-side), không expose ra client.
 
 ---
 
-## 📝 Important Notes
+## 📊 Indexes
 
-### 1. Meta Data Access
+### Product Indexes
 
-**Always use helper function:**
 ```typescript
-import { getMetaValue } from '@/lib/api/woocommerce';
-
-const length = getMetaValue(product.meta_data, 'length');
+// Created via scripts/setup-database-indexes.ts
+products.createIndex({ slug: 1 }, { unique: true });
+products.createIndex({ status: 1 });
+products.createIndex({ category: 1 });
+products.createIndex({ featured: 1 });
+products.createIndex({ createdAt: -1 });
+products.createIndex({ 'variants.stockStatus': 1 });
 ```
 
-**Never access directly:**
-```typescript
-// ❌ BAD
-const length = product.meta_data.find(m => m.key === 'length')?.value;
+### Category Indexes
 
-// ✅ GOOD
-const length = getMetaValue(product.meta_data, 'length');
+```typescript
+categories.createIndex({ slug: 1 }, { unique: true });
+categories.createIndex({ parentId: 1 });
+categories.createIndex({ position: 1 });
 ```
 
-### 2. Price Format
+### Order Indexes
 
-**WooCommerce returns prices as strings:**
 ```typescript
-price: "500000"  // 500,000 VND
+orders.createIndex({ orderNumber: 1 }, { unique: true });
+orders.createIndex({ customerEmail: 1 });
+orders.createIndex({ status: 1 });
+orders.createIndex({ createdAt: -1 });
 ```
-
-**Format for display:**
-```typescript
-import { formatPrice } from '@/lib/utils/format';
-
-const displayPrice = formatPrice(product.price); // "500.000₫"
-```
-
-### 3. Null/Undefined Handling
-
-**Always check for null/undefined:**
-```typescript
-// ❌ BAD
-const imageUrl = product.images[0].src;
-
-// ✅ GOOD
-const imageUrl = product.images?.[0]?.src || '/images/teddy-placeholder.png';
-```
-
-### 4. Volumetric Weight Calculation
-
-**Formula:**
-```typescript
-const volumetricWeight = (length * width * height) / 6000;
-const finalWeight = Math.max(actualWeight || 0, volumetricWeight || 0);
-```
-
-**ACF Field:** `volumetric_weight` (pre-calculated)  
-**Fallback:** Calculate from `length`, `width`, `height` if not available
 
 ---
 
----
+## 🛠️ Helper Functions
 
-## 🎨 Product Variations
-
-**⚠️ IMPORTANT:** Variable products support size and color attributes. Variations are fetched lazily to optimize performance.
-
-### Variation Structure
+### Product Mapper
 
 ```typescript
-interface WooCommerceVariation {
-  id: number;                      // Variation ID
-  price: string;                   // Variation price
-  regular_price: string;           // Regular price
-  sale_price: string;              // Sale price (if on sale)
-  on_sale: boolean;                 // Is on sale?
-  stock_status: 'instock' | 'outofstock' | 'onbackorder';
-  attributes: Array<{
-    id: number;
-    name: string;                  // e.g., 'pa_size', 'pa_color'
-    option: string;                // e.g., '60cm', '#FF0000'
-  }>;
-  image: {
-    src: string;
-    alt: string;
-  } | null;
-}
+// lib/utils/productMapper.ts
+import { mapMongoProduct, mapMongoProducts } from '@/lib/utils/productMapper';
+
+// Map single product
+const mappedProduct = mapMongoProduct(mongoProduct);
+
+// Map array of products
+const mappedProducts = mapMongoProducts(mongoProducts);
 ```
 
-### Product Attributes
+### Database Access
 
 ```typescript
-interface WooCommerceProductAttribute {
-  id: number;
-  name: string;                    // e.g., 'pa_size', 'pa_color'
-  slug: string;                    // e.g., 'pa-size', 'pa-color'
-  options: string[];               // Available options
-  variation: boolean;               // Can be used for variations
-  visible: boolean;                 // Show in product page
-}
-```
+// lib/db.ts
+import { getCollections, ObjectId } from '@/lib/db';
 
-### Fetching Variations
+// Get collections
+const collections = await getCollections();
 
-**API Route:**
-- `GET /api/woocommerce/products/[id]/variations` - Get all variations for a product
-
-**Hook:**
-```typescript
-import { useProductVariations } from '@/lib/hooks/useProductVariations';
-
-// Lazy loading: Only fetch when needed
-const { data: variations, isLoading } = useProductVariations(productId, {
-  enabled: isHovered || selectedSize !== null, // Fetch on hover or size selection
+// Query with ObjectId
+const product = await collections.products.findOne({ 
+  _id: new ObjectId(productId) 
 });
 ```
 
-**React Query Caching:**
-- Variations are cached for 5 minutes (`staleTime: 5 * 60 * 1000`)
-- Automatic request deduplication (same productId = single request)
-- Background refetching enabled
+---
 
-### Usage in ProductCard
+## 📚 Related Files
 
-```typescript
-// Display size options (up to 4)
-const sizeAttribute = product.attributes?.find(a => a.name === 'pa_size');
-const displaySizes = sizeAttribute?.options.slice(0, 4) || [];
-
-// Display color options (up to 4)
-const colorAttribute = product.attributes?.find(a => a.name === 'pa_color');
-const displayColors = colorAttribute?.options.slice(0, 4) || [];
-
-// Dynamic pricing based on selected variation
-const selectedVariation = variations?.find(v => 
-  v.attributes.some(a => a.name === 'pa_size' && a.option === selectedSize)
-);
-const displayPrice = selectedVariation?.price || product.price;
-```
+- `lib/db.ts` - MongoDB connection and collection access
+- `lib/utils/productMapper.ts` - Product mapping utilities
+- `types/woocommerce.ts` - Frontend type definitions (kept for compatibility)
+- `app/api/cms/**/route.ts` - Public API routes
+- `app/api/admin/**/route.ts` - Admin API routes
+- `scripts/setup-database-indexes.ts` - Database index setup
 
 ---
 
-## ⚡ React Query Integration
+## 🔗 External Documentation
 
-**Provider:** `lib/providers/QueryProvider.tsx`
-
-**Configuration:**
-- `staleTime`: 5 minutes (default)
-- `gcTime`: 10 minutes (garbage collection)
-- `retry`: 1 time on failure
-- `refetchOnWindowFocus`: false (to reduce unnecessary requests)
-
-**Usage:**
-```typescript
-import { useQuery } from '@tanstack/react-query';
-
-const { data, isLoading, error } = useQuery({
-  queryKey: ['variations', productId],
-  queryFn: () => fetchVariations(productId),
-  staleTime: 5 * 60 * 1000, // Cache for 5 minutes
-});
-```
-
-**Benefits:**
-- Automatic caching and deduplication
-- Background refetching
-- Loading and error states
-- Optimistic updates support
+- [MongoDB Node.js Driver Documentation](https://www.mongodb.com/docs/drivers/node/current/)
+- [Next.js API Routes](https://nextjs.org/docs/app/building-your-application/routing/route-handlers)
+- [NextAuth.js Documentation](https://next-auth.js.org/)
 
 ---
 
-## 🔗 Related Files
-
-- `lib/api/woocommerce.ts` - REST API client
-- `lib/utils/productMapper.ts` - Product mapper
-- `types/woocommerce.ts` - TypeScript type definitions (includes `WooCommerceVariation`)
-- `app/api/woocommerce/**/route.ts` - Next.js API route proxies
-- `lib/hooks/useProductVariations.ts` - React Query hook for variations
-- `lib/providers/QueryProvider.tsx` - React Query provider setup
-
----
-
-## 📚 References
-
-- [WooCommerce REST API Documentation](https://woocommerce.github.io/woocommerce-rest-api-docs/)
-- [WooCommerce REST API Authentication](https://woocommerce.github.io/woocommerce-rest-api-docs/#authentication)
-- [WooCommerce Product Variations](https://woocommerce.github.io/woocommerce-rest-api-docs/#product-variations)
-- [React Query Documentation](https://tanstack.com/query/latest)
-
+**Last Updated:** 2025-01-XX  
+**Status:** ✅ Updated for Custom CMS (MongoDB)

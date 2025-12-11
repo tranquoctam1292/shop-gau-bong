@@ -169,12 +169,27 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const { products } = await getCollections();
+    const { products, categories } = await getCollections();
     const { id } = params;
     const body = await request.json();
     
     // Validate input
     const validatedData = productUpdateSchema.parse(body);
+    
+    // Map category to categoryId if category is provided
+    let categoryId: string | undefined = undefined;
+    if (validatedData.category) {
+      const category = await categories.findOne({
+        $or: [
+          { _id: new ObjectId(validatedData.category) },
+          { name: validatedData.category },
+          { slug: validatedData.category },
+        ],
+      });
+      if (category) {
+        categoryId = category._id.toString();
+      }
+    }
     
     // Find product
     let product = null;
@@ -217,6 +232,12 @@ export async function PUT(
     const updateData: any = { ...validatedData };
     if (updateData.length && updateData.width && updateData.height && !updateData.volumetricWeight) {
       updateData.volumetricWeight = (updateData.length * updateData.width * updateData.height) / 6000;
+    }
+
+    // Replace category string with categoryId
+    if (categoryId) {
+      updateData.categoryId = categoryId;
+      delete updateData.category;
     }
     
     updateData.updatedAt = new Date();

@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Edit, Trash2, Copy, ArrowLeft } from 'lucide-react';
+import { Edit, Trash2, Copy, ArrowLeft, MessageSquare, BarChart3 } from 'lucide-react';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { use } from 'react';
+import { ProductReviews } from '@/components/admin/products/ProductReviews';
+import { ProductAnalytics } from '@/components/admin/products/ProductAnalytics';
 
 export default function ProductDetailPage({
   params,
@@ -129,9 +131,49 @@ export default function ProductDetailPage({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
-        <div className="lg:col-span-2 space-y-6">
+      {/* Tabs */}
+      <div className="mb-6 border-b">
+        <div className="flex gap-4">
+          <button
+            onClick={() => setActiveTab('details')}
+            className={`pb-2 px-1 border-b-2 transition-colors ${
+              activeTab === 'details'
+                ? 'border-blue-500 text-blue-600 font-medium'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            Chi tiết
+          </button>
+          <button
+            onClick={() => setActiveTab('reviews')}
+            className={`pb-2 px-1 border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'reviews'
+                ? 'border-blue-500 text-blue-600 font-medium'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Đánh giá
+          </button>
+          <button
+            onClick={() => setActiveTab('analytics')}
+            className={`pb-2 px-1 border-b-2 transition-colors flex items-center gap-2 ${
+              activeTab === 'analytics'
+                ? 'border-blue-500 text-blue-600 font-medium'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <BarChart3 className="w-4 h-4" />
+            Phân tích
+          </button>
+        </div>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'details' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Main Content */}
+          <div className="lg:col-span-2 space-y-6">
           {/* Basic Information */}
           <Card>
             <CardHeader>
@@ -331,6 +373,15 @@ export default function ProductDetailPage({
           </Card>
         </div>
       </div>
+      )}
+
+      {activeTab === 'reviews' && (
+        <ProductReviews productId={id} />
+      )}
+
+      {activeTab === 'analytics' && (
+        <ProductAnalytics productId={id} />
+      )}
     </div>
   );
 }

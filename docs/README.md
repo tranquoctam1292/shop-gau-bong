@@ -1,125 +1,104 @@
 # 📚 Documentation Index
 
-Tổng hợp tất cả tài liệu dự án Shop Gấu Bông.
+**Last updated:** 2025-01-XX  
+**Total files:** ~72 files (see cleanup plan for reduction)
 
 ---
 
-## 🚀 Quick Start
-
-- **[Setup Guide](WORDPRESS_SETUP_GUIDE.md)** - Hướng dẫn setup WordPress
-- **[Local Development](LOCAL_DEVELOPMENT_CHECKLIST.md)** - Checklist phát triển local
-- **[Quick Setup](QUICK_SETUP_CHECKLIST.md)** - Setup nhanh
-
----
-
-## 📖 Core Documentation
+## 🎯 QUICK NAVIGATION
 
 ### Setup & Configuration
-- **[WordPress Setup Guide](WORDPRESS_SETUP_GUIDE.md)** - Setup WordPress từ đầu
-- **[ACF Setup Guide](ACF_SETUP_GUIDE.md)** - Cấu hình Advanced Custom Fields
-- **[WooCommerce REST API Setup](SETUP_WOOCOMMERCE_REST_API.md)** - Cấu hình REST API
-- **[WordPress App Password](SETUP_WORDPRESS_APP_PASSWORD.md)** - Alternative authentication
+- [MongoDB Setup Guide](./MONGODB_SETUP_GUIDE.md) - Setup MongoDB connection
+- [Vercel Environment Setup](./VERCEL_ENV_SETUP.md) - Configure environment variables
+- [Schema Context](./SCHEMA_CONTEXT.md) - Database schema reference
+- [Design System](./DESIGN_SYSTEM.md) - UI/UX design guidelines
 
-### Development
-- **[Design System](DESIGN_SYSTEM.md)** - Color palette, typography, components
-- **[Development Strategy](DEVELOPMENT_STRATEGY.md)** - Chiến lược phát triển
-- **[Homepage Plan](HOMEPAGE_PLAN.md)** - Kế hoạch xây dựng homepage
+### Migration & CMS
+- [Migration to Custom CMS Plan](./MIGRATION_TO_CUSTOM_CMS_PLAN.md) - Complete migration plan
+- [CMS Integration Analysis](./CMS_INTEGRATION_ANALYSIS.md) - CMS integration analysis
+- [CMS Sync Plan](./CMS_SYNC_PLAN.md) - Feature synchronization plan
 
-### Migration
-- **[Migration to REST API Plan](MIGRATION_TO_REST_API_PLAN.md)** - Chi tiết migration plan
-- **[Migration Summary](MIGRATION_TO_REST_API_SUMMARY.md)** - Tóm tắt migration
+### Product Features (Phase 1-6)
+- [Product Features Sync Analysis](./PRODUCT_FEATURES_SYNC_ANALYSIS.md) - Feature comparison
+- [Phase 1: Core Advanced Sections](./PHASE1_PRODUCT_FEATURES_COMPLETE.md) ✅
+- [Phase 2: Gift & Media Features](./PHASE2_PRODUCT_FEATURES_COMPLETE.md) ✅
+- [Phase 3: Collections & Relations](./PHASE3_PRODUCT_FEATURES_COMPLETE.md) ✅
+- [Phase 4: Advanced Operations](./PHASE4_PRODUCT_FEATURES_COMPLETE.md) ✅
+- [Phase 5: Analytics & Reviews](./PHASE5_PRODUCT_FEATURES_COMPLETE.md) ✅
+- [Phase 6: Import/Export](./PHASE6_PRODUCT_FEATURES_COMPLETE.md) ✅
+- [Product Management Test Report](./PRODUCT_MANAGEMENT_TEST_REPORT.md) - Test results
 
----
+### CMS Sync Documentation
+- [Phase 1: CMS Sync Complete](./PHASE1_CMS_SYNC_COMPLETE.md) ✅
+- [Phase 2: Blog System](./PHASE2_BLOG_SYSTEM_COMPLETE.md) ✅
+- [Phase 5: Admin Panel](./PHASE5_ADMIN_PANEL_COMPLETE.md) ✅
 
-## 🔧 Troubleshooting
+### Migration Phases
+- [Phase 1: Setup Complete](./PHASE1_SETUP_COMPLETE.md) ✅
+- [Phase 2: Migration Complete](./PHASE2_MIGRATION_COMPLETE.md) ✅
+- [Phase 3: Data Migration](./PHASE3_COMPLETE.md) ✅
+- [Phase 3: Data Migration Guide](./PHASE3_DATA_MIGRATION_GUIDE.md) - Detailed guide
+- [Phase 4: Frontend Update](./PHASE4_FRONTEND_UPDATE_COMPLETE.md) ✅
+- [Phase Review & Fixes](./PHASE_REVIEW_FIXES.md) - Review results
 
-- **[Troubleshooting Guide](TROUBLESHOOTING.md)** - Tổng hợp các vấn đề thường gặp
-  - Hydration errors
-  - WooCommerce 401 errors
-  - Order creation errors
-  - Guest checkout issues
-  - Plugin compatibility
+### Test Results
+- [Phase 2: API Routes Test Results](./PHASE2_API_ROUTES_TEST_RESULTS.md)
+- [Phase 4: Hooks Test Results](./PHASE4_HOOKS_TEST_RESULTS.md)
 
----
+### Troubleshooting
+- [Troubleshooting Guide](./TROUBLESHOOTING.md) - Common issues and solutions
+- [Troubleshooting 500 Error](./TROUBLESHOOTING_500_ERROR.md) - 500 error fixes
+- [Troubleshooting Webpack Chunk](./TROUBLESHOOTING_WEBPACK_CHUNK.md) - Webpack issues
+- [Fix 403 Forbidden Error](./FIX_403_FORBIDDEN_ERROR.md) - 403 error fixes
+- [Fix Webpack Chunk Error](./FIX_WEBPACK_CHUNK_ERROR.md) - Webpack fixes
 
-## 🚀 Deployment
+### Deployment
+- [Deployment Guide](./DEPLOYMENT_GUIDE.md) - Complete deployment guide
+- [Deployment Strategy](./DEPLOYMENT_STRATEGY.md) - Deployment strategy
+- [Deployment Summary](./DEPLOYMENT_SUMMARY.md) - Deployment summary
+- [Pre-Deployment Checklist](./PRE_DEPLOYMENT_CHECKLIST.md) - Pre-deployment checklist
 
-- **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Hướng dẫn deploy lên production
-  - WordPress hosting setup
-  - Staging configuration
-  - Production configuration
-  - Next.js deployment
-  - CDN & image optimization
-  - Monitoring & analytics
+### Testing
+- [Phase 2 Testing Checklist](./PHASE2_TESTING_CHECKLIST.md)
+- [Phase 3 Testing Checklist](./PHASE3_TESTING_CHECKLIST.md)
+- [Test MoMo Payment](./TEST_MOMO_PAYMENT.md) - MoMo payment testing
+- [Quick Start MoMo Test](./QUICK_START_MOMO_TEST.md) - Quick MoMo test
 
----
+### Checklists
+- [Quick Setup Checklist](./QUICK_SETUP_CHECKLIST.md)
+- [Local Development Checklist](./LOCAL_DEVELOPMENT_CHECKLIST.md)
+- [Manual Tasks Checklist](./MANUAL_TASKS_CHECKLIST.md)
 
-## 📊 Project Status
+### Performance
+- [Performance Optimization](./PERFORMANCE_OPTIMIZATION.md) - Performance tips
+- [Performance Optimization Filtering](./PERFORMANCE_OPTIMIZATION_FILTERING.md) - Filtering optimization
 
-- **[Phase Summaries](PHASE_SUMMARIES.md)** - Tóm tắt các phases
-- **[Project Status](PROJECT_STATUS_SUMMARY.md)** - Trạng thái tổng thể dự án
-
----
-
-## 📝 User Guides
-
-- **[Technical Documentation](DOC_001_TECHNICAL_DOCUMENTATION.md)** - API, components, utilities
-- **[User Documentation](DOC_002_USER_DOCUMENTATION.md)** - Admin guide, FAQ, troubleshooting
-
----
-
-## ✅ Checklists
-
-- **[Local Development Checklist](LOCAL_DEVELOPMENT_CHECKLIST.md)** - Tasks cho local dev
-- **[Manual Tasks Checklist](MANUAL_TASKS_CHECKLIST.md)** - Tasks cần làm thủ công
-- **[Quick Setup Checklist](QUICK_SETUP_CHECKLIST.md)** - Setup nhanh
-
----
-
-## 🧪 Testing
-
-### Phase Testing
-- **[Phase 2 Testing](PHASE2_TESTING_CHECKLIST.md)** - Product migration testing
-- **[Phase 2 Quick Test](PHASE2_QUICK_TEST.md)** - Quick verification
-- **[Phase 3 Testing](PHASE3_TESTING_CHECKLIST.md)** - Order migration testing
-- **[Phase 3 Quick Test](PHASE3_QUICK_TEST.md)** - Quick verification
-
-### Feature Testing
-- **[MoMo Payment Test](TEST_MOMO_PAYMENT.md)** - Test MoMo integration
-- **[Quick Start MoMo](QUICK_START_MOMO_TEST.md)** - Quick MoMo test
+### Other
+- [Project Status Summary](./PROJECT_STATUS_SUMMARY.md) - Project status
+- [Development Strategy](./DEVELOPMENT_STRATEGY.md) - Development approach
+- [Phase Summaries](./PHASE_SUMMARIES.md) - All phases summary
 
 ---
 
-## 📦 Product Management
+## 🧹 DOCUMENTATION CLEANUP
 
-- **[Add Products to WordPress](ADD_PRODUCTS_WORDPRESS.md)** - Hướng dẫn thêm sản phẩm
-- **[Admin Product Management](ADMIN_PRODUCT_MANAGEMENT.md)** - Quản lý sản phẩm
+**Status:** 📋 Cleanup plan ready
 
----
+- [Cleanup Analysis](./DOCS_CLEANUP_ANALYSIS.md) - Detailed analysis of all files
+- [Cleanup Action Plan](./DOCS_CLEANUP_ACTION_PLAN.md) - Step-by-step cleanup guide
+- [Cleanup Script](./../scripts/cleanup-docs.ps1) - PowerShell cleanup script
 
-## 🔄 Features
-
-- **[Cart Sync](CART_SYNC.md)** - Đồng bộ giỏ hàng
-- **[Checkout Flow](CHECKOUT_FLOW.md)** - Luồng checkout
-- **[Performance Optimization](PERFORMANCE_OPTIMIZATION.md)** - Tối ưu hiệu suất
-- **[Remove Authentication](REMOVE_AUTHENTICATION.md)** - Loại bỏ tính năng đăng nhập
+**Note:** Many files are marked for deletion or merging. See cleanup plans for details.
 
 ---
 
-## 📐 Architecture
+## 📝 NOTES
 
-- **[Deployment Strategy](DEPLOYMENT_STRATEGY.md)** - Chiến lược deployment
-- **[API Patterns](API_PATTERNS.graphql)** - GraphQL patterns (deprecated, chỉ dùng cho blog)
-
----
-
-## 📌 Notes
-
-- **GraphQL:** Đã migrate sang REST API cho e-commerce. GraphQL chỉ còn dùng cho blog (optional).
-- **Authentication:** Đã remove, chỉ hỗ trợ guest checkout.
-- **Migration:** Tất cả e-commerce features đã migrate sang WooCommerce REST API.
+- Files marked with ✅ are completed phases
+- Files in **Troubleshooting** section may be merged into single `TROUBLESHOOTING.md`
+- Files in **Deployment** section may be merged into `DEPLOYMENT_GUIDE.md`
+- Old WordPress/WooCommerce specific files are marked for deletion (migrated to custom CMS)
 
 ---
 
-**Last Updated:** 2025-01-XX
-
+**Last cleanup:** See `DOCS_CLEANUP_ANALYSIS.md` for latest cleanup status

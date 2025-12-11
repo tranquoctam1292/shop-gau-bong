@@ -191,7 +191,7 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = productSchema.parse(body);
     
-    const { products } = await getCollections();
+    const { products, categories } = await getCollections();
     
     // Check if slug already exists
     const existingProduct = await products.findOne({ slug: validatedData.slug });
@@ -201,7 +201,37 @@ export async function POST(request: NextRequest) {
         { status: 409 }
       );
     }
+
+    // Map category to categoryId if category is provided as string
+    let categoryId: string | undefined = undefined;
+    if (validatedData.category) {
+      // Try to find category by ID or name
+      const category = await categories.findOne({
+        $or: [
+          { _id: new ObjectId(validatedData.category) },
+          { name: validatedData.category },
+          { slug: validatedData.category },
+        ],
+      });
+      if (category) {
+        categoryId = category._id.toString();
+      }
+    }
     
+    // Calculate minPrice if not provided and variants exist
+    let minPrice = validatedData.minPrice;
+    if (!minPrice && validatedData.variants && validatedData.variants.length > 0) {
+      const prices = validatedData.variants
+        .map((v) => v.price)
+        .filter((p) => !isNaN(p) && p >= 0);
+      if (prices.length > 0) {
+        minPrice = Math.min(...prices);
+      }
+    }
+    if (!minPrice || minPrice < 0) {
+      minPrice = 0; // Default to 0 if no price provided
+    }
+
     // Calculate volumetric weight if dimensions provided
     let volumetricWeight = validatedData.volumetricWeight;
     if (!volumetricWeight && validatedData.length && validatedData.width && validatedData.height) {
@@ -209,12 +239,19 @@ export async function POST(request: NextRequest) {
     }
     
     // Create product document
-    const productDoc = {
+    const productDoc: any = {
       ...validatedData,
+      minPrice,
       volumetricWeight,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
+
+    // Replace category string with categoryId
+    if (categoryId) {
+      productDoc.categoryId = categoryId;
+      delete productDoc.category;
+    }
     
     const result = await products.insertOne(productDoc);
     
