@@ -62,30 +62,23 @@ describe('Payment Integration Tests', () => {
   });
 
   describe('MoMo Integration', () => {
-    it('should create MoMo signature correctly', () => {
+    it('should create MoMo signature correctly', async () => {
       const partnerCode = 'MOMO';
       const accessKey = 'ACCESS_KEY';
       const requestId = 'REQUEST_ID';
       const amount = 100000;
       const orderId = 'ORDER_ID';
       const orderInfo = 'Order #12345';
-      const returnUrl = 'https://example.com/return';
-      const notifyUrl = 'https://example.com/notify';
+      const redirectUrl = 'https://example.com/return';
+      const ipnUrl = 'https://example.com/notify';
       const extraData = '';
+      const requestType = 'captureWallet';
       const secretKey = 'SECRET_KEY';
 
-      const signature = createMoMoSignature({
-        partnerCode,
-        accessKey,
-        requestId,
-        amount,
-        orderId,
-        orderInfo,
-        returnUrl,
-        notifyUrl,
-        extraData,
-        secretKey,
-      });
+      // Build raw signature string (same format as in createMoMoPayment)
+      const rawData = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${orderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
+
+      const signature = await createMoMoSignature(rawData, secretKey);
 
       expect(signature).toBeDefined();
       expect(typeof signature).toBe('string');

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { useProductsREST } from '@/lib/hooks/useProductsREST';
 import { ProductCard } from './ProductCard';
 import { ViewToggle } from './ViewToggle';
@@ -21,6 +22,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const { addToCart } = useCartSync();
 
+  // Hiển thị skeleton khi đang loading (cả lần đầu và khi filter thay đổi)
   if (loading && products.length === 0) {
     return (
       <div className="w-full">
@@ -53,7 +55,17 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
   }
 
   return (
-    <div className="w-full">
+    <div className="w-full relative">
+      {/* Loading overlay khi đang filter (có products nhưng đang loading) */}
+      {loading && products.length > 0 && (
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-text-muted">Đang tải...</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-6">
         {totalCount > 0 && (
           <p className="text-sm text-text-muted">
@@ -82,11 +94,13 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
             return (
               <Card key={product.id || product.databaseId} className="p-4">
                 <div className="flex gap-4">
-                  <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 rounded-xl overflow-hidden">
-                    <img
+                  <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-50">
+                    <Image
                       src={product.image?.sourceUrl || '/images/teddy-placeholder.png'}
                       alt={product.image?.altText || product.name || 'Gấu bông'}
-                      className="w-full h-full object-cover"
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 96px, 128px"
                     />
                   </div>
                   <div className="flex-1 min-w-0">

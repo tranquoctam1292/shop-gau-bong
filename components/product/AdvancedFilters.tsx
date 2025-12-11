@@ -7,6 +7,7 @@ import { Select } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { useProductFilters, type ProductFilters as ProductFiltersType } from '@/lib/hooks/useProductFilters';
 import { useCategoriesREST } from '@/lib/hooks/useCategoriesREST';
+import { useProductAttributes } from '@/lib/hooks/useProductAttributes';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { formatPrice } from '@/lib/utils/format';
@@ -18,10 +19,22 @@ interface AdvancedFiltersProps {
 export function AdvancedFilters({ className }: AdvancedFiltersProps) {
   const { filters, updateFilters, clearFilters } = useProductFilters();
   const { categories, loading: categoriesLoading } = useCategoriesREST();
+  const { getSizeOptions, getMaterialOptions, isLoading: attributesLoading } = useProductAttributes();
   const [isOpen, setIsOpen] = useState(false);
+  // Parse categories từ URL (comma-separated string)
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    filters.category ? [filters.category] : []
+    filters.category ? filters.category.split(',').filter(Boolean) : []
   );
+
+  // Sync selectedCategories với filters khi filters thay đổi từ bên ngoài
+  useEffect(() => {
+    if (filters.category) {
+      const categoriesFromUrl = filters.category.split(',').filter(Boolean);
+      setSelectedCategories(categoriesFromUrl);
+    } else {
+      setSelectedCategories([]);
+    }
+  }, [filters.category]);
   // Price range constants
   const MIN_PRICE = 0;
   const MAX_PRICE = 1000000;
@@ -40,7 +53,7 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
   }, [filters.minPrice, filters.maxPrice]);
 
   const hasActiveFilters = 
-    filters.category || 
+    (filters.category && filters.category.split(',').length > 0) ||
     filters.minPrice || 
     filters.maxPrice || 
     filters.material || 
@@ -54,9 +67,9 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
 
     setSelectedCategories(newCategories);
     
-    // Update filter với first category (hoặc có thể support multiple)
+    // Update filter với tất cả categories (comma-separated)
     updateFilters({
-      category: newCategories.length > 0 ? newCategories[0] : undefined,
+      category: newCategories.length > 0 ? newCategories.join(',') : undefined,
     });
   };
 
@@ -70,32 +83,38 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
     });
   };
 
-  // Material options
-  const materialOptions = [
-    { value: 'Bông gòn 4D', label: 'Bông gòn 4D' },
-    { value: 'Bông gòn 3D', label: 'Bông gòn 3D' },
-    { value: 'Vải nỉ', label: 'Vải nỉ' },
-    { value: 'Vải lông', label: 'Vải lông' },
-  ];
+  // Material và Size options được lấy động từ WooCommerce attributes
+  const materialOptions = getMaterialOptions().map(material => ({
+    value: material,
+    label: material,
+  }));
 
-  // Size options
-  const sizeOptions = [
-    { value: 'Nhỏ', label: 'Nhỏ (< 30cm)' },
-    { value: 'Vừa', label: 'Vừa (30-50cm)' },
-    { value: 'Lớn', label: 'Lớn (50-80cm)' },
-    { value: 'Rất lớn', label: 'Rất lớn (> 80cm)' },
-  ];
+  const sizeOptions = getSizeOptions().map(size => ({
+    value: size,
+    label: size,
+  }));
 
   // Active filters for display as badges
   const activeFilters = useMemo(() => {
     const active: Array<{ key: string; label: string; value: string }> = [];
     
     if (filters.category) {
-      const category = categories.find(c => 
-        c.slug === filters.category || c.databaseId?.toString() === filters.category
-      );
-      if (category) {
-        active.push({ key: 'category', label: 'Danh mục', value: category.name });
+      const categorySlugs = filters.category.split(',').filter(Boolean);
+      const categoryNames = categorySlugs
+        .map(slug => {
+          const category = categories.find(c => 
+            c.slug === slug || c.databaseId?.toString() === slug
+          );
+          return category?.name;
+        })
+        .filter(Boolean);
+      
+      if (categoryNames.length > 0) {
+        active.push({ 
+          key: 'category', 
+          label: categoryNames.length === 1 ? 'Danh mục' : 'Danh mục', 
+          value: categoryNames.join(', ') 
+        });
       }
     }
     
@@ -323,8 +342,13 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
               <label className="block text-sm font-medium text-text-main mb-3">
                 Chất liệu
               </label>
-              <div className="flex flex-wrap gap-2">
-                {materialOptions.map((option) => {
+              {attributesLoading ? (
+                <div className="text-sm text-text-muted py-2">Đang tải...</div>
+              ) : materialOptions.length === 0 ? (
+                <div className="text-sm text-text-muted py-2">Không có tùy chọn</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {materialOptions.map((option) => {
                   const isSelected = filters.material === option.value;
                   return (
                     <Button
@@ -345,8 +369,9 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
                       {option.label}
                     </Button>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Size Filter - Button Chips */}
@@ -354,8 +379,13 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
               <label className="block text-sm font-medium text-text-main mb-3">
                 Kích thước
               </label>
-              <div className="flex flex-wrap gap-2">
-                {sizeOptions.map((option) => {
+              {attributesLoading ? (
+                <div className="text-sm text-text-muted py-2">Đang tải...</div>
+              ) : sizeOptions.length === 0 ? (
+                <div className="text-sm text-text-muted py-2">Không có tùy chọn</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {sizeOptions.map((option) => {
                   const isSelected = filters.size === option.value;
                   return (
                     <Button
@@ -376,8 +406,9 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
                       {option.label}
                     </Button>
                   );
-                })}
-              </div>
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Sort */}

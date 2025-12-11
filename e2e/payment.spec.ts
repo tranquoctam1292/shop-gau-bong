@@ -39,7 +39,8 @@ test.describe('Payment Flow', () => {
       await page.waitForTimeout(500);
 
       // Verify VietQR is selected
-      if (vietqrOption.getAttribute('type') === 'radio' || vietqrOption.getAttribute('type') === 'checkbox') {
+      const type = await vietqrOption.getAttribute('type');
+      if (type === 'radio' || type === 'checkbox') {
         await expect(vietqrOption).toBeChecked();
       }
     }

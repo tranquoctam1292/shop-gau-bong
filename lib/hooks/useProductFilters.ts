@@ -4,7 +4,7 @@ import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
 
 export interface ProductFilters {
-  category?: string;
+  category?: string; // Comma-separated category IDs/slugs for multiple categories
   minPrice?: number;
   maxPrice?: number;
   material?: string;

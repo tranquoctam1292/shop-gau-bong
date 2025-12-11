@@ -45,12 +45,18 @@ Before implementing any feature, you MUST reference the following sources based 
 - Styling: Tailwind CSS + Shadcn UI.
 - **Image Handling:** Next.js `Image` component is mandatory. Fallback to placeholder if source is null.
 - **State Management:** Zustand for cart state (localStorage persistence), React Query for server state.
-- **Product Variations:** Support variable products with size and color attributes. Use `useProductVariations` hook for lazy loading. ProductCard URLs include query params (`?attribute_pa_size=60cm&attribute_pa_color=do`) to preserve selections when navigating to product detail page.
+- **Product Variations:** Support variable products with size and color attributes. Use `useProductVariations` hook for lazy loading.
 - **Button Styling:** Use `buttonVariants` from `lib/utils/button-variants.ts`. Default variant includes gradient and shadow effects. Ghost variant for subtle buttons.
-- **UI Components:** 
-  - **ProductFilters:** Modern horizontal layout (Shopee/Lazada style) with Filter Group (Bộ lọc, Giá bán, Kích thước, Màu sắc) and Sort Group (chips with horizontal scroll on mobile). Uses Sheet for full filter drawer, Popover for quick filters.
-  - **Popover:** Available in `components/ui/popover.tsx` for dropdown menus and quick filters.
-  - **Product List Layout:** Vertical stack layout (no sidebar). ProductFilters full-width above ProductList.
+- **Product Filters:** 
+  - Component: `components/product/ProductFilters.tsx`
+  - **CRITICAL:** Mobile and Desktop use **separate state variables** for Popovers to prevent duplicate display:
+    - Desktop: `pricePopoverOpen`, `sizePopoverOpen`, `colorPopoverOpen`
+    - Mobile: `mobilePriceOpen`, `mobileSizeOpen`, `mobileColorOpen`
+  - Mobile layout: Horizontal scrolling bar (`lg:hidden`) with sticky behavior
+  - Desktop layout: Static layout (`hidden lg:block`)
+  - Filter options: Dynamically fetched from WooCommerce via `useProductAttributes` hook
+  - UX: All mobile Popovers have close button (X) in header and support click-outside-to-close
+  - **NO console.log:** All debug logging has been removed from production code
 
 # MOBILE FIRST MASTERY (STRICT)
 ## 1. Responsive Philosophy
@@ -60,10 +66,16 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Touch Targets:** All clickable elements (Buttons, Links, Icons) must have a minimum hit area of **44x44px** (use `min-h-[44px]` or `p-4`).
 - **No Hover on Mobile:** Never rely on `:hover` for critical info.
 - **Font Sizes:** Min font size `14px`. H1 max `text-2xl` on mobile.
+- **Popover/Modal UX on Mobile:**
+  - Always provide close button (X icon) in header
+  - Support click-outside-to-close (except when clicking trigger button)
+  - Use separate state variables for mobile vs desktop to prevent duplicate rendering
+  - Sticky filter bars: Use `sticky top-[64px] z-40 bg-background/95 backdrop-blur` for filter bars below header
 
 ## 2. Mobile Layout Pitfalls
 - **Avoid 100vh:** Do not use `h-screen`. Use `dvh` (Dynamic Viewport Height) or `min-h-screen`.
 - **Horizontal Scroll:** Prevent accidental horizontal scroll. Use `w-full overflow-x-hidden` on wrappers.
+- **Popover Portals:** When using Radix UI Popover with React Portals, ensure mobile and desktop sections use separate state to prevent duplicate PopoverContent rendering.
 
 # DEFENSIVE CODING & ERROR PREVENTION (STRICT)
 
@@ -81,15 +93,18 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Safety Check:** Ensure L, W, H are converted to Numbers.
 - **Logic:** `Final Weight = Math.max(Number(actualWeight) || 0, Number(volumetricWeight) || 0)`.
 
+## 4. Code Quality & Debugging
+- **NO console.log in production:** Remove all debug console.log statements before committing.
+- **State Management:** Use separate state variables for mobile and desktop when components render conditionally (e.g., `lg:hidden` vs `hidden lg:block`).
+- **Popover State:** When using Radix UI Popover with React Portals, ensure conditional rendering sections (mobile/desktop) use separate state variables to prevent duplicate PopoverContent rendering.
+
 # BUSINESS LOGIC RULES
 - **Language:** UI text MUST be **Vietnamese**. Code comments in English/Vietnamese.
 - **Payment:** Prioritize **VietQR** & **MoMo**. COD and Bank Transfer are also supported.
 - **Cart:** Guest checkout only. No user authentication required. Cart is stored locally (Zustand). Cart supports product variations (size, color) via `variationId`.
 - **Homepage:** Each product section displays **8 products** (2 rows × 4 columns on desktop, 2 columns × 4 rows on mobile).
 - **Homepage Sections:** Hero Carousel, New Arrivals, Bigsize Products, Category Products, Trending Products, Categories Grid, Featured Products, Best Sellers, Video Section, Stories Section, Store Locations. (Customer Photos section has been removed)
-- **Product Variations:** Products can have size and color variations. Display up to 4 size options and 4 color options on ProductCard. Dynamic pricing based on selected variation. Selected size/color is preserved in URL query params when navigating to product detail page.
-- **Product Filters:** Modern horizontal design with two rows: (1) Filter Group with buttons (Bộ lọc, Giá bán, Kích thước, Màu sắc) using Sheet/Popover, (2) Sort Group with horizontal scrollable chips on mobile. Full-width layout above product list (no sidebar).
-- **Product List:** Removed `container-mobile` padding (handled by parent page). Optimized grid gap: `gap-2` on mobile, `md:gap-4`, `lg:gap-6` on larger screens.
+- **Product Variations:** Products can have size and color variations. Display up to 4 size options and 4 color options on ProductCard. Dynamic pricing based on selected variation.
 - **Cart UI:** CartDrawer uses Shadcn Sheet component. Cart button uses ghost variant with hover effect. Buttons have proper padding (`px-10 py-5`) and text centering.
 
 # RESPONSE GUIDELINES

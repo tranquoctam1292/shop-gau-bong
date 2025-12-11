@@ -1,186 +1,94 @@
-# TÓM TẮT CÁC THAY ĐỔI CHIẾN LƯỢC
+# TÓM TẮT CÁC THAY ĐỔI
 
-## 📋 Tổng quan
-
-Kế hoạch dự án đã được **refinement** bởi Senior Solutions Architect với 3 thay đổi chiến lược quan trọng:
+**Cập nhật lần cuối:** 11/12/2025
 
 ---
 
-## 1️⃣ CHUYỂN ĐỔI SANG WPGraphQL
+## ✅ CÁC THAY ĐỔI GẦN ĐÂY
 
-### ✅ Các thay đổi đã thực hiện:
+### 1. Sửa lỗi hiển thị 2 kết quả bộ lọc (11/12/2025)
+**Vấn đề:** Khi click vào bộ lọc, cả Popover Mobile và Desktop đều hiển thị cùng lúc.
 
-#### Mục 2.1 - Kiến trúc hệ thống
-- **Trước**: `REST API / GraphQL` (không rõ ràng)
-- **Sau**: `WPGraphQL` (Single Endpoint)
+**Nguyên nhân:** 
+- Mobile và Desktop dùng chung state variables (`pricePopoverOpen`, `sizePopoverOpen`, `colorPopoverOpen`)
+- React Portals render PopoverContent ra ngoài DOM hierarchy, khiến Popover Mobile (dù trigger bị ẩn) vẫn render ở vị trí mặc định
 
-#### Mục 2.2 - Công nghệ Backend
-- **Thêm**: WPGraphQL Plugin (bắt buộc)
-- **Thêm**: WPGraphQL WooCommerce Extension (bắt buộc)
-- **Thêm**: WPGraphQL ACF support (nếu dùng ACF)
+**Giải pháp:**
+- Tách state riêng cho Mobile: `mobilePriceOpen`, `mobileSizeOpen`, `mobileColorOpen`
+- Cập nhật các Popover trong Mobile section (`lg:hidden`) để dùng state riêng
+- Cập nhật handlers để đóng cả 2 state khi cần
 
-#### Mục 2.2 - Công nghệ Frontend
-- **Thêm**: GraphQL Client (Apollo Client / urql / graphql-request)
-- **Thêm**: GraphQL Code Generator (tự động generate TypeScript types)
-- **Ghi chú**: React Query/SWR vẫn có thể dùng với GraphQL
+**Files thay đổi:**
+- `components/product/ProductFilters.tsx`
+- `docs/BAO_CAO_LOI_HIEN_THI_2_KET_QUA_BO_LOC.md` (cập nhật trạng thái: ✅ ĐÃ SỬA)
+- `giai-phap.md` (thêm header và trạng thái)
 
-#### Mục 4 - API Architecture (HOÀN TOÀN MỚI)
-- **Trước**: REST API endpoints (`/wp-json/wc/v3/...`)
-- **Sau**: GraphQL Queries & Mutations (`/graphql`)
-- **Bao gồm**:
-  - Products Queries (list, detail, search)
-  - Categories Queries
-  - Cart Queries & Mutations
-  - Orders Queries & Mutations
-  - Authentication Mutations
-  - TypeScript Type Generation setup
+### 2. Cải thiện UX đóng Popover trên Mobile (11/12/2025)
+**Thay đổi:**
+- Thêm nút "X" vào header của tất cả Popover trên mobile (Price, Size, Color)
+- Cải thiện logic đóng khi click ra ngoài: Chỉ ngăn đóng khi click vào trigger button, cho phép đóng khi click ra ngoài
+- Loại bỏ tất cả `console.log` debug code
 
-#### Mục 5.1 - Cấu trúc Frontend
-- **Trước**: `lib/api/woocommerce.ts` (REST client)
-- **Sau**: 
-  - `lib/api/graphql.ts` (GraphQL client)
-  - `lib/api/queries/*.graphql` (GraphQL queries)
-  - `lib/api/mutations/*.graphql` (GraphQL mutations)
-  - `types/generated/graphql.ts` (Auto-generated types)
+**Files thay đổi:**
+- `components/product/ProductFilters.tsx`
 
-#### Mục 10.1 - Environment Variables
-- **Xóa**: `NEXT_PUBLIC_WOOCOMMERCE_KEY`, `NEXT_PUBLIC_WOOCOMMERCE_SECRET`
-- **Thêm**: `NEXT_PUBLIC_GRAPHQL_ENDPOINT`
-
-#### Mục 10.2 - WordPress Requirements
-- **Thêm**: WPGraphQL plugin (v1.0+)
-- **Thêm**: WPGraphQL WooCommerce extension (v0.10+)
-
-#### Mục 17 - Checklist
-- **Thêm**: Install WPGraphQL plugin
-- **Thêm**: Install WPGraphQL WooCommerce extension
-- **Thêm**: Setup GraphQL Code Generator
-- **Thêm**: Test GraphQL queries với GraphQL Playground
-
-### 🎯 Lợi ích:
-- ✅ Tránh over-fetching/under-fetching
-- ✅ Type-safe với TypeScript auto-generation
-- ✅ Single endpoint, dễ cache
-- ✅ Tối ưu cho Next.js SSR/SSG
-- ✅ Developer experience tốt hơn
+### 3. Cập nhật file quan trọng (11/12/2025)
+**Files đã cập nhật:**
+- `.cursorrules`: Thêm thông tin về Product Filters, state management, mobile UX improvements
+- `giai-phap.md`: Thêm header và trạng thái hoàn thành
+- `docs/BAO_CAO_LOI_HIEN_THI_2_KET_QUA_BO_LOC.md`: Cập nhật trạng thái và giải pháp
 
 ---
 
-## 2️⃣ VIỆT HÓA PAYMENT GATEWAYS
+## 📋 CÁC TÍNH NĂNG ĐÃ HOÀN THÀNH
 
-### ✅ Các thay đổi đã thực hiện:
+### Product Filters
+- ✅ Dynamic filter options từ WooCommerce attributes
+- ✅ Multi-category filtering
+- ✅ Price range filtering với validation
+- ✅ Size và Color filtering
+- ✅ Material filtering
+- ✅ Active filters display với badges
+- ✅ Mobile horizontal scrolling bar
+- ✅ Desktop static layout
+- ✅ Separate state cho Mobile/Desktop (tránh duplicate display)
+- ✅ Close button và click-outside-to-close trên Mobile
+- ✅ Server-side filtering với pagination chính xác
 
-#### Mục 2.2 - Công nghệ Frontend
-- **Trước**: `Stripe / PayPal` (ưu tiên)
-- **Sau**: 
-  - `VietQR / MoMo / ZaloPay` (ưu tiên cho thị trường Việt Nam)
-  - `Stripe / PayPal` (optional, cho khách quốc tế)
-
-#### Mục 6.3 - Payment Gateways
-- **Trước**: Stripe, PayPal, COD, Bank transfer
-- **Sau**: 
-  - **Ưu tiên**: VietQR (chuyển khoản tự động), MoMo, ZaloPay
-  - **Secondary**: COD, Bank transfer
-  - **Optional**: Stripe, PayPal
-
-#### Mục 10.1 - Environment Variables
-- **Xóa**: `NEXT_PUBLIC_STRIPE_PUBLIC_KEY`
-- **Thêm**: 
-  - `NEXT_PUBLIC_VIETQR_API_KEY`
-  - `NEXT_PUBLIC_MOMO_PARTNER_CODE`
-  - `MOMO_SECRET_KEY`
-  - `NEXT_PUBLIC_ZALOPAY_APP_ID`
-  - `ZALOPAY_KEY1`, `ZALOPAY_KEY2`
-
-#### Mục 11 - Phase 3 Timeline
-- **Thêm**: Task "Tích hợp VietQR API"
-- **Thêm**: Task "Tích hợp MoMo Payment Gateway"
-- **Thêm**: Task "Setup webhook xác nhận thanh toán tự động"
-
-#### Mục 17 - Checklist
-- **Cập nhật**: "Configure payment gateways (VietQR/MoMo/ZaloPay)"
-
-### 🎯 Lợi ích:
-- ✅ Phù hợp với thị trường Việt Nam
-- ✅ Chi phí thấp hơn (phí giao dịch nội địa)
-- ✅ Trải nghiệm quen thuộc với người dùng
-- ✅ Tốc độ thanh toán nhanh hơn
-- ✅ Ít rủi ro hơn (thanh toán nội địa)
+### Performance Optimization
+- ✅ Batch fetching với limits (maxPages: 50, maxProductsToFetch: 2000)
+- ✅ Timeout protection (25 seconds)
+- ✅ Performance logging
+- ⚠️ Cần implement caching (Phase 2)
 
 ---
 
-## 3️⃣ TÍNH PHÍ VẬN CHUYỂN THEO THỂ TÍCH
+## 🔧 CẢI THIỆN CODE QUALITY
 
-### ✅ Các thay đổi đã thực hiện:
-
-#### Mục 3.1 - Custom Fields (ACF)
-- **Thêm**: `product_length` (cm) - **Bắt buộc**
-- **Thêm**: `product_width` (cm) - **Bắt buộc**
-- **Thêm**: `product_height` (cm) - **Bắt buộc**
-- **Thêm**: `product_volumetric_weight` (auto-calculate)
-- **Ghi chú**: Logic so sánh giữa cân nặng thực và cân nặng quy đổi
-
-#### Mục 6.2 - Giỏ hàng
-- **Thêm**: Section 6.2.1 - Logic tính phí vận chuyển theo thể tích
-- **Bao gồm**:
-  - Giải thích vấn đề (gấu bông nhẹ nhưng cồng kềnh)
-  - Công thức: `Volumetric Weight = (L × W × H) / 6000`
-  - Logic so sánh: `max(actual_weight, volumetric_weight)`
-  - Code examples (TypeScript)
-  - Implementation requirements checklist
-  - Ví dụ thực tế
-
-#### Mục 6.2 - Shipping Cost Calculation
-- **Thêm**: Validate kích thước sản phẩm
-- **Thêm**: Auto-calculate volumetric weight
-- **Thêm**: Hiển thị breakdown phí ship
-- **Thêm**: Support multiple shipping providers
-
-#### Mục 11 - Phase 3 Timeline
-- **Thêm**: Task "Shipping cost calculation với volumetric weight"
-- **Thêm**: Task "Implement logic tính cân nặng quy đổi"
-- **Thêm**: Task "Test với các sản phẩm có kích thước khác nhau"
-
-#### Mục 17 - Checklist
-- **Thêm**: "Setup Custom Fields: length, width, height (bắt buộc)"
-- **Thêm**: "Configure shipping calculation với volumetric weight"
-
-### 🎯 Lợi ích:
-- ✅ Tránh lỗ vận chuyển (tính đúng phí ship)
-- ✅ Tuân thủ chuẩn ngành vận chuyển
-- ✅ Chính xác trong tính toán phí ship
-- ✅ Hiển thị rõ ràng cho khách hàng
+- ✅ Loại bỏ tất cả `console.log` debug code
+- ✅ Tách state riêng cho Mobile/Desktop components
+- ✅ Cải thiện error handling và validation
+- ✅ Cập nhật documentation
 
 ---
 
-## 📊 TỔNG KẾT
+## 📚 DOCUMENTATION
 
 ### Files đã cập nhật:
-1. ✅ `KE_HOACH_DU_AN.md` - Kế hoạch chính (tất cả các mục liên quan)
-2. ✅ `TOM_TAT_THAY_DOI.md` - File này (tóm tắt thay đổi)
-
-### Các mục chính đã thay đổi:
-- ✅ Mục 2: Kiến trúc hệ thống
-- ✅ Mục 3: Database Schema
-- ✅ Mục 4: API Architecture (hoàn toàn mới)
-- ✅ Mục 5: Frontend Structure
-- ✅ Mục 6.2: Giỏ hàng & Shipping
-- ✅ Mục 6.3: Payment Gateways
-- ✅ Mục 10: Deployment
-- ✅ Mục 11: Timeline
-- ✅ Mục 17: Checklist
-- ✅ Mục 18: Tóm tắt thay đổi (mới)
-
-### Next Steps:
-1. Review kế hoạch đã cập nhật
-2. Bắt đầu implementation theo checklist
-3. Setup WPGraphQL trong WordPress
-4. Tích hợp VietQR/MoMo payment
-5. Implement volumetric weight calculation
+- `.cursorrules`: Thêm rules về Product Filters, state management, mobile UX
+- `docs/BAO_CAO_LOI_HIEN_THI_2_KET_QUA_BO_LOC.md`: Báo cáo lỗi và giải pháp
+- `docs/PERFORMANCE_OPTIMIZATION_FILTERING.md`: Tài liệu về performance optimization
+- `giai-phap.md`: Giải pháp chi tiết cho lỗi duplicate filter display
 
 ---
 
-**Ngày cập nhật**: [Ngày hiện tại]
-**Phiên bản**: 2.0 (Refined)
-**Status**: ✅ Ready for Implementation
+## 🚀 NEXT STEPS
 
+### Phase 2: Performance Optimization
+- [ ] Implement caching (Next.js cache hoặc Redis)
+- [ ] Optimize filter logic (reduce iterations)
+- [ ] Add request deduplication
+
+### Phase 3: Long-term
+- [ ] Database-level filtering (custom WordPress plugin)
+- [ ] Indexed search (Elasticsearch/Algolia)

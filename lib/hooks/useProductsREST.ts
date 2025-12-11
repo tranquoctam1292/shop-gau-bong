@@ -30,17 +30,33 @@ export function useProductsREST(perPage: number = 12) {
       status: 'publish', // Chỉ lấy published products
     };
 
-    // Category filter
+    // Category filter - hỗ trợ nhiều categories (comma-separated)
+    // WooCommerce REST API hỗ trợ nhiều categories qua comma-separated IDs/slugs
     if (filters.category) {
-      // REST API cần category ID hoặc slug
-      // Nếu là slug, cần convert sang ID (hoặc dùng category endpoint)
-      // Tạm thời giả sử filters.category là category ID
+      // filters.category có thể là comma-separated string: "slug1,slug2,slug3"
       params.category = filters.category;
     }
 
     // Search
     if (filters.search) {
       params.search = filters.search;
+    }
+
+    // Custom filters - gửi lên API route để filter server-side
+    if (filters.minPrice !== undefined) {
+      params.min_price = filters.minPrice;
+    }
+    if (filters.maxPrice !== undefined) {
+      params.max_price = filters.maxPrice;
+    }
+    if (filters.material) {
+      params.material = filters.material;
+    }
+    if (filters.size) {
+      params.size = filters.size;
+    }
+    if (filters.color) {
+      params.color = filters.color;
     }
 
     // Order by
@@ -139,6 +155,7 @@ export function useProductsREST(perPage: number = 12) {
         }
         
         // If this is page 1 or filters changed, replace products; otherwise append (for load more)
+        // Note: When using custom filters, API handles pagination correctly, so we replace on page 1
         if (currentPage === 1 || filtersChanged) {
           setProducts(mappedProducts);
         } else {
@@ -157,48 +174,8 @@ export function useProductsREST(perPage: number = 12) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(apiParams), currentPage, perPage]);
 
-  // Client-side filtering cho price, material, size (vì REST API không support)
-  const filteredProducts = useMemo(() => {
-    let result = [...products];
-
-    // Filter by price range
-    if (filters.minPrice !== undefined || filters.maxPrice !== undefined) {
-      result = result.filter((product) => {
-        const price = parseFloat(product.price.replace(/[^\d.]/g, '')) || 0;
-        if (filters.minPrice !== undefined && price < filters.minPrice) return false;
-        if (filters.maxPrice !== undefined && price > filters.maxPrice) return false;
-        return true;
-      });
-    }
-
-    // Filter by material
-    if (filters.material && filters.material !== '') {
-      result = result.filter((product) => {
-        return product.material === filters.material;
-      });
-    }
-
-    // Filter by size (based on length)
-    if (filters.size && filters.size !== '') {
-      result = result.filter((product) => {
-        const length = product.length || 0;
-        switch (filters.size) {
-          case 'Nhỏ':
-            return length < 30;
-          case 'Vừa':
-            return length >= 30 && length <= 50;
-          case 'Lớn':
-            return length > 50 && length <= 80;
-          case 'Rất lớn':
-            return length > 80;
-          default:
-            return true;
-        }
-      });
-    }
-
-    return result;
-  }, [products, filters]);
+  // No need for client-side filtering anymore - API route handles all filtering
+  // Products returned from API are already filtered
 
   const loadMore = () => {
     if (currentPage < totalPages) {
@@ -207,7 +184,7 @@ export function useProductsREST(perPage: number = 12) {
   };
 
   return {
-    products: filteredProducts,
+    products,
     loading,
     error,
     hasNextPage: currentPage < totalPages,
