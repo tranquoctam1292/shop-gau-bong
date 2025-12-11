@@ -1,5 +1,6 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { buttonVariants } from '@/lib/utils/button-variants';
@@ -11,7 +12,7 @@ import { BankTransferPayment } from '@/components/payment/BankTransferPayment';
 import { useOrderREST } from '@/lib/hooks/useOrderREST';
 import { formatPrice } from '@/lib/utils/format';
 
-export default function OrderConfirmationPage() {
+function OrderConfirmationContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get('orderId');
   const paymentMethodFromUrl = searchParams.get('paymentMethod');
@@ -156,6 +157,21 @@ export default function OrderConfirmationPage() {
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense fallback={
+      <div className="container-mobile py-8 md:py-16">
+        <div className="animate-pulse">
+          <div className="h-8 bg-muted rounded w-64 mb-4" />
+          <div className="h-4 bg-muted rounded w-96" />
+        </div>
+      </div>
+    }>
+      <OrderConfirmationContent />
+    </Suspense>
   );
 }
 

@@ -8,6 +8,8 @@ import { wcApi } from '@/lib/api/woocommerce';
  * 
  * Proxy requests từ client đến WooCommerce REST API
  */
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;

@@ -1,11 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { PostList } from '@/components/blog/PostList';
 import { PostCategories } from '@/components/blog/PostCategories';
 import { usePosts } from '@/lib/hooks/usePosts';
 
-export default function BlogPostsPage() {
+function BlogPostsContent() {
   const searchParams = useSearchParams();
   const categoryId = searchParams.get('category') || undefined;
   const tagId = searchParams.get('tag') || undefined;
@@ -47,5 +48,22 @@ export default function BlogPostsPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BlogPostsPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen">
+        <div className="container-mobile py-6 md:py-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-muted rounded w-64 mb-4" />
+            <div className="h-4 bg-muted rounded w-96" />
+          </div>
+        </div>
+      </div>
+    }>
+      <BlogPostsContent />
+    </Suspense>
   );
 }

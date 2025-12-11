@@ -39,6 +39,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
+    // Check if WordPress URL is configured
+    const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL;
+    if (!wpUrl || wpUrl.includes('localhost')) {
+      // Skip dynamic sitemap generation if WordPress is not configured
+      return staticPages;
+    }
+
     // Fetch products using REST API
     const products = await wcApi.getProducts({ per_page: 100, status: 'publish' });
     // Ensure products is an array (not { data, headers })
@@ -54,9 +61,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // or fetch from WordPress REST API if needed
 
     return [...staticPages, ...productPages];
-  } catch (error) {
-    console.error('Error generating sitemap:', error);
-    // Return static pages only if API fails
+  } catch (error: any) {
+    // Silently fail and return static pages only
+    // This prevents build failures when WordPress is not available
+    if (process.env.NODE_ENV === 'development') {
+      console.error('Error generating sitemap:', error?.message || error);
+    }
     return staticPages;
   }
 }
