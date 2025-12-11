@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { mapWooCommerceProducts, type MappedProduct } from '@/lib/utils/productMapper';
+import { type MappedProduct } from '@/lib/utils/productMapper';
 
 interface UseProductsForHomeOptions {
   featured?: boolean;
@@ -15,7 +15,7 @@ interface UseProductsForHomeOptions {
 }
 
 /**
- * Hook để fetch products cho homepage sections
+ * Hook để fetch products cho homepage sections từ CMS API
  * Đơn giản hơn useProductsREST, không dùng filters từ URL
  */
 export function useProductsForHome(options: UseProductsForHomeOptions = {}) {
@@ -33,12 +33,10 @@ export function useProductsForHome(options: UseProductsForHomeOptions = {}) {
         // Build API params
         const params: Record<string, string> = {
           per_page: per_page.toString(),
-          status: 'publish',
-          orderby: orderby,
-          order: order,
+          page: '1', // Always fetch first page for homepage
         };
 
-        // Featured filter (WooCommerce REST API)
+        // Featured filter (CMS API)
         if (featured) {
           params.featured = 'true';
         }
@@ -55,17 +53,15 @@ export function useProductsForHome(options: UseProductsForHomeOptions = {}) {
         }
 
         const queryString = new URLSearchParams(params).toString();
-        const response = await fetch(`/api/woocommerce/products?${queryString}`);
+        const response = await fetch(`/api/cms/products?${queryString}`);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch products: ${response.status}`);
         }
 
         const data = await response.json();
-        const productsData = data.products || [];
-        
-        // Map products
-        const mappedProducts = mapWooCommerceProducts(productsData);
+        // CMS API đã map products rồi, không cần map lại
+        const mappedProducts: MappedProduct[] = data.products || [];
         setProducts(mappedProducts);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch products'));

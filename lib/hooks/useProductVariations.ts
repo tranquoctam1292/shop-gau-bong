@@ -1,14 +1,27 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import type { WooCommerceVariation } from '@/types/woocommerce';
+
+/**
+ * MongoDB Variant format (from CMS API)
+ */
+export interface MongoVariant {
+  id: string;
+  size: string;
+  color?: string;
+  colorCode?: string;
+  price: number;
+  stock: number;
+  image?: string;
+  sku?: string;
+}
 
 interface UseProductVariationsOptions {
   enabled?: boolean; // Chỉ fetch khi enabled = true
 }
 
 interface UseProductVariationsResult {
-  variations: WooCommerceVariation[];
+  variations: MongoVariant[];
   isLoading: boolean;
   error: Error | null;
   refetch: () => void;
@@ -17,22 +30,23 @@ interface UseProductVariationsResult {
 /**
  * Fetch function cho React Query
  * 
- * @param productId - Product ID
+ * @param productId - Product ID (MongoDB ObjectId string) or slug
  * @returns Promise với array of variations
  */
-async function fetchProductVariations(productId: number): Promise<WooCommerceVariation[]> {
-  const response = await fetch(`/api/woocommerce/products/${productId}/variations`);
+async function fetchProductVariations(productId: string | number): Promise<MongoVariant[]> {
+  const response = await fetch(`/api/cms/products/${encodeURIComponent(String(productId))}/variations`);
   
   if (!response.ok) {
     throw new Error(`Failed to fetch variations: ${response.statusText}`);
   }
 
   const data = await response.json();
-  return Array.isArray(data) ? data : [];
+  // CMS API returns { variations: [...] }
+  return Array.isArray(data.variations) ? data.variations : [];
 }
 
 /**
- * Hook để fetch product variations từ WooCommerce API với React Query
+ * Hook để fetch product variations từ CMS API với React Query
  * 
  * **Tính năng:**
  * - ✅ Tự động cache: Data được cache 5 phút
@@ -52,7 +66,7 @@ async function fetchProductVariations(productId: number): Promise<WooCommerceVar
  * ```
  */
 export function useProductVariations(
-  productId: number | null | undefined,
+  productId: string | number | null | undefined,
   options: UseProductVariationsOptions = {}
 ): UseProductVariationsResult {
   const { enabled = true } = options;

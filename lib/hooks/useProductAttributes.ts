@@ -23,29 +23,28 @@ export function useProductAttributes() {
     queryKey: ['product-attributes'],
     queryFn: async (): Promise<ProductAttribute[]> => {
       // Fetch một số lượng lớn products để lấy đủ attributes
-      // WooCommerce REST API có limit per_page = 100
-      const response = await fetch('/api/woocommerce/products?per_page=100&status=publish');
+      // CMS API có limit per_page = 100
+      const response = await fetch('/api/cms/products?per_page=100&page=1');
       
       if (!response.ok) {
         throw new Error('Failed to fetch products for attributes');
       }
 
       const data = await response.json();
-      // API route trả về { products: [...], pagination: {...} }
+      // CMS API trả về { products: [...], pagination: {...} }
       const products = data.products || [];
 
       // Extract unique attributes từ tất cả products
       const attributesMap = new Map<string, Set<string>>();
 
       products.forEach((product: any) => {
-        // Lấy attributes từ product.attributes
+        // Lấy attributes từ product.attributes (đã được map từ variants)
         if (product.attributes && Array.isArray(product.attributes)) {
           product.attributes.forEach((attr: any) => {
             if (attr.name && attr.options && Array.isArray(attr.options)) {
               const attrName = attr.name.toLowerCase();
               
-              // Chỉ lấy attributes có prefix 'pa_' (WooCommerce standard)
-              // hoặc các attributes quan trọng như 'pa_size', 'pa_color', 'pa_material'
+              // Chỉ lấy attributes quan trọng như 'pa_size', 'pa_color', 'pa_material'
               if (attrName.startsWith('pa_') || 
                   attrName === 'size' || 
                   attrName === 'color' || 
@@ -66,18 +65,13 @@ export function useProductAttributes() {
           });
         }
 
-        // Nếu material là ACF field trong meta_data, cũng lấy
-        if (product.meta_data && Array.isArray(product.meta_data)) {
-          const materialMeta = product.meta_data.find(
-            (meta: any) => meta.key === 'material' && meta.value
-          );
-          if (materialMeta && materialMeta.value) {
-            const attrName = 'pa_material';
-            if (!attributesMap.has(attrName)) {
-              attributesMap.set(attrName, new Set<string>());
-            }
-            attributesMap.get(attrName)!.add(String(materialMeta.value).trim());
+        // Nếu product có material field trực tiếp (từ MongoDB)
+        if (product.material) {
+          const attrName = 'pa_material';
+          if (!attributesMap.has(attrName)) {
+            attributesMap.set(attrName, new Set<string>());
           }
+          attributesMap.get(attrName)!.add(String(product.material).trim());
         }
       });
 

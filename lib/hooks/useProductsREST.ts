@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { mapWooCommerceProducts, type MappedProduct } from '@/lib/utils/productMapper';
+import { type MappedProduct } from '@/lib/utils/productMapper';
 import { useProductFilters } from './useProductFilters';
 
 /**
- * Hook để fetch products từ WooCommerce REST API với filters
+ * Hook để fetch products từ CMS API với filters
  * 
  * @param perPage - Số products mỗi page (default: 12)
  * @returns Products, loading, error, pagination info
@@ -116,7 +116,7 @@ export function useProductsREST(perPage: number = 12) {
         
         prevFiltersRef.current = currentFiltersKey;
 
-        // Fetch products từ Next.js API route (proxy)
+        // Fetch products từ CMS API
         const queryString = new URLSearchParams(
           Object.entries(apiParams).reduce((acc, [key, value]) => {
             if (value !== undefined && value !== null && value !== '') {
@@ -126,18 +126,16 @@ export function useProductsREST(perPage: number = 12) {
           }, {} as Record<string, string>)
         ).toString();
 
-        const response = await fetch(`/api/woocommerce/products?${queryString}`);
+        const response = await fetch(`/api/cms/products?${queryString}`);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
-        const productsData = data.products || [];
+        // CMS API đã map products rồi, không cần map lại
+        const mappedProducts: MappedProduct[] = data.products || [];
         const paginationInfo = data.pagination || {};
-        
-        // Map products sang frontend format
-        const mappedProducts = mapWooCommerceProducts(productsData);
         
         // Use pagination info from API (accurate) instead of estimating
         if (paginationInfo.total !== undefined) {

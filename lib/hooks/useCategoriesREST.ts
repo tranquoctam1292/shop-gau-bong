@@ -1,20 +1,16 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { mapWooCommerceCategories, type MappedCategory } from '@/lib/utils/productMapper';
+import { type MappedCategory } from '@/lib/utils/productMapper';
 
 /**
- * Hook để fetch product categories từ WooCommerce REST API
+ * Hook để fetch product categories từ CMS API
  * 
- * @param params - Optional query parameters (per_page, page, orderby, order, etc.)
+ * @param params - Optional query parameters (parent: '0' for top-level, parent ID for children)
  * @returns Categories, loading, error
  */
 export function useCategoriesREST(params?: {
-  per_page?: number;
-  page?: number;
-  orderby?: 'id' | 'name' | 'slug' | 'count';
-  order?: 'asc' | 'desc';
-  hide_empty?: boolean;
+  parent?: string | number | null; // '0' or null for top-level, parent ID for children
 }) {
   const [categories, setCategories] = useState<MappedCategory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,36 +22,33 @@ export function useCategoriesREST(params?: {
         setLoading(true);
         setError(null);
 
-        // Default params
-        const apiParams = {
-          per_page: params?.per_page || 100,
-          page: params?.page || 1,
-          orderby: params?.orderby || 'name',
-          order: params?.order || 'asc',
-          hide_empty: params?.hide_empty !== undefined ? params.hide_empty : false,
-        };
+        // Build API params for CMS API
+        const apiParams: Record<string, string> = {};
+        
+        // Parent filter: '0' or null for top-level, parent ID for children
+        if (params?.parent !== undefined) {
+          if (params.parent === '0' || params.parent === null) {
+            apiParams.parent = '0';
+          } else {
+            apiParams.parent = String(params.parent);
+          }
+        }
 
-        // Fetch categories từ Next.js API route (proxy)
-        const queryString = new URLSearchParams(
-          Object.entries(apiParams).reduce((acc, [key, value]) => {
-            if (value !== undefined && value !== null && String(value) !== '') {
-              acc[key] = String(value);
-            }
-            return acc;
-          }, {} as Record<string, string>)
-        ).toString();
+        // Fetch categories từ CMS API
+        const queryString = new URLSearchParams(apiParams).toString();
+        const url = queryString 
+          ? `/api/cms/categories?${queryString}`
+          : '/api/cms/categories';
 
-        const response = await fetch(`/api/woocommerce/categories?${queryString}`);
+        const response = await fetch(url);
         
         if (!response.ok) {
           throw new Error(`Failed to fetch categories: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
-        const categoriesData = data.categories || [];
-
-        // Map categories sang frontend format
-        const mappedCategories = mapWooCommerceCategories(categoriesData);
+        // CMS API đã map categories rồi, không cần map lại
+        const mappedCategories: MappedCategory[] = data.categories || [];
         setCategories(mappedCategories);
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch categories'));

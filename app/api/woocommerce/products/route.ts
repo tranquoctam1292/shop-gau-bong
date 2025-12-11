@@ -290,9 +290,29 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error: any) {
-    console.error('Error fetching products:', error);
+    console.error('[Products API] Error:', error);
+    console.error('[Products API] Error message:', error.message);
+    console.error('[Products API] Error stack:', error.stack);
+    
+    // Log environment variables status (không expose values)
+    console.error('[Products API] Environment check:', {
+      hasWordPressUrl: !!process.env.NEXT_PUBLIC_WORDPRESS_URL,
+      hasConsumerKey: !!process.env.WOOCOMMERCE_CONSUMER_KEY,
+      hasConsumerSecret: !!process.env.WOOCOMMERCE_CONSUMER_SECRET,
+      wordPressUrl: process.env.NEXT_PUBLIC_WORDPRESS_URL || 'NOT SET',
+    });
+    
     return NextResponse.json(
-      { error: error.message || 'Failed to fetch products' },
+      { 
+        error: error.message || 'Failed to fetch products',
+        details: process.env.NODE_ENV === 'development' 
+          ? {
+              stack: error.stack,
+              name: error.name,
+              cause: error.cause,
+            }
+          : undefined,
+      },
       { status: 500 }
     );
   }

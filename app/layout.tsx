@@ -3,9 +3,7 @@ import { Inter, Nunito, Fredoka } from 'next/font/google';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import { CategoriesProvider } from '@/lib/providers/CategoriesProvider';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
-import { Header } from '@/components/layout/Header';
-import { Footer } from '@/components/layout/Footer';
-import { QuickCheckoutModal } from '@/components/checkout/QuickCheckoutModal';
+import { LayoutWrapper } from '@/components/layout/LayoutWrapper';
 import './globals.css';
 
 const inter = Inter({
@@ -96,12 +94,9 @@ export default function RootLayout({
         <QueryProvider>
           <ToastProvider>
             <CategoriesProvider>
-              <Header />
-              <main className="flex-1 relative z-0">
+              <LayoutWrapper>
                 {children}
-              </main>
-              <Footer />
-              <QuickCheckoutModal />
+              </LayoutWrapper>
             </CategoriesProvider>
           </ToastProvider>
         </QueryProvider>

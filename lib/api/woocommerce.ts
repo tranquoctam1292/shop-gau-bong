@@ -94,6 +94,16 @@ async function wcFetch<T>(endpoint: string, options: RequestInit = {}): Promise<
             hint: 'Check API key permissions (must be Read/Write) and credentials in .env.local',
           });
         }
+        
+        // Log chi tiết cho 403 errors
+        if (response.status === 403) {
+          console.error('[WooCommerce API] 403 Forbidden:', {
+            code: errorJson.code,
+            message: errorJson.message,
+            endpoint: url,
+            hint: 'API key credentials are correct but missing permissions. Check API key has Read/Write permissions in WooCommerce > Settings > Advanced > REST API. Also check if security plugins are blocking REST API requests.',
+          });
+        }
       } catch {
         // Nếu không parse được JSON, dùng errorText
         errorMessage = errorText || errorMessage;
