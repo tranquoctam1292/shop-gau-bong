@@ -83,6 +83,8 @@ interface ProductFormProps {
 export function ProductForm({ productId, initialData }: ProductFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
+  const [currentProductId, setCurrentProductId] = useState<string | undefined>(productId); // Track current product ID
   const [categories, setCategories] = useState<MappedCategory[]>([]);
   // Image URLs for display (separate from IDs stored in formData)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>(undefined);
@@ -179,11 +181,43 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           const data = await response.json();
           if (data.product) {
             const product = data.product as MappedProduct;
+            const apiProduct = data.product as any;
+            
             // Map product data to ProductDataMetaBox state
-            const metaBoxData: Partial<ProductDataMetaBoxState> = {
+            // If productDataMetaBox exists in API response, use it directly (with fallbacks)
+            // Otherwise, map from product fields
+            const metaBoxData: Partial<ProductDataMetaBoxState> = apiProduct.productDataMetaBox ? {
+              // Use productDataMetaBox from API if available
+              productType: apiProduct.productDataMetaBox.productType || (product.type as ProductDataMetaBoxState['productType']) || 'simple',
+              isVirtual: apiProduct.productDataMetaBox.isVirtual || false,
+              isDownloadable: apiProduct.productDataMetaBox.isDownloadable || false,
+              sku: apiProduct.productDataMetaBox.sku || product.sku || undefined,
+              manageStock: apiProduct.productDataMetaBox.manageStock !== undefined ? apiProduct.productDataMetaBox.manageStock : (product.stockQuantity !== null),
+              stockQuantity: apiProduct.productDataMetaBox.stockQuantity !== undefined ? apiProduct.productDataMetaBox.stockQuantity : (product.stockQuantity || undefined),
+              stockStatus: apiProduct.productDataMetaBox.stockStatus || (product.stockStatus as ProductDataMetaBoxState['stockStatus']) || 'instock',
+              weight: apiProduct.productDataMetaBox.weight !== undefined ? apiProduct.productDataMetaBox.weight : (product.weight ? parseFloat(product.weight) : undefined),
+              length: apiProduct.productDataMetaBox.length !== undefined ? apiProduct.productDataMetaBox.length : (product.length || undefined),
+              width: apiProduct.productDataMetaBox.width !== undefined ? apiProduct.productDataMetaBox.width : (product.width || undefined),
+              height: apiProduct.productDataMetaBox.height !== undefined ? apiProduct.productDataMetaBox.height : (product.height || undefined),
+              regularPrice: apiProduct.productDataMetaBox.regularPrice !== undefined ? apiProduct.productDataMetaBox.regularPrice : (parseFloat(product.regularPrice) || undefined),
+              salePrice: apiProduct.productDataMetaBox.salePrice !== undefined ? apiProduct.productDataMetaBox.salePrice : (product.salePrice && product.regularPrice && parseFloat(product.salePrice) < parseFloat(product.regularPrice) ? parseFloat(product.salePrice) : undefined),
+              salePriceStartDate: apiProduct.productDataMetaBox.salePriceStartDate || undefined,
+              salePriceEndDate: apiProduct.productDataMetaBox.salePriceEndDate || undefined,
+              costPrice: apiProduct.productDataMetaBox.costPrice || undefined,
+              lowStockThreshold: apiProduct.productDataMetaBox.lowStockThreshold || undefined,
+              backorders: apiProduct.productDataMetaBox.backorders || 'no',
+              soldIndividually: apiProduct.productDataMetaBox.soldIndividually || false,
+              purchaseNote: apiProduct.productDataMetaBox.purchaseNote || undefined,
+              menuOrder: apiProduct.productDataMetaBox.menuOrder || 0,
+              enableReviews: apiProduct.productDataMetaBox.enableReviews !== undefined ? apiProduct.productDataMetaBox.enableReviews : true,
+              // Include attributes and variations from productDataMetaBox
+              attributes: apiProduct.productDataMetaBox.attributes || [],
+              variations: apiProduct.productDataMetaBox.variations || [],
+            } : {
+              // Fallback: Map from product fields if productDataMetaBox doesn't exist
               productType: (product.type as ProductDataMetaBoxState['productType']) || 'simple',
-              isVirtual: false, // TODO: Get from product meta
-              isDownloadable: false, // TODO: Get from product meta
+              isVirtual: false,
+              isDownloadable: false,
               sku: product.sku || undefined,
               manageStock: product.stockQuantity !== null,
               stockQuantity: product.stockQuantity || undefined,
@@ -193,22 +227,19 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               width: product.width || undefined,
               height: product.height || undefined,
               regularPrice: parseFloat(product.regularPrice) || undefined,
-              // Validate salePrice < regularPrice on load (Hypothesis E fix)
               salePrice: product.salePrice && product.regularPrice && parseFloat(product.salePrice) < parseFloat(product.regularPrice)
                 ? parseFloat(product.salePrice)
                 : undefined,
-              // TODO: Map other fields from product meta
+              attributes: [],
+              variations: [],
             };
-
             // Load scheduledDate and password if available
-            const apiProduct = data.product as any;
             if (apiProduct.scheduledDate) {
               setScheduledDate(new Date(apiProduct.scheduledDate));
             }
             if (apiProduct.password) {
               setPassword(apiProduct.password);
             }
-
             setFormData({
               name: product.name,
               slug: product.slug,
@@ -381,8 +412,42 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       productDataMetaBox: metaBoxData,
     };
 
-    // Remove old images field (migration to new structure)
-    delete payload.images;
+    // Populate images array for backward compatibility and frontend display
+    // This ensures ProductCard can display images even if _thumbnail_id is pathname
+    const imagesArray: string[] = [];
+    
+    // Add featured image URL if available
+    if (thumbnailUrl) {
+      imagesArray.push(thumbnailUrl);
+    } else if (formData._thumbnail_id && (formData._thumbnail_id.startsWith('http://') || formData._thumbnail_id.startsWith('https://'))) {
+      // If _thumbnail_id is already a URL, use it
+      imagesArray.push(formData._thumbnail_id);
+    }
+    
+    // Add gallery image URLs if available
+    if (galleryImages && galleryImages.length > 0) {
+      galleryImages.forEach((img) => {
+        if (img.thumbnail_url && !imagesArray.includes(img.thumbnail_url)) {
+          imagesArray.push(img.thumbnail_url);
+        }
+      });
+    } else if (formData._product_image_gallery) {
+      // Fallback: if galleryImages not available, try to extract URLs from _product_image_gallery
+      const galleryIds = formData._product_image_gallery.split(',').filter(Boolean);
+      galleryIds.forEach((id) => {
+        if (id.startsWith('http://') || id.startsWith('https://')) {
+          imagesArray.push(id);
+        }
+      });
+    }
+    
+    // Set images array if we have URLs (for backward compatibility)
+    if (imagesArray.length > 0) {
+      payload.images = imagesArray;
+    } else {
+      // Remove old images field if empty (migration to new structure)
+      delete payload.images;
+    }
 
     return payload;
   };
@@ -392,18 +457,43 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     await handleSave('publish');
   };
 
-  const handleSave = async (saveStatus: 'draft' | 'publish' = 'draft') => {
+  const handleSave = async (saveStatus: 'draft' | 'publish' | 'keep' = 'keep') => {
+    // Prevent double submission
+    if (isSubmitting) {
+      return;
+    }
+
+    setIsSubmitting(true);
     setLoading(true);
 
     try {
       const payload = preparePayload();
       if (!payload) {
         setLoading(false);
+        setIsSubmitting(false);
         return;
       }
 
-      // Override status based on save action or scheduled date
-      let finalStatus: 'draft' | 'publish' | 'trash' = saveStatus;
+      // Determine final status:
+      // - 'keep': Keep current status (for "Lưu thay đổi" button)
+      // - 'draft': Force to draft (for "Lưu nháp" button)
+      // - 'publish': Force to publish (for "Xuất bản" button)
+      const effectiveProductId = currentProductId || productId;
+      let finalStatus: 'draft' | 'publish' | 'trash' = formData.status || 'draft';
+      
+      if (saveStatus === 'draft') {
+        finalStatus = 'draft';
+      } else if (saveStatus === 'publish') {
+        finalStatus = 'publish';
+      } else if (saveStatus === 'keep') {
+        // Keep current status, but default to 'draft' for new products
+        if (!effectiveProductId && !formData.status) {
+          finalStatus = 'draft';
+        } else {
+          finalStatus = formData.status || 'draft';
+        }
+      }
+      
       if (scheduledDate && scheduledDate > new Date()) {
         // If scheduled for future, keep as draft until scheduled time
         finalStatus = 'draft';
@@ -417,10 +507,11 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         password: formData.visibility === 'password' ? password : undefined,
       };
 
-      const url = productId
-        ? `/api/admin/products/${productId}`
+      // Use effectiveProductId already defined above
+      const url = effectiveProductId
+        ? `/api/admin/products/${effectiveProductId}`
         : '/api/admin/products';
-      const method = productId ? 'PUT' : 'POST';
+      const method = effectiveProductId ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
@@ -431,6 +522,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       if (!response.ok) {
         const error = await response.json();
         alert(error.error || 'Có lỗi xảy ra');
+        setIsSubmitting(false);
+        setLoading(false);
         return;
       }
 
@@ -440,10 +533,12 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       setHasUnsavedChanges(false);
       setLastAutosaveTime(new Date());
       
-      // If creating new product, update productId for preview
-      if (!productId && result.product?._id) {
+      // If creating new product, update productId immediately to prevent duplicate autosave
+      if (!effectiveProductId && result.product?._id) {
+        const newProductId = result.product._id;
+        setCurrentProductId(newProductId); // Update state immediately
         // Update URL with new product ID
-        router.push(`/admin/products/${result.product._id}/edit`);
+        router.push(`/admin/products/${newProductId}/edit`);
         router.refresh();
       } else {
         // Just refresh if editing
@@ -454,6 +549,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       alert('Có lỗi xảy ra khi lưu sản phẩm');
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   };
 
@@ -462,10 +558,32 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   };
 
   const handleSaveDraft = async () => {
+    // "Lưu nháp" button in PublishBox - force to draft
     await handleSave('draft');
   };
 
+  const handleSaveChanges = async () => {
+    // "Lưu thay đổi" button in StickyActionBar - keep current status
+    // This prevents published products from disappearing from frontend
+    await handleSave('keep');
+  };
+
   const handleAutosave = async () => {
+    // Prevent autosave if:
+    // 1. Currently submitting (manual save in progress)
+    // 2. No productId and no currentProductId (don't create new products via autosave)
+    if (isSubmitting) {
+      return;
+    }
+
+    // Use currentProductId (may have been set by previous save)
+    const effectiveProductId = currentProductId || productId;
+    
+    // Only autosave if product already exists (don't create new products via autosave)
+    if (!effectiveProductId) {
+      return;
+    }
+
     // Silent autosave (no loading state, no alerts)
     try {
       const payload = preparePayload();
@@ -476,10 +594,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         status: 'draft', // Always save as draft for autosave
       };
 
-      const url = productId
-        ? `/api/admin/products/${productId}`
-        : '/api/admin/products';
-      const method = productId ? 'PUT' : 'POST';
+      const url = `/api/admin/products/${effectiveProductId}`;
+      const method = 'PUT'; // Always use PUT for autosave (product must exist)
 
       await fetch(url, {
         method,
@@ -566,8 +682,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         onPublish={handlePublish}
         onSaveDraft={handleSaveDraft}
         onDelete={handleDelete}
-        loading={loading}
-        productId={productId}
+        loading={loading || isSubmitting}
+        productId={currentProductId || productId}
         productSlug={formData.slug}
         hasUnsavedChanges={hasUnsavedChanges}
         onAutosave={handleAutosave}
@@ -578,12 +694,22 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       <CategoriesBox
         categories={categories}
         selectedCategories={formData.categories || (formData.category ? [formData.category] : [])}
+        primaryCategory={formData.categories?.[0] || formData.category || undefined}
         onCategoriesChange={(categoryIds) => {
           setFormData((prev) => ({
             ...prev,
             categories: categoryIds,
             category: categoryIds[0] || '', // Keep for backward compatibility
           }));
+        }}
+        onPrimaryCategoryChange={(categoryId) => {
+          if (categoryId) {
+            setFormData((prev) => ({
+              ...prev,
+              categories: categoryId ? [categoryId, ...(prev.categories || []).filter(id => id !== categoryId)] : prev.categories,
+              category: categoryId || prev.category,
+            }));
+          }
         }}
       />
 
@@ -841,7 +967,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
       {/* Sticky Action Bar */}
       <StickyActionBar
-        onSave={handleSaveDraft}
+        onSave={handleSaveChanges}
         onPreview={() => {
           if (productId && formData.slug) {
             window.open(`/products/${formData.slug}`, '_blank');

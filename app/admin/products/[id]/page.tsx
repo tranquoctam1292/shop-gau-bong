@@ -7,19 +7,19 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit, Trash2, Copy, ArrowLeft, MessageSquare, BarChart3 } from 'lucide-react';
 import type { MappedProduct } from '@/lib/utils/productMapper';
-import { use } from 'react';
 import { ProductReviews } from '@/components/admin/products/ProductReviews';
 import { ProductAnalytics } from '@/components/admin/products/ProductAnalytics';
 
 export default function ProductDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
   const router = useRouter();
   const [product, setProduct] = useState<MappedProduct | null>(null);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'details' | 'reviews' | 'analytics'>('details');
 
   useEffect(() => {
     async function fetchProduct() {

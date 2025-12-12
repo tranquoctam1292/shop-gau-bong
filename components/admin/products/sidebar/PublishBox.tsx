@@ -105,9 +105,11 @@ export function PublishBox({
     }
   }, [scheduledDate]);
 
-  // Autosave mỗi 60 giây
+  // Autosave mỗi 60 giây (chỉ khi đã có productId - không tạo sản phẩm mới qua autosave)
   useEffect(() => {
-    if (onAutosave && hasUnsavedChanges) {
+    // Only autosave if product already exists (has productId)
+    // This prevents creating duplicate products when user is creating a new product
+    if (onAutosave && hasUnsavedChanges && productId) {
       autosaveIntervalRef.current = setInterval(() => {
         onAutosave();
         const now = new Date();
@@ -121,7 +123,7 @@ export function PublishBox({
         clearInterval(autosaveIntervalRef.current);
       }
     };
-  }, [onAutosave, hasUnsavedChanges]);
+  }, [onAutosave, hasUnsavedChanges, productId]);
 
   // Unsaved Changes Warning
   useEffect(() => {

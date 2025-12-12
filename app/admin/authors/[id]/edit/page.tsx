@@ -1,14 +1,13 @@
 'use client';
 
 import { AuthorForm } from '@/components/admin/AuthorForm';
-import { use } from 'react';
 
 export default function EditAuthorPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
 
   return (
     <div>

@@ -189,7 +189,10 @@ const collections = await getCollections();
 collections.products      // Product documents
 collections.categories    // Category documents
 collections.orders        // Order documents
-collections.orderItems    // Order line items
+collections.orderItems    // Order line items (snapshot data)
+collections.orderHistories // Order history/audit log
+collections.shipments     // Shipment tracking documents
+collections.refunds       // Refund records
 collections.users         // User documents (admin)
 collections.banners       // Banner documents
 collections.posts         // Blog post documents
@@ -200,7 +203,24 @@ collections.postTags       // Blog tag documents
 collections.productTemplates // Product template documents
 collections.productReviews  // Product review documents
 collections.productAnalytics // Product analytics documents
+collections.productAttributes // Global product attributes
+collections.productAttributeTerms // Attribute terms/values
 ```
+
+---
+
+## 📦 Order Management System
+
+**Status:** ✅ Complete
+
+See `docs/SCHEMA_CONTEXT_ORDERS.md` for complete Order Management System schema including:
+- Orders collection structure
+- Order Items (snapshot data)
+- Order Histories (audit log)
+- Shipments collection
+- Refunds collection
+- Order State Machine
+- Inventory Management
 
 ---
 

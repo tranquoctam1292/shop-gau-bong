@@ -1,14 +1,13 @@
 'use client';
 
 import { PostEditor } from '@/components/admin/PostEditor';
-import { use } from 'react';
 
 export default function EditPostPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
 
   return (
     <div>

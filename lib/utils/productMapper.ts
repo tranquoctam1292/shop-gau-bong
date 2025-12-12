@@ -144,16 +144,23 @@ export function mapWooCommerceProducts(wcProducts: WooCommerceProduct[]): Mapped
  * Map WooCommerce category to frontend format
  */
 export interface MappedCategory {
-  id: string;
-  databaseId: number;
+  id: string; // MongoDB ObjectId as string
+  databaseId: number | string; // For backward compatibility (can be ObjectId string or number)
   name: string;
   slug: string;
   count: number | null;
-  parentId: number | null; // Parent category ID (0 = top-level)
+  parentId: string | null; // Parent category ID as string (ObjectId string), null = top-level
   image: {
     sourceUrl: string;
     altText: string;
   } | null;
+  status?: 'active' | 'inactive'; // NEW
+  metaTitle?: string; // NEW
+  metaDesc?: string; // NEW
+  deletedAt?: Date | null; // NEW
+  position?: number; // NEW - for sorting
+  children?: MappedCategory[]; // NEW - for tree structure
+  level?: number; // NEW - for tree indentation
 }
 
 /**
@@ -282,6 +289,7 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
   const onSale = salePrice && parseFloat(salePrice) > 0 && parseFloat(salePrice) < parseFloat(regularPrice);
   
   // Use salePrice if on sale, otherwise use regularPrice
+  // If price is 0 or invalid, it will be handled by formatPrice to show "Liên hệ"
   const price = onSale ? salePrice : regularPrice;
   
   // Extract attributes from variants (priority: variants > productDataMetaBox.variations)
@@ -292,8 +300,15 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
   
   if (mongoProduct.variants && mongoProduct.variants.length > 0) {
     // Use variants array (new format)
-    sizeOptions = [...new Set(mongoProduct.variants.map((v: any) => v.size).filter(Boolean))];
-    colorOptions = [...new Set(mongoProduct.variants.map((v: any) => v.color).filter(Boolean))];
+    // Filter out empty/null/undefined values
+    sizeOptions = [...new Set(mongoProduct.variants
+      .map((v: any) => v.size)
+      .filter((size: any) => size && String(size).trim().length > 0)
+      .map((size: any) => String(size).trim()))];
+    colorOptions = [...new Set(mongoProduct.variants
+      .map((v: any) => v.color)
+      .filter((color: any) => color && String(color).trim().length > 0)
+      .map((color: any) => String(color).trim()))];
   } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
     // Fallback: Extract from productDataMetaBox.variations (backward compatibility)
     mongoProduct.productDataMetaBox.variations.forEach((variation: any) => {
@@ -301,13 +316,13 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
         Object.entries(variation.attributes).forEach(([attrName, value]) => {
           const attrNameLower = attrName.toLowerCase();
           if (attrNameLower.includes('size') || attrNameLower === 'pa_size' || attrNameLower === 'kích thước') {
-            const size = String(value);
-            if (size && !sizeOptions.includes(size)) {
+            const size = String(value).trim();
+            if (size && size.length > 0 && !sizeOptions.includes(size)) {
               sizeOptions.push(size);
             }
           } else if (attrNameLower.includes('color') || attrNameLower === 'pa_color' || attrNameLower === 'màu') {
-            const color = String(value);
-            if (color && !colorOptions.includes(color)) {
+            const color = String(value).trim();
+            if (color && color.length > 0 && !colorOptions.includes(color)) {
               colorOptions.push(color);
             }
           }
@@ -375,7 +390,7 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
                       (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0);
   const type: 'simple' | 'variable' = hasVariants ? 'variable' : 'simple';
   
-  return {
+  const mappedResult = {
     id: productId, // Use MongoDB ObjectId directly (not GraphQL format)
     databaseId: productId, // Use ObjectId string as databaseId for compatibility
     name: mongoProduct.name,
@@ -386,41 +401,76 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     onSale,
     // Map images - try new structure first, fallback to old structure
     image: (() => {
-      // TODO: Expand _thumbnail_id to full URL when media API is available
-      // For now, use images array or return null
-      if (mongoProduct._thumbnail_id) {
-        // New structure: return object with id
-        return {
-          id: mongoProduct._thumbnail_id,
-          sourceUrl: mongoProduct.images?.[0] || '', // Fallback to images array
-          altText: mongoProduct.name,
-        } as any;
+      // Priority 1: Use images array if available (these are already URLs from payload)
+      if (mongoProduct.images && Array.isArray(mongoProduct.images) && mongoProduct.images.length > 0) {
+        const firstImageUrl = mongoProduct.images[0];
+        if (firstImageUrl && typeof firstImageUrl === 'string' && firstImageUrl.length > 0) {
+          return {
+            id: mongoProduct._thumbnail_id || firstImageUrl,
+            sourceUrl: firstImageUrl,
+            altText: mongoProduct.name,
+          } as any;
+        }
       }
-      // Old structure: use images array
-      return mongoProduct.images?.[0] ? {
-        sourceUrl: mongoProduct.images[0],
-        altText: mongoProduct.name,
-      } : null;
+      
+      // Priority 2: Use _thumbnail_id (can be URL or pathname)
+      if (mongoProduct._thumbnail_id) {
+        // Check if _thumbnail_id is already a full URL
+        if (mongoProduct._thumbnail_id.startsWith('http://') || mongoProduct._thumbnail_id.startsWith('https://')) {
+          return {
+            id: mongoProduct._thumbnail_id,
+            sourceUrl: mongoProduct._thumbnail_id,
+            altText: mongoProduct.name,
+          } as any;
+        }
+        // If _thumbnail_id is pathname and images array is empty, we can't resolve it
+        // This should not happen if POST handler populates images array correctly
+      }
+      
+      // No image available
+      return null;
     })(),
     galleryImages: (() => {
-      // TODO: Expand _product_image_gallery IDs to full URLs when media API is available
-      // For now, use images array or return empty
+      // Priority 1: Use _product_image_gallery (comma-separated IDs)
       if (mongoProduct._product_image_gallery) {
-        // New structure: parse comma-separated IDs
         const galleryIds = mongoProduct._product_image_gallery.split(',').filter(Boolean);
-        // Map IDs to objects (temporary: use images array for URLs)
-        const imageUrls = mongoProduct.images?.slice(1) || [];
-        return galleryIds.map((id, idx) => ({
-          id: id.trim(),
-          sourceUrl: imageUrls[idx] || '', // Fallback to images array
+        const imageUrls = mongoProduct.images || [];
+        
+        // Map gallery IDs to image URLs
+        // Try to match IDs with URLs in images array, or use images array as fallback
+        return galleryIds.map((id, idx) => {
+          const trimmedId = id.trim();
+          let imageUrl = '';
+          
+          // Check if ID is already a full URL
+          if (trimmedId.startsWith('http://') || trimmedId.startsWith('https://')) {
+            imageUrl = trimmedId;
+          } else if (imageUrls.length > idx + 1) {
+            // Use corresponding image from array (skip first image which is featured)
+            imageUrl = imageUrls[idx + 1];
+          } else if (imageUrls.length > 0) {
+            // Fallback: use any available image
+            imageUrl = imageUrls[idx % imageUrls.length];
+          }
+          
+          return {
+            id: trimmedId,
+            sourceUrl: imageUrl,
+            altText: mongoProduct.name,
+          };
+        }).filter(img => img.sourceUrl) as any; // Filter out images without URL
+      }
+      
+      // Priority 2: Use images array (old structure) - skip first image (featured)
+      if (mongoProduct.images && mongoProduct.images.length > 1) {
+        return mongoProduct.images.slice(1).map(img => ({
+          sourceUrl: img,
           altText: mongoProduct.name,
         })) as any;
       }
-      // Old structure: use images array
-      return mongoProduct.images?.slice(1).map(img => ({
-        sourceUrl: img,
-        altText: mongoProduct.name,
-      })) || [];
+      
+      // No gallery images
+      return [];
     })(),
     description: mongoProduct.description || '',
     shortDescription: mongoProduct.shortDescription || '',
@@ -454,6 +504,8 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     variations: (mongoProduct.variants?.map((_, idx) => idx + 1) || 
                  mongoProduct.productDataMetaBox?.variations?.map((_, idx) => idx + 1) || []),
   };
+  
+  return mappedResult;
 }
 
 /**
@@ -478,6 +530,10 @@ export interface MongoCategory {
   imageUrl?: string;
   position?: number;
   count?: number;
+  status?: 'active' | 'inactive'; // NEW: Default 'active'
+  metaTitle?: string; // NEW: SEO title
+  metaDesc?: string; // NEW: SEO description (max 500 chars)
+  deletedAt?: Date | null; // NEW: Soft delete (null = not deleted)
   createdAt: Date;
   updatedAt: Date;
 }
@@ -491,17 +547,29 @@ export interface MongoCategory {
 export function mapMongoCategory(mongoCategory: MongoCategory | any): MappedCategory {
   const categoryId = mongoCategory._id.toString();
   
+  // Convert parentId from ObjectId string to string (keep as string for compatibility)
+  let parentId: string | null = null;
+  if (mongoCategory.parentId) {
+    parentId = typeof mongoCategory.parentId === 'string' 
+      ? mongoCategory.parentId 
+      : mongoCategory.parentId.toString();
+  }
+  
   return {
-    id: `gid://shop-gau-bong/ProductCategory/${categoryId}`,
-    databaseId: parseInt(categoryId, 16) || 0, // Fallback ID
+    id: categoryId, // Use MongoDB ObjectId directly as string
+    databaseId: parseInt(categoryId, 16) || 0, // Fallback ID for backward compatibility
     name: mongoCategory.name,
     slug: mongoCategory.slug,
     count: mongoCategory.count || null,
-    parentId: mongoCategory.parentId ? parseInt(mongoCategory.parentId, 16) || 0 : null,
+    parentId: parentId, // Keep as string (ObjectId string)
     image: mongoCategory.imageUrl ? {
       sourceUrl: mongoCategory.imageUrl,
       altText: mongoCategory.name,
     } : null,
+    status: mongoCategory.status || 'active', // Default to 'active'
+    metaTitle: mongoCategory.metaTitle,
+    metaDesc: mongoCategory.metaDesc,
+    deletedAt: mongoCategory.deletedAt || null,
   };
 }
 

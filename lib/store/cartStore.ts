@@ -95,7 +95,18 @@ export const useCartStore = create<CartStore>()(
 
       getTotalPrice: () => {
         return get().items.reduce((total, item) => {
-          const price = parseFloat(item.price.replace(/[^\d.]/g, '')) || 0;
+          // Handle price: can be string, number, or null/undefined
+          let price = 0;
+          if (item.price !== null && item.price !== undefined) {
+            if (typeof item.price === 'string') {
+              // Remove non-numeric characters and parse
+              price = parseFloat(item.price.replace(/[^\d.]/g, '')) || 0;
+            } else if (typeof item.price === 'number') {
+              // Already a number, use directly
+              price = item.price;
+            }
+          }
+          
           return total + price * item.quantity;
         }, 0);
       },

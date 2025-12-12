@@ -22,6 +22,9 @@ const categoryUpdateSchema = z.object({
   parentId: z.string().nullable().optional(),
   imageUrl: z.string().optional(),
   position: z.number().optional(),
+  status: z.enum(['active', 'inactive']).optional(),
+  metaTitle: z.string().max(255).optional(),
+  metaDesc: z.string().max(500).optional(),
 });
 
 export async function GET(
@@ -40,16 +43,19 @@ export async function GET(
     const { categories } = await getCollections();
     const { id } = params;
     
-    // Find by ObjectId or slug
+    // Find by ObjectId or slug (filter out deleted for admin view)
     let category = null;
+    const query: any = {
+      deletedAt: null, // Filter out deleted categories
+    };
     
     if (ObjectId.isValid(id)) {
-      category = await categories.findOne({ _id: new ObjectId(id) });
+      query._id = new ObjectId(id);
+    } else {
+      query.slug = id;
     }
     
-    if (!category) {
-      category = await categories.findOne({ slug: id });
-    }
+    category = await categories.findOne(query);
     
     if (!category) {
       return NextResponse.json(
@@ -120,24 +126,63 @@ export async function PUT(
     
     // Check slug uniqueness if slug is being updated
     if (validatedData.slug && validatedData.slug !== category.slug) {
-      const existingCategory = await categories.findOne({ 
+      // Check if new slug already exists
+      const existing = await categories.findOne({
         slug: validatedData.slug,
         _id: { $ne: categoryId },
+        deletedAt: null,
       });
-      if (existingCategory) {
-        return NextResponse.json(
-          { error: 'Category with this slug already exists' },
-          { status: 409 }
+      
+      if (existing) {
+        // Slug exists, generate unique one with suffix
+        const { generateUniqueSlug } = await import('@/lib/utils/categoryHelpers');
+        validatedData.slug = await generateUniqueSlug(
+          validatedData.name || category.name,
+          [],
+          categoryId.toString()
         );
       }
     }
     
-    // Prevent setting parent to itself
-    if (validatedData.parentId && validatedData.parentId === id) {
-      return NextResponse.json(
-        { error: 'Category cannot be its own parent' },
-        { status: 400 }
-      );
+    // Validate parentId if being updated
+    if (validatedData.parentId !== undefined) {
+      const { checkCircularReference } = await import('@/lib/utils/categoryHelpers');
+      
+      // Prevent setting parent to itself
+      if (validatedData.parentId === categoryId.toString()) {
+        return NextResponse.json(
+          { error: 'Category cannot be its own parent' },
+          { status: 400 }
+        );
+      }
+      
+      // Check circular reference
+      if (validatedData.parentId) {
+        const isCircular = await checkCircularReference(
+          categoryId.toString(),
+          validatedData.parentId
+        );
+        
+        if (isCircular) {
+          return NextResponse.json(
+            { error: 'Cannot set parent to a descendant category (circular reference)' },
+            { status: 400 }
+          );
+        }
+        
+        // Verify parent exists and is not deleted
+        const parent = await categories.findOne({
+          _id: new ObjectId(validatedData.parentId),
+          deletedAt: null,
+        });
+        
+        if (!parent) {
+          return NextResponse.json(
+            { error: 'Parent category not found or has been deleted' },
+            { status: 404 }
+          );
+        }
+      }
     }
     
     // Update category
@@ -223,9 +268,10 @@ export async function DELETE(
       );
     }
     
-    // Check if category has children
+    // Check if category has children (not deleted)
     const childrenCount = await categories.countDocuments({ 
-      parentId: categoryId.toString() 
+      parentId: categoryId.toString(),
+      deletedAt: null, // Only count non-deleted children
     });
     
     if (childrenCount > 0) {
@@ -237,7 +283,11 @@ export async function DELETE(
     
     // Check if category has products
     const productsCount = await products.countDocuments({ 
-      category: categoryId.toString() 
+      $or: [
+        { category: categoryId.toString() },
+        { categories: categoryId.toString() }
+      ],
+      deletedAt: null, // Only count non-deleted products
     });
     
     if (productsCount > 0) {
@@ -247,8 +297,16 @@ export async function DELETE(
       );
     }
     
-    // Delete category
-    await categories.deleteOne({ _id: categoryId });
+    // Soft delete: Set deletedAt instead of deleting
+    await categories.updateOne(
+      { _id: categoryId },
+      { 
+        $set: { 
+          deletedAt: new Date(),
+          updatedAt: new Date(),
+        } 
+      }
+    );
     
     return NextResponse.json(
       { message: 'Category deleted successfully' },

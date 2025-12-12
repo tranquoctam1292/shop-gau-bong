@@ -127,6 +127,9 @@ export async function GET(request: NextRequest) {
     
     // Map products to frontend format with categories
     const mappedProducts = productsList.map((product) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b261569c-76a6-4f8c-839c-264dc5457f92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:129',message:'API FULL PRODUCT DOCUMENT',data:{productId:product._id?.toString(),name:product.name,_thumbnail_id:product._thumbnail_id,_product_image_gallery:product._product_image_gallery,images:product.images,imagesLength:product.images?.length,hasVariants:!!product.variants?.length,variantsCount:product.variants?.length,variants:product.variants?.slice(0,2),hasProductDataMetaBox:!!product.productDataMetaBox,productDataMetaBoxAttributes:product.productDataMetaBox?.attributes,productDataMetaBoxVariations:product.productDataMetaBox?.variations,minPrice:product.minPrice,maxPrice:product.maxPrice,regularPrice:product.productDataMetaBox?.regularPrice,salePrice:product.productDataMetaBox?.salePrice},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H1,H2,H3,H4'})}).catch(()=>{});
+      // #endregion
       const mapped = mapMongoProduct(product);
       
       // Populate categories

@@ -9,14 +9,37 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import {
+  validateTransition,
+  type OrderStatus,
+  getStatusLabel,
+} from '@/lib/utils/orderStateMachine';
+import {
+  createStatusChangeHistory,
+  createPaymentStatusChangeHistory,
+  type ActorType,
+} from '@/lib/services/orderHistory';
 
 export const dynamic = 'force-dynamic';
 
-// Order update schema
+// Order update schema - Updated to include all statuses from spec
 const orderUpdateSchema = z.object({
-  status: z.enum(['pending', 'processing', 'completed', 'cancelled', 'refunded']).optional(),
+  status: z
+    .enum([
+      'pending',
+      'awaiting_payment',
+      'confirmed',
+      'processing',
+      'shipping',
+      'completed',
+      'cancelled',
+      'refunded',
+      'failed',
+    ])
+    .optional(),
   paymentStatus: z.enum(['pending', 'paid', 'failed', 'refunded']).optional(),
-  adminNote: z.string().optional(),
+  adminNotes: z.string().optional(), // Changed from adminNote to adminNotes to match spec
+  cancelledReason: z.string().optional(), // For cancellation reason
 });
 
 export async function GET(
@@ -121,25 +144,152 @@ export async function PUT(
       );
     }
     
+    // Get current admin user for history logging
+    let actorId: string | undefined;
+    let actorName: string | undefined;
+    let actorType: ActorType = 'admin';
+    
+    try {
+      const { getSession } = await import('@/lib/auth');
+      const session = await getSession();
+      if (session?.user) {
+        actorId = (session.user as any).id || session.user.email || undefined;
+        actorName = session.user.name || session.user.email || 'Admin';
+      }
+    } catch {
+      // If session not available, use system as actor
+      actorType = 'system';
+      actorName = 'System';
+    }
+
+    // Validate status transition if status is being changed
+    if (validatedData.status && validatedData.status !== order.status) {
+      try {
+        validateTransition(
+          order.status as OrderStatus,
+          validatedData.status as OrderStatus
+        );
+      } catch (error: any) {
+        return NextResponse.json(
+          {
+            error: 'Invalid status transition',
+            message: error.message,
+            currentStatus: order.status,
+            requestedStatus: validatedData.status,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
     // Update order
     const updateData: any = {
-      ...validatedData,
       updatedAt: new Date(),
     };
-    
+
+    // Update status if provided
+    if (validatedData.status !== undefined) {
+      updateData.status = validatedData.status;
+    }
+
+    // Update payment status if provided
+    if (validatedData.paymentStatus !== undefined) {
+      updateData.paymentStatus = validatedData.paymentStatus;
+    }
+
+    // Update admin notes if provided
+    if (validatedData.adminNotes !== undefined) {
+      updateData.adminNotes = validatedData.adminNotes;
+    }
+
+    // Update cancelled reason if provided
+    if (validatedData.cancelledReason !== undefined) {
+      updateData.cancelledReason = validatedData.cancelledReason;
+    }
+
     // Update status timestamps
     if (validatedData.status === 'completed' && order.status !== 'completed') {
       updateData.completedAt = new Date();
     }
-    
-    if (validatedData.paymentStatus === 'paid' && order.paymentStatus !== 'paid') {
+
+    if (validatedData.status === 'cancelled' && order.status !== 'cancelled') {
+      updateData.cancelledAt = new Date();
+    }
+
+    if (
+      validatedData.paymentStatus === 'paid' &&
+      order.paymentStatus !== 'paid'
+    ) {
       updateData.paidAt = new Date();
     }
-    
-    await orders.updateOne(
-      { _id: orderId },
-      { $set: updateData }
-    );
+
+    // Perform update
+    await orders.updateOne({ _id: orderId }, { $set: updateData });
+
+    // Handle inventory changes based on status transitions
+    if (validatedData.status && validatedData.status !== order.status) {
+      const { orderItems } = await getCollections();
+      const items = await orderItems.find({ orderId: orderId.toString() }).toArray();
+
+      try {
+        const { reserveStock, deductStock, releaseStock } = await import('@/lib/services/inventory');
+        const itemsForInventory = items.map((item) => ({
+          productId: item.productId,
+          variationId: item.variationId,
+          quantity: item.quantity,
+        }));
+
+        // Release stock if order is being cancelled
+        if (validatedData.status === 'cancelled' && order.status !== 'cancelled') {
+          await releaseStock(orderId.toString(), itemsForInventory);
+        }
+
+        // Deduct stock if order is being confirmed (from pending/awaiting_payment)
+        // Stock is reserved when order is created, and deducted when confirmed
+        if (
+          validatedData.status === 'confirmed' &&
+          (order.status === 'pending' || order.status === 'awaiting_payment')
+        ) {
+          await deductStock(orderId.toString(), itemsForInventory);
+        }
+
+        // Reserve stock if order is being moved back to pending (shouldn't happen normally, but handle it)
+        if (validatedData.status === 'pending' && order.status !== 'pending') {
+          await reserveStock(orderId.toString(), itemsForInventory);
+        }
+      } catch (error: any) {
+        // Log error but don't fail status update
+        console.error('[Order Update] Inventory error:', error);
+      }
+
+      // Create history entry for status change
+      await createStatusChangeHistory(
+        orderId.toString(),
+        order.status,
+        validatedData.status,
+        actorId,
+        actorType,
+        actorName
+      );
+    }
+
+    // Create history entry for payment status changes
+    if (
+      validatedData.paymentStatus &&
+      validatedData.paymentStatus !== order.paymentStatus
+    ) {
+      // Note: Stock is deducted when order is confirmed, not when payment status changes
+      // This is to handle cases where order is confirmed before payment
+      
+      await createPaymentStatusChangeHistory(
+        orderId.toString(),
+        order.paymentStatus || 'pending',
+        validatedData.paymentStatus,
+        actorId,
+        actorType,
+        actorName
+      );
+    }
     
     // Fetch updated order
     const updatedOrder = await orders.findOne({ _id: orderId });

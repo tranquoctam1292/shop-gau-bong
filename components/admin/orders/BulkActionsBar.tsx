@@ -1,0 +1,271 @@
+/**
+ * Bulk Actions Bar Component
+ * 
+ * Displays bulk action buttons when orders are selected:
+ * - Bulk approve (Pending -> Confirmed)
+ * - Bulk update status
+ * - Bulk print shipping labels
+ * - Export selected orders
+ */
+
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Select } from '@/components/ui/select';
+import { CheckCircle2, FileDown, Printer, RefreshCw, Loader2 } from 'lucide-react';
+
+interface BulkActionsBarProps {
+  selectedOrders: string[];
+  onActionComplete: () => void;
+}
+
+export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActionsBarProps) {
+  const [loading, setLoading] = useState<string | null>(null);
+  const [newStatus, setNewStatus] = useState<string>('');
+
+  const handleBulkApprove = async () => {
+    if (selectedOrders.length === 0) return;
+
+    setLoading('approve');
+    try {
+      const response = await fetch('/api/admin/orders/bulk-approve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: selectedOrders }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Có lỗi xảy ra');
+        return;
+      }
+
+      alert(`Đã xác nhận ${selectedOrders.length} đơn hàng thành công!`);
+      onActionComplete();
+    } catch (error) {
+      console.error('Error bulk approving orders:', error);
+      alert('Có lỗi xảy ra khi xác nhận đơn hàng');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleBulkUpdateStatus = async () => {
+    if (selectedOrders.length === 0 || !newStatus) {
+      alert('Vui lòng chọn trạng thái mới');
+      return;
+    }
+
+    setLoading('update-status');
+    try {
+      const response = await fetch('/api/admin/orders/bulk-update-status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderIds: selectedOrders,
+          status: newStatus,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Có lỗi xảy ra');
+        return;
+      }
+
+      alert(`Đã cập nhật trạng thái ${selectedOrders.length} đơn hàng thành công!`);
+      setNewStatus('');
+      onActionComplete();
+    } catch (error) {
+      console.error('Error bulk updating status:', error);
+      alert('Có lỗi xảy ra khi cập nhật trạng thái');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleBulkPrintLabels = async () => {
+    if (selectedOrders.length === 0) return;
+
+    // Open print window for shipping labels
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.');
+      return;
+    }
+
+    setLoading('print');
+    try {
+      const response = await fetch('/api/admin/orders/bulk-print', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ orderIds: selectedOrders }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Có lỗi xảy ra');
+        return;
+      }
+
+      const html = await response.text();
+      printWindow.document.write(html);
+      printWindow.document.close();
+      printWindow.print();
+    } catch (error) {
+      console.error('Error printing labels:', error);
+      alert('Có lỗi xảy ra khi in nhãn vận chuyển');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  const handleExport = async () => {
+    if (selectedOrders.length === 0) return;
+
+    setLoading('export');
+    try {
+      const params = new URLSearchParams({
+        orderIds: selectedOrders.join(','),
+      });
+
+      const response = await fetch(`/api/admin/orders/export?${params}`);
+      if (!response.ok) {
+        const error = await response.json();
+        alert(error.error || 'Có lỗi xảy ra');
+        return;
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `orders-${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error('Error exporting orders:', error);
+      alert('Có lỗi xảy ra khi xuất đơn hàng');
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  if (selectedOrders.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="sticky top-[64px] z-40 bg-background/95 backdrop-blur border-b p-4 mb-4">
+      <div className="flex flex-wrap items-center gap-2 md:gap-4">
+        <div className="text-sm font-medium min-w-[120px]">
+          Đã chọn: <span className="font-bold">{selectedOrders.length}</span> đơn hàng
+        </div>
+
+        <div className="flex flex-wrap gap-2 flex-1">
+          {/* Bulk Approve */}
+          <Button
+            onClick={handleBulkApprove}
+            disabled={loading !== null}
+            variant="default"
+            size="sm"
+            className="min-h-[44px]"
+          >
+            {loading === 'approve' ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+                Xác nhận hàng loạt
+              </>
+            )}
+          </Button>
+
+          {/* Bulk Update Status */}
+          <div className="flex gap-2 items-center">
+            <Select
+              value={newStatus}
+              onChange={(e) => setNewStatus(e.target.value)}
+              className="min-w-[150px]"
+            >
+              <option value="">Chọn trạng thái...</option>
+              <option value="confirmed">Đã xác nhận</option>
+              <option value="processing">Đang xử lý</option>
+              <option value="shipping">Đang giao hàng</option>
+              <option value="completed">Hoàn thành</option>
+              <option value="cancelled">Đã hủy</option>
+            </Select>
+            <Button
+              onClick={handleBulkUpdateStatus}
+              disabled={loading !== null || !newStatus}
+              variant="outline"
+              size="sm"
+              className="min-h-[44px]"
+            >
+              {loading === 'update-status' ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Đang xử lý...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  Cập nhật trạng thái
+                </>
+              )}
+            </Button>
+          </div>
+
+          {/* Bulk Print Labels */}
+          <Button
+            onClick={handleBulkPrintLabels}
+            disabled={loading !== null}
+            variant="outline"
+            size="sm"
+            className="min-h-[44px]"
+          >
+            {loading === 'print' ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : (
+              <>
+                <Printer className="w-4 h-4 mr-2" />
+                In nhãn vận chuyển
+              </>
+            )}
+          </Button>
+
+          {/* Export */}
+          <Button
+            onClick={handleExport}
+            disabled={loading !== null}
+            variant="outline"
+            size="sm"
+            className="min-h-[44px]"
+          >
+            {loading === 'export' ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : (
+              <>
+                <FileDown className="w-4 h-4 mr-2" />
+                Xuất CSV
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+

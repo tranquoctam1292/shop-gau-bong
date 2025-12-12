@@ -1,14 +1,13 @@
 'use client';
 
 import { OrderDetail } from '@/components/admin/OrderDetail';
-import { use } from 'react';
 
 export default function OrderDetailPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
 
   return (
     <div>

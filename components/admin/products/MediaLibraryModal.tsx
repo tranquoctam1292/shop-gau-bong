@@ -179,8 +179,11 @@ export function MediaLibraryModal({
     setUploading(false);
     setUploadProgress({});
 
-    // Auto-select first uploaded item
+    // Auto-select first uploaded item and switch to library tab to show uploaded images
     if (newItems.length > 0) {
+      // Switch to library tab to show uploaded images
+      setActiveTab('library');
+      
       if (mode === 'multiple') {
         setSelectedMediaMultiple(prev => [...prev, ...newItems]);
       } else {
@@ -446,6 +449,15 @@ export function MediaLibraryModal({
                     </>
                   )}
                 </Button>
+                {uploading && Object.keys(uploadProgress).length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {Object.entries(uploadProgress).map(([fileId, progress]) => (
+                      <div key={fileId} className="text-sm text-muted-foreground">
+                        Đang upload... {progress}%
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : activeTab === 'url' ? (
               <div className="space-y-4 max-w-2xl mx-auto">

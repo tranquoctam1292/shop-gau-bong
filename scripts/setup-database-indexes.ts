@@ -36,15 +36,20 @@ async function setupIndexes() {
     await collections.categories.createIndex({ slug: 1 }, { unique: true });
     await collections.categories.createIndex({ parentId: 1 });
     await collections.categories.createIndex({ position: 1 });
+    await collections.categories.createIndex({ status: 1 }); // NEW: For status filtering
+    await collections.categories.createIndex({ deletedAt: 1 }); // NEW: For soft delete queries
     console.log('   ✅ Categories indexes created');
 
     // Orders indexes
     console.log('📦 Setting up orders indexes...');
     await collections.orders.createIndex({ orderNumber: 1 }, { unique: true });
     await collections.orders.createIndex({ status: 1 });
+    await collections.orders.createIndex({ userId: 1 });
     await collections.orders.createIndex({ 'customerEmail': 1 });
     await collections.orders.createIndex({ createdAt: -1 });
     await collections.orders.createIndex({ orderType: 1 }); // For gift order filtering
+    await collections.orders.createIndex({ paymentStatus: 1 });
+    await collections.orders.createIndex({ channel: 1 });
     console.log('   ✅ Orders indexes created');
 
     // Order Items indexes
@@ -52,6 +57,13 @@ async function setupIndexes() {
     await collections.orderItems.createIndex({ orderId: 1 });
     await collections.orderItems.createIndex({ productId: 1 });
     console.log('   ✅ Order items indexes created');
+
+    // Order Histories indexes (OMS Phase 1)
+    console.log('📦 Setting up order_histories indexes...');
+    await collections.orderHistories.createIndex({ orderId: 1, createdAt: -1 });
+    await collections.orderHistories.createIndex({ actorId: 1 });
+    await collections.orderHistories.createIndex({ action: 1 });
+    console.log('   ✅ Order histories indexes created');
 
     // Users indexes
     console.log('📦 Setting up users indexes...');
@@ -123,6 +135,22 @@ async function setupIndexes() {
     await collections.productAnalytics.createIndex({ productId: 1, date: -1 });
     console.log('   ✅ Product analytics indexes created');
 
+    // Shipments indexes (OMS Phase 6)
+    console.log('📦 Setting up shipments indexes...');
+    await collections.shipments.createIndex({ orderId: 1 }, { unique: true });
+    await collections.shipments.createIndex({ trackingNumber: 1 }, { unique: true });
+    await collections.shipments.createIndex({ carrier: 1 });
+    await collections.shipments.createIndex({ createdAt: -1 });
+    console.log('   ✅ Shipments indexes created');
+
+    // Refunds indexes (OMS Phase 7)
+    console.log('📦 Setting up refunds indexes...');
+    await collections.refunds.createIndex({ orderId: 1 });
+    await collections.refunds.createIndex({ status: 1 });
+    await collections.refunds.createIndex({ createdAt: -1 });
+    await collections.refunds.createIndex({ orderId: 1, status: 1 });
+    console.log('   ✅ Refunds indexes created');
+
     console.log('\n🎉 All indexes created successfully!\n');
 
     // List all indexes
@@ -132,6 +160,7 @@ async function setupIndexes() {
       { name: 'categories', collection: collections.categories },
       { name: 'orders', collection: collections.orders },
       { name: 'order_items', collection: collections.orderItems },
+      { name: 'order_histories', collection: collections.orderHistories },
       { name: 'users', collection: collections.users },
       { name: 'banners', collection: collections.banners },
       { name: 'posts', collection: collections.posts },
@@ -142,6 +171,8 @@ async function setupIndexes() {
       { name: 'product_templates', collection: collections.productTemplates },
       { name: 'product_reviews', collection: collections.productReviews },
       { name: 'product_analytics', collection: collections.productAnalytics },
+      { name: 'shipments', collection: collections.shipments },
+      { name: 'refunds', collection: collections.refunds },
     ];
 
     for (const { name, collection } of allCollections) {

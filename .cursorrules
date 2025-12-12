@@ -32,6 +32,14 @@ Before implementing any feature, you MUST reference the following sources based 
 - **API Routes:** 
   - Public routes: `/api/cms/*` (products, categories, orders, banners, posts)
   - Admin routes: `/api/admin/*` (products, categories, orders, posts, authors, comments) - requires authentication
+- **Order Management System (OMS):** ✅ Complete
+  - Order State Machine: Strict validation for status transitions
+  - Order History/Audit Log: All changes tracked in `orderHistories` collection
+  - Inventory Management: Stock reservation, deduction, release
+  - Refund Management: Full and partial refunds support
+  - Shipment Management: Integration with carriers (GHTK, GHN)
+  - Bulk Operations: Bulk approve, update status, export, print labels
+  - See: `docs/ORDER_MANAGEMENT_SYSTEM_PROGRESS.md` for details
 - **Safe Mapping:** MongoDB documents are mapped to frontend format using `productMapper`. Use `mapMongoProduct()` helper.
   - *Bad:* Direct access to MongoDB `_id` or nested fields without mapping
   - *Good:* Use `mapMongoProduct(mongoProduct)` to get frontend-compatible format

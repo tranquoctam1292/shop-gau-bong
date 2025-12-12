@@ -181,6 +181,59 @@ const productUpdateSchema = z.object({
     view360Images: z.array(z.string()).optional(),
     imageAltTexts: z.record(z.string(), z.string()).optional(),
   }).optional(),
+  // Product Data Meta Box fields - Use passthrough to keep all fields
+  productDataMetaBox: z.object({
+    productType: z.enum(['simple', 'variable', 'grouped', 'external']).optional(),
+    isVirtual: z.boolean().optional(),
+    isDownloadable: z.boolean().optional(),
+    costPrice: z.number().optional(),
+    regularPrice: z.number().optional(),
+    salePrice: z.number().optional(),
+    salePriceStartDate: z.string().optional(),
+    salePriceEndDate: z.string().optional(),
+    downloadableFiles: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      url: z.string(),
+      downloadLimit: z.number().optional(),
+      downloadExpiry: z.string().optional(),
+    })).optional(),
+    sku: z.string().optional(),
+    manageStock: z.boolean().optional(),
+    stockQuantity: z.number().optional(),
+    stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(),
+    lowStockThreshold: z.number().optional(),
+    backorders: z.enum(['no', 'notify', 'yes']).optional(),
+    soldIndividually: z.boolean().optional(),
+    weight: z.number().optional(),
+    length: z.number().optional(),
+    width: z.number().optional(),
+    height: z.number().optional(),
+    shippingClass: z.string().optional(),
+    attributes: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      isGlobal: z.boolean().optional(),
+      globalAttributeId: z.string().optional(),
+      values: z.array(z.string()),
+      usedForVariations: z.boolean().optional(),
+      colorCodes: z.record(z.string(), z.string()).optional(),
+    }).passthrough()).optional(),
+    variations: z.array(z.object({
+      id: z.string(),
+      name: z.string(),
+      sku: z.string().optional(),
+      costPrice: z.number().optional(),
+      regularPrice: z.number().optional(),
+      salePrice: z.number().optional(),
+      stockQuantity: z.number().optional(),
+      image: z.string().optional(),
+      attributes: z.record(z.string(), z.string()),
+    }).passthrough()).optional(),
+    purchaseNote: z.string().optional(),
+    menuOrder: z.number().optional(),
+    enableReviews: z.boolean().optional(),
+  }).passthrough().optional(),
 });
 
 export async function GET(
@@ -234,6 +287,11 @@ export async function GET(
         _product_image_gallery: product._product_image_gallery || undefined,
         scheduledDate: product.scheduledDate || undefined,
         password: product.password || undefined,
+        // Include status and visibility from raw MongoDB document
+        status: product.status || 'draft',
+        visibility: product.visibility || 'public',
+        // Include productDataMetaBox from raw MongoDB document
+        productDataMetaBox: product.productDataMetaBox || undefined,
         // TODO: Expand IDs to full URLs when media API is available
         // For now, include IDs and let frontend handle display
         thumbnail: product._thumbnail_id ? {
@@ -288,8 +346,8 @@ export async function PUT(
       id = id.replace('gid://shop-gau-bong/Product/', '');
     }
     
-    // Validate input
-    const validatedData = productUpdateSchema.parse(body);
+    // Validate input - Use passthrough to keep unknown fields
+    const validatedData = productUpdateSchema.passthrough().parse(body);
     
     // Map category to categoryId if category is provided
     let categoryId: string | undefined = undefined;
@@ -419,6 +477,11 @@ export async function PUT(
       updateData.variants = [];
     }
     
+    // IMPORTANT: Set mergedProductDataMetaBox back to updateData to ensure it's saved to database
+    if (mergedProductDataMetaBox && Object.keys(mergedProductDataMetaBox).length > 0) {
+      updateData.productDataMetaBox = mergedProductDataMetaBox;
+    }
+    
     // Auto-generate alt text for images (Auto-Alt Text feature)
     const siteName = 'Shop Gấu Bông';
     const productName = validatedData.name || product.name;
@@ -457,6 +520,51 @@ export async function PUT(
       });
     }
     
+    // Populate images array for backward compatibility and frontend display
+    // Priority: Use images from payload (already URLs), then try to resolve from _thumbnail_id/_product_image_gallery
+    if (validatedData.images && Array.isArray(validatedData.images) && validatedData.images.length > 0) {
+      // Priority 1: Use images from payload (these are already URLs)
+      updateData.images = validatedData.images.filter((url: string) => 
+        typeof url === 'string' && url.length > 0
+      );
+    } else if (validatedData._thumbnail_id || validatedData._product_image_gallery) {
+      // Priority 2: Try to resolve from _thumbnail_id/_product_image_gallery
+      const imagesArray: string[] = [];
+      
+      // Add featured image URL if _thumbnail_id exists
+      const thumbnailId = validatedData._thumbnail_id || product._thumbnail_id;
+      if (thumbnailId) {
+        // If _thumbnail_id is already a URL, use it directly
+        if (thumbnailId.startsWith('http://') || thumbnailId.startsWith('https://')) {
+          imagesArray.push(thumbnailId);
+        } else if (product.images && product.images.length > 0) {
+          // Keep existing featured image URL if available
+          imagesArray.push(product.images[0]);
+        }
+      }
+      
+      // Add gallery image URLs if _product_image_gallery exists
+      const galleryIds = (validatedData._product_image_gallery || product._product_image_gallery || '')
+        .split(',')
+        .filter(Boolean);
+      
+      galleryIds.forEach((imageId: string, idx: number) => {
+        const trimmedId = imageId.trim();
+        // If imageId is already a URL, add it
+        if (trimmedId.startsWith('http://') || trimmedId.startsWith('https://')) {
+          imagesArray.push(trimmedId);
+        } else if (product.images && product.images.length > idx + 1) {
+          // Keep existing gallery image URLs if available
+          imagesArray.push(product.images[idx + 1]);
+        }
+      });
+      
+      // Only update images array if we have URLs
+      if (imagesArray.length > 0) {
+        updateData.images = imagesArray;
+      }
+    }
+    
     // Generate and update Product Schema (JSON-LD)
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://shop-gaubong.com';
     // Merge updateData with existing product data for schema generation
@@ -480,7 +588,6 @@ export async function PUT(
       if (!updateOperation.$unset) updateOperation.$unset = {};
       updateOperation.$unset.password = '';
     }
-    
     // Update product
     await products.updateOne(
       { _id: productId },

@@ -42,7 +42,9 @@ function AdminLayoutContent({
   const isLoginPage = pathname === '/admin/login';
 
   // Check if products submenu should be expanded
-  const isProductsPath = pathname.startsWith('/admin/products') || pathname.startsWith('/admin/attributes');
+  const isProductsPath = pathname.startsWith('/admin/products') || 
+                         pathname.startsWith('/admin/attributes') || 
+                         pathname.startsWith('/admin/categories');
   
   // IMPORTANT: All hooks must be called before any conditional returns
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
@@ -119,11 +121,11 @@ function AdminLayoutContent({
       submenu: [
         { href: '/admin/products', label: 'Tất cả sản phẩm', icon: List },
         { href: '/admin/products/new', label: 'Thêm mới', icon: Plus },
+        { href: '/admin/categories', label: 'Danh mục', icon: FolderTree },
         { href: '/admin/attributes', label: 'Thuộc tính', icon: Tags },
       ],
     },
     { href: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
-    { href: '/admin/categories', label: 'Danh mục', icon: FolderTree },
     { href: '/admin/posts', label: 'Bài viết', icon: FileText },
     { href: '/admin/authors', label: 'Tác giả', icon: User },
     { href: '/admin/comments', label: 'Bình luận', icon: MessageSquare },

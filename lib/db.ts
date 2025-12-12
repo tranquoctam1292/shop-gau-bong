@@ -117,6 +117,7 @@ export interface Collections {
   categories: Collection;
   orders: Collection;
   orderItems: Collection;
+  orderHistories: Collection;
   users: Collection;
   banners: Collection;
   // Blog collections
@@ -133,6 +134,10 @@ export interface Collections {
   // Global Attributes System
   productAttributes: Collection;
   productAttributeTerms: Collection;
+  // Shipments
+  shipments: Collection;
+  // Refunds
+  refunds: Collection;
 }
 
 /**
@@ -153,6 +158,7 @@ export async function getCollections(): Promise<Collections> {
     categories: db.collection('categories'),
     orders: db.collection('orders'),
     orderItems: db.collection('order_items'),
+    orderHistories: db.collection('order_histories'),
     users: db.collection('users'),
     banners: db.collection('banners'),
     // Blog collections
@@ -169,6 +175,10 @@ export async function getCollections(): Promise<Collections> {
     // Global Attributes System
     productAttributes: db.collection('product_attributes'),
     productAttributeTerms: db.collection('product_attribute_terms'),
+    // Shipments
+    shipments: db.collection('shipments'),
+    // Refunds
+    refunds: db.collection('refunds'),
   };
 }
 

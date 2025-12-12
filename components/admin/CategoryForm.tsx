@@ -6,10 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Save } from 'lucide-react';
+import { Save, RotateCcw, Image as ImageIcon, X } from 'lucide-react';
 import { generateSlug } from '@/lib/utils/slug';
+import { SearchableCategorySelect } from './SearchableCategorySelect';
+import { MediaLibraryModal, type MediaItem } from './products/MediaLibraryModal';
 import type { MappedCategory } from '@/lib/utils/productMapper';
 
 interface CategoryFormData {
@@ -19,17 +20,24 @@ interface CategoryFormData {
   parentId?: string | null;
   imageUrl?: string;
   position: number;
+  status: 'active' | 'inactive';
+  metaTitle?: string;
+  metaDesc?: string;
 }
 
 interface CategoryFormProps {
   categoryId?: string;
   initialData?: Partial<CategoryFormData>;
+  onSuccess?: () => void;
 }
 
-export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
+export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<MappedCategory[]>([]);
+  const [slugError, setSlugError] = useState<string>('');
+  const [circularRefWarning, setCircularRefWarning] = useState<string>('');
+  const [showMediaModal, setShowMediaModal] = useState(false);
   const [formData, setFormData] = useState<CategoryFormData>({
     name: '',
     slug: '',
@@ -37,14 +45,17 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
     parentId: null,
     imageUrl: '',
     position: 0,
+    status: 'active',
+    metaTitle: '',
+    metaDesc: '',
     ...initialData,
   });
 
-  // Fetch categories
+  // Fetch categories for parent selection
   useEffect(() => {
     async function fetchCategories() {
       try {
-        const response = await fetch('/api/admin/categories');
+        const response = await fetch('/api/admin/categories?type=flat&status=all');
         const data = await response.json();
         setCategories(data.categories || []);
       } catch (error) {
@@ -54,7 +65,7 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
     fetchCategories();
   }, []);
 
-  // Auto-generate slug from name
+  // Auto-generate slug from name (only for new categories)
   useEffect(() => {
     if (!categoryId && formData.name && !formData.slug) {
       const slug = generateSlug(formData.name);
@@ -67,17 +78,26 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
     if (categoryId && !initialData) {
       async function fetchCategory() {
         try {
-          const response = await fetch(`/api/admin/categories/${categoryId}`);
+          // Extract ID from GraphQL format if needed
+          let id = categoryId;
+          if (categoryId.startsWith('gid://shop-gau-bong/ProductCategory/')) {
+            id = categoryId.replace('gid://shop-gau-bong/ProductCategory/', '');
+          }
+          
+          const response = await fetch(`/api/admin/categories/${id}`);
           const data = await response.json();
           if (data.category) {
             const category = data.category as MappedCategory;
             setFormData({
               name: category.name,
               slug: category.slug,
-              description: '',
-              parentId: null,
-              imageUrl: '',
-              position: 0,
+              description: '', // TODO: Add description field to API response
+              parentId: category.parentId?.toString() || null,
+              imageUrl: category.image?.sourceUrl || '',
+              position: 0, // TODO: Add position field
+              status: category.status || 'active',
+              metaTitle: category.metaTitle || '',
+              metaDesc: category.metaDesc || '',
             });
           }
         } catch (error) {
@@ -88,9 +108,66 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
     }
   }, [categoryId, initialData]);
 
+  // Check slug uniqueness (debounced)
+  useEffect(() => {
+    if (!formData.slug) {
+      setSlugError('');
+      return;
+    }
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/admin/categories?search=${encodeURIComponent(formData.slug)}`);
+        const data = await response.json();
+        const existing = data.categories?.find(
+          (cat: MappedCategory) =>
+            cat.slug === formData.slug &&
+            cat.id !== categoryId
+        );
+        
+        if (existing) {
+          setSlugError('Slug này đã tồn tại. Hệ thống sẽ tự động thêm số đuôi khi lưu.');
+        } else {
+          setSlugError('');
+        }
+      } catch (error) {
+        // Ignore errors
+      }
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.slug, categoryId]);
+
+  // Check circular reference when parent changes
+  useEffect(() => {
+    if (!categoryId || !formData.parentId) {
+      setCircularRefWarning('');
+      return;
+    }
+
+    // Simple check: if parentId is the same as categoryId
+    if (formData.parentId === categoryId) {
+      setCircularRefWarning('Không thể chọn chính danh mục này làm cha');
+      return;
+    }
+
+    // Check if parent is a descendant (would need API call for full check)
+    // For now, just clear warning
+    setCircularRefWarning('');
+  }, [formData.parentId, categoryId]);
+
+  const handleRegenerateSlug = () => {
+    if (formData.name) {
+      const slug = generateSlug(formData.name);
+      setFormData((prev) => ({ ...prev, slug }));
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setSlugError('');
+    setCircularRefWarning('');
 
     try {
       const payload = {
@@ -98,10 +175,16 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
         parentId: formData.parentId || null,
       };
 
-      const url = categoryId
-        ? `/api/admin/categories/${categoryId}`
+      // Extract ID from GraphQL format if needed
+      let id = categoryId;
+      if (categoryId && categoryId.startsWith('gid://shop-gau-bong/ProductCategory/')) {
+        id = categoryId.replace('gid://shop-gau-bong/ProductCategory/', '');
+      }
+      
+      const url = id
+        ? `/api/admin/categories/${id}`
         : '/api/admin/categories';
-      const method = categoryId ? 'PUT' : 'POST';
+      const method = id ? 'PUT' : 'POST';
 
       const response = await fetch(url, {
         method,
@@ -115,8 +198,12 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
         return;
       }
 
-      router.push('/admin/categories');
-      router.refresh();
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.push('/admin/categories');
+        router.refresh();
+      }
     } catch (error) {
       console.error('Error saving category:', error);
       alert('Có lỗi xảy ra khi lưu danh mục');
@@ -125,10 +212,21 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
     }
   };
 
-  // Filter out current category from parent options
-  const parentOptions = categories.filter(
-    (cat) => cat.id !== categoryId
-  );
+  // Get excluded IDs (current category and its descendants)
+  const getExcludedIds = (): string[] => {
+    if (!categoryId) return [];
+    
+    // Extract ID from GraphQL format if needed
+    let id = categoryId;
+    if (categoryId.startsWith('gid://shop-gau-bong/ProductCategory/')) {
+      id = categoryId.replace('gid://shop-gau-bong/ProductCategory/', '');
+    }
+    
+    const excluded: string[] = [id, categoryId];
+    // TODO: Fetch descendants from API if needed
+    // For now, just exclude current category
+    return excluded;
+  };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
@@ -149,12 +247,41 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
 
           <div>
             <Label htmlFor="slug">Slug *</Label>
-            <Input
-              id="slug"
-              value={formData.slug}
-              onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
-              required
+            <div className="flex gap-2">
+              <Input
+                id="slug"
+                value={formData.slug}
+                onChange={(e) => setFormData((prev) => ({ ...prev, slug: e.target.value }))}
+                required
+                className={slugError ? 'border-yellow-500' : ''}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleRegenerateSlug}
+                disabled={!formData.name}
+                title="Tạo lại slug từ tên"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </Button>
+            </div>
+            {slugError && (
+              <p className="text-xs text-yellow-600 mt-1">{slugError}</p>
+            )}
+          </div>
+
+          <div>
+            <Label htmlFor="parentId">Danh mục cha</Label>
+            <SearchableCategorySelect
+              value={formData.parentId || null}
+              onChange={(value) => setFormData((prev) => ({ ...prev, parentId: value }))}
+              categories={categories}
+              excludeIds={getExcludedIds()}
+              placeholder="Không có (danh mục gốc)"
             />
+            {circularRefWarning && (
+              <p className="text-xs text-red-600 mt-1">{circularRefWarning}</p>
+            )}
           </div>
 
           <div>
@@ -164,34 +291,100 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
               value={formData.description || ''}
               onChange={(e) => setFormData((prev) => ({ ...prev, description: e.target.value }))}
               rows={4}
+              placeholder="Mô tả ngắn về danh mục (hiển thị trên frontend)"
             />
           </div>
 
           <div>
-            <Label htmlFor="parentId">Danh mục cha</Label>
-            <Select
-              id="parentId"
-              value={formData.parentId || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, parentId: e.target.value || null }))}
-            >
-              <option value="">Không có (danh mục gốc)</option>
-              {parentOptions.map((cat) => (
-                <option key={cat.id} value={cat.databaseId}>
-                  {cat.name}
-                </option>
-              ))}
-            </Select>
+            <Label htmlFor="imageUrl">Hình ảnh đại diện</Label>
+            <div className="space-y-2">
+              {formData.imageUrl ? (
+                <div className="space-y-2">
+                  <div className="relative w-32 h-32 border rounded overflow-hidden">
+                    <img
+                      src={formData.imageUrl}
+                      alt="Preview"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setShowMediaModal(true)}
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Thay đổi ảnh
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Xóa ảnh
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowMediaModal(true)}
+                  className="w-full"
+                >
+                  <ImageIcon className="w-4 h-4 mr-2" />
+                  Thiết lập ảnh đại diện
+                </Button>
+              )}
+              {/* Fallback: URL input */}
+              <div className="text-xs text-gray-500">
+                Hoặc nhập URL:
+              </div>
+              <Input
+                id="imageUrl"
+                type="url"
+                value={formData.imageUrl || ''}
+                onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
+                placeholder="https://example.com/image.jpg"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              Khuyến nghị: 500x500px, định dạng JPG/PNG/WEBP, tối đa 2MB
+            </p>
           </div>
 
           <div>
-            <Label htmlFor="imageUrl">URL hình ảnh</Label>
-            <Input
-              id="imageUrl"
-              type="url"
-              value={formData.imageUrl || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
-              placeholder="https://example.com/image.jpg"
-            />
+            <Label htmlFor="status">Trạng thái</Label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="status"
+                  value="active"
+                  checked={formData.status === 'active'}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, status: 'active' }))}
+                  className="w-4 h-4"
+                />
+                <span>Hoạt động</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="status"
+                  value="inactive"
+                  checked={formData.status === 'inactive'}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, status: 'inactive' }))}
+                  className="w-4 h-4"
+                />
+                <span>Không hoạt động</span>
+              </label>
+            </div>
           </div>
 
           <div>
@@ -210,6 +403,42 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle>SEO (Tối ưu hóa tìm kiếm)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label htmlFor="metaTitle">Meta Title</Label>
+            <Input
+              id="metaTitle"
+              value={formData.metaTitle || ''}
+              onChange={(e) => setFormData((prev) => ({ ...prev, metaTitle: e.target.value }))}
+              maxLength={255}
+              placeholder="Tiêu đề hiển thị trên Google (nếu để trống sẽ dùng tên danh mục)"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.metaTitle?.length || 0}/255 ký tự
+            </p>
+          </div>
+
+          <div>
+            <Label htmlFor="metaDesc">Meta Description</Label>
+            <Textarea
+              id="metaDesc"
+              value={formData.metaDesc || ''}
+              onChange={(e) => setFormData((prev) => ({ ...prev, metaDesc: e.target.value }))}
+              maxLength={500}
+              rows={3}
+              placeholder="Mô tả hiển thị trên Google (nếu để trống sẽ dùng mô tả chính)"
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              {formData.metaDesc?.length || 0}/500 ký tự
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="flex justify-end gap-4">
         <Button
           type="button"
@@ -218,12 +447,27 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
         >
           Hủy
         </Button>
-        <Button type="submit" disabled={loading}>
+        <Button type="submit" disabled={loading || !!slugError || !!circularRefWarning}>
           <Save className="w-4 h-4 mr-2" />
           {loading ? 'Đang lưu...' : categoryId ? 'Cập nhật' : 'Tạo mới'}
         </Button>
       </div>
+
+      {/* Media Library Modal */}
+      <MediaLibraryModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={(items) => {
+          const item = Array.isArray(items) ? items[0] : items;
+          setFormData((prev) => ({
+            ...prev,
+            imageUrl: item.thumbnail_url || item.url,
+          }));
+          setShowMediaModal(false);
+        }}
+        mode="single"
+        buttonText="Thiết lập ảnh đại diện"
+      />
     </form>
   );
 }
-

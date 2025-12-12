@@ -55,43 +55,49 @@ export function ProductCard({ product }: ProductCardProps) {
     if (!product) return null;
     if (!selectedSize || variations.length === 0) return null;
     
-    // Tìm size attribute trong product
-    const sizeAttribute = product.attributes?.find(
-      (attr) => attr.name.toLowerCase().includes('size') || 
-                 attr.name.toLowerCase().includes('kích thước') ||
-                 attr.name.toLowerCase().includes('kich thuoc')
-    );
+    // MongoVariant structure: { id, size, color, price, stock, ... }
+    // Match variation by size directly (not through attributes array)
+    const matchedVariation = variations.find((variation) => {
+      // Check if variation.size matches selectedSize
+      if (variation.size && variation.size === selectedSize) {
+        // If color is also selected, check if it matches
+        // But if variation doesn't have color (null/undefined), still match by size
+        if (selectedColor) {
+          // Only require color match if variation has a color value
+          // If variation.color is null/undefined, it means this variation doesn't have color attribute
+          // So we should still match it by size only
+          return !variation.color || variation.color === selectedColor;
+        }
+        return true;
+      }
+      return false;
+    });
     
-    if (!sizeAttribute) return null;
-    
-    // Tìm variation có attribute Size khớp với selectedSize
-    return variations.find((variation) => {
-      const sizeAttr = variation.attributes.find(
-        (attr) => attr.id === sizeAttribute.id || 
-                  attr.name.toLowerCase() === sizeAttribute.name.toLowerCase()
-      );
-      return sizeAttr && sizeAttr.option === selectedSize;
-    }) || null;
-  }, [selectedSize, variations, product]);
+    return matchedVariation || null;
+  }, [selectedSize, selectedColor, variations, product]);
   
   // Logic hiển thị giá: Ưu tiên variation price, sau đó mới đến product price
+  // MongoVariant structure: { id, size, color, price, stock, ... }
   const displayPrice = useMemo(() => {
     if (!product) return '0';
     if (selectedVariation) {
       // Nếu có variation được chọn, dùng giá của variation
-      return selectedVariation.on_sale && selectedVariation.sale_price
-        ? selectedVariation.sale_price
-        : selectedVariation.price || selectedVariation.regular_price;
+      // MongoVariant chỉ có price (number), không có on_sale/sale_price
+      const price = String(selectedVariation.price || 0);
+      return price;
     }
     // Fallback về giá product gốc
-    return product.onSale ? product.salePrice : product.price;
+    const fallbackPrice = product.onSale ? product.salePrice : product.price;
+    return fallbackPrice;
   }, [selectedVariation, product]);
   
   // Regular price để hiển thị line-through khi có sale
   const displayRegularPrice = useMemo(() => {
     if (!product) return null;
     if (selectedVariation) {
-      return selectedVariation.regular_price;
+      // MongoVariant không có regular_price, chỉ có price
+      // Return null để không hiển thị line-through
+      return null;
     }
     return product.regularPrice;
   }, [selectedVariation, product]);
@@ -100,9 +106,13 @@ export function ProductCard({ product }: ProductCardProps) {
   const isOnSale = useMemo(() => {
     if (!product) return false;
     if (selectedVariation) {
-      return selectedVariation.on_sale || false;
+      // MongoVariant không có on_sale field
+      // Check if variation price is different from product regular price
+      const variationPrice = selectedVariation.price || 0;
+      const productRegularPrice = parseFloat(product.regularPrice) || 0;
+      return variationPrice < productRegularPrice && variationPrice > 0;
     }
-    return product.onSale;
+    return product.onSale || false;
   }, [selectedVariation, product]);
   
   // Extract Size and Color attributes from product (trước early return để dùng trong useMemo)
@@ -110,12 +120,14 @@ export function ProductCard({ product }: ProductCardProps) {
   const sizeAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('size') || 
                attr.name.toLowerCase().includes('kích thước') ||
-               attr.name.toLowerCase().includes('kich thuoc')
+               attr.name.toLowerCase().includes('kich thuoc') ||
+               attr.name === 'pa_size'
   );
   const colorAttribute = product?.attributes?.find(
     (attr) => attr.name.toLowerCase().includes('color') || 
                attr.name.toLowerCase().includes('màu') ||
-               attr.name.toLowerCase().includes('mau')
+               attr.name.toLowerCase().includes('mau') ||
+               attr.name === 'pa_color'
   );
   
   // Use real attributes if available, otherwise fallback to mock data
@@ -173,11 +185,15 @@ export function ProductCard({ product }: ProductCardProps) {
     e.stopPropagation();
     
     // Sử dụng giá của variation nếu có, nếu không thì dùng giá product
-    const priceToUse = selectedVariation 
-      ? (selectedVariation.on_sale && selectedVariation.sale_price 
-          ? selectedVariation.sale_price 
-          : selectedVariation.price || selectedVariation.regular_price)
-      : (product.onSale ? product.salePrice : product.price);
+    // MongoVariant structure: { id, size, color, price (number), stock, ... }
+    let priceToUse: string;
+    if (selectedVariation) {
+      // MongoVariant chỉ có price (number), không có on_sale/sale_price/regular_price
+      priceToUse = String(selectedVariation.price || 0);
+    } else {
+      // Use product price (string)
+      priceToUse = product.onSale ? product.salePrice : product.price;
+    }
     
     await addToCart({
       productId: product.databaseId,

@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { createOrderCreationHistory } from '@/lib/services/orderHistory';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,6 +119,42 @@ export async function POST(request: NextRequest) {
     
     if (itemsToInsert.length > 0) {
       await orderItems.insertMany(itemsToInsert);
+    }
+
+    // Auto-reserve stock when order is created (status: Pending)
+    try {
+      const { reserveStock } = await import('@/lib/services/inventory');
+      await reserveStock(
+        orderId,
+        validatedData.lineItems.map((item) => ({
+          productId: item.productId,
+          variationId: item.variationId,
+          quantity: item.quantity,
+        }))
+      );
+    } catch (error: any) {
+      // If stock reservation fails, rollback order creation
+      await orderItems.deleteMany({ orderId });
+      await orders.deleteOne({ _id: orderResult.insertedId });
+      return NextResponse.json(
+        {
+          error: 'Insufficient stock',
+          message: error.message || 'Không đủ hàng trong kho',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Create order history entry
+    try {
+      await createOrderCreationHistory(
+        orderId,
+        orderNumber,
+        validatedData.customerName
+      );
+    } catch (error) {
+      // Log error but don't fail order creation
+      console.error('[Orders API] Failed to create order history:', error);
     }
     
     // Fetch created order with items

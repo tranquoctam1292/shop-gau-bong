@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoCategory } from '@/lib/utils/productMapper';
+import { buildCategoryTree } from '@/lib/utils/categoryHelpers';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -16,11 +17,14 @@ export const dynamic = 'force-dynamic';
 // Category schema for validation
 const categorySchema = z.object({
   name: z.string().min(1),
-  slug: z.string().min(1),
+  slug: z.string().min(1).optional(), // Optional - will auto-generate if not provided
   description: z.string().optional(),
   parentId: z.string().nullable().optional(),
   imageUrl: z.string().optional(),
   position: z.number().default(0),
+  status: z.enum(['active', 'inactive']).default('active'),
+  metaTitle: z.string().max(255).optional(),
+  metaDesc: z.string().max(500).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -34,12 +38,23 @@ export async function GET(request: NextRequest) {
     }
     
     const searchParams = request.nextUrl.searchParams;
+    const type = searchParams.get('type') || 'flat'; // 'tree' or 'flat'
+    const status = searchParams.get('status') || 'all'; // 'active', 'inactive', or 'all'
     const parentId = searchParams.get('parent');
     
     const { categories } = await getCollections();
     
-    // Build query
-    const query: any = {};
+    // Build query - always filter out deleted categories
+    const query: any = {
+      deletedAt: null, // Soft delete filter
+    };
+    
+    // Status filter
+    if (status !== 'all') {
+      query.status = status;
+    }
+    
+    // Parent filter
     if (parentId === '0' || parentId === null) {
       query.parentId = null;
     } else if (parentId) {
@@ -52,9 +67,16 @@ export async function GET(request: NextRequest) {
       .sort({ position: 1, name: 1 })
       .toArray();
     
+    // Map to frontend format
     const mappedCategories = categoriesList.map((cat) => mapMongoCategory(cat));
     
-    return NextResponse.json({ categories: mappedCategories });
+    // Return tree structure if requested
+    if (type === 'tree') {
+      const tree = buildCategoryTree(mappedCategories);
+      return NextResponse.json({ categories: tree, type: 'tree' });
+    }
+    
+    return NextResponse.json({ categories: mappedCategories, type: 'flat' });
   } catch (error: any) {
     console.error('[Admin Categories API] Error:', error);
     return NextResponse.json(
@@ -85,19 +107,61 @@ export async function POST(request: NextRequest) {
     const validatedData = categorySchema.parse(body);
     
     const { categories } = await getCollections();
+    const { generateUniqueSlug, checkCircularReference } = await import('@/lib/utils/categoryHelpers');
     
-    // Check if slug already exists
-    const existingCategory = await categories.findOne({ slug: validatedData.slug });
-    if (existingCategory) {
-      return NextResponse.json(
-        { error: 'Category with this slug already exists' },
-        { status: 409 }
+    // Auto-generate slug if not provided
+    let slug = validatedData.slug;
+    if (!slug) {
+      // Auto-generate from name
+      slug = await generateUniqueSlug(validatedData.name);
+    } else {
+      // User provided slug - check uniqueness and add suffix if needed
+      const existing = await categories.findOne({ 
+        slug: slug,
+        deletedAt: null,
+      });
+      
+      if (existing) {
+        // Slug exists, generate unique one with suffix
+        slug = await generateUniqueSlug(validatedData.name);
+      }
+    }
+    
+    // Validate parentId if provided
+    if (validatedData.parentId) {
+      // Check if parent exists
+      const parent = await categories.findOne({ 
+        _id: new ObjectId(validatedData.parentId),
+        deletedAt: null 
+      });
+      
+      if (!parent) {
+        return NextResponse.json(
+          { error: 'Parent category not found' },
+          { status: 404 }
+        );
+      }
+      
+      // Check circular reference (shouldn't happen on create, but check anyway)
+      const isCircular = await checkCircularReference(
+        '', // No categoryId yet (creating new)
+        validatedData.parentId
       );
+      
+      if (isCircular) {
+        return NextResponse.json(
+          { error: 'Cannot set parent to a descendant category (circular reference)' },
+          { status: 400 }
+        );
+      }
     }
     
     // Create category document
     const categoryDoc = {
       ...validatedData,
+      slug,
+      status: validatedData.status || 'active',
+      deletedAt: null, // Not deleted
       count: 0, // Will be updated when products are assigned
       createdAt: new Date(),
       updatedAt: new Date(),

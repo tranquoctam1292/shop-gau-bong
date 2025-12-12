@@ -1,14 +1,13 @@
 'use client';
 
 import { ProductForm } from '@/components/admin/ProductForm';
-import { use } from 'react';
 
 export default function EditProductPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
 
   return (
     <div>

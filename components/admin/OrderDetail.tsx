@@ -9,6 +9,18 @@ import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
+import { OrderTimeline } from '@/components/admin/orders/OrderTimeline';
+import { OrderActionBar } from '@/components/admin/orders/OrderActionBar';
+import { CustomerInfoCard } from '@/components/admin/orders/CustomerInfoCard';
+import { EditOrderItems } from '@/components/admin/orders/EditOrderItems';
+import { EditShippingAddress } from '@/components/admin/orders/EditShippingAddress';
+import { ApplyCoupon } from '@/components/admin/orders/ApplyCoupon';
+import { CreateShipmentModal } from '@/components/admin/orders/CreateShipmentModal';
+import { ShipmentInfo } from '@/components/admin/orders/ShipmentInfo';
+import { RefundHistory } from '@/components/admin/orders/RefundHistory';
+import { PrintShippingLabel } from '@/components/admin/orders/PrintShippingLabel';
+import { PrintInvoice } from '@/components/admin/orders/PrintInvoice';
+import { getStatusLabel, getStatusColor, type OrderStatus } from '@/lib/utils/orderStateMachine';
 
 interface OrderItem {
   _id: string;
@@ -29,21 +41,47 @@ interface Order {
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
-  shippingAddress: {
-    fullName: string;
-    phone: string;
-    address: string;
-    ward: string;
-    district: string;
-    province: string;
+  shippingAddress?: {
+    fullName?: string;
+    phone?: string;
+    address?: string;
+    ward?: string;
+    district?: string;
+    province?: string;
+    firstName?: string;
+    lastName?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    postcode?: string;
+    country?: string;
+  };
+  shipping?: {
+    firstName?: string;
+    lastName?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    province?: string;
+    district?: string;
+    ward?: string;
+    postcode?: string;
+    country?: string;
+    phone?: string;
   };
   paymentMethod: string;
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-  status: 'pending' | 'processing' | 'completed' | 'cancelled' | 'refunded';
+  status: 'pending' | 'processing' | 'completed' | 'cancelled' | 'refunded' | 'awaiting_payment' | 'confirmed' | 'shipping' | 'refunded' | 'failed';
   total: number;
-  shippingCost: number;
+  grandTotal?: number;
+  shippingCost?: number;
+  shippingTotal?: number;
+  taxTotal?: number;
+  discountTotal?: number;
   subtotal: number;
   adminNote?: string;
+  adminNotes?: string;
+  couponCode?: string;
   createdAt: string;
   updatedAt: string;
   items: OrderItem[];
@@ -61,6 +99,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
   const [status, setStatus] = useState<string>('');
   const [paymentStatus, setPaymentStatus] = useState<string>('');
   const [adminNote, setAdminNote] = useState('');
+  const [showShipmentModal, setShowShipmentModal] = useState(false);
 
   useEffect(() => {
     async function fetchOrder() {
@@ -104,6 +143,7 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
 
       const data = await response.json();
       setOrder(data.order);
+      await refreshOrder(); // Refresh to get latest data
       alert('Cập nhật đơn hàng thành công');
     } catch (error) {
       console.error('Error updating order:', error);
@@ -130,26 +170,20 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
     );
   }
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: 'bg-yellow-100 text-yellow-800',
-      processing: 'bg-blue-100 text-blue-800',
-      completed: 'bg-green-100 text-green-800',
-      cancelled: 'bg-red-100 text-red-800',
-      refunded: 'bg-gray-100 text-gray-800',
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
-
-  const getStatusText = (status: string) => {
-    const texts: Record<string, string> = {
-      pending: 'Chờ xử lý',
-      processing: 'Đang xử lý',
-      completed: 'Hoàn thành',
-      cancelled: 'Đã hủy',
-      refunded: 'Đã hoàn tiền',
-    };
-    return texts[status] || status;
+  const refreshOrder = async () => {
+    try {
+      const response = await fetch(`/api/admin/orders/${orderId}`);
+      const data = await response.json();
+      if (data.order) {
+        const orderData = data.order as Order;
+        setOrder(orderData);
+        setStatus(orderData.status);
+        setPaymentStatus(orderData.paymentStatus);
+        setAdminNote(orderData.adminNote || '');
+      }
+    } catch (error) {
+      console.error('Error refreshing order:', error);
+    }
   };
 
   return (
@@ -169,128 +203,134 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
         </Button>
       </div>
 
+      {/* 3-Column Layout: Left (large), Right (small), Bottom (full width) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Main Content */}
+        {/* Left Column - Main Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Order Items */}
+          {/* Order Items - Editable */}
+          <EditOrderItems
+            orderId={order._id}
+            orderStatus={order.status as OrderStatus}
+            items={order.items}
+            onItemsChange={refreshOrder}
+          />
+
+          {/* Order Totals */}
           <Card>
             <CardHeader>
-              <CardTitle>Chi tiết đơn hàng</CardTitle>
+              <CardTitle>Tổng đơn hàng</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {order.items.map((item) => (
-                  <div key={item._id} className="flex justify-between items-start border-b pb-4">
-                    <div>
-                      <p className="font-medium">{item.productName}</p>
-                      {item.variant && (
-                        <p className="text-sm text-gray-500">
-                          {item.variant.size && `Size: ${item.variant.size}`}
-                          {item.variant.size && item.variant.color && ' • '}
-                          {item.variant.color && `Màu: ${item.variant.color}`}
-                        </p>
-                      )}
-                      <p className="text-sm text-gray-500">Số lượng: {item.quantity}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-medium">
-                        {new Intl.NumberFormat('vi-VN', {
-                          style: 'currency',
-                          currency: 'VND',
-                        }).format(item.total)}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        {new Intl.NumberFormat('vi-VN', {
-                          style: 'currency',
-                          currency: 'VND',
-                        }).format(item.price)} / sản phẩm
-                      </p>
-                    </div>
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span>Tạm tính:</span>
+                  <span>
+                    {new Intl.NumberFormat('vi-VN', {
+                      style: 'currency',
+                      currency: 'VND',
+                    }).format(order.subtotal)}
+                  </span>
+                </div>
+                {order.discountTotal > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Giảm giá:</span>
+                    <span>
+                      -{new Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                      }).format(order.discountTotal)}
+                    </span>
                   </div>
-                ))}
-                <div className="pt-4 space-y-2">
+                )}
+                <div className="flex justify-between">
+                  <span>Phí vận chuyển:</span>
+                  <span>
+                    {new Intl.NumberFormat('vi-VN', {
+                      style: 'currency',
+                      currency: 'VND',
+                    }).format(order.shippingCost || 0)}
+                  </span>
+                </div>
+                {order.taxTotal > 0 && (
                   <div className="flex justify-between">
-                    <span>Tạm tính:</span>
+                    <span>Thuế:</span>
                     <span>
                       {new Intl.NumberFormat('vi-VN', {
                         style: 'currency',
                         currency: 'VND',
-                      }).format(order.subtotal)}
+                      }).format(order.taxTotal)}
                     </span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Phí vận chuyển:</span>
-                    <span>
-                      {new Intl.NumberFormat('vi-VN', {
-                        style: 'currency',
-                        currency: 'VND',
-                      }).format(order.shippingCost)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-lg font-bold pt-2 border-t">
-                    <span>Tổng cộng:</span>
-                    <span>
-                      {new Intl.NumberFormat('vi-VN', {
-                        style: 'currency',
-                        currency: 'VND',
-                      }).format(order.total)}
-                    </span>
-                  </div>
+                )}
+                <div className="flex justify-between text-lg font-bold pt-2 border-t">
+                  <span>Tổng cộng:</span>
+                  <span>
+                    {new Intl.NumberFormat('vi-VN', {
+                      style: 'currency',
+                      currency: 'VND',
+                    }).format(order.grandTotal || order.total)}
+                  </span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
-          {/* Customer Information */}
+          {/* Action Bar */}
           <Card>
             <CardHeader>
-              <CardTitle>Thông tin khách hàng</CardTitle>
+              <CardTitle>Thao tác đơn hàng</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Tên khách hàng</label>
-                <p>{order.customerName}</p>
+            <CardContent className="space-y-4">
+              <OrderActionBar
+                orderId={order._id}
+                orderNumber={order.orderNumber}
+                currentStatus={order.status as OrderStatus}
+                paymentStatus={order.paymentStatus}
+                grandTotal={order.grandTotal || order.total}
+                onStatusChange={refreshOrder}
+                onCreateShipment={() => setShowShipmentModal(true)}
+              />
+              
+              {/* Print Actions */}
+              <div className="flex flex-wrap gap-2 pt-2 border-t">
+                <PrintShippingLabel orderId={order._id} orderNumber={order.orderNumber} />
+                <PrintInvoice orderId={order._id} orderNumber={order.orderNumber} />
               </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Email</label>
-                <p>{order.customerEmail}</p>
-              </div>
-              {order.customerPhone && (
-                <div>
-                  <label className="text-sm font-medium text-gray-500">Số điện thoại</label>
-                  <p>{order.customerPhone}</p>
-                </div>
-              )}
             </CardContent>
           </Card>
 
-          {/* Shipping Address */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Địa chỉ giao hàng</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <div>
-                <label className="text-sm font-medium text-gray-500">Người nhận</label>
-                <p>{order.shippingAddress.fullName}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Số điện thoại</label>
-                <p>{order.shippingAddress.phone}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Địa chỉ</label>
-                <p>
-                  {order.shippingAddress.address}, {order.shippingAddress.ward},{' '}
-                  {order.shippingAddress.district}, {order.shippingAddress.province}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Shipping Address - Editable */}
+          <EditShippingAddress
+            orderId={order._id}
+            orderStatus={order.status as OrderStatus}
+            shippingAddress={order.shippingAddress || order.shipping || {}}
+            onAddressChange={refreshOrder}
+          />
         </div>
 
-        {/* Sidebar */}
+        {/* Right Column - Sidebar */}
         <div className="space-y-6">
+          {/* Customer Info Card */}
+          <CustomerInfoCard
+            customerEmail={order.customerEmail}
+            customerName={order.customerName}
+            customerPhone={order.customerPhone}
+          />
+
+          {/* Shipment Info */}
+          {(order as any).trackingNumber && (
+            <ShipmentInfo
+              orderId={order._id}
+              trackingNumber={(order as any).trackingNumber}
+              carrier={(order as any).carrier}
+            />
+          )}
+
+          {/* Refund History */}
+          {order.paymentStatus === 'refunded' && (
+            <RefundHistory orderId={order._id} />
+          )}
+
           {/* Order Status */}
           <Card>
             <CardHeader>
@@ -298,17 +338,29 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="status">Trạng thái</Label>
+                <label className="text-sm font-medium text-gray-500">Trạng thái hiện tại</label>
+                <p className="mt-1">
+                  <span className={`px-2 py-1 rounded text-xs ${getStatusColor(order.status as OrderStatus)}`}>
+                    {getStatusLabel(order.status as OrderStatus)}
+                  </span>
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="status">Thay đổi trạng thái</Label>
                 <Select
                   id="status"
                   value={status}
                   onChange={(e) => setStatus(e.target.value)}
                 >
                   <option value="pending">Chờ xử lý</option>
+                  <option value="awaiting_payment">Chờ thanh toán</option>
+                  <option value="confirmed">Đã xác nhận</option>
                   <option value="processing">Đang xử lý</option>
+                  <option value="shipping">Đang giao hàng</option>
                   <option value="completed">Hoàn thành</option>
                   <option value="cancelled">Đã hủy</option>
                   <option value="refunded">Đã hoàn tiền</option>
+                  <option value="failed">Thất bại</option>
                 </Select>
               </div>
               <div>
@@ -323,14 +375,6 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                   <option value="failed">Thanh toán thất bại</option>
                   <option value="refunded">Đã hoàn tiền</option>
                 </Select>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">Trạng thái hiện tại</label>
-                <p className="mt-1">
-                  <span className={`px-2 py-1 rounded text-xs ${getStatusColor(order.status)}`}>
-                    {getStatusText(order.status)}
-                  </span>
-                </p>
               </div>
             </CardContent>
           </Card>
@@ -360,6 +404,15 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             </CardContent>
           </Card>
 
+          {/* Apply Coupon */}
+          <ApplyCoupon
+            orderId={order._id}
+            orderStatus={order.status as OrderStatus}
+            discountTotal={order.discountTotal || 0}
+            couponCode={(order as any).couponCode}
+            onCouponChange={refreshOrder}
+          />
+
           {/* Admin Notes */}
           <Card>
             <CardHeader>
@@ -376,6 +429,21 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
           </Card>
         </div>
       </div>
+
+      {/* Bottom Section - Timeline (Full Width) */}
+      <div className="mt-6">
+        <OrderTimeline orderId={orderId} />
+      </div>
+
+      {/* Create Shipment Modal */}
+      <CreateShipmentModal
+        isOpen={showShipmentModal}
+        onClose={() => setShowShipmentModal(false)}
+        onSuccess={refreshOrder}
+        orderId={order._id}
+        orderItems={order.items}
+        shippingAddress={order.shippingAddress || order.shipping}
+      />
     </div>
   );
 }

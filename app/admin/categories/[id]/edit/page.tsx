@@ -1,14 +1,13 @@
 'use client';
 
 import { CategoryForm } from '@/components/admin/CategoryForm';
-import { use } from 'react';
 
 export default function EditCategoryPage({
   params,
 }: {
-  params: Promise<{ id: string }>;
+  params: { id: string };
 }) {
-  const { id } = use(params);
+  const { id } = params;
 
   return (
     <div>
