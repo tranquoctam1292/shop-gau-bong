@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save } from 'lucide-react';
+import { generateSlug } from '@/lib/utils/slug';
 
 interface AuthorFormData {
   name: string;
@@ -44,12 +45,7 @@ export function AuthorForm({ authorId, initialData }: AuthorFormProps) {
   // Auto-generate slug from name
   useEffect(() => {
     if (!authorId && formData.name && !formData.slug) {
-      const slug = formData.name
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+      const slug = generateSlug(formData.name);
       setFormData((prev) => ({ ...prev, slug }));
     }
   }, [formData.name, authorId]);

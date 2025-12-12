@@ -1,186 +1,139 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Image as ImageIcon, Upload, X, Loader2 } from 'lucide-react';
+import { Image as ImageIcon, X } from 'lucide-react';
+import { MediaLibraryModal, type MediaItem } from '../MediaLibraryModal';
 
 interface FeaturedImageBoxProps {
-  featuredImage?: string; // First image in images array
-  onImageChange: (imageUrl: string) => void;
+  thumbnailId?: string; // Attachment ID
+  thumbnailUrl?: string; // Thumbnail URL for display
+  onImageChange: (attachmentId: string, thumbnailUrl: string) => void;
   onImageRemove: () => void;
 }
 
 /**
  * Featured Image Box - Sidebar component cho featured image management
  * Features:
- * - Image preview
- * - Upload/Change button (URL input)
+ * - 2 states: Empty / Has image
+ * - Click to open Media Modal (single select)
+ * - Save attachment_id to hidden input _thumbnail_id
  * - Remove button
- * - Placeholder khi chưa có image
+ * - Thumbnail display (260px width)
  */
 export function FeaturedImageBox({
-  featuredImage,
+  thumbnailId,
+  thumbnailUrl,
   onImageChange,
   onImageRemove,
 }: FeaturedImageBoxProps) {
-  const [imageUrl, setImageUrl] = useState(featuredImage || '');
-  const [isUploading, setIsUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [currentThumbnailUrl, setCurrentThumbnailUrl] = useState<string | undefined>(thumbnailUrl);
 
-  const handleUrlSubmit = () => {
-    if (imageUrl.trim()) {
-      onImageChange(imageUrl.trim());
-    }
-  };
+  // Sync with prop changes
+  useEffect(() => {
+    setCurrentThumbnailUrl(thumbnailUrl);
+  }, [thumbnailUrl]);
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Vui lòng chọn file hình ảnh');
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('Kích thước file không được vượt quá 5MB');
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      // For now, convert to data URL (in production, upload to server)
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string;
-        onImageChange(dataUrl);
-        setImageUrl(dataUrl);
-        setIsUploading(false);
-      };
-      reader.onerror = () => {
-        alert('Có lỗi xảy ra khi đọc file');
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      alert('Có lỗi xảy ra khi upload hình ảnh');
-      setIsUploading(false);
-    }
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  const handleMediaSelect = (items: MediaItem | MediaItem[]) => {
+    // In single mode, onSelect returns a single MediaItem
+    const selectedItem = Array.isArray(items) ? items[0] : items;
+    const thumbUrl = selectedItem.thumbnail_url || selectedItem.url;
+    setCurrentThumbnailUrl(thumbUrl);
+    onImageChange(selectedItem.id, thumbUrl);
+    setShowMediaModal(false);
   };
 
   const handleRemove = () => {
+    setCurrentThumbnailUrl(undefined);
     onImageRemove();
-    setImageUrl('');
   };
 
-  const currentImage = featuredImage || imageUrl;
+  const hasImage = !!currentThumbnailUrl && !!thumbnailId;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <ImageIcon className="h-4 w-4" />
-          Hình ảnh đại diện
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Image Preview */}
-        {currentImage ? (
-          <div className="relative aspect-video w-full rounded-lg overflow-hidden border-2 border-muted">
-            <img
-              src={currentImage}
-              alt="Featured"
-              className="w-full h-full object-cover"
-              onError={() => {
-                alert('Không thể tải hình ảnh. Vui lòng kiểm tra URL.');
-              }}
-            />
-            {isUploading && (
-              <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-primary" />
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="aspect-video w-full rounded-lg border-2 border-dashed border-muted flex items-center justify-center bg-muted/50">
-            <div className="text-center">
-              <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
-              <p className="text-sm text-muted-foreground">Chưa có hình ảnh</p>
-            </div>
-          </div>
-        )}
-
-        {/* URL Input */}
-        <div className="space-y-2">
-          <Input
-            type="text"
-            placeholder="Nhập URL hình ảnh"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleUrlSubmit()}
-            disabled={isUploading}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleUrlSubmit}
-            disabled={isUploading || !imageUrl.trim()}
-            className="w-full"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            {currentImage ? 'Thay đổi' : 'Thêm hình ảnh'}
-          </Button>
-        </div>
-
-        {/* File Upload */}
-        <div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" />
+            Hình ảnh đại diện
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Hidden input for _thumbnail_id */}
           <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileSelect}
-            className="hidden"
+            type="hidden"
+            name="_thumbnail_id"
+            value={thumbnailId || ''}
           />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="w-full"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            {isUploading ? 'Đang upload...' : 'Upload từ máy tính'}
-          </Button>
-        </div>
 
-        {/* Remove Button */}
-        {currentImage && (
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            onClick={handleRemove}
-            disabled={isUploading}
-            className="w-full"
-          >
-            <X className="h-4 w-4 mr-2" />
-            Xóa hình ảnh
-          </Button>
-        )}
-      </CardContent>
-    </Card>
+          {/* Image Preview - State A: Has Image */}
+          {hasImage ? (
+            <div className="space-y-3">
+              <div 
+                className="relative w-full rounded-lg overflow-hidden border-2 border-muted cursor-pointer hover:border-primary transition-colors"
+                style={{ width: '260px', aspectRatio: '1' }}
+                onClick={() => setShowMediaModal(true)}
+              >
+                <img
+                  src={currentThumbnailUrl}
+                  alt="Featured"
+                  className="w-full h-full object-cover"
+                  onError={() => {
+                    console.error('Failed to load featured image');
+                    // Optionally show error state
+                  }}
+                />
+              </div>
+              
+              {/* Remove link */}
+              <button
+                type="button"
+                onClick={handleRemove}
+                className="text-sm text-destructive hover:underline"
+              >
+                Xóa ảnh sản phẩm
+              </button>
+            </div>
+          ) : (
+            /* State B: Empty */
+            <div className="space-y-3">
+              <div 
+                className="w-full rounded-lg border-2 border-dashed border-muted flex items-center justify-center bg-muted/50"
+                style={{ width: '260px', aspectRatio: '1' }}
+              >
+                <div className="text-center">
+                  <ImageIcon className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
+                  <p className="text-xs text-muted-foreground">Chưa có hình ảnh</p>
+                </div>
+              </div>
+              
+              {/* Set image button */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setShowMediaModal(true)}
+                className="w-full"
+              >
+                <ImageIcon className="h-4 w-4 mr-2" />
+                Thiết lập ảnh sản phẩm
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Media Library Modal */}
+      <MediaLibraryModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={handleMediaSelect}
+        mode="single"
+        buttonText="Thiết lập ảnh sản phẩm"
+      />
+    </>
   );
 }

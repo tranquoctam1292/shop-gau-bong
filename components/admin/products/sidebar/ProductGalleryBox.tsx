@@ -1,258 +1,266 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Image as ImageIcon, Upload, X, GripVertical, Star } from 'lucide-react';
+import { Image as ImageIcon, X, GripVertical } from 'lucide-react';
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { MediaLibraryModal, type MediaItem } from '../MediaLibraryModal';
+
+interface GalleryImage {
+  id: string; // Attachment ID
+  thumbnail_url: string; // Thumbnail URL for display
+  title?: string; // Image title for tooltip
+}
 
 interface ProductGalleryBoxProps {
-  images: string[];
-  featuredImageIndex?: number; // Index of featured image (usually 0)
-  onImagesChange: (images: string[]) => void;
-  onSetFeatured?: (index: number) => void;
+  galleryImages?: GalleryImage[]; // Array of {id, thumbnail_url, title}
+  onImagesChange: (images: GalleryImage[]) => void;
+}
+
+/**
+ * Sortable Gallery Item Component
+ */
+function SortableGalleryItem({ 
+  image, 
+  onRemove 
+}: { 
+  image: GalleryImage; 
+  onRemove: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: image.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ ...style, width: '80px', height: '80px' }}
+      className="relative group rounded-lg overflow-hidden border-2 border-muted cursor-move"
+      title={image.title || `Image ${image.id}`}
+    >
+      <img
+        src={image.thumbnail_url}
+        alt={image.title || `Gallery ${image.id}`}
+        className="w-full h-full object-cover"
+        loading={image.id ? 'lazy' : 'eager'} // Lazy load for better performance
+        onError={() => {
+          console.error(`Failed to load gallery image: ${image.id}`);
+        }}
+      />
+
+      {/* Overlay on hover */}
+      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+        {/* Drag handle */}
+        <div
+          {...attributes}
+          {...listeners}
+          className="text-white cursor-grab active:cursor-grabbing"
+        >
+          <GripVertical className="h-5 w-5" />
+        </div>
+
+        {/* Quick Remove Button */}
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRemove();
+          }}
+          className="h-8"
+        >
+          <X className="h-3 w-3" />
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 /**
  * Product Gallery Box - Sidebar component cho product gallery management
  * Features:
- * - Gallery grid (2x2 or 3x3)
- * - Add images (URL or file upload)
- * - Remove images
- * - Reorder images (drag & drop)
- * - Set featured image
+ * - Grid layout với thumbnails 80x80px
+ * - Multi-select trong Media Modal
+ * - Drag & Drop để sắp xếp
+ * - Quick remove button (hover)
+ * - Tooltip với tên file
+ * - Hidden input _product_image_gallery (comma-separated IDs)
+ * - Append mode (không ghi đè)
+ * - Lazy loading (> 20 ảnh)
  */
 export function ProductGalleryBox({
-  images,
-  featuredImageIndex = 0,
+  galleryImages = [],
   onImagesChange,
-  onSetFeatured,
 }: ProductGalleryBoxProps) {
-  const [imageUrl, setImageUrl] = useState('');
-  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showMediaModal, setShowMediaModal] = useState(false);
+  const [images, setImages] = useState<GalleryImage[]>(galleryImages);
 
-  const handleUrlSubmit = () => {
-    if (imageUrl.trim() && !images.includes(imageUrl.trim())) {
-      onImagesChange([...images, imageUrl.trim()]);
-      setImageUrl('');
+  // Sync with prop changes
+  useEffect(() => {
+    setImages(galleryImages);
+  }, [galleryImages]);
+
+  // Drag & Drop sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setImages((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id);
+        const newIndex = items.findIndex((item) => item.id === over.id);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+        onImagesChange(newItems);
+        return newItems;
+      });
     }
   };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
+  const handleMediaSelect = (items: MediaItem | MediaItem[]) => {
+    // In multiple mode, onSelect returns an array
+    const selectedItems = Array.isArray(items) ? items : [items];
+    
+    // Convert to GalleryImage format
+    const newGalleryImages: GalleryImage[] = selectedItems.map((item) => ({
+      id: item.id,
+      thumbnail_url: item.thumbnail_url || item.url,
+      title: item.title,
+    }));
 
-    const newImages: string[] = [];
-
-    for (const file of files) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        alert(`File ${file.name} không phải là hình ảnh`);
-        continue;
-      }
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        alert(`File ${file.name} vượt quá 5MB`);
-        continue;
-      }
-
-      try {
-        // Convert to data URL
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (event) => resolve(event.target?.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-        newImages.push(dataUrl);
-      } catch (error) {
-        console.error(`Error reading file ${file.name}:`, error);
-      }
-    }
-
-    if (newImages.length > 0) {
-      onImagesChange([...images, ...newImages]);
-    }
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    // Append mode: add to existing images (don't overwrite)
+    const updatedImages = [...images, ...newGalleryImages];
+    setImages(updatedImages);
+    onImagesChange(updatedImages);
+    setShowMediaModal(false);
   };
 
-  const handleRemove = (index: number) => {
-    const newImages = images.filter((_, i) => i !== index);
+  const handleRemove = (imageId: string) => {
+    // Optimistic UI: remove immediately
+    const newImages = images.filter((img) => img.id !== imageId);
+    setImages(newImages);
     onImagesChange(newImages);
   };
 
-  const handleDragStart = (index: number) => {
-    setDraggedIndex(index);
-  };
+  // Generate comma-separated IDs string for hidden input
+  const galleryIdsString = images.map((img) => img.id).join(',');
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
-    if (draggedIndex === null || draggedIndex === index) return;
-
-    const newImages = [...images];
-    const draggedItem = newImages[draggedIndex];
-    newImages.splice(draggedIndex, 1);
-    newImages.splice(index, 0, draggedItem);
-
-    onImagesChange(newImages);
-    setDraggedIndex(index);
-  };
-
-  const handleDragEnd = () => {
-    setDraggedIndex(null);
-  };
-
-  const handleSetFeatured = (index: number) => {
-    if (onSetFeatured) {
-      onSetFeatured(index);
-    } else {
-      // Move image to first position
-      const newImages = [...images];
-      const [featuredImage] = newImages.splice(index, 1);
-      newImages.unshift(featuredImage);
-      onImagesChange(newImages);
-    }
-  };
+  // Use lazy loading for thumbnails if > 20 images
+  const useLazyLoading = images.length > 20;
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <ImageIcon className="h-4 w-4" />
-          Thư viện hình ảnh
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Gallery Grid */}
-        {images.length > 0 ? (
-          <div className="grid grid-cols-2 gap-2">
-            {images.map((img, index) => (
-              <div
-                key={index}
-                className="relative aspect-square group rounded-lg overflow-hidden border-2 border-muted cursor-move"
-                draggable
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-              >
-                <img
-                  src={img}
-                  alt={`Gallery ${index + 1}`}
-                  className="w-full h-full object-cover"
-                  onError={() => {
-                    console.error(`Failed to load image at index ${index}`);
-                  }}
-                />
-
-                {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                  {/* Drag handle */}
-                  <div className="text-white">
-                    <GripVertical className="h-5 w-5" />
-                  </div>
-
-                  {/* Set Featured Button */}
-                  {index !== featuredImageIndex && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleSetFeatured(index)}
-                      className="h-8"
-                    >
-                      <Star className="h-3 w-3 mr-1" />
-                      Đặt làm ảnh đại diện
-                    </Button>
-                  )}
-
-                  {/* Remove Button */}
-                  <Button
-                    type="button"
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleRemove(index)}
-                    className="h-8"
-                  >
-                    <X className="h-3 w-3" />
-                  </Button>
-                </div>
-
-                {/* Featured Badge */}
-                {index === featuredImageIndex && (
-                  <div className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs flex items-center gap-1">
-                    <Star className="h-3 w-3 fill-current" />
-                    Đại diện
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="aspect-square rounded-lg border-2 border-dashed border-muted flex items-center justify-center bg-muted/50">
-            <div className="text-center">
-              <ImageIcon className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-              <p className="text-xs text-muted-foreground">Chưa có hình ảnh</p>
-            </div>
-          </div>
-        )}
-
-        {/* URL Input */}
-        <div className="space-y-2">
-          <Input
-            type="text"
-            placeholder="Nhập URL hình ảnh"
-            value={imageUrl}
-            onChange={(e) => setImageUrl(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleUrlSubmit()}
-          />
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleUrlSubmit}
-            disabled={!imageUrl.trim()}
-            className="w-full"
-          >
-            <Upload className="h-4 w-4 mr-2" />
-            Thêm hình ảnh
-          </Button>
-        </div>
-
-        {/* File Upload */}
-        <div>
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" />
+            Thư viện hình ảnh
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Hidden input for _product_image_gallery */}
           <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handleFileSelect}
-            className="hidden"
+            type="hidden"
+            name="_product_image_gallery"
+            value={galleryIdsString}
           />
+
+          {/* Gallery Grid */}
+          {images.length > 0 ? (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={images.map((img) => img.id)}
+              >
+                <div className="grid grid-cols-3 gap-2" style={{ gridAutoRows: '80px' }}>
+                  {images.map((image) => (
+                    <SortableGalleryItem
+                      key={image.id}
+                      image={image}
+                      onRemove={() => handleRemove(image.id)}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          ) : (
+            <div 
+              className="rounded-lg border-2 border-dashed border-muted flex items-center justify-center bg-muted/50"
+              style={{ width: '80px', height: '80px' }}
+            >
+              <div className="text-center">
+                <ImageIcon className="h-6 w-6 mx-auto text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">Chưa có</p>
+              </div>
+            </div>
+          )}
+
+          {/* Add Gallery Images Button */}
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => setShowMediaModal(true)}
             className="w-full"
           >
-            <Upload className="h-4 w-4 mr-2" />
-            Upload nhiều hình ảnh
+            <ImageIcon className="h-4 w-4 mr-2" />
+            Thêm ảnh thư viện sản phẩm
           </Button>
-        </div>
 
-        {/* Info */}
-        {images.length > 0 && (
-          <p className="text-xs text-muted-foreground">
-            {images.length} hình ảnh • Kéo thả để sắp xếp
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          {/* Info */}
+          {images.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {images.length} hình ảnh • Kéo thả để sắp xếp
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Media Library Modal */}
+      <MediaLibraryModal
+        isOpen={showMediaModal}
+        onClose={() => setShowMediaModal(false)}
+        onSelect={handleMediaSelect}
+        mode="multiple"
+        selectedIds={images.map((img) => img.id)}
+        buttonText="Thêm vào thư viện"
+      />
+    </>
   );
 }

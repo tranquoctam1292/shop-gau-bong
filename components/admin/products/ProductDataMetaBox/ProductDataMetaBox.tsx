@@ -1,13 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { TopControlBar } from './TopControlBar';
 import { TabNavigation } from './TabNavigation';
 import { GeneralTab } from './GeneralTab';
 import { InventoryTab } from './InventoryTab';
 import { ShippingTab } from './ShippingTab';
-import { LinkedProductsTab } from './LinkedProductsTab';
 import { AttributesTab } from './AttributesTab';
 import { VariationsTab } from './VariationsTab';
 import { AdvancedTab } from './AdvancedTab';
@@ -49,10 +48,6 @@ export interface ProductDataMetaBoxState {
   width?: number;
   height?: number;
   shippingClass?: string;
-
-  // Linked Products
-  upsellIds: string[];
-  crossSellIds: string[];
 
   // Attributes
   attributes: Array<{
@@ -107,8 +102,6 @@ export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMet
     stockStatus: 'instock',
     backorders: 'no',
     soldIndividually: false,
-    upsellIds: [],
-    crossSellIds: [],
     attributes: [],
     variations: [],
     menuOrder: 0,
@@ -116,11 +109,77 @@ export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMet
     ...data,
   });
 
+  // Sync state with data prop changes
+  // Use useRef to track if we're updating from internal state to prevent cycles
+  const isInternalUpdateRef = useRef(false);
+  const prevDataRef = useRef(data);
+  const dataStringRef = useRef<string>('');
+  
+  useEffect(() => {
+    // Serialize data for comparison (avoid reference comparison issues)
+    const currentDataString = JSON.stringify(data);
+    
+    // Only sync if data prop actually changed and not from internal update
+    if (data && currentDataString !== dataStringRef.current && !isInternalUpdateRef.current) {
+      dataStringRef.current = currentDataString;
+      prevDataRef.current = data;
+      
+      setState((prevState) => {
+        // Only update if data actually changed (prevent infinite loops)
+        const hasChanges = Object.keys(data).some(
+          (key) => prevState[key as keyof ProductDataMetaBoxState] !== data[key as keyof ProductDataMetaBoxState]
+        );
+        if (!hasChanges) {
+          return prevState;
+        }
+        
+        return {
+          ...prevState,
+          ...data,
+        };
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
+
   // Update parent when state changes
   const updateState = (updates: Partial<ProductDataMetaBoxState>) => {
+    // Check if updates actually change anything (use JSON.stringify for arrays/objects)
+    const hasActualChanges = Object.keys(updates).some((key) => {
+      const currentValue = state[key as keyof ProductDataMetaBoxState];
+      const newValue = updates[key as keyof ProductDataMetaBoxState];
+      
+      // For arrays/objects, use JSON.stringify comparison
+      if (Array.isArray(currentValue) || Array.isArray(newValue) || 
+          (typeof currentValue === 'object' && currentValue !== null) ||
+          (typeof newValue === 'object' && newValue !== null)) {
+        return JSON.stringify(currentValue) !== JSON.stringify(newValue);
+      }
+      
+      // For primitives, use !==
+      return currentValue !== newValue;
+    });
+    
+    if (!hasActualChanges) {
+      return; // Skip if no actual changes
+    }
+    
+    // Mark as internal update to prevent sync cycle
+    isInternalUpdateRef.current = true;
+    
+    // Calculate new state
     const newState = { ...state, ...updates };
+    
     setState(newState);
+    
+    // Call onChange with calculated newState (outside setState to avoid duplicate calls in React batches)
     onChange?.(newState);
+    
+    // Reset flag after a short delay to allow sync to complete
+    // Use requestAnimationFrame to defer to next render cycle
+    requestAnimationFrame(() => {
+      isInternalUpdateRef.current = false;
+    });
   };
 
   // Determine which tabs should be visible
@@ -128,7 +187,6 @@ export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMet
     { id: 'general', label: 'Tổng quan', icon: '📊' },
     { id: 'inventory', label: 'Kiểm kê kho hàng', icon: '📦' },
     ...(state.isVirtual ? [] : [{ id: 'shipping', label: 'Giao hàng', icon: '🚚' }]),
-    { id: 'linked', label: 'Sản phẩm liên kết', icon: '🔗' },
     { id: 'attributes', label: 'Thuộc tính', icon: '🏷️' },
     ...(state.productType === 'variable' && state.attributes.some((a) => a.usedForVariations)
       ? [{ id: 'variations', label: 'Biến thể', icon: '🔄' }]
@@ -159,14 +217,6 @@ export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMet
           <ShippingTab
             state={state}
             onUpdate={updateState}
-          />
-        );
-      case 'linked':
-        return (
-          <LinkedProductsTab
-            state={state}
-            onUpdate={updateState}
-            productId={productId}
           />
         );
       case 'attributes':

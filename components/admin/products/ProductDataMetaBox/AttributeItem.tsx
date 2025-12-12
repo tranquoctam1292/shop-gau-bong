@@ -6,11 +6,15 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Plus, Palette } from 'lucide-react';
+import { SmartValueInput, type Term as SmartValueTerm } from '../SmartValueInput';
+import type { Attribute as GlobalAttribute } from '@/app/admin/attributes/page';
+import type { Term } from '@/app/admin/attributes/[id]/terms/page';
 
 export interface Attribute {
   id: string;
   name: string;
   isGlobal: boolean;
+  globalAttributeId?: string; // Reference to global attribute ID
   values: string[];
   usedForVariations: boolean;
   colorCodes?: Record<string, string>; // For color attributes: value -> hex code
@@ -21,6 +25,13 @@ interface AttributeItemProps {
   onUpdate: (updated: Attribute) => void;
   onRemove: () => void;
   existingValues?: string[]; // For auto-suggest
+  // New props for global attributes
+  isGlobalAttribute?: boolean;
+  globalAttributeType?: GlobalAttribute['type'];
+  globalTerms?: Term[]; // Terms from API
+  loadingTerms?: boolean;
+  onLoadTerms?: () => void;
+  onQuickAddTerm?: () => void;
 }
 
 /**
@@ -37,6 +48,12 @@ export function AttributeItem({
   onUpdate,
   onRemove,
   existingValues = [],
+  isGlobalAttribute = false,
+  globalAttributeType,
+  globalTerms = [],
+  loadingTerms = false,
+  onLoadTerms,
+  onQuickAddTerm,
 }: AttributeItemProps) {
   const [inputValue, setInputValue] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -47,6 +64,13 @@ export function AttributeItem({
   const isColorAttribute = attribute.name.toLowerCase() === 'màu sắc' || 
                           attribute.name.toLowerCase() === 'color' ||
                           attribute.name.toLowerCase() === 'màu';
+
+  // Load terms when global attribute is first rendered
+  useEffect(() => {
+    if (isGlobalAttribute && onLoadTerms && globalTerms.length === 0 && !loadingTerms) {
+      onLoadTerms();
+    }
+  }, [isGlobalAttribute, onLoadTerms, globalTerms.length, loadingTerms]);
 
   // Filter suggestions based on input
   useEffect(() => {
@@ -161,7 +185,45 @@ export function AttributeItem({
       <div className="space-y-2" ref={containerRef}>
         <Label className="text-sm font-medium">Giá trị</Label>
         
-        {isColorAttribute ? (
+        {/* Smart Value Input for Global Attributes */}
+        {isGlobalAttribute && globalAttributeType ? (
+          <SmartValueInput
+            terms={globalTerms.map((term): SmartValueTerm => ({
+              id: term.id,
+              name: term.name,
+              slug: term.slug,
+              colorHex: term.colorHex,
+              colorHex2: term.colorHex2,
+              imageUrl: term.imageUrl,
+              imageId: term.imageId,
+              description: term.description,
+            }))}
+            selectedValues={attribute.values}
+            onValuesChange={(values) => {
+              // Update values and colorCodes from selected terms
+              const selectedTerms = globalTerms.filter((term) =>
+                values.includes(term.name)
+              );
+              const colorCodes: Record<string, string> = {};
+              selectedTerms.forEach((term) => {
+                if (term.colorHex) {
+                  colorCodes[term.name] = term.colorHex;
+                }
+              });
+
+              onUpdate({
+                ...attribute,
+                values,
+                colorCodes: Object.keys(colorCodes).length > 0 ? colorCodes : undefined,
+              });
+            }}
+            attributeType={globalAttributeType}
+            loading={loadingTerms}
+            onQuickAdd={onQuickAddTerm}
+            placeholder="Chọn giá trị từ danh sách global..."
+            attributeName={attribute.name}
+          />
+        ) : isColorAttribute ? (
           // Color Picker Mode
           <div className="space-y-2">
             <div className="flex items-center gap-2">

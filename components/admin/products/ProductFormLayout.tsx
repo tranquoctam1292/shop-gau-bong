@@ -27,14 +27,14 @@ export function ProductFormLayout({ children, sidebar, header }: ProductFormLayo
       {/* Main Layout: 2 columns on desktop, stacked on mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_350px] gap-6">
         {/* Main Form (Left Column - 70% on desktop) */}
-        <div className="space-y-6 min-w-0">
+        <div className="space-y-6 min-w-0 pb-8">
           {children}
         </div>
 
         {/* Sidebar (Right Column - 30% on desktop) */}
         <div className="space-y-6">
           {/* Sticky sidebar on desktop */}
-          <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)] lg:overflow-y-auto">
+          <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem-2rem)] lg:overflow-y-auto lg:pb-8 lg:pr-2">
             <div className="space-y-6">
               {sidebar}
             </div>
@@ -44,4 +44,6 @@ export function ProductFormLayout({ children, sidebar, header }: ProductFormLayo
     </div>
   );
 }
+
+
 

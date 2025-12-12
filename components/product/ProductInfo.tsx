@@ -6,8 +6,11 @@ import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils/format';
 import { useCartSync } from '@/lib/hooks/useCartSync';
 import { useProductVariations } from '@/lib/hooks/useProductVariations';
+import { useMultipleGlobalAttributeTerms } from '@/lib/hooks/useGlobalAttributes';
 import { QuantitySelector } from '@/components/product/QuantitySelector';
+import { VisualAttributeSelector } from '@/components/product/VisualAttributeSelector';
 import { getColorHex } from '@/lib/utils/colorMapping';
+import { generateSlug } from '@/lib/utils/slug';
 import { cn } from '@/lib/utils/cn';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { Gift, ShoppingCart, Check, Loader2, Zap } from 'lucide-react';
@@ -103,19 +106,69 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   const displaySizes = availableSizes.slice(0, 4);
   const displayColors = availableColors.slice(0, 4);
 
+  // Fetch global attribute terms if globalAttributeId is available
+  // Note: This requires product.attributes to include globalAttributeId (to be added in mapMongoProduct)
+  const globalAttributeIds = useMemo(() => {
+    const ids: string[] = [];
+    product?.attributes?.forEach((attr: any) => {
+      if (attr.globalAttributeId) {
+        ids.push(attr.globalAttributeId);
+      }
+    });
+    return ids;
+  }, [product?.attributes]);
+
+  const { 
+    data: globalAttributeTermsData, 
+    isLoading: isLoadingGlobalTerms,
+    error: globalTermsError 
+  } = useMultipleGlobalAttributeTerms(globalAttributeIds);
+
+  // Handle error gracefully - log but don't crash
+  useEffect(() => {
+    if (globalTermsError) {
+      console.error('[ProductInfo] Error loading global attribute terms:', globalTermsError);
+      // Fallback to old color mapping will be used automatically
+    }
+  }, [globalTermsError]);
+
+  // Create a map of globalAttributeId -> terms
+  const globalTermsMap = useMemo(() => {
+    // If there's an error, return empty map (fallback to old behavior)
+    if (globalTermsError || !globalAttributeTermsData) {
+      return new Map<string, typeof globalAttributeTermsData[0]>();
+    }
+    
+    const map = new Map<string, typeof globalAttributeTermsData[0]>();
+    globalAttributeTermsData.forEach((data) => {
+      if (data?.attribute?.id) {
+        map.set(data.attribute.id, data);
+      }
+    });
+    return map;
+  }, [globalAttributeTermsData, globalTermsError]);
+
+  // Get global attribute type for an attribute
+  const getGlobalAttributeType = (attr: any): 'text' | 'color' | 'image' | 'button' | null => {
+    if (!attr.globalAttributeId) return null;
+    const termsData = globalTermsMap.get(attr.globalAttributeId);
+    return termsData?.attribute.type || null;
+  };
+
+  // Get global terms for an attribute
+  const getGlobalTerms = (attr: any) => {
+    if (!attr.globalAttributeId) return [];
+    const termsData = globalTermsMap.get(attr.globalAttributeId);
+    return termsData?.terms || [];
+  };
+
   // Đọc query params từ URL và tự động chọn size/color
   useEffect(() => {
     if (!product || !product.attributes) return;
 
-    // Helper function để tạo slug từ attribute name (giống logic trong ProductCard)
+    // Helper function để tạo slug từ attribute name
     const createAttributeSlug = (name: string): string => {
-      return name.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'D')
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '');
+      return generateSlug(name);
     };
 
     // Tìm size attribute và đọc từ URL
@@ -243,90 +296,112 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
         )}
       </div>
 
-      {/* Size Selector */}
-      {displaySizes.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-text-main mb-2">
-            Kích thước
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {displaySizes.map((size, idx) => (
-              <button
-                key={idx}
-                onClick={() => setSelectedSize(size)}
-                className={cn(
-                  "text-sm font-medium px-4 py-2 rounded-md border-2 transition-all min-h-[44px]",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                  selectedSize === size
-                    ? "border-[#D6336C] bg-pink-50 text-[#D6336C]"
-                    : "border-gray-200 bg-white text-gray-500 hover:border-pink-300 hover:text-pink-500"
-                )}
-                aria-label={`Chọn kích thước ${size}`}
-                aria-pressed={selectedSize === size}
-              >
-                {size}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* Size Selector - Use VisualAttributeSelector if global attribute, otherwise fallback */}
+      {displaySizes.length > 0 && sizeAttribute && (
+        (() => {
+          const globalType = getGlobalAttributeType(sizeAttribute as any);
+          const globalTerms = getGlobalTerms(sizeAttribute as any);
+          
+          // Use VisualAttributeSelector if it's a global attribute with type
+          if (globalType) {
+            return (
+              <VisualAttributeSelector
+                label="Kích thước"
+                type={globalType}
+                options={displaySizes}
+                terms={globalTerms}
+                selectedValue={selectedSize}
+                onSelect={setSelectedSize}
+              />
+            );
+          }
+          
+          // Fallback to button style for non-global or text attributes
+          return (
+            <VisualAttributeSelector
+              label="Kích thước"
+              type="button"
+              options={displaySizes}
+              selectedValue={selectedSize}
+              onSelect={setSelectedSize}
+            />
+          );
+        })()
       )}
 
-      {/* Color Selector */}
-      {displayColors.length > 0 && (
-        <div>
-          <label className="block text-sm font-medium text-text-main mb-2">
-            Màu sắc{selectedColor ? `: ${selectedColor}` : ''}
-          </label>
-          <div className="flex gap-3 items-center">
-            {displayColors.map((colorName, idx) => {
-              // Lấy mã màu Hex từ tên màu với fallback
-              const bgColor = getColorHex(colorName) || (colorName.startsWith('#') ? colorName : '#E5E7EB');
-              const isSelected = selectedColor === colorName;
-              
-              // Xác định màu sáng để chọn màu checkmark tương phản
-              // Danh sách màu sáng cần checkmark đen
-              const lightColors = ['#FFFFFF', '#FDFBF7', '#F5F5DC', '#E5E7EB', '#FFF9FA', '#FEF3C7'];
-              const bgColorUpper = bgColor.toUpperCase();
-              const isLightColor = lightColors.includes(bgColorUpper) || 
-                                   colorName.toLowerCase().includes('trắng') || 
-                                   colorName.toLowerCase().includes('kem') ||
-                                   colorName.toLowerCase().includes('trang');
-              
-              return (
-                <button
-                  key={idx}
-                  onClick={() => setSelectedColor(colorName)}
-                  className={cn(
-                    "w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-200",
-                    "border-2",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                    // Style khi được chọn: ring effect và scale
-                    isSelected 
-                      ? "border-pink-600 ring-2 ring-pink-500 ring-offset-2 scale-110" 
-                      : isLightColor
-                        ? "border-gray-400 hover:scale-105 hover:border-pink-300"
-                        : "border-gray-300 hover:scale-105 hover:border-pink-300"
-                  )}
-                  style={{ backgroundColor: bgColor }}
-                  title={`Màu: ${colorName}`}
-                  aria-label={`Chọn màu ${colorName}`}
-                  aria-pressed={isSelected}
-                >
-                  {/* Chỉ hiển thị dấu tích khi được chọn */}
-                  {isSelected && (
-                    <Check 
+      {/* Color Selector - Use VisualAttributeSelector if global attribute, otherwise fallback */}
+      {displayColors.length > 0 && colorAttribute && (
+        (() => {
+          const globalType = getGlobalAttributeType(colorAttribute as any);
+          const globalTerms = getGlobalTerms(colorAttribute as any);
+          
+          // Use VisualAttributeSelector if it's a global attribute with type
+          if (globalType) {
+            return (
+              <VisualAttributeSelector
+                label="Màu sắc"
+                type={globalType}
+                options={displayColors}
+                terms={globalTerms}
+                selectedValue={selectedColor}
+                onSelect={setSelectedColor}
+              />
+            );
+          }
+          
+          // Fallback to color swatches using getColorHex (backward compatibility)
+          return (
+            <div>
+              <label className="block text-sm font-medium text-text-main mb-2">
+                Màu sắc{selectedColor ? `: ${selectedColor}` : ''}
+              </label>
+              <div className="flex gap-3 items-center">
+                {displayColors.map((colorName, idx) => {
+                  const bgColor = getColorHex(colorName) || (colorName.startsWith('#') ? colorName : '#E5E7EB');
+                  const isSelected = selectedColor === colorName;
+                  
+                  const lightColors = ['#FFFFFF', '#FDFBF7', '#F5F5DC', '#E5E7EB', '#FFF9FA', '#FEF3C7'];
+                  const bgColorUpper = bgColor.toUpperCase();
+                  const isLightColor = lightColors.includes(bgColorUpper) || 
+                                       colorName.toLowerCase().includes('trắng') || 
+                                       colorName.toLowerCase().includes('kem') ||
+                                       colorName.toLowerCase().includes('trang');
+                  
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedColor(colorName)}
                       className={cn(
-                        "w-4 h-4 md:w-5 md:h-5", 
-                        isLightColor ? "text-gray-900" : "text-white"
-                      )} 
-                      strokeWidth={3}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
+                        "w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-200",
+                        "border-2",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                        isSelected 
+                          ? "border-pink-600 ring-2 ring-pink-500 ring-offset-2 scale-110" 
+                          : isLightColor
+                            ? "border-gray-400 hover:scale-105 hover:border-pink-300"
+                            : "border-gray-300 hover:scale-105 hover:border-pink-300"
+                      )}
+                      style={{ backgroundColor: bgColor }}
+                      title={`Màu: ${colorName}`}
+                      aria-label={`Chọn màu ${colorName}`}
+                      aria-pressed={isSelected}
+                    >
+                      {isSelected && (
+                        <Check 
+                          className={cn(
+                            "w-4 h-4 md:w-5 md:h-5", 
+                            isLightColor ? "text-gray-900" : "text-white"
+                          )} 
+                          strokeWidth={3}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()
       )}
 
       {/* Actions (Horizontal Layout) */}

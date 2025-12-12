@@ -10,9 +10,106 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { generateProductSchema } from '@/lib/utils/schema';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
+
+/**
+ * Auto-generate alt text for product images
+ * Format: {originalAlt} - Shop Gấu Bông
+ */
+function generateImageAltText(originalAlt: string | undefined, productName: string, siteName: string = 'Shop Gấu Bông'): string {
+  if (originalAlt && originalAlt.trim()) {
+    // If alt text already contains site name, don't duplicate
+    if (originalAlt.includes(siteName)) {
+      return originalAlt;
+    }
+    return `${originalAlt} - ${siteName}`;
+  }
+  // Fallback to product name + site name
+  return productName ? `${productName} - ${siteName}` : siteName;
+}
+
+/**
+ * Generate Product Schema (JSON-LD) from product data
+ */
+function generateProductSchemaFromData(productDoc: any, siteUrl: string = 'https://shop-gaubong.com'): object | null {
+  try {
+    // Get price (prefer sale price, fallback to regular price)
+    const price = productDoc.productDataMetaBox?.salePrice || 
+                  productDoc.productDataMetaBox?.regularPrice || 
+                  productDoc.minPrice || 
+                  0;
+    
+    // Get stock status
+    const stockStatus = productDoc.productDataMetaBox?.stockStatus || 
+                       (productDoc.productDataMetaBox?.stockQuantity > 0 ? 'instock' : 'outofstock');
+    
+    // Get availability
+    const availability = stockStatus === 'instock' ? 'InStock' : 
+                        stockStatus === 'outofstock' ? 'OutOfStock' : 'PreOrder';
+    
+    // Get image URL (from _thumbnail_id or images array)
+    let imageUrl: string | null = null;
+    if (productDoc._thumbnail_id) {
+      // TODO: Resolve thumbnail_id to URL when media API is available
+      // For now, use first image from images array if available
+      imageUrl = productDoc.images?.[0] || null;
+    } else if (productDoc.images && productDoc.images.length > 0) {
+      imageUrl = productDoc.images[0];
+    }
+    
+    // Get category name
+    const categoryName = productDoc.categoryId 
+      ? 'Gấu bông' // TODO: Resolve categoryId to name
+      : productDoc.category || 'Gấu bông';
+    
+    // Build URL
+    const productUrl = `${siteUrl}/products/${productDoc.slug || productDoc._id.toString()}`;
+    
+    // Extract size from variations if available
+    const additionalProperties: Array<{ name: string; value: string }> = [];
+    if (productDoc.productDataMetaBox?.variations && productDoc.productDataMetaBox.variations.length > 0) {
+      // Check if variations have Size attribute
+      const sizeVariations = productDoc.productDataMetaBox.variations
+        .map((v: any) => v.attributes?.Size || v.attributes?.size)
+        .filter(Boolean);
+      
+      if (sizeVariations.length > 0) {
+        // Get unique sizes
+        const uniqueSizes = [...new Set(sizeVariations)];
+        if (uniqueSizes.length === 1) {
+          // Single size variant
+          additionalProperties.push({ name: 'Size', value: uniqueSizes[0] });
+        } else if (uniqueSizes.length > 1) {
+          // Multiple sizes - use first one or comma-separated
+          additionalProperties.push({ name: 'Size', value: uniqueSizes.join(', ') });
+        }
+      }
+    }
+    
+    // Generate schema
+    const schema = generateProductSchema({
+      name: productDoc.name,
+      description: productDoc.seo?.seoDescription || productDoc.shortDescription || productDoc.description || null,
+      image: imageUrl,
+      price: price > 0 ? String(price) : null,
+      currency: 'VND',
+      sku: productDoc.productDataMetaBox?.sku || productDoc.sku || null,
+      availability,
+      brand: 'Shop Gấu Bông',
+      category: categoryName,
+      url: productUrl,
+      additionalProperties: additionalProperties.length > 0 ? additionalProperties : undefined,
+    });
+    
+    return schema;
+  } catch (error) {
+    console.error('Error generating product schema:', error);
+    return null;
+  }
+}
 
 // Product update schema (all fields optional except validation)
 const productUpdateSchema = z.object({
@@ -23,6 +120,10 @@ const productUpdateSchema = z.object({
   sku: z.string().optional(),
   minPrice: z.number().min(0).optional(),
   maxPrice: z.number().min(0).optional(),
+  // Image fields (new structure)
+  _thumbnail_id: z.string().optional(), // Attachment ID for featured image
+  _product_image_gallery: z.string().optional(), // Comma-separated attachment IDs for gallery
+  // Keep images for backward compatibility (will be removed later)
   images: z.array(z.string()).optional(),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),
@@ -35,39 +136,29 @@ const productUpdateSchema = z.object({
     stock: z.number().min(0),
     image: z.string().optional(),
     sku: z.string().optional(),
-    stockAlertThreshold: z.number().optional(),
-    pricingRule: z.object({
-      type: z.enum(['fixed', 'percentage', 'formula']),
-      value: z.number(),
-    }).optional(),
   })).optional(),
   isHot: z.boolean().optional(),
   isActive: z.boolean().optional(),
-  status: z.enum(['draft', 'publish']).optional(),
+  status: z.enum(['draft', 'publish', 'trash']).optional(),
+  visibility: z.enum(['public', 'private', 'password']).optional(),
+  password: z.string().optional(),
+  scheduledDate: z.string().optional(), // ISO date string
   length: z.number().optional(),
   width: z.number().optional(),
   height: z.number().optional(),
   weight: z.number().optional(),
   volumetricWeight: z.number().optional(),
-  material: z.string().optional(),
-  origin: z.string().optional(),
-  // Phase 1: New fields
-  productDetails: z.object({
-    ageRecommendation: z.string().optional(),
-    careInstructions: z.string().optional(),
-    safetyInformation: z.string().optional(),
-    productSpecifications: z.string().optional(),
-    sizeGuide: z.string().optional(),
-    materialDetails: z.string().optional(),
-    warrantyInformation: z.string().optional(),
-  }).optional(),
+  // Phase 1: SEO Meta Box fields
   seo: z.object({
+    focusKeyword: z.string().optional(),
     seoTitle: z.string().optional(),
     seoDescription: z.string().optional(),
-    seoKeywords: z.array(z.string()).optional(),
-    ogImage: z.string().optional(),
+    slug: z.string().optional(),
     canonicalUrl: z.string().optional(),
     robotsMeta: z.string().optional(),
+    ogImage: z.string().optional(),
+    ogImageId: z.string().optional(),
+    socialDescription: z.string().optional(),
   }).optional(),
   // Phase 2: Gift & Media fields
   giftFeatures: z.object({
@@ -90,19 +181,6 @@ const productUpdateSchema = z.object({
     view360Images: z.array(z.string()).optional(),
     imageAltTexts: z.record(z.string(), z.string()).optional(),
   }).optional(),
-  // Phase 3: Collections & Relations
-  collectionCombo: z.object({
-    collections: z.array(z.string()).optional(),
-    comboProducts: z.array(z.string()).optional(),
-    bundleProducts: z.array(z.object({
-      productId: z.string(),
-      quantity: z.number().min(1).optional(),
-      discount: z.number().min(0).max(100).optional(),
-    })).optional(),
-    relatedProducts: z.array(z.string()).optional(),
-    upsellProducts: z.array(z.string()).optional(),
-    crossSellProducts: z.array(z.string()).optional(),
-  }).optional(),
 });
 
 export async function GET(
@@ -119,7 +197,13 @@ export async function GET(
     }
     
     const { products } = await getCollections();
-    const { id } = params;
+    let { id } = params;
+    
+    // Extract ObjectId from GraphQL format if needed (backward compatibility)
+    // Format: gid://shop-gau-bong/Product/OBJECT_ID
+    if (id.startsWith('gid://shop-gau-bong/Product/')) {
+      id = id.replace('gid://shop-gau-bong/Product/', '');
+    }
     
     // Find by ObjectId or slug
     let product = null;
@@ -141,7 +225,32 @@ export async function GET(
     
     const mappedProduct = mapMongoProduct(product);
     
-    return NextResponse.json({ product: mappedProduct });
+    // Include image IDs in response for frontend
+    const response: any = {
+      product: {
+        ...mappedProduct,
+        // Include raw IDs for frontend to use
+        _thumbnail_id: product._thumbnail_id || undefined,
+        _product_image_gallery: product._product_image_gallery || undefined,
+        scheduledDate: product.scheduledDate || undefined,
+        password: product.password || undefined,
+        // TODO: Expand IDs to full URLs when media API is available
+        // For now, include IDs and let frontend handle display
+        thumbnail: product._thumbnail_id ? {
+          id: product._thumbnail_id,
+          url: mappedProduct.image?.sourceUrl,
+          thumbnail_url: mappedProduct.image?.sourceUrl,
+        } : undefined,
+        gallery: product._product_image_gallery ? 
+          product._product_image_gallery.split(',').map((id: string, idx: number) => ({
+            id: id.trim(),
+            url: mappedProduct.galleryImages[idx]?.sourceUrl,
+            thumbnail_url: mappedProduct.galleryImages[idx]?.sourceUrl,
+          })) : undefined,
+      },
+    };
+    
+    return NextResponse.json(response);
   } catch (error: any) {
     console.error('[Admin Product API] Error:', error);
     return NextResponse.json(
@@ -170,8 +279,14 @@ export async function PUT(
     }
     
     const { products, categories } = await getCollections();
-    const { id } = params;
+    let { id } = params;
     const body = await request.json();
+    
+    // Extract ObjectId from GraphQL format if needed (backward compatibility)
+    // Format: gid://shop-gau-bong/Product/OBJECT_ID
+    if (id.startsWith('gid://shop-gau-bong/Product/')) {
+      id = id.replace('gid://shop-gau-bong/Product/', '');
+    }
     
     // Validate input
     const validatedData = productUpdateSchema.parse(body);
@@ -231,7 +346,10 @@ export async function PUT(
     // Calculate volumetric weight if dimensions provided
     const updateData: any = { ...validatedData };
     if (updateData.length && updateData.width && updateData.height && !updateData.volumetricWeight) {
-      updateData.volumetricWeight = (updateData.length * updateData.width * updateData.height) / 6000;
+      // Validate dimensions are positive
+      if (updateData.length > 0 && updateData.width > 0 && updateData.height > 0) {
+        updateData.volumetricWeight = (updateData.length * updateData.width * updateData.height) / 6000;
+      }
     }
 
     // Replace category string with categoryId
@@ -242,10 +360,131 @@ export async function PUT(
     
     updateData.updatedAt = new Date();
     
+    // Handle scheduledDate - convert ISO string to Date if provided
+    if (validatedData.scheduledDate) {
+      updateData.scheduledDate = new Date(validatedData.scheduledDate);
+    }
+    
+    // Handle password - only save if visibility is password
+    if (validatedData.visibility === 'password' && validatedData.password) {
+      updateData.password = validatedData.password;
+    }
+    
+    // Convert productDataMetaBox.variations → variants array if variations exist
+    // Merge with existing productDataMetaBox if it exists
+    const mergedProductDataMetaBox = {
+      ...product.productDataMetaBox,
+      ...updateData.productDataMetaBox,
+    };
+    
+    if (mergedProductDataMetaBox?.variations && mergedProductDataMetaBox.variations.length > 0) {
+      const convertedVariants = mergedProductDataMetaBox.variations.map((variation: any) => {
+        // Extract size and color from attributes
+        let size = '';
+        let color = '';
+        let colorCode = '';
+        
+        if (variation.attributes) {
+          Object.entries(variation.attributes).forEach(([attrName, value]) => {
+            const attrNameLower = attrName.toLowerCase();
+            if (attrNameLower.includes('size') || attrNameLower === 'pa_size' || attrNameLower === 'kích thước') {
+              size = String(value);
+            } else if (attrNameLower.includes('color') || attrNameLower === 'pa_color' || attrNameLower === 'màu') {
+              color = String(value);
+            }
+          });
+        }
+        
+        // Use salePrice if available and valid, otherwise use regularPrice
+        const price = variation.salePrice && variation.regularPrice && variation.salePrice < variation.regularPrice
+          ? variation.salePrice
+          : variation.regularPrice || 0;
+        
+        return {
+          id: variation.id || `var_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          size,
+          color: color || undefined,
+          colorCode: colorCode || undefined,
+          price,
+          stock: variation.stockQuantity || 0,
+          image: variation.image || undefined,
+          sku: variation.sku || undefined,
+        };
+      });
+      
+      // Set variants array (will be used by frontend)
+      updateData.variants = convertedVariants;
+    } else if (updateData.productDataMetaBox && !updateData.productDataMetaBox.variations) {
+      // If productDataMetaBox is being updated but variations is empty/undefined, clear variants
+      updateData.variants = [];
+    }
+    
+    // Auto-generate alt text for images (Auto-Alt Text feature)
+    const siteName = 'Shop Gấu Bông';
+    const productName = validatedData.name || product.name;
+    
+    // Initialize mediaExtended if not exists
+    if (!updateData.mediaExtended) {
+      updateData.mediaExtended = product.mediaExtended || {};
+    }
+    if (!updateData.mediaExtended.imageAltTexts) {
+      updateData.mediaExtended.imageAltTexts = product.mediaExtended?.imageAltTexts || {};
+    }
+    
+    // Generate alt text for featured image if _thumbnail_id is updated
+    if (validatedData._thumbnail_id && validatedData._thumbnail_id !== product._thumbnail_id) {
+      const featuredAlt = generateImageAltText(
+        updateData.mediaExtended.imageAltTexts[validatedData._thumbnail_id],
+        productName,
+        siteName
+      );
+      updateData.mediaExtended.imageAltTexts[validatedData._thumbnail_id] = featuredAlt;
+    }
+    
+    // Generate alt text for gallery images if _product_image_gallery is updated
+    if (validatedData._product_image_gallery && validatedData._product_image_gallery !== product._product_image_gallery) {
+      const galleryIds = validatedData._product_image_gallery.split(',').filter(Boolean);
+      galleryIds.forEach((imageId: string) => {
+        const trimmedId = imageId.trim();
+        if (trimmedId && !updateData.mediaExtended.imageAltTexts[trimmedId]) {
+          const galleryAlt = generateImageAltText(
+            undefined,
+            productName,
+            siteName
+          );
+          updateData.mediaExtended.imageAltTexts[trimmedId] = galleryAlt;
+        }
+      });
+    }
+    
+    // Generate and update Product Schema (JSON-LD)
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://shop-gaubong.com';
+    // Merge updateData with existing product data for schema generation
+    const productForSchema = { ...product, ...updateData };
+    const productJsonLdSchema = generateProductSchemaFromData(productForSchema, siteUrl);
+    if (productJsonLdSchema) {
+      updateData._productSchema = productJsonLdSchema; // Update schema in database
+    }
+    
+    // Prepare update operation
+    const updateOperation: any = { $set: updateData };
+    
+    // Handle removal of scheduledDate and password if needed
+    if (validatedData.scheduledDate === null || validatedData.scheduledDate === undefined) {
+      if (!updateOperation.$unset) updateOperation.$unset = {};
+      updateOperation.$unset.scheduledDate = '';
+    }
+    
+    if (validatedData.visibility !== 'password' && product.password) {
+      // Remove password if visibility changed from password to something else
+      if (!updateOperation.$unset) updateOperation.$unset = {};
+      updateOperation.$unset.password = '';
+    }
+    
     // Update product
     await products.updateOne(
       { _id: productId },
-      { $set: updateData }
+      updateOperation
     );
     
     // Fetch updated product
@@ -299,7 +538,13 @@ export async function DELETE(
     }
     
     const { products } = await getCollections();
-    const { id } = params;
+    let { id } = params;
+    
+    // Extract ObjectId from GraphQL format if needed (backward compatibility)
+    // Format: gid://shop-gau-bong/Product/OBJECT_ID
+    if (id.startsWith('gid://shop-gau-bong/Product/')) {
+      id = id.replace('gid://shop-gau-bong/Product/', '');
+    }
     
     // Find product
     let productId: ObjectId | null = null;

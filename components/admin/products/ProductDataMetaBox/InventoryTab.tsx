@@ -29,6 +29,19 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
   const [skuError, setSkuError] = useState<string | null>(null);
   const [skuValid, setSkuValid] = useState<boolean | null>(null);
 
+  // Sync local SKU value with parent state
+  useEffect(() => {
+    const stateSku = state.sku || '';
+    if (stateSku !== skuValue) {
+      setSkuValue(stateSku);
+      // Only reset validation if SKU actually changed (not just empty to empty)
+      if (stateSku !== '' || skuValue !== '') {
+        setSkuValid(null);
+        setSkuError(null);
+      }
+    }
+  }, [state.sku]); // Remove skuValue from deps to prevent loop
+
   // Debounce SKU validation
   useEffect(() => {
     if (!skuValue.trim()) {
@@ -152,11 +165,16 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
             id="manage-stock"
             checked={state.manageStock}
             onCheckedChange={(checked) => {
-              onUpdate({ manageStock: checked === true });
+              // Batch updates to prevent multiple onChange calls
+              const updates: Partial<ProductDataMetaBoxState> = {
+                manageStock: checked === true,
+              };
               // Reset stock quantity if unchecking
               if (!checked) {
-                onUpdate({ stockQuantity: undefined, lowStockThreshold: undefined });
+                updates.stockQuantity = undefined;
+                updates.lowStockThreshold = undefined;
               }
+              onUpdate(updates);
             }}
           />
           <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors">

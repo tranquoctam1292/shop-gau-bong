@@ -6,11 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
-import { Upload, X, Image as ImageIcon, Video, File, Loader2 } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, Video, File, Loader2, Link as LinkIcon } from 'lucide-react';
+import { convertVideoUrlToEmbed, isAllowedVideoDomain } from '@/lib/utils/videoEmbed';
 
-interface MediaItem {
+export interface MediaItem {
   id: string;
   url: string;
+  thumbnail_url?: string; // Thumbnail URL for images
   type: 'image' | 'video' | 'file';
   alt?: string;
   title?: string;
@@ -21,7 +23,11 @@ interface MediaItem {
 interface MediaLibraryModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onInsert: (html: string) => void;
+  onInsert?: (html: string) => void; // For editor mode (legacy)
+  onSelect?: (items: MediaItem | MediaItem[]) => void; // For image selection mode (new)
+  mode?: 'single' | 'multiple'; // Selection mode: single for featured image, multiple for gallery
+  selectedIds?: string[]; // Pre-select existing images by IDs (for gallery mode)
+  buttonText?: string; // Custom button text (default: "Chèn vào bài viết" or "Thiết lập ảnh sản phẩm")
 }
 
 /**
@@ -32,9 +38,20 @@ interface MediaLibraryModalProps {
  * - Attachment Details sidebar
  * - Display Settings (alignment, link, size)
  */
-export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryModalProps) {
-  const [activeTab, setActiveTab] = useState<'upload' | 'library'>('upload');
+export function MediaLibraryModal({ 
+  isOpen, 
+  onClose, 
+  onInsert,
+  onSelect,
+  mode = 'single',
+  selectedIds = [],
+  buttonText,
+}: MediaLibraryModalProps) {
+  const [activeTab, setActiveTab] = useState<'upload' | 'library' | 'url'>('upload');
+  const [videoUrl, setVideoUrl] = useState('');
+  const [videoAltText, setVideoAltText] = useState('');
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
+  const [selectedMediaMultiple, setSelectedMediaMultiple] = useState<MediaItem[]>([]); // For multiple selection
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
@@ -59,6 +76,7 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
     if (!isOpen) {
       // Reset all state when modal closes
       setSelectedMedia(null);
+      setSelectedMediaMultiple([]);
       setAltText('');
       setTitle('');
       setCaption('');
@@ -71,6 +89,18 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
       setActiveTab('upload');
     }
   }, [isOpen]);
+
+  // Pre-select existing images when modal opens
+  useEffect(() => {
+    if (isOpen && selectedIds.length > 0 && mediaItems.length > 0) {
+      const preSelected = mediaItems.filter(item => selectedIds.includes(item.id));
+      if (mode === 'multiple') {
+        setSelectedMediaMultiple(preSelected);
+      } else if (preSelected.length > 0) {
+        setSelectedMedia(preSelected[0]);
+      }
+    }
+  }, [isOpen, selectedIds, mediaItems, mode]);
 
   // Load media library on mount
   useEffect(() => {
@@ -105,34 +135,43 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
       }
 
       try {
-        // Convert to data URL (in production, upload to server)
-        const dataUrl = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const result = e.target?.result;
-            if (typeof result === 'string') {
-              resolve(result);
-            } else {
-              reject(new Error('Failed to read file as data URL'));
-            }
-          };
-          reader.onerror = () => reject(new Error('FileReader error'));
-          reader.readAsDataURL(file);
+        // Upload to Vercel Blob via API
+        setUploadProgress((prev) => ({ ...prev, [fileId]: 0 }));
+        
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', file);
+
+        const uploadResponse = await fetch('/api/admin/media/upload', {
+          method: 'POST',
+          body: uploadFormData,
         });
 
+        if (!uploadResponse.ok) {
+          const errorData = await uploadResponse.json();
+          throw new Error(errorData.error || 'Upload failed');
+        }
+
+        const uploadResult = await uploadResponse.json();
+        setUploadProgress((prev) => ({ ...prev, [fileId]: 100 }));
+
         const mediaItem: MediaItem = {
-          id: fileId,
-          url: dataUrl,
-          type: file.type.startsWith('image/') ? 'image' : 'video',
-          title: file.name.replace(/\.[^/.]+$/, ''), // Remove extension from title
-          alt: file.name.replace(/\.[^/.]+$/, ''),
+          id: uploadResult.id || fileId,
+          url: uploadResult.url,
+          thumbnail_url: uploadResult.thumbnail_url || (file.type.startsWith('image/') ? uploadResult.url : undefined),
+          type: uploadResult.type || (file.type.startsWith('image/') ? 'image' : 'video'),
+          title: uploadResult.title || file.name.replace(/\.[^/.]+$/, ''),
+          alt: uploadResult.alt || file.name.replace(/\.[^/.]+$/, ''),
         };
 
         newItems.push(mediaItem);
-        setUploadProgress((prev) => ({ ...prev, [fileId]: 100 }));
       } catch (error) {
-        console.error(`Error reading file ${file.name}:`, error);
-        alert(`Không thể đọc file ${file.name}. Vui lòng thử lại.`);
+        console.error(`Error uploading file ${file.name}:`, error);
+        alert(`Không thể upload file ${file.name}: ${error instanceof Error ? error.message : 'Lỗi không xác định'}. Vui lòng thử lại.`);
+        setUploadProgress((prev) => {
+          const next = { ...prev };
+          delete next[fileId];
+          return next;
+        });
       }
     }
 
@@ -142,9 +181,13 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
 
     // Auto-select first uploaded item
     if (newItems.length > 0) {
-      setSelectedMedia(newItems[0]);
-      setAltText(newItems[0].alt || '');
-      setTitle(newItems[0].title || '');
+      if (mode === 'multiple') {
+        setSelectedMediaMultiple(prev => [...prev, ...newItems]);
+      } else {
+        setSelectedMedia(newItems[0]);
+        setAltText(newItems[0].alt || '');
+        setTitle(newItems[0].title || '');
+      }
     }
   };
 
@@ -158,7 +201,46 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
     e.preventDefault();
   };
 
+  const handleMediaClick = (item: MediaItem) => {
+    if (mode === 'multiple') {
+      // Toggle selection in multiple mode
+      const isSelected = selectedMediaMultiple.some(m => m.id === item.id);
+      if (isSelected) {
+        setSelectedMediaMultiple(prev => prev.filter(m => m.id !== item.id));
+      } else {
+        setSelectedMediaMultiple(prev => [...prev, item]);
+      }
+    } else {
+      // Single selection mode
+      setSelectedMedia(item);
+      setAltText(item.alt || '');
+      setTitle(item.title || '');
+      setCaption(item.caption || '');
+      setDescription(item.description || '');
+    }
+  };
+
   const handleInsert = () => {
+    // If onSelect is provided (image selection mode), use it
+    if (onSelect) {
+      if (mode === 'multiple') {
+        if (selectedMediaMultiple.length === 0) {
+          alert('Vui lòng chọn ít nhất một ảnh');
+          return;
+        }
+        onSelect(selectedMediaMultiple);
+      } else {
+        if (!selectedMedia) {
+          alert('Vui lòng chọn một ảnh');
+          return;
+        }
+        onSelect(selectedMedia);
+      }
+      onClose();
+      return;
+    }
+
+    // Legacy mode: onInsert (for editor)
     if (!selectedMedia) {
       alert('Vui lòng chọn một media item');
       return;
@@ -201,21 +283,69 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
 
       // Add caption if provided (WordPress-style caption)
       if (caption) {
-        // WordPress caption format: [caption id="attachment_123" align="aligncenter" width="300"]<img ... /> Caption text[/caption]
-        // Note: This is a shortcode format, not pure HTML. May need server-side processing.
-        // When caption is used, we need to use the original imgTag (not wrapped in link)
-        // because caption shortcode wraps everything
         const captionId = selectedMedia.id ? `id="attachment_${selectedMedia.id}"` : '';
         const alignClass = alignment !== 'none' ? `align${alignment}` : 'aligncenter';
-        // Caption shortcode wraps the image, so use imgTag directly (not the html that may have link)
         html = `[caption ${captionId} align="${alignClass}" width="300"]${imgTag} ${caption}[/caption]`;
       }
     } else if (selectedMedia.type === 'video') {
-      html = `<video src="${selectedMedia.url}" controls></video>`;
+      // Check if it's an embeddable video URL (YouTube, Vimeo, etc.)
+      const embedHtml = convertVideoUrlToEmbed(selectedMedia.url);
+      if (embedHtml) {
+        html = embedHtml;
+      } else {
+        // Regular video file
+        html = `<video src="${selectedMedia.url}" controls></video>`;
+      }
     }
 
-    onInsert(html);
+    onInsert?.(html);
     onClose();
+  };
+
+  const handleInsertFromUrl = () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/b261569c-76a6-4f8c-839c-264dc5457f92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MediaLibraryModal.tsx:297',message:'handleInsertFromUrl called',data:{videoUrl:videoUrl.substring(0,100)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    
+    if (!videoUrl.trim()) {
+      alert('Vui lòng nhập URL video');
+      return;
+    }
+
+    // Validate URL
+    try {
+      new URL(videoUrl);
+    } catch {
+      alert('URL không hợp lệ');
+      return;
+    }
+
+    // Check if it's an embeddable video URL
+    const embedHtml = convertVideoUrlToEmbed(videoUrl.trim());
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/b261569c-76a6-4f8c-839c-264dc5457f92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MediaLibraryModal.tsx:312',message:'convertVideoUrlToEmbed result',data:{hasEmbedHtml:!!embedHtml},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+    // #endregion
+    
+    if (embedHtml) {
+      // Insert video embed
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/b261569c-76a6-4f8c-839c-264dc5457f92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MediaLibraryModal.tsx:315',message:'Calling onInsert with embedHtml',data:{embedHtmlLength:embedHtml.length,hasOnInsert:!!onInsert},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
+      // #endregion
+      onInsert?.(embedHtml);
+      setVideoUrl('');
+      setVideoAltText('');
+      onClose();
+    } else if (isAllowedVideoDomain(videoUrl)) {
+      // Direct video file URL
+      const altAttr = videoAltText ? ` alt="${videoAltText}"` : '';
+      const html = `<video src="${videoUrl.trim()}" controls${altAttr}></video>`;
+      onInsert?.(html);
+      setVideoUrl('');
+      setVideoAltText('');
+      onClose();
+    } else {
+      alert('URL video không được hỗ trợ. Vui lòng sử dụng YouTube, Vimeo, TikTok hoặc URL video trực tiếp (mp4).');
+    }
   };
 
   if (!isOpen) return null;
@@ -259,6 +389,18 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
             }`}
           >
             Thư viện Media
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('url')}
+            className={`px-4 py-2 text-sm font-medium ${
+              activeTab === 'url'
+                ? 'border-b-2 border-primary text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <LinkIcon className="h-4 w-4 inline mr-1" />
+            Chèn từ URL
           </button>
         </div>
 
@@ -305,6 +447,50 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
                   )}
                 </Button>
               </div>
+            ) : activeTab === 'url' ? (
+              <div className="space-y-4 max-w-2xl mx-auto">
+                <div>
+                  <Label htmlFor="videoUrl">URL Video</Label>
+                  <Input
+                    id="videoUrl"
+                    type="url"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                    placeholder="https://www.youtube.com/watch?v=... hoặc https://vimeo.com/..."
+                    className="mt-2"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Hỗ trợ: YouTube, Vimeo, TikTok, hoặc URL video trực tiếp (mp4)
+                  </p>
+                </div>
+                <div>
+                  <Label htmlFor="videoAltText">Alt Text (tùy chọn)</Label>
+                  <Input
+                    id="videoAltText"
+                    type="text"
+                    value={videoAltText}
+                    onChange={(e) => setVideoAltText(e.target.value)}
+                    placeholder="Mô tả video cho người dùng khiếm thị"
+                    className="mt-2"
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={onClose}
+                  >
+                    Hủy
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleInsertFromUrl}
+                    disabled={!videoUrl.trim()}
+                  >
+                    Chèn video
+                  </Button>
+                </div>
+              </div>
             ) : (
               <div>
                 {mediaItems.length === 0 ? (
@@ -314,36 +500,41 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
                   </div>
                 ) : (
                   <div className="grid grid-cols-4 gap-4">
-                    {mediaItems.map((item) => (
-                      <div
-                        key={item.id}
-                        onClick={() => {
-                          setSelectedMedia(item);
-                          setAltText(item.alt || '');
-                          setTitle(item.title || '');
-                          setCaption(item.caption || '');
-                          setDescription(item.description || '');
-                        }}
-                        className={`cursor-pointer border-2 rounded-lg overflow-hidden transition-all ${
-                          selectedMedia?.id === item.id
-                            ? 'border-primary ring-2 ring-primary'
-                            : 'border-input hover:border-primary/50'
-                        }`}
-                      >
-                        {item.type === 'image' ? (
-                          <img
-                            src={item.url}
-                            alt={item.alt || ''}
-                            className="w-full h-32 object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-32 bg-muted flex items-center justify-center">
-                            <Video className="h-8 w-8 text-muted-foreground" />
-                          </div>
-                        )}
-                        <div className="p-2 text-xs truncate">{item.title}</div>
-                      </div>
-                    ))}
+                    {mediaItems.map((item) => {
+                      const isSelected = mode === 'multiple' 
+                        ? selectedMediaMultiple.some(m => m.id === item.id)
+                        : selectedMedia?.id === item.id;
+                      
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => handleMediaClick(item)}
+                          className={`cursor-pointer border-2 rounded-lg overflow-hidden transition-all ${
+                            isSelected
+                              ? 'border-primary ring-2 ring-primary'
+                              : 'border-input hover:border-primary/50'
+                          }`}
+                        >
+                          {item.type === 'image' ? (
+                            <img
+                              src={item.url}
+                              alt={item.alt || ''}
+                              className="w-full h-32 object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-32 bg-muted flex items-center justify-center">
+                              <Video className="h-8 w-8 text-muted-foreground" />
+                            </div>
+                          )}
+                          <div className="p-2 text-xs truncate">{item.title}</div>
+                          {isSelected && mode === 'multiple' && (
+                            <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs">
+                              {selectedMediaMultiple.findIndex(m => m.id === item.id) + 1}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -351,27 +542,33 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
           </div>
 
           {/* Attachment Details Sidebar */}
-          {selectedMedia && (
+          {(selectedMedia || (mode === 'multiple' && selectedMediaMultiple.length > 0)) && (
             <div className="w-80 border-l p-4 overflow-y-auto">
-              <h3 className="font-semibold mb-4">Chi tiết đính kèm</h3>
+              <h3 className="font-semibold mb-4">
+                {mode === 'multiple' 
+                  ? `Đã chọn ${selectedMediaMultiple.length} ảnh`
+                  : 'Chi tiết đính kèm'}
+              </h3>
 
-              {/* Preview */}
-              <div className="mb-4">
-                {selectedMedia.type === 'image' ? (
-                  <img
-                    src={selectedMedia.url}
-                    alt={selectedMedia.alt || ''}
-                    className="w-full rounded-lg"
-                  />
-                ) : (
-                  <div className="w-full aspect-video bg-muted rounded-lg flex items-center justify-center">
-                    <Video className="h-12 w-12 text-muted-foreground" />
+              {/* Preview - Only show in single mode or first selected in multiple mode */}
+              {mode === 'single' && selectedMedia && (
+                <>
+                  <div className="mb-4">
+                    {selectedMedia.type === 'image' ? (
+                      <img
+                        src={selectedMedia.url}
+                        alt={selectedMedia.alt || ''}
+                        className="w-full rounded-lg"
+                      />
+                    ) : (
+                      <div className="w-full aspect-video bg-muted rounded-lg flex items-center justify-center">
+                        <Video className="h-12 w-12 text-muted-foreground" />
+                      </div>
+                    )}
                   </div>
-                )}
-              </div>
 
-              {/* Metadata Fields */}
-              <div className="space-y-4">
+                  {/* Metadata Fields - Only in single mode */}
+                  <div className="space-y-4">
                 <div>
                   <Label htmlFor="media-alt">Văn bản thay thế (Alt Text)</Label>
                   <Input
@@ -413,79 +610,111 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
                     className="mt-1 w-full min-h-[80px] rounded-md border border-input bg-background px-3 py-2 text-sm"
                     placeholder="Mô tả chi tiết"
                   />
-                </div>
-              </div>
-
-              {/* Display Settings */}
-              <div className="mt-6 pt-6 border-t space-y-4">
-                <h3 className="font-semibold mb-4">Thiết lập hiển thị</h3>
-
-                <div>
-                  <Label htmlFor="media-alignment">Căn chỉnh</Label>
-                  <Select
-                    id="media-alignment"
-                    value={alignment}
-                    onChange={(e) => setAlignment(e.target.value as typeof alignment)}
-                    className="mt-1"
-                  >
-                    <option value="none">Không</option>
-                    <option value="left">Trái</option>
-                    <option value="center">Giữa</option>
-                    <option value="right">Phải</option>
-                  </Select>
+                  </div>
                 </div>
 
-                <div>
-                  <Label htmlFor="media-link">Liên kết tới</Label>
-                  <Select
-                    id="media-link"
-                    value={linkTo}
-                    onChange={(e) => setLinkTo(e.target.value as typeof linkTo)}
-                    className="mt-1"
-                  >
-                    <option value="none">Không</option>
-                    <option value="file">Tập tin đa phương tiện</option>
-                    <option value="attachment">Trang đính kèm</option>
-                    <option value="custom">Tùy chỉnh URL</option>
-                  </Select>
-                </div>
+                {/* Display Settings - Only in single mode and when onInsert is used */}
+                {onInsert && (
+                  <div className="mt-6 pt-6 border-t space-y-4">
+                    <h3 className="font-semibold mb-4">Thiết lập hiển thị</h3>
 
-                {linkTo === 'custom' && (
-                  <div>
-                    <Label htmlFor="media-custom-url">URL tùy chỉnh</Label>
-                    <Input
-                      id="media-custom-url"
-                      value={customUrl}
-                      onChange={(e) => setCustomUrl(e.target.value)}
-                      className="mt-1"
-                      placeholder="https://..."
-                      type="url"
-                    />
-                    {customUrl && !customUrl.match(/^https?:\/\//) && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        URL nên bắt đầu với http:// hoặc https://
-                      </p>
+                    <div>
+                      <Label htmlFor="media-alignment">Căn chỉnh</Label>
+                      <Select
+                        id="media-alignment"
+                        value={alignment}
+                        onChange={(e) => setAlignment(e.target.value as typeof alignment)}
+                        className="mt-1"
+                      >
+                        <option value="none">Không</option>
+                        <option value="left">Trái</option>
+                        <option value="center">Giữa</option>
+                        <option value="right">Phải</option>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="media-link">Liên kết tới</Label>
+                      <Select
+                        id="media-link"
+                        value={linkTo}
+                        onChange={(e) => setLinkTo(e.target.value as typeof linkTo)}
+                        className="mt-1"
+                      >
+                        <option value="none">Không</option>
+                        <option value="file">Tập tin đa phương tiện</option>
+                        <option value="attachment">Trang đính kèm</option>
+                        <option value="custom">Tùy chỉnh URL</option>
+                      </Select>
+                    </div>
+
+                    {linkTo === 'custom' && (
+                      <div>
+                        <Label htmlFor="media-custom-url">URL tùy chỉnh</Label>
+                        <Input
+                          id="media-custom-url"
+                          value={customUrl}
+                          onChange={(e) => setCustomUrl(e.target.value)}
+                          className="mt-1"
+                          placeholder="https://..."
+                          type="url"
+                        />
+                        {customUrl && !customUrl.match(/^https?:\/\//) && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            URL nên bắt đầu với http:// hoặc https://
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {selectedMedia.type === 'image' && (
+                      <div>
+                        <Label htmlFor="media-size">Kích cỡ</Label>
+                        <Select
+                          id="media-size"
+                          value={size}
+                          onChange={(e) => setSize(e.target.value as typeof size)}
+                          className="mt-1"
+                        >
+                          <option value="thumbnail">Thumbnail (150x150)</option>
+                          <option value="medium">Medium (300x300)</option>
+                          <option value="large">Large (1024x1024)</option>
+                          <option value="full">Full Size</option>
+                        </Select>
+                      </div>
                     )}
                   </div>
                 )}
+                </>
+              )}
 
-                {selectedMedia.type === 'image' && (
-                  <div>
-                    <Label htmlFor="media-size">Kích cỡ</Label>
-                    <Select
-                      id="media-size"
-                      value={size}
-                      onChange={(e) => setSize(e.target.value as typeof size)}
-                      className="mt-1"
-                    >
-                      <option value="thumbnail">Thumbnail (150x150)</option>
-                      <option value="medium">Medium (300x300)</option>
-                      <option value="large">Large (1024x1024)</option>
-                      <option value="full">Full Size</option>
-                    </Select>
-                  </div>
-                )}
-              </div>
+              {/* Multiple selection preview */}
+              {mode === 'multiple' && selectedMediaMultiple.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {selectedMediaMultiple.map((item) => (
+                    <div key={item.id} className="relative">
+                      {item.type === 'image' ? (
+                        <img
+                          src={item.thumbnail_url || item.url}
+                          alt={item.alt || ''}
+                          className="w-full rounded-lg"
+                        />
+                      ) : (
+                        <div className="w-full aspect-square bg-muted rounded-lg flex items-center justify-center">
+                          <Video className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMediaMultiple(prev => prev.filter(m => m.id !== item.id))}
+                        className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-destructive/90"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -498,9 +727,15 @@ export function MediaLibraryModal({ isOpen, onClose, onInsert }: MediaLibraryMod
           <Button
             type="button"
             onClick={handleInsert}
-            disabled={!selectedMedia}
+            disabled={
+              mode === 'multiple' 
+                ? selectedMediaMultiple.length === 0
+                : !selectedMedia
+            }
           >
-            Chèn vào bài viết
+            {buttonText || (mode === 'single' 
+              ? (onSelect ? 'Thiết lập ảnh sản phẩm' : 'Chèn vào bài viết')
+              : (onSelect ? 'Thêm vào thư viện' : 'Chèn vào bài viết'))}
           </Button>
         </div>
       </div>

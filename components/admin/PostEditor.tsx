@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save, Eye, Bold, Italic, List, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
+import { generateSlug } from '@/lib/utils/slug';
 
 interface PostFormData {
   title: string;
@@ -102,12 +103,7 @@ export function PostEditor({ postId, initialData }: PostEditorProps) {
   // Auto-generate slug from title
   useEffect(() => {
     if (!postId && formData.title && !formData.slug) {
-      const slug = formData.title
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+      const slug = generateSlug(formData.title);
       setFormData((prev) => ({ ...prev, slug }));
     }
   }, [formData.title, postId]);

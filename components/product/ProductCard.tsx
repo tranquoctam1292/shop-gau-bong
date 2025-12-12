@@ -12,6 +12,7 @@ import type { MappedProduct } from '@/lib/utils/productMapper';
 import { ShoppingCart, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getColorHex } from '@/lib/utils/colorMapping';
+import { generateSlug } from '@/lib/utils/slug';
 import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
 
 interface ProductCardProps {
@@ -136,13 +137,7 @@ export function ProductCard({ product }: ProductCardProps) {
     
     // Helper function để tạo slug từ attribute name
     const createAttributeSlug = (name: string): string => {
-      return name.toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/đ/g, 'd')
-        .replace(/Đ/g, 'D')
-        .replace(/\s+/g, '-')
-        .replace(/[^a-z0-9-]/g, '');
+      return generateSlug(name);
     };
     
     // Thêm size attribute nếu có

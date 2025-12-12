@@ -14,6 +14,11 @@ export interface ProductSchema {
   brand?: string;
   category?: string;
   url?: string;
+  // Additional properties for variants (e.g., Size)
+  additionalProperties?: Array<{
+    name: string;
+    value: string;
+  }>;
 }
 
 export interface OrganizationSchema {
@@ -62,6 +67,15 @@ export function generateProductSchema(product: ProductSchema): object {
       availability: `https://schema.org/${product.availability || 'InStock'}`,
       url: product.url,
     };
+  }
+
+  // Add additional properties (e.g., Size for variants)
+  if (product.additionalProperties && product.additionalProperties.length > 0) {
+    schema.additionalProperty = product.additionalProperties.map(prop => ({
+      '@type': 'PropertyValue',
+      name: prop.name,
+      value: prop.value,
+    }));
   }
 
   return schema;

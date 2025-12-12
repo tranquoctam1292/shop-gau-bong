@@ -11,7 +11,7 @@ import { useRouter } from 'next/navigation';
 interface ProductLinksBoxProps {
   slug: string;
   productId?: string;
-  status?: 'draft' | 'publish';
+  status?: 'draft' | 'publish' | 'trash';
   onSlugChange: (slug: string) => void;
 }
 

@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save } from 'lucide-react';
+import { generateSlug } from '@/lib/utils/slug';
 import type { MappedCategory } from '@/lib/utils/productMapper';
 
 interface CategoryFormData {
@@ -56,12 +57,7 @@ export function CategoryForm({ categoryId, initialData }: CategoryFormProps) {
   // Auto-generate slug from name
   useEffect(() => {
     if (!categoryId && formData.name && !formData.slug) {
-      const slug = formData.name
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+      const slug = generateSlug(formData.name);
       setFormData((prev) => ({ ...prev, slug }));
     }
   }, [formData.name, categoryId]);

@@ -130,6 +130,9 @@ export interface Collections {
   // Phase 5: Reviews & Analytics
   productReviews: Collection;
   productAnalytics: Collection;
+  // Global Attributes System
+  productAttributes: Collection;
+  productAttributeTerms: Collection;
 }
 
 /**
@@ -160,6 +163,12 @@ export async function getCollections(): Promise<Collections> {
     postTags: db.collection('post_tags'),
     // Phase 4: Product templates (optional)
     productTemplates: db.collection('product_templates'),
+    // Phase 5: Reviews & Analytics
+    productReviews: db.collection('product_reviews'),
+    productAnalytics: db.collection('product_analytics'),
+    // Global Attributes System
+    productAttributes: db.collection('product_attributes'),
+    productAttributeTerms: db.collection('product_attribute_terms'),
   };
 }
 

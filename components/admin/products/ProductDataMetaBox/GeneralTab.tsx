@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,14 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
   const [showSchedule, setShowSchedule] = useState(
     !!(state.salePriceStartDate || state.salePriceEndDate)
   );
+
+  // Validate salePrice < regularPrice on mount/update
+  useEffect(() => {
+    if (state.salePrice !== undefined && state.regularPrice !== undefined && state.salePrice >= state.regularPrice) {
+      // Auto-fix: clear invalid salePrice
+      onUpdate({ salePrice: undefined });
+    }
+  }, [state.salePrice, state.regularPrice, onUpdate]);
 
   // Calculate profit in real-time
   const profit = useMemo(() => {
@@ -67,7 +75,9 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
     const numValue = value === '' ? undefined : parseFloat(value);
     
     // Validation
-    if (numValue !== undefined && numValue < 0) return;
+    if (numValue !== undefined && numValue < 0) {
+      return;
+    }
     
     // Sale price must be less than regular price
     if (field === 'salePrice' && numValue !== undefined && state.regularPrice && numValue >= state.regularPrice) {

@@ -9,12 +9,16 @@ import Link from '@tiptap/extension-link';
 // import TextAlign from '@tiptap/extension-text-align';
 // import Underline from '@tiptap/extension-underline';
 import Placeholder from '@tiptap/extension-placeholder';
+import { Iframe, VideoEmbedWrapper } from '@/lib/tiptap/extensions/Iframe';
+import { convertVideoUrlToEmbed, isStandaloneVideoUrl } from '@/lib/utils/videoEmbed';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { MediaLibraryModal } from './MediaLibraryModal';
+import { InlineImageToolbar } from './InlineImageToolbar';
+import { ImageEditorErrorBoundary } from './ImageEditorErrorBoundary';
 import {
   Bold,
   Italic,
@@ -60,7 +64,10 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
   const [showToolbarRow2, setShowToolbarRow2] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [textContent, setTextContent] = useState(value);
+  const [isToolbarSticky, setIsToolbarSticky] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   // Initialize Tiptap editor for Visual mode
   const editor = useEditor({
@@ -70,7 +77,61 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
           levels: [1, 2, 3, 4, 5, 6],
         },
       }),
-      Image.configure({
+      Image.extend({
+        addAttributes() {
+          return {
+            ...this.parent?.(),
+            class: {
+              default: null,
+              parseHTML: element => element.getAttribute('class'),
+              renderHTML: attributes => {
+                if (!attributes.class) {
+                  return {};
+                }
+                return {
+                  class: attributes.class,
+                };
+              },
+            },
+            style: {
+              default: null,
+              parseHTML: element => element.getAttribute('style'),
+              renderHTML: attributes => {
+                if (!attributes.style) {
+                  return {};
+                }
+                return {
+                  style: attributes.style,
+                };
+              },
+            },
+            width: {
+              default: null,
+              parseHTML: element => element.getAttribute('width'),
+              renderHTML: attributes => {
+                if (!attributes.width) {
+                  return {};
+                }
+                return {
+                  width: attributes.width,
+                };
+              },
+            },
+            height: {
+              default: null,
+              parseHTML: element => element.getAttribute('height'),
+              renderHTML: attributes => {
+                if (!attributes.height) {
+                  return {};
+                }
+                return {
+                  height: attributes.height,
+                };
+              },
+            },
+          };
+        },
+      }).configure({
         inline: true,
         allowBase64: true,
         HTMLAttributes: {
@@ -85,6 +146,9 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
           rel: 'noopener noreferrer',
         },
       }),
+      // Video Embed extensions for video embeds
+      VideoEmbedWrapper,
+      Iframe,
       // TextAlign and Underline will be added when extensions are installed
       // TextAlign.configure({
       //   types: ['heading', 'paragraph'],
@@ -110,6 +174,116 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
       },
     },
   });
+
+  // Handle paste events for video embedding
+  useEffect(() => {
+    if (!editor) return;
+
+    const handlePaste = (view: any, event: ClipboardEvent) => {
+      const clipboardData = event.clipboardData || (window as any).clipboardData;
+      if (!clipboardData) {
+        return false;
+      }
+
+      const pastedText = clipboardData.getData('text/plain');
+      if (!pastedText) return false;
+
+      // Check if pasted text is a standalone video URL
+      const isStandalone = isStandaloneVideoUrl(pastedText);
+      
+      if (isStandalone) {
+        const embedHtml = convertVideoUrlToEmbed(pastedText.trim());
+        
+        if (embedHtml) {
+          event.preventDefault();
+          // Insert video embed using editor commands
+          // Parse HTML to extract iframe and create proper node structure
+          setTimeout(() => {
+            
+            // Parse HTML to extract wrapper and iframe for proper node structure
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = embedHtml;
+            const wrapper = tempDiv.querySelector('div.video-embed-wrapper');
+            const iframe = wrapper?.querySelector('iframe');
+            
+            if (wrapper && iframe) {
+              // Extract attributes
+              const wrapperStyle = wrapper.getAttribute('style') || '';
+              const wrapperClass = wrapper.getAttribute('class') || 'video-embed-wrapper';
+              const iframeAttrs = {
+                src: iframe.getAttribute('src') || '',
+                frameborder: iframe.getAttribute('frameborder') || '0',
+                allowfullscreen: iframe.hasAttribute('allowfullscreen'),
+                allow: iframe.getAttribute('allow') || '',
+                style: iframe.getAttribute('style') || '',
+                class: iframe.getAttribute('class') || '',
+                width: iframe.getAttribute('width') || '100%',
+                height: iframe.getAttribute('height') || '400px',
+              };
+              
+              // Insert as proper node structure to avoid paragraph wrapping
+              editor.chain()
+                .focus()
+                .insertContent({
+                  type: 'videoEmbedWrapper',
+                  attrs: {
+                    style: wrapperStyle,
+                    class: wrapperClass,
+                  },
+                  content: [
+                    {
+                      type: 'iframe',
+                      attrs: iframeAttrs,
+                    },
+                  ],
+                })
+                .run();
+            } else {
+              // Fallback to raw HTML insert
+              editor.commands.insertContent(embedHtml);
+            }
+          }, 0);
+          return true;
+        }
+      }
+
+      // Check if pasted text contains video URLs on their own lines
+      const lines = pastedText.split('\n');
+      let hasVideoUrl = false;
+      let modifiedText = pastedText;
+
+      for (const line of lines) {
+        const trimmedLine = line.trim();
+        if (isStandaloneVideoUrl(trimmedLine)) {
+          const embedHtml = convertVideoUrlToEmbed(trimmedLine);
+          if (embedHtml) {
+            hasVideoUrl = true;
+            // Replace the line with embed HTML
+            modifiedText = modifiedText.replace(trimmedLine, embedHtml);
+          }
+        }
+      }
+
+      if (hasVideoUrl) {
+        event.preventDefault();
+        setTimeout(() => {
+          editor.commands.insertContent(modifiedText);
+        }, 0);
+        return true;
+      }
+
+      return false; // Let default paste handler handle it
+    };
+
+    // Register paste handler
+    editor.view.dom.addEventListener('paste', (e: ClipboardEvent) => {
+      handlePaste(editor.view, e);
+    });
+
+    return () => {
+      editor.view.dom.removeEventListener('paste', handlePaste as any);
+    };
+  }, [editor]);
 
   // Sync content when value prop changes (only if different to avoid loops)
   useEffect(() => {
@@ -144,6 +318,333 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]); // Only trigger on mode change, not editor or textContent
+
+  // Keyboard shortcuts handler
+  useEffect(() => {
+    if (!editor) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const ctrlKey = isMac ? event.metaKey : event.ctrlKey;
+      const altKey = event.altKey;
+      const shiftKey = event.shiftKey;
+
+      // System shortcuts (Ctrl/Cmd + ...)
+      if (ctrlKey && !altKey && !shiftKey) {
+        switch (event.key.toLowerCase()) {
+          case 'z':
+            if (!event.shiftKey) {
+              event.preventDefault();
+              if (mode === 'visual') {
+                editor.commands.undo();
+              }
+            }
+            break;
+          case 'y':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.redo();
+            }
+            break;
+          case 'a':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.selectAll();
+            } else if (textareaRef.current) {
+              textareaRef.current.select();
+            }
+            break;
+          case 'b':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.toggleBold();
+            } else {
+              insertQuickTag('<strong>', '</strong>');
+            }
+            break;
+          case 'i':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.toggleItalic();
+            } else {
+              insertQuickTag('<em>', '</em>');
+            }
+            break;
+          case 'u':
+            event.preventDefault();
+            if (mode === 'visual') {
+              const { from, to } = editor.state.selection;
+              const selectedText = editor.state.doc.textBetween(from, to);
+              if (selectedText) {
+                editor.chain().focus().deleteSelection().insertContent(`<u>${selectedText}</u>`).run();
+              } else {
+                editor.chain().focus().insertContent('<u></u>').run();
+              }
+            } else {
+              insertQuickTag('<u>', '</u>');
+            }
+            break;
+          case 'k':
+            event.preventDefault();
+            addLink();
+            break;
+          case '1':
+          case '2':
+          case '3':
+          case '4':
+          case '5':
+          case '6':
+            event.preventDefault();
+            if (mode === 'visual') {
+              const level = parseInt(event.key) as 1 | 2 | 3 | 4 | 5 | 6;
+              editor.commands.toggleHeading({ level });
+            }
+            break;
+          case '7':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.setParagraph();
+            }
+            break;
+        }
+      }
+
+      // Alt + Shift shortcuts
+      if (altKey && shiftKey && !ctrlKey) {
+        switch (event.key.toLowerCase()) {
+          case 'x':
+            event.preventDefault();
+            if (mode === 'visual') {
+              const { from, to } = editor.state.selection;
+              const selectedText = editor.state.doc.textBetween(from, to);
+              if (selectedText) {
+                editor.chain().focus().deleteSelection().insertContent(`<code>${selectedText}</code>`).run();
+              } else {
+                editor.chain().focus().insertContent('<code></code>').run();
+              }
+            } else {
+              insertQuickTag('<code>', '</code>');
+            }
+            break;
+          case 'd':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.toggleStrike();
+            } else {
+              insertQuickTag('<del>', '</del>');
+            }
+            break;
+          case 'q':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.toggleBlockquote();
+            } else {
+              insertQuickTag('<blockquote>', '</blockquote>');
+            }
+            break;
+          case 'u':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.toggleBulletList();
+            } else {
+              if (textareaRef.current) {
+                const textarea = textareaRef.current;
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const selectedText = textarea.value.substring(start, end);
+                if (selectedText) {
+                  const lines = selectedText.split('\n').filter(l => l.trim());
+                  const listItems = lines.map(line => `<li>${line}</li>`).join('\n');
+                  const newText = textarea.value.substring(0, start) + `<ul>\n${listItems}\n</ul>` + textarea.value.substring(end);
+                  setTextContent(newText);
+                  onChange(newText);
+                  textarea.value = newText;
+                  textarea.focus();
+                } else {
+                  insertQuickTag('<ul>\n<li>', '</li>\n</ul>');
+                }
+              }
+            }
+            break;
+          case 'o':
+            event.preventDefault();
+            if (mode === 'visual') {
+              editor.commands.toggleOrderedList();
+            } else {
+              if (textareaRef.current) {
+                const textarea = textareaRef.current;
+                const start = textarea.selectionStart;
+                const end = textarea.selectionEnd;
+                const selectedText = textarea.value.substring(start, end);
+                if (selectedText) {
+                  const lines = selectedText.split('\n').filter(l => l.trim());
+                  const listItems = lines.map(line => `<li>${line}</li>`).join('\n');
+                  const newText = textarea.value.substring(0, start) + `<ol>\n${listItems}\n</ol>` + textarea.value.substring(end);
+                  setTextContent(newText);
+                  onChange(newText);
+                  textarea.value = newText;
+                  textarea.focus();
+                } else {
+                  insertQuickTag('<ol>\n<li>', '</li>\n</ol>');
+                }
+              }
+            }
+            break;
+          case 'm':
+            event.preventDefault();
+            setShowMediaModal(true);
+            break;
+          case 'l':
+            event.preventDefault();
+            if (mode === 'visual' && editor) {
+              const { from, to } = editor.state.selection;
+              const selectedContent = editor.state.doc.textBetween(from, to);
+              if (selectedContent) {
+                editor.chain().focus().deleteSelection().insertContent(`<p style="text-align: left;">${selectedContent}</p>`).run();
+              } else {
+                editor.chain().focus().insertContent('<p style="text-align: left;"></p>').run();
+              }
+            }
+            break;
+          case 'c':
+            event.preventDefault();
+            if (mode === 'visual' && editor) {
+              const { from, to } = editor.state.selection;
+              const selectedContent = editor.state.doc.textBetween(from, to);
+              if (selectedContent) {
+                editor.chain().focus().deleteSelection().insertContent(`<p style="text-align: center;">${selectedContent}</p>`).run();
+              } else {
+                editor.chain().focus().insertContent('<p style="text-align: center;"></p>').run();
+              }
+            }
+            break;
+          case 'r':
+            event.preventDefault();
+            if (mode === 'visual' && editor) {
+              const { from, to } = editor.state.selection;
+              const selectedContent = editor.state.doc.textBetween(from, to);
+              if (selectedContent) {
+                editor.chain().focus().deleteSelection().insertContent(`<p style="text-align: right;">${selectedContent}</p>`).run();
+              } else {
+                editor.chain().focus().insertContent('<p style="text-align: right;"></p>').run();
+              }
+            }
+            break;
+          case 'j':
+            event.preventDefault();
+            if (mode === 'visual' && editor) {
+              const { from, to } = editor.state.selection;
+              const selectedContent = editor.state.doc.textBetween(from, to);
+              if (selectedContent) {
+                editor.chain().focus().deleteSelection().insertContent(`<p style="text-align: justify;">${selectedContent}</p>`).run();
+              } else {
+                editor.chain().focus().insertContent('<p style="text-align: justify;"></p>').run();
+              }
+            }
+            break;
+          case 'z':
+            event.preventDefault();
+            setShowToolbarRow2(!showToolbarRow2);
+            break;
+          case 'w':
+            // Distraction-free mode - Toggle fullscreen editor
+            event.preventDefault();
+            if (editor) {
+              const editorElement = editor.view.dom.closest('.border');
+              if (editorElement) {
+                if (document.fullscreenElement) {
+                  document.exitFullscreen();
+                } else {
+                  editorElement.requestFullscreen().catch(() => {
+                    // Fallback: Just hide/show toolbar
+                    setShowToolbarRow2(false);
+                  });
+                }
+              }
+            }
+            break;
+        }
+      }
+    };
+
+    const editorElement = editor.view.dom;
+    editorElement.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      editorElement.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [editor, mode, showToolbarRow2]);
+
+  // Handle sticky toolbar on scroll
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout | null = null;
+    let cleanup: (() => void) | null = null;
+
+    const setupScrollListener = () => {
+      if (!toolbarRef.current || !editorContainerRef.current) {
+        // Retry after a short delay
+        timeoutId = setTimeout(setupScrollListener, 100);
+        return;
+      }
+
+      const handleScroll = () => {
+        const toolbar = toolbarRef.current;
+        const container = editorContainerRef.current;
+        if (!toolbar || !container) return;
+
+        const toolbarRect = toolbar.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const scrollY = window.scrollY || window.pageYOffset;
+        
+        // Admin bar height (32px as per spec)
+        const adminBarHeight = 32;
+        
+        // Check if toolbar is scrolled out of view (above viewport)
+        const isToolbarOutOfView = toolbarRect.top < adminBarHeight;
+        
+        // Check if we're still within the editor container
+        // Toolbar should hide when we scroll past the container bottom or before container top
+        const containerTop = containerRect.top;
+        const containerBottom = containerRect.bottom;
+        const isWithinContainer = containerTop < window.innerHeight && containerBottom > adminBarHeight;
+        
+        // Show sticky toolbar when:
+        // 1. Original toolbar is scrolled out of view (above viewport)
+        // 2. We're still within the editor container
+        // 3. We've scrolled down (not at the top)
+        if (isToolbarOutOfView && isWithinContainer && scrollY > 0) {
+          setIsToolbarSticky(true);
+        } else {
+          setIsToolbarSticky(false);
+        }
+      };
+
+      // Listen to scroll events on window
+      window.addEventListener('scroll', handleScroll, { passive: true });
+      // Also check on initial load and resize
+      handleScroll();
+      window.addEventListener('resize', handleScroll, { passive: true });
+
+      // Store cleanup function
+      cleanup = () => {
+        window.removeEventListener('scroll', handleScroll);
+        window.removeEventListener('resize', handleScroll);
+      };
+    };
+
+    // Start checking for refs
+    setupScrollListener();
+
+    // Return cleanup function
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, []);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
@@ -327,9 +828,371 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
   }
 
   return (
-    <div className="border border-input rounded-lg overflow-hidden">
+    <div ref={editorContainerRef} className="border border-input rounded-lg overflow-hidden">
+      {/* Sticky Toolbar (shown when scrolled) */}
+      {isToolbarSticky && toolbarRef.current && (() => {
+        const toolbar = toolbarRef.current;
+        if (!toolbar) return null;
+        const toolbarRect = toolbar.getBoundingClientRect();
+        const stickyStyle: React.CSSProperties = {
+          position: 'fixed',
+          top: '32px',
+          width: toolbar.offsetWidth + 'px',
+          left: toolbarRect.left + 'px',
+          zIndex: 9999,
+          backgroundColor: 'hsl(var(--muted))',
+        };
+        return (
+          <div 
+            className="bg-muted border-b border-input shadow-lg"
+            style={stickyStyle}
+          >
+          {/* Render same toolbar content as original - using same structure */}
+          {/* Row 1: Add Media + Core Formatting */}
+          <div className="flex items-center gap-1 p-2 border-b border-input">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMediaModal(true)}
+              className="mr-2"
+            >
+              <Upload className="h-4 w-4 mr-1" />
+              Thêm Media
+            </Button>
+            <div className="h-6 w-px bg-border mx-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (mode === 'visual' && editor) {
+                  editor.chain().focus().toggleBold().run();
+                } else if (mode === 'text') {
+                  insertQuickTag('<strong>', '</strong>');
+                }
+              }}
+              className={mode === 'visual' && editor?.isActive('bold') ? 'bg-background' : ''}
+              disabled={mode === 'text' && !textareaRef.current}
+              title="In đậm (Ctrl+B)"
+            >
+              <Bold className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (mode === 'visual' && editor) {
+                  editor.chain().focus().toggleItalic().run();
+                } else if (mode === 'text') {
+                  insertQuickTag('<em>', '</em>');
+                }
+              }}
+              className={mode === 'visual' && editor?.isActive('italic') ? 'bg-background' : ''}
+              disabled={mode === 'text' && !textareaRef.current}
+              title="In nghiêng (Ctrl+I)"
+            >
+              <Italic className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (mode === 'visual' && editor) {
+                  editor.chain().focus().toggleStrike().run();
+                } else if (mode === 'text') {
+                  insertQuickTag('<del>', '</del>');
+                }
+              }}
+              className={mode === 'visual' && editor?.isActive('strike') ? 'bg-background' : ''}
+              disabled={mode === 'text' && !textareaRef.current}
+              title="Gạch ngang"
+            >
+              <Strikethrough className="h-4 w-4" />
+            </Button>
+            <div className="h-6 w-px bg-border mx-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (mode === 'visual' && editor) {
+                  editor.chain().focus().toggleBulletList().run();
+                } else if (mode === 'text' && textareaRef.current) {
+                  const textarea = textareaRef.current;
+                  const start = textarea.selectionStart;
+                  const end = textarea.selectionEnd;
+                  const selectedText = textarea.value.substring(start, end);
+                  if (selectedText) {
+                    const lines = selectedText.split('\n').filter(l => l.trim());
+                    const listItems = lines.map(line => `<li>${line}</li>`).join('\n');
+                    const newText = textarea.value.substring(0, start) + `<ul>\n${listItems}\n</ul>` + textarea.value.substring(end);
+                    setTextContent(newText);
+                    onChange(newText);
+                    textarea.value = newText;
+                    textarea.focus();
+                  } else {
+                    insertQuickTag('<ul>\n<li>', '</li>\n</ul>');
+                  }
+                }
+              }}
+              className={mode === 'visual' && editor?.isActive('bulletList') ? 'bg-background' : ''}
+              disabled={mode === 'text' && !textareaRef.current}
+              title="Danh sách không thứ tự"
+            >
+              <List className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (mode === 'visual' && editor) {
+                  editor.chain().focus().toggleOrderedList().run();
+                } else if (mode === 'text' && textareaRef.current) {
+                  const textarea = textareaRef.current;
+                  const start = textarea.selectionStart;
+                  const end = textarea.selectionEnd;
+                  const selectedText = textarea.value.substring(start, end);
+                  if (selectedText) {
+                    const lines = selectedText.split('\n').filter(l => l.trim());
+                    const listItems = lines.map(line => `<li>${line}</li>`).join('\n');
+                    const newText = textarea.value.substring(0, start) + `<ol>\n${listItems}\n</ol>` + textarea.value.substring(end);
+                    setTextContent(newText);
+                    onChange(newText);
+                    textarea.value = newText;
+                    textarea.focus();
+                  } else {
+                    insertQuickTag('<ol>\n<li>', '</li>\n</ol>');
+                  }
+                }
+              }}
+              className={mode === 'visual' && editor?.isActive('orderedList') ? 'bg-background' : ''}
+              disabled={mode === 'text' && !textareaRef.current}
+              title="Danh sách có thứ tự"
+            >
+              <ListOrdered className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (mode === 'visual' && editor) {
+                  editor.chain().focus().toggleBlockquote().run();
+                } else if (mode === 'text') {
+                  insertQuickTag('<blockquote>', '</blockquote>');
+                }
+              }}
+              className={mode === 'visual' && editor?.isActive('blockquote') ? 'bg-background' : ''}
+              disabled={mode === 'text' && !textareaRef.current}
+              title="Trích dẫn"
+            >
+              <Quote className="h-4 w-4" />
+            </Button>
+            <div className="h-6 w-px bg-border mx-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                if (mode === 'visual' && editor) {
+                  editor.chain().focus().setHorizontalRule().run();
+                } else if (mode === 'text' && textareaRef.current) {
+                  const textarea = textareaRef.current;
+                  const start = textarea.selectionStart;
+                  const newText = textarea.value.substring(0, start) + '<hr />' + textarea.value.substring(start);
+                  setTextContent(newText);
+                  onChange(newText);
+                  setTimeout(() => {
+                    if (textareaRef.current) {
+                      textareaRef.current.value = newText;
+                      textareaRef.current.setSelectionRange(start + '<hr />'.length, start + '<hr />'.length);
+                      textareaRef.current.focus();
+                    }
+                  }, 0);
+                }
+              }}
+              disabled={mode === 'text' && !textareaRef.current}
+              title="Đường kẻ ngang"
+            >
+              <Minus className="h-4 w-4" />
+            </Button>
+            <div className="h-6 w-px bg-border mx-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={addLink}
+              title="Chèn/Sửa liên kết"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={insertReadMore}
+              title="Thẻ Đọc tiếp"
+            >
+              <Type className="h-4 w-4" />
+            </Button>
+            <div className="flex-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowToolbarRow2(!showToolbarRow2)}
+              title="Mở rộng thanh công cụ"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </div>
+          {/* Row 2: Advanced Formatting (Toggle) */}
+          {showToolbarRow2 && (
+            <div className="flex items-center gap-1 p-2 border-b border-input">
+              <Select
+                defaultValue="paragraph"
+                onChange={(e) => {
+                  if (mode === 'visual' && editor) {
+                    const value = e.target.value;
+                    if (value === 'paragraph') {
+                      editor.chain().focus().setParagraph().run();
+                    } else if (value.startsWith('heading')) {
+                      const level = parseInt(value.replace('heading', '')) as 1 | 2 | 3 | 4 | 5 | 6;
+                      editor.chain().focus().toggleHeading({ level }).run();
+                    }
+                  }
+                }}
+                disabled={mode === 'text'}
+                className="w-40 h-8 text-xs"
+              >
+                <option value="paragraph">Đoạn văn</option>
+                <option value="heading1">Tiêu đề 1</option>
+                <option value="heading2">Tiêu đề 2</option>
+                <option value="heading3">Tiêu đề 3</option>
+                <option value="heading4">Tiêu đề 4</option>
+                <option value="heading5">Tiêu đề 5</option>
+                <option value="heading6">Tiêu đề 6</option>
+              </Select>
+              <div className="h-6 w-px bg-border mx-1" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (editor) {
+                    const { from, to } = editor.state.selection;
+                    const selectedText = editor.state.doc.textBetween(from, to);
+                    if (selectedText) {
+                      editor.chain().focus().deleteSelection().insertContent(`<u>${selectedText}</u>`).run();
+                    } else {
+                      editor.chain().focus().insertContent('<u></u>').run();
+                    }
+                  }
+                }}
+                title="Gạch chân"
+              >
+                <UnderlineIcon className="h-4 w-4" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (editor) {
+                    const { from, to } = editor.state.selection;
+                    const selectedContent = editor.state.doc.textBetween(from, to);
+                    if (selectedContent) {
+                      editor.chain().focus().deleteSelection().insertContent(`<p style="text-align: justify;">${selectedContent}</p>`).run();
+                    } else {
+                      const { $from } = editor.state.selection;
+                      const paragraph = $from.node(-1);
+                      if (paragraph && paragraph.type.name === 'paragraph') {
+                        const paraText = paragraph.textContent;
+                        const paraStart = $from.start(-1);
+                        const paraEnd = $from.end(-1);
+                        editor.chain().focus().setTextSelection({ from: paraStart, to: paraEnd }).deleteSelection().insertContent(`<p style="text-align: justify;">${paraText}</p>`).run();
+                      } else {
+                        editor.chain().focus().insertContent('<p style="text-align: justify;"></p>').run();
+                      }
+                    }
+                  }
+                }}
+                title="Căn đều 2 bên"
+              >
+                <AlignJustify className="h-4 w-4" />
+              </Button>
+              <div className="h-6 w-px bg-border mx-1" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const color = prompt('Nhập mã màu (VD: #FF0000):');
+                  if (!color) return;
+                  const colorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
+                  if (!colorRegex.test(color) && !['red', 'blue', 'green', 'black', 'white'].includes(color.toLowerCase())) {
+                    alert('Mã màu không hợp lệ. Sử dụng format #RRGGBB hoặc tên màu.');
+                    return;
+                  }
+                  if (mode === 'visual' && editor) {
+                    const { from, to } = editor.state.selection;
+                    const selectedText = editor.state.doc.textBetween(from, to);
+                    if (selectedText) {
+                      editor.chain().focus().deleteSelection().insertContent(`<span style="color: ${color};">${selectedText}</span>`).run();
+                    } else {
+                      editor.chain().focus().insertContent(`<span style="color: ${color};">text</span>`).run();
+                    }
+                  } else if (mode === 'text' && textareaRef.current) {
+                    const textarea = textareaRef.current;
+                    const start = textarea.selectionStart;
+                    const end = textarea.selectionEnd;
+                    const selectedText = textarea.value.substring(start, end);
+                    const wrappedText = selectedText || 'text';
+                    const newText = textarea.value.substring(0, start) + `<span style="color: ${color};">${wrappedText}</span>` + textarea.value.substring(end);
+                    setTextContent(newText);
+                    onChange(newText);
+                    setTimeout(() => {
+                      if (textareaRef.current) {
+                        textareaRef.current.value = newText;
+                        const newCursorPos = start + `<span style="color: ${color};">${wrappedText}</span>`.length;
+                        textareaRef.current.setSelectionRange(newCursorPos, newCursorPos);
+                        textareaRef.current.focus();
+                      }
+                    }, 0);
+                  }
+                }}
+                disabled={mode === 'text' && !textareaRef.current}
+                title="Màu chữ"
+              >
+                <Palette className="h-4 w-4" />
+              </Button>
+              <div className="h-6 w-px bg-border mx-1" />
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  if (mode === 'visual' && editor) {
+                    editor.chain().focus().unsetBold().unsetItalic().unsetStrike().run();
+                  }
+                }}
+                disabled={mode === 'text' || !editor?.can().unsetBold()}
+                title="Tẩy định dạng"
+              >
+                <Code className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+          </div>
+        );
+      })()}
+
       {/* Toolbar */}
-      <div className="bg-muted border-b border-input">
+      <div ref={toolbarRef} className="bg-muted border-b border-input">
         {/* Row 1: Add Media + Core Formatting */}
         <div className="flex items-center gap-1 p-2 border-b border-input">
           {/* Add Media Button */}
@@ -848,11 +1711,16 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
 
       {/* Editor Content */}
       {mode === 'visual' ? (
-        <EditorContent editor={editor} />
+        <ImageEditorErrorBoundary>
+          <div className="relative">
+            <EditorContent editor={editor} />
+            {editor && <InlineImageToolbar editor={editor} />}
+          </div>
+        </ImageEditorErrorBoundary>
       ) : (
         <div className="relative">
           {/* QuickTags Toolbar for Text Mode */}
-          <div className="border-b border-input p-2 bg-muted flex gap-1 flex-wrap">
+          <div ref={toolbarRef} className="border-b border-input p-2 bg-muted flex gap-1 flex-wrap">
             <Button
               type="button"
               variant="ghost"
@@ -995,12 +1863,66 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
         onClose={() => setShowMediaModal(false)}
         onInsert={(html) => {
           if (!html) return;
-          
           if (mode === 'visual' && editor) {
-            // Insert HTML into Tiptap editor
-            editor.chain().focus().insertContent(html).run();
+            // Check if we're inserting a video embed wrapper
+            if (html.includes('video-embed-wrapper')) {
+              // Parse the HTML to extract wrapper and iframe
+              const tempDiv = document.createElement('div');
+              tempDiv.innerHTML = html;
+              const wrapper = tempDiv.querySelector('div.video-embed-wrapper');
+              const iframe = wrapper?.querySelector('iframe');
+              
+              if (wrapper && iframe) {
+                // Extract attributes
+                const wrapperStyle = wrapper.getAttribute('style') || '';
+                const wrapperClass = wrapper.getAttribute('class') || 'video-embed-wrapper';
+                const iframeAttrs = {
+                  src: iframe.getAttribute('src') || '',
+                  frameborder: iframe.getAttribute('frameborder') || '0',
+                  allowfullscreen: iframe.hasAttribute('allowfullscreen'),
+                  allow: iframe.getAttribute('allow') || '',
+                  style: iframe.getAttribute('style') || '',
+                  class: iframe.getAttribute('class') || '',
+                  width: iframe.getAttribute('width') || '100%',
+                  height: iframe.getAttribute('height') || '400px',
+                };
+                
+                try {
+                  // Insert as proper node structure to avoid paragraph wrapping
+                  editor.chain()
+                    .focus()
+                    .insertContent({
+                      type: 'videoEmbedWrapper',
+                      attrs: {
+                        style: wrapperStyle,
+                        class: wrapperClass,
+                      },
+                      content: [
+                        {
+                          type: 'iframe',
+                          attrs: iframeAttrs,
+                        },
+                      ],
+                    })
+                    .run();
+                } catch (error) {
+                  // Fallback to raw HTML insert
+                  editor.chain().focus().insertContent(html).run();
+                }
+              } else {
+                // Fallback to raw HTML insert
+                editor.chain().focus().insertContent(html).run();
+              }
+            } else {
+              // Insert HTML into Tiptap editor
+              editor.chain().focus().insertContent(html).run();
+            }
+            
             // Update textContent for sync
             const newHtml = editor.getHTML();
+            
+            // Check if video embed wrapper exists in DOM
+            const editorElement = editor.view.dom;
             setTextContent(newHtml);
             onChange(newHtml);
           } else {

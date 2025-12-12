@@ -4,20 +4,18 @@ import { useState, useEffect } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
 import { Plus, Loader2 } from 'lucide-react';
 import type { ProductDataMetaBoxState } from './ProductDataMetaBox';
 import { AttributeItem, type Attribute } from './AttributeItem';
+import { AttributeLibraryModal } from '../AttributeLibraryModal';
+import type { Attribute as GlobalAttribute } from '@/app/admin/attributes/page';
+import type { Term } from '@/app/admin/attributes/[id]/terms/page';
+import { SmartValueInput } from '../SmartValueInput';
+import { QuickAddTermModal } from '../QuickAddTermModal';
 
 interface AttributesTabProps {
   state: ProductDataMetaBoxState;
   onUpdate: (updates: Partial<ProductDataMetaBoxState>) => void;
-}
-
-interface GlobalAttribute {
-  id: string;
-  name: string;
-  values: string[];
 }
 
 /**
@@ -31,21 +29,24 @@ interface GlobalAttribute {
 export function AttributesTab({ state, onUpdate }: AttributesTabProps) {
   const [globalAttributes, setGlobalAttributes] = useState<GlobalAttribute[]>([]);
   const [loadingAttributes, setLoadingAttributes] = useState(false);
-  const [selectedGlobalAttribute, setSelectedGlobalAttribute] = useState<string>('');
   const [customAttributeName, setCustomAttributeName] = useState('');
+  const [quickAddModalOpen, setQuickAddModalOpen] = useState(false);
+  const [quickAddAttribute, setQuickAddAttribute] = useState<GlobalAttribute | null>(null);
+  const [globalTermsMap, setGlobalTermsMap] = useState<Record<string, Term[]>>({});
+  const [loadingTerms, setLoadingTerms] = useState<Record<string, boolean>>({});
+  const [pendingFetches, setPendingFetches] = useState<Set<string>>(new Set());
+  const [isLibraryModalOpen, setIsLibraryModalOpen] = useState(false);
 
   // Fetch global attributes
   useEffect(() => {
     const fetchGlobalAttributes = async () => {
       setLoadingAttributes(true);
       try {
-        // TODO: Replace with actual API endpoint when available
-        // const response = await fetch('/api/admin/products/attributes');
-        // const data = await response.json();
-        // setGlobalAttributes(data.attributes || []);
-        
-        // For now, use empty array or mock data
-        setGlobalAttributes([]);
+        const response = await fetch('/api/admin/attributes');
+        if (response.ok) {
+          const data = await response.json();
+          setGlobalAttributes(data.attributes || []);
+        }
       } catch (error) {
         console.error('Error fetching global attributes:', error);
       } finally {
@@ -56,6 +57,51 @@ export function AttributesTab({ state, onUpdate }: AttributesTabProps) {
     fetchGlobalAttributes();
   }, []);
 
+  // Fetch terms for a global attribute (with race condition protection)
+  const fetchTermsForAttribute = async (attributeId: string) => {
+    // Check if already loaded or currently loading
+    if (globalTermsMap[attributeId] || pendingFetches.has(attributeId)) {
+      return; // Already loaded or loading
+    }
+
+    // Mark as pending
+    setPendingFetches((prev) => new Set(prev).add(attributeId));
+    setLoadingTerms((prev) => ({ ...prev, [attributeId]: true }));
+    
+    try {
+      const response = await fetch(`/api/admin/attributes/${attributeId}/terms`);
+      if (response.ok) {
+        const data = await response.json();
+        setGlobalTermsMap((prev) => ({
+          ...prev,
+          [attributeId]: data.terms || [],
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching terms:', error);
+    } finally {
+      setLoadingTerms((prev) => ({ ...prev, [attributeId]: false }));
+      // Remove from pending set
+      setPendingFetches((prev) => {
+        const next = new Set(prev);
+        next.delete(attributeId);
+        return next;
+      });
+    }
+  };
+
+  // Pre-fetch terms for all attributes when modal opens (for preview)
+  useEffect(() => {
+    if (isLibraryModalOpen && globalAttributes.length > 0) {
+      globalAttributes.forEach((attr) => {
+        if (!globalTermsMap[attr.id] && !pendingFetches.has(attr.id)) {
+          fetchTermsForAttribute(attr.id);
+        }
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLibraryModalOpen]);
+
   // Get all existing values from all attributes for auto-suggest
   const getAllExistingValues = (): string[] => {
     const allValues: string[] = [];
@@ -65,31 +111,98 @@ export function AttributesTab({ state, onUpdate }: AttributesTabProps) {
     return [...new Set(allValues)]; // Remove duplicates
   };
 
-  const handleAddGlobalAttribute = () => {
-    if (!selectedGlobalAttribute) return;
-
-    const globalAttr = globalAttributes.find((a) => a.id === selectedGlobalAttribute);
-    if (!globalAttr) return;
-
+  const handleSelectGlobalAttribute = (globalAttr: GlobalAttribute) => {
     // Check if attribute already exists
     if (state.attributes.some((a) => a.name === globalAttr.name)) {
       alert('Thuộc tính này đã được thêm');
       return;
     }
 
+    // Fetch terms for this attribute
+    fetchTermsForAttribute(globalAttr.id);
+
+    // Create new attribute with empty values (will be populated from terms)
     const newAttribute: Attribute = {
       id: `attr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       name: globalAttr.name,
       isGlobal: true,
-      values: [...globalAttr.values],
+      globalAttributeId: globalAttr.id, // Store reference to global attribute
+      values: [], // Will be populated from terms
       usedForVariations: false,
     };
 
     onUpdate({
       attributes: [...state.attributes, newAttribute],
     });
+  };
 
-    setSelectedGlobalAttribute('');
+  // Handle bulk selection from modal
+  const handleBulkSelectAttributes = (selectedAttributeIds: string[]) => {
+    const newAttributes: Attribute[] = [];
+    
+    selectedAttributeIds.forEach((attributeId) => {
+      const globalAttr = globalAttributes.find((a) => a.id === attributeId);
+      if (!globalAttr) return;
+
+      // Check if attribute already exists
+      if (state.attributes.some((a) => a.globalAttributeId === attributeId)) {
+        return; // Skip if already added
+      }
+
+      // Fetch terms for this attribute
+      fetchTermsForAttribute(attributeId);
+
+      // Create new attribute
+      const newAttribute: Attribute = {
+        id: `attr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: globalAttr.name,
+        isGlobal: true,
+        globalAttributeId: globalAttr.id,
+        values: [],
+        usedForVariations: false,
+      };
+
+      newAttributes.push(newAttribute);
+    });
+
+    if (newAttributes.length > 0) {
+      onUpdate({
+        attributes: [...state.attributes, ...newAttributes],
+      });
+    }
+  };
+
+  const handleQuickAddTerm = (attribute: GlobalAttribute) => {
+    setQuickAddAttribute(attribute);
+    setQuickAddModalOpen(true);
+  };
+
+  const handleQuickAddSuccess = (termName: string) => {
+    if (!quickAddAttribute) return;
+
+    // Refresh terms for this attribute
+    setGlobalTermsMap((prev) => {
+      const currentTerms = prev[quickAddAttribute.id] || [];
+      // The new term will be fetched on next render, but we can optimistically add it
+      return prev;
+    });
+
+    // Reload terms
+    fetchTermsForAttribute(quickAddAttribute.id);
+
+    // Auto-select the new term in the corresponding attribute
+    const attribute = state.attributes.find(
+      (a) => a.globalAttributeId === quickAddAttribute.id
+    );
+    if (attribute) {
+      handleUpdateAttribute({
+        ...attribute,
+        values: [...attribute.values, termName],
+      });
+    }
+
+    setQuickAddModalOpen(false);
+    setQuickAddAttribute(null);
   };
 
   const handleAddCustomAttribute = () => {
@@ -141,43 +254,23 @@ export function AttributesTab({ state, onUpdate }: AttributesTabProps) {
       <div className="p-4 border border-input rounded-lg bg-muted/30 space-y-4">
         <Label className="text-sm font-semibold">Thêm thuộc tính</Label>
 
-        {/* Global Attributes */}
+        {/* Global Attributes - Modal Button */}
         <div className="space-y-2">
           <Label className="text-xs text-muted-foreground">Thuộc tính Global</Label>
-          <div className="flex items-center gap-2">
-            <Select
-              value={selectedGlobalAttribute}
-              onChange={(e) => setSelectedGlobalAttribute(e.target.value)}
-              className="flex-1"
-              disabled={loadingAttributes || globalAttributes.length === 0}
-            >
-              <option value="">Chọn thuộc tính global...</option>
-              {globalAttributes.map((attr) => (
-                <option key={attr.id} value={attr.id}>
-                  {attr.name} ({attr.values.length} giá trị)
-                </option>
-              ))}
-            </Select>
-            {loadingAttributes && (
-              <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleAddGlobalAttribute}
-              disabled={!selectedGlobalAttribute || loadingAttributes}
-              className="flex items-center gap-1"
-            >
-              <Plus className="h-4 w-4" />
-              Thêm
-            </Button>
-          </div>
-          {globalAttributes.length === 0 && !loadingAttributes && (
-            <p className="text-xs text-muted-foreground">
-              Chưa có thuộc tính global nào. Sử dụng thuộc tính tùy chỉnh bên dưới.
-            </p>
-          )}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setIsLibraryModalOpen(true)}
+            className="w-full justify-start h-auto py-3 px-4 text-left"
+          >
+            <Plus className="h-5 w-5 mr-2" />
+            <div className="flex-1">
+              <div className="font-medium">Thêm thuộc tính từ thư viện</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Chọn nhiều thuộc tính cùng lúc từ danh sách
+              </div>
+            </div>
+          </Button>
         </div>
 
         <div className="h-px bg-border" />
@@ -224,16 +317,71 @@ export function AttributesTab({ state, onUpdate }: AttributesTabProps) {
         </div>
       ) : (
         <div className="space-y-4">
-          {state.attributes.map((attribute) => (
-            <AttributeItem
-              key={attribute.id}
-              attribute={attribute}
-              onUpdate={handleUpdateAttribute}
-              onRemove={() => handleRemoveAttribute(attribute.id)}
-              existingValues={getAllExistingValues()}
-            />
-          ))}
+          {state.attributes.map((attribute) => {
+            // Find global attribute info if it's a global attribute
+            const globalAttr = attribute.globalAttributeId
+              ? globalAttributes.find((a) => a.id === attribute.globalAttributeId)
+              : null;
+            const terms = attribute.globalAttributeId
+              ? globalTermsMap[attribute.globalAttributeId] || []
+              : [];
+            const isLoadingTerms = attribute.globalAttributeId
+              ? loadingTerms[attribute.globalAttributeId] || false
+              : false;
+
+            return (
+              <AttributeItem
+                key={attribute.id}
+                attribute={attribute}
+                onUpdate={handleUpdateAttribute}
+                onRemove={() => handleRemoveAttribute(attribute.id)}
+                existingValues={getAllExistingValues()}
+                // New props for global attributes
+                isGlobalAttribute={!!attribute.globalAttributeId}
+                globalAttributeType={globalAttr?.type}
+                globalTerms={terms}
+                loadingTerms={isLoadingTerms}
+                onLoadTerms={() => {
+                  if (attribute.globalAttributeId) {
+                    fetchTermsForAttribute(attribute.globalAttributeId);
+                  }
+                }}
+                onQuickAddTerm={() => {
+                  if (globalAttr) {
+                    handleQuickAddTerm(globalAttr);
+                  }
+                }}
+              />
+            );
+          })}
         </div>
+      )}
+
+      {/* Attribute Library Modal */}
+      <AttributeLibraryModal
+        isOpen={isLibraryModalOpen}
+        onClose={() => setIsLibraryModalOpen(false)}
+        onApply={handleBulkSelectAttributes}
+        attributes={globalAttributes}
+        loading={loadingAttributes}
+        selectedAttributeIds={state.attributes
+          .filter((a) => a.isGlobal && a.globalAttributeId)
+          .map((a) => a.globalAttributeId!)
+          .filter(Boolean)}
+        termsMap={globalTermsMap}
+      />
+
+      {/* Quick Add Term Modal */}
+      {quickAddAttribute && (
+        <QuickAddTermModal
+          isOpen={quickAddModalOpen}
+          onClose={() => {
+            setQuickAddModalOpen(false);
+            setQuickAddAttribute(null);
+          }}
+          attribute={quickAddAttribute}
+          onSuccess={handleQuickAddSuccess}
+        />
       )}
 
       {/* Info Box */}

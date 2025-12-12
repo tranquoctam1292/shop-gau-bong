@@ -10,22 +10,19 @@ import { Select } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2, Save, X } from 'lucide-react';
 import type { MappedProduct, MappedCategory } from '@/lib/utils/productMapper';
-import { ProductDetailsSection } from './products/ProductDetailsSection';
-import { VariantFormEnhanced, EnhancedVariant } from './products/VariantFormEnhanced';
-import { SEOSection } from './products/SEOSection';
-import { GiftFeaturesSection } from './products/GiftFeaturesSection';
-import { MediaExtendedSection } from './products/MediaExtendedSection';
-import { CollectionComboSection } from './products/CollectionComboSection';
-import { TemplateSelector } from './products/TemplateSelector';
+import { SEOMetaBox, type SEOMetaBoxData } from './products/SEOMetaBox';
 import { ProductFormLayout } from './products/ProductFormLayout';
 import { PublishBox } from './products/sidebar/PublishBox';
 import { CategoriesBox } from './products/sidebar/CategoriesBox';
 import { TagsBox } from './products/sidebar/TagsBox';
 import { FeaturedImageBox } from './products/sidebar/FeaturedImageBox';
 import { ProductGalleryBox } from './products/sidebar/ProductGalleryBox';
-import { ProductDataBox } from './products/sidebar/ProductDataBox';
 import { ProductLinksBox } from './products/sidebar/ProductLinksBox';
 import { ClassicEditor } from './products/ClassicEditor';
+import { ShortDescriptionEditor } from './products/ShortDescriptionEditor';
+import { ProductDataMetaBox, type ProductDataMetaBoxState, type ProductType } from './products/ProductDataMetaBox';
+import { StickyActionBar } from './products/ProductDataMetaBox/StickyActionBar';
+import { generateSlug } from '@/lib/utils/slug';
 
 interface ProductVariant {
   id: string;
@@ -38,59 +35,7 @@ interface ProductVariant {
   sku?: string;
 }
 
-interface ProductDetailsData {
-  ageRecommendation?: string;
-  careInstructions?: string;
-  safetyInformation?: string;
-  productSpecifications?: string;
-  sizeGuide?: string;
-  materialDetails?: string;
-  warrantyInformation?: string;
-}
-
-interface SEOData {
-  seoTitle?: string;
-  seoDescription?: string;
-  seoKeywords?: string[];
-  ogImage?: string;
-  canonicalUrl?: string;
-  robotsMeta?: string;
-}
-
-interface GiftFeaturesData {
-  giftWrapping: boolean;
-  giftWrappingPrice?: number;
-  giftMessageEnabled: boolean;
-  giftMessageMaxLength?: number;
-  giftCardEnabled: boolean;
-  giftCardTypes?: string[];
-  giftDeliveryDateEnabled: boolean;
-  giftCategories?: string[];
-  giftSuggestions?: string[];
-}
-
-interface MediaExtendedData {
-  videos?: Array<{
-    url: string;
-    type: 'youtube' | 'vimeo' | 'upload';
-    thumbnail?: string;
-  }>;
-  view360Images?: string[];
-  imageAltTexts?: Record<string, string>;
-}
-
-interface CollectionComboData {
-  collections?: string[];
-  comboProducts?: string[];
-  bundleProducts?: Array<{
-    productId: string;
-    quantity: number;
-    discount?: number;
-  }>;
-  relatedProducts?: string[];
-  upsellProducts?: string[];
-  crossSellProducts?: string[];
-}
+// SEO data is now managed by SEOMetaBox
 
 interface ProductFormData {
   name: string;
@@ -101,25 +46,33 @@ interface ProductFormData {
   category: string; // Keep for backward compatibility
   categories?: string[]; // Multiple categories support
   tags: string[];
-  variants: EnhancedVariant[];
-  images: string[];
+  variants: ProductVariant[];
+  // Image fields (new structure)
+  _thumbnail_id?: string; // Attachment ID for featured image
+  _product_image_gallery?: string; // Comma-separated attachment IDs for gallery
+  // Keep images for backward compatibility during migration (will be removed later)
+  images?: string[];
   length?: number;
   width?: number;
   height?: number;
   weight?: number;
-  material?: string;
-  origin?: string;
   isHot: boolean;
   isActive: boolean;
-  status: 'draft' | 'publish';
+  status: 'draft' | 'publish' | 'trash';
+  visibility?: 'public' | 'private' | 'password';
   // New fields for Phase 1
-  productDetails?: ProductDetailsData;
-  seo?: SEOData;
-  // New fields for Phase 2
-  giftFeatures?: GiftFeaturesData;
-  mediaExtended?: MediaExtendedData;
-  // New fields for Phase 3
-  collectionCombo?: CollectionComboData;
+  seo?: SEOMetaBoxData;
+  // Product Data Meta Box fields
+  productDataMetaBox?: Partial<ProductDataMetaBoxState>;
+  // Gift features
+  giftFeatures?: {
+    giftWrapping: boolean;
+    giftMessageEnabled: boolean;
+    giftCardEnabled: boolean;
+    giftDeliveryDateEnabled: boolean;
+  };
+  // Media extended
+  mediaExtended?: Record<string, any>;
 }
 
 interface ProductFormProps {
@@ -131,6 +84,14 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<MappedCategory[]>([]);
+  // Image URLs for display (separate from IDs stored in formData)
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>(undefined);
+  const [galleryImages, setGalleryImages] = useState<Array<{id: string, thumbnail_url: string, title?: string}>>([]);
+  // Publish Box states
+  const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
+  const [password, setPassword] = useState<string>('');
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [lastAutosaveTime, setLastAutosaveTime] = useState<Date | null>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     slug: '',
@@ -141,12 +102,12 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     categories: [],
     tags: [],
     variants: [],
-    images: [],
     isHot: false,
     isActive: true,
     status: 'draft',
     visibility: 'public',
-    productDetails: {},
+    _thumbnail_id: undefined,
+    _product_image_gallery: undefined,
     seo: {},
     giftFeatures: {
       giftWrapping: false,
@@ -155,7 +116,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       giftDeliveryDateEnabled: false,
     },
     mediaExtended: {},
-    collectionCombo: {},
+    productDataMetaBox: {},
     ...initialData,
   });
 
@@ -176,15 +137,38 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   // Auto-generate slug from name
   useEffect(() => {
     if (!productId && formData.name && !formData.slug) {
-      const slug = formData.name
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/(^-|-$)/g, '');
+      const slug = generateSlug(formData.name);
       setFormData((prev) => ({ ...prev, slug }));
     }
-  }, [formData.name, productId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.name, productId]); // formData.slug intentionally excluded to avoid infinite loop
+
+  // Đồng bộ tự động: Tên sản phẩm và Mô tả ngắn copy sang SEO nếu chưa điền
+  useEffect(() => {
+    if (!formData.seo?.seoTitle && formData.name) {
+      setFormData((prev) => ({
+        ...prev,
+        seo: {
+          ...prev.seo,
+          seoTitle: prev.name,
+        },
+      }));
+    }
+    
+    if (!formData.seo?.seoDescription && formData.shortDescription) {
+      const textOnly = formData.shortDescription.replace(/<[^>]*>/g, '').substring(0, 160);
+      if (textOnly) {
+        setFormData((prev) => ({
+          ...prev,
+          seo: {
+            ...prev.seo,
+            seoDescription: textOnly,
+          },
+        }));
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.name, formData.shortDescription]); // Only sync when name or shortDescription changes
 
   // Load product data if editing
   useEffect(() => {
@@ -195,6 +179,36 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           const data = await response.json();
           if (data.product) {
             const product = data.product as MappedProduct;
+            // Map product data to ProductDataMetaBox state
+            const metaBoxData: Partial<ProductDataMetaBoxState> = {
+              productType: (product.type as ProductDataMetaBoxState['productType']) || 'simple',
+              isVirtual: false, // TODO: Get from product meta
+              isDownloadable: false, // TODO: Get from product meta
+              sku: product.sku || undefined,
+              manageStock: product.stockQuantity !== null,
+              stockQuantity: product.stockQuantity || undefined,
+              stockStatus: (product.stockStatus as ProductDataMetaBoxState['stockStatus']) || 'instock',
+              weight: product.weight ? parseFloat(product.weight) : undefined,
+              length: product.length || undefined,
+              width: product.width || undefined,
+              height: product.height || undefined,
+              regularPrice: parseFloat(product.regularPrice) || undefined,
+              // Validate salePrice < regularPrice on load (Hypothesis E fix)
+              salePrice: product.salePrice && product.regularPrice && parseFloat(product.salePrice) < parseFloat(product.regularPrice)
+                ? parseFloat(product.salePrice)
+                : undefined,
+              // TODO: Map other fields from product meta
+            };
+
+            // Load scheduledDate and password if available
+            const apiProduct = data.product as any;
+            if (apiProduct.scheduledDate) {
+              setScheduledDate(new Date(apiProduct.scheduledDate));
+            }
+            if (apiProduct.password) {
+              setPassword(apiProduct.password);
+            }
+
             setFormData({
               name: product.name,
               slug: product.slug,
@@ -212,6 +226,11 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
                   price: parseFloat(product.price),
                   stock: product.stockQuantity || 0,
                 })) || [],
+              // Image fields - try new structure first, fallback to old structure
+              _thumbnail_id: (product as any)._thumbnail_id || (product.image?.id?.toString()),
+              _product_image_gallery: (product as any)._product_image_gallery ||
+                (product.galleryImages?.map((img: any) => img.id?.toString()).filter(Boolean).join(',') || undefined),
+              // Keep images for backward compatibility (will be removed later)
               images: [
                 product.image?.sourceUrl,
                 ...product.galleryImages.map((img) => img.sourceUrl),
@@ -220,12 +239,54 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               width: product.width || undefined,
               height: product.height || undefined,
               weight: product.weight ? parseFloat(product.weight) : undefined,
-              material: product.material || undefined,
-              origin: product.origin || undefined,
               isHot: false,
               isActive: product.stockStatus === 'instock',
-              status: 'publish',
+              status: (apiProduct.status as 'draft' | 'publish' | 'trash') || 'draft',
+              visibility: (apiProduct.visibility as 'public' | 'private' | 'password') || 'public',
+              productDataMetaBox: metaBoxData,
             });
+
+            // Set image URLs for display
+            
+            // Set thumbnail
+            if (apiProduct._thumbnail_id) {
+              // New structure: use thumbnail object if available, fallback to image.sourceUrl
+              if (apiProduct.thumbnail) {
+                setThumbnailUrl(apiProduct.thumbnail.thumbnail_url || apiProduct.thumbnail.url);
+              } else if (product.image?.sourceUrl) {
+                setThumbnailUrl(product.image.sourceUrl);
+              }
+            } else if (product.image?.sourceUrl) {
+              // Old structure: use sourceUrl
+              setThumbnailUrl(product.image.sourceUrl);
+            }
+
+            // Set gallery images
+            if (apiProduct._product_image_gallery) {
+              // New structure: use gallery array if available
+              if (apiProduct.gallery && Array.isArray(apiProduct.gallery)) {
+                setGalleryImages(apiProduct.gallery.map((img: any) => ({
+                  id: img.id?.toString() || '',
+                  thumbnail_url: img.thumbnail_url || img.url,
+                  title: img.title,
+                })));
+              } else if (product.galleryImages && product.galleryImages.length > 0) {
+                // Fallback: map from galleryImages with IDs from _product_image_gallery
+                const galleryIds = apiProduct._product_image_gallery.split(',').filter(Boolean);
+                setGalleryImages(product.galleryImages.map((img: any, idx: number) => ({
+                  id: galleryIds[idx] || `gallery-${idx}`,
+                  thumbnail_url: img.sourceUrl || img.url,
+                  title: img.title || img.alt,
+                })));
+              }
+            } else if (product.galleryImages && product.galleryImages.length > 0) {
+              // Old structure: map from galleryImages
+              setGalleryImages(product.galleryImages.map((img: any, idx: number) => ({
+                id: img.id?.toString() || `gallery-${idx}`,
+                thumbnail_url: img.sourceUrl || img.url,
+                title: img.title || img.alt,
+              })));
+            }
           }
         } catch (error) {
           console.error('Error fetching product:', error);
@@ -297,7 +358,9 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       }
     }
 
-    return {
+    // Merge ProductDataMetaBox data into payload
+    const metaBoxData = formData.productDataMetaBox || {};
+    const payload: any = {
       ...formData,
       slug,
       minPrice,
@@ -305,7 +368,23 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       category: categoryIds[0] || formData.category || undefined, // Keep for backward compatibility
       categories: categoryIds.length > 0 ? categoryIds : undefined,
       tags: formData.tags.filter((t) => t.trim().length > 0),
+      // Include image IDs in payload
+      _thumbnail_id: formData._thumbnail_id || undefined,
+      _product_image_gallery: formData._product_image_gallery || undefined,
+      // Include ProductDataMetaBox fields in payload
+      sku: metaBoxData.sku || formData.sku,
+      length: metaBoxData.length || formData.length,
+      width: metaBoxData.width || formData.width,
+      height: metaBoxData.height || formData.height,
+      weight: metaBoxData.weight || formData.weight,
+      // Store full meta box data for future use
+      productDataMetaBox: metaBoxData,
     };
+
+    // Remove old images field (migration to new structure)
+    delete payload.images;
+
+    return payload;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -323,10 +402,19 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         return;
       }
 
+      // Override status based on save action or scheduled date
+      let finalStatus: 'draft' | 'publish' | 'trash' = saveStatus;
+      if (scheduledDate && scheduledDate > new Date()) {
+        // If scheduled for future, keep as draft until scheduled time
+        finalStatus = 'draft';
+      }
+
       // Override status based on save action
       const finalPayload = {
         ...payload,
-        status: saveStatus,
+        status: finalStatus,
+        scheduledDate: scheduledDate ? scheduledDate.toISOString() : undefined,
+        password: formData.visibility === 'password' ? password : undefined,
       };
 
       const url = productId
@@ -347,6 +435,10 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       }
 
       const result = await response.json();
+      
+      // Clear unsaved changes flag after successful save
+      setHasUnsavedChanges(false);
+      setLastAutosaveTime(new Date());
       
       // If creating new product, update productId for preview
       if (!productId && result.product?._id) {
@@ -373,45 +465,76 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     await handleSave('draft');
   };
 
+  const handleAutosave = async () => {
+    // Silent autosave (no loading state, no alerts)
+    try {
+      const payload = preparePayload();
+      if (!payload) return;
+
+      const finalPayload = {
+        ...payload,
+        status: 'draft', // Always save as draft for autosave
+      };
+
+      const url = productId
+        ? `/api/admin/products/${productId}`
+        : '/api/admin/products';
+      const method = productId ? 'PUT' : 'POST';
+
+      await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(finalPayload),
+      });
+
+      setLastAutosaveTime(new Date());
+    } catch (error) {
+      console.error('Autosave failed:', error);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!productId) return;
+
+    if (confirm('Bạn có chắc chắn muốn di chuyển sản phẩm này vào thùng rác?')) {
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/admin/products/${productId}`, {
+          method: 'DELETE',
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          alert(error.error || 'Có lỗi xảy ra');
+          return;
+        }
+
+        // Redirect to products list
+        router.push('/admin/products');
+      } catch (error: any) {
+        console.error('Error deleting product:', error);
+        alert('Có lỗi xảy ra khi xóa sản phẩm');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  // Track unsaved changes - compare with initial state
+  useEffect(() => {
+    // Simple check: if form has been modified (name or description changed from initial)
+    // In production, you might want a more sophisticated comparison
+    const hasChanges = 
+      formData.name !== (initialData?.name || '') ||
+      formData.description !== (initialData?.description || '') ||
+      formData.shortDescription !== (initialData?.shortDescription || '');
+    
+    setHasUnsavedChanges(hasChanges);
+  }, [formData.name, formData.description, formData.shortDescription, initialData]);
+
   // Variant management functions removed - now handled by VariantFormEnhanced component
   // Tag management functions removed - now handled by TagsBox component
   // Image management functions removed - now handled by FeaturedImageBox and ProductGalleryBox
-
-  const handleLoadTemplate = (templateData: any) => {
-    // Merge template data với form data hiện tại
-    setFormData((prev) => ({
-      ...prev,
-      ...templateData,
-      // Don't override ID fields if editing
-      name: templateData.name || prev.name,
-      slug: productId ? prev.slug : (templateData.slug || prev.slug), // Keep slug if editing
-    }));
-  };
-
-  const handleSaveTemplate = async (name: string, description: string, category: string, templateData: any) => {
-    try {
-      const response = await fetch('/api/admin/products/templates', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name,
-          description,
-          category,
-          templateData,
-        }),
-      });
-
-      if (response.ok) {
-        alert('Template đã được lưu thành công!');
-      } else {
-        const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra khi lưu template');
-      }
-    } catch (error) {
-      console.error('Error saving template:', error);
-      alert('Có lỗi xảy ra khi lưu template');
-    }
-  };
 
   // Fetch popular tags (from existing products)
   const fetchPopularTags = async (): Promise<string[]> => {
@@ -433,14 +556,22 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         status={formData.status}
         isActive={formData.isActive}
         visibility={formData.visibility}
+        scheduledDate={scheduledDate}
+        password={password}
         onStatusChange={(status) => setFormData((prev) => ({ ...prev, status }))}
         onIsActiveChange={(isActive) => setFormData((prev) => ({ ...prev, isActive }))}
         onVisibilityChange={(visibility) => setFormData((prev) => ({ ...prev, visibility }))}
+        onPasswordChange={setPassword}
+        onScheduledDateChange={setScheduledDate}
         onPublish={handlePublish}
         onSaveDraft={handleSaveDraft}
+        onDelete={handleDelete}
         loading={loading}
         productId={productId}
         productSlug={formData.slug}
+        hasUnsavedChanges={hasUnsavedChanges}
+        onAutosave={handleAutosave}
+        lastAutosaveTime={lastAutosaveTime}
       />
 
       {/* Categories Box */}
@@ -465,51 +596,37 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
       {/* Featured Image Box */}
       <FeaturedImageBox
-        featuredImage={formData.images[0]}
-        onImageChange={(imageUrl) => {
+        thumbnailId={formData._thumbnail_id}
+        thumbnailUrl={thumbnailUrl}
+        onImageChange={(attachmentId, thumbUrl) => {
           setFormData((prev) => ({
             ...prev,
-            images: prev.images.length > 0
-              ? [imageUrl, ...prev.images.slice(1)]
-              : [imageUrl],
+            _thumbnail_id: attachmentId,
           }));
+          setThumbnailUrl(thumbUrl);
         }}
         onImageRemove={() => {
           setFormData((prev) => ({
             ...prev,
-            images: prev.images.slice(1),
+            _thumbnail_id: undefined,
           }));
+          setThumbnailUrl(undefined);
         }}
       />
 
       {/* Product Gallery Box */}
       <ProductGalleryBox
-        images={formData.images}
-        featuredImageIndex={0}
+        galleryImages={galleryImages}
         onImagesChange={(images) => {
-          setFormData((prev) => ({ ...prev, images }));
-        }}
-        onSetFeatured={(index) => {
-          const newImages = [...formData.images];
-          const [featuredImage] = newImages.splice(index, 1);
-          newImages.unshift(featuredImage);
-          setFormData((prev) => ({ ...prev, images: newImages }));
+          setGalleryImages(images);
+          // Update _product_image_gallery with comma-separated IDs
+          setFormData((prev) => ({
+            ...prev,
+            _product_image_gallery: images.map(img => img.id).join(','),
+          }));
         }}
       />
 
-      {/* Product Data Box */}
-      <ProductDataBox
-        sku={formData.sku}
-        onSkuChange={(sku) => setFormData((prev) => ({ ...prev, sku }))}
-        length={formData.length}
-        width={formData.width}
-        height={formData.height}
-        weight={formData.weight}
-        onLengthChange={(length) => setFormData((prev) => ({ ...prev, length }))}
-        onWidthChange={(width) => setFormData((prev) => ({ ...prev, width }))}
-        onHeightChange={(height) => setFormData((prev) => ({ ...prev, height }))}
-        onWeightChange={(weight) => setFormData((prev) => ({ ...prev, weight }))}
-      />
 
       {/* Product Links Box */}
       <ProductLinksBox
@@ -537,13 +654,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   return (
     <form onSubmit={handleSubmit}>
       <ProductFormLayout header={headerContent} sidebar={sidebarContent}>
-        {/* Template Selector */}
-        <TemplateSelector
-          onLoadTemplate={handleLoadTemplate}
-          onSaveTemplate={handleSaveTemplate}
-          currentFormData={formData}
-        />
-
       {/* Basic Information */}
       <Card>
         <CardHeader>
@@ -561,17 +671,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
             />
           </div>
 
-          <div>
-            <Label htmlFor="shortDescription">Mô tả ngắn</Label>
-            <Textarea
-              id="shortDescription"
-              value={formData.shortDescription}
-              onChange={(e) => setFormData((prev) => ({ ...prev, shortDescription: e.target.value }))}
-              rows={3}
-              className="mt-2"
-              placeholder="Mô tả ngắn gọn về sản phẩm (hiển thị trong danh sách sản phẩm)"
-            />
-          </div>
 
           <div>
             <Label htmlFor="description">Mô tả chi tiết</Label>
@@ -585,80 +684,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           </div>
         </CardContent>
       </Card>
-
-      {/* Variants - Enhanced */}
-      <VariantFormEnhanced
-        variants={formData.variants}
-        onChange={(variants) => setFormData((prev) => ({ ...prev, variants }))}
-        baseSku={formData.sku}
-      />
-
-      {/* Additional Information */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Thông tin bổ sung</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label htmlFor="material">Chất liệu</Label>
-            <Input
-              id="material"
-              value={formData.material || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, material: e.target.value }))}
-              className="mt-2"
-              placeholder="VD: Cotton, Polyester..."
-            />
-          </div>
-          <div>
-            <Label htmlFor="origin">Xuất xứ</Label>
-            <Input
-              id="origin"
-              value={formData.origin || ''}
-              onChange={(e) => setFormData((prev) => ({ ...prev, origin: e.target.value }))}
-              className="mt-2"
-              placeholder="VD: Việt Nam, Trung Quốc..."
-            />
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Product Details Section */}
-      <ProductDetailsSection
-        data={formData.productDetails || {}}
-        onChange={(productDetails) => setFormData((prev) => ({ ...prev, productDetails }))}
-      />
-
-      {/* SEO Section */}
-      <SEOSection
-        data={formData.seo || {}}
-        onChange={(seo) => setFormData((prev) => ({ ...prev, seo }))}
-        productName={formData.name}
-        productSlug={formData.slug}
-      />
-
-      {/* Gift Features Section */}
-      <GiftFeaturesSection
-        data={formData.giftFeatures || {
-          giftWrapping: false,
-          giftMessageEnabled: false,
-          giftCardEnabled: false,
-          giftDeliveryDateEnabled: false,
-        }}
-        onChange={(giftFeatures) => setFormData((prev) => ({ ...prev, giftFeatures }))}
-      />
-
-      {/* Media Extended Section */}
-      <MediaExtendedSection
-        data={formData.mediaExtended || {}}
-        onChange={(mediaExtended) => setFormData((prev) => ({ ...prev, mediaExtended }))}
-        productImages={formData.images}
-      />
-
-      {/* Collection & Combo Section */}
-      <CollectionComboSection
-        data={formData.collectionCombo || {}}
-        onChange={(collectionCombo) => setFormData((prev) => ({ ...prev, collectionCombo }))}
-      />
 
       {/* Product Flags */}
       <Card>
@@ -682,7 +707,150 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Product Data Meta Box */}
+      <ProductDataMetaBox
+        data={formData.productDataMetaBox}
+        onChange={(metaBoxData) => {
+          // Use functional update to batch state changes and prevent race conditions
+          setFormData((prev) => {
+            // Deep comparison to check if metaBoxData actually changed
+            const prevMetaBox = prev.productDataMetaBox || {};
+            const hasMetaBoxChanges = 
+              prevMetaBox.productType !== metaBoxData.productType ||
+              prevMetaBox.isVirtual !== metaBoxData.isVirtual ||
+              prevMetaBox.isDownloadable !== metaBoxData.isDownloadable ||
+              prevMetaBox.sku !== metaBoxData.sku ||
+              prevMetaBox.costPrice !== metaBoxData.costPrice ||
+              prevMetaBox.regularPrice !== metaBoxData.regularPrice ||
+              prevMetaBox.salePrice !== metaBoxData.salePrice ||
+              prevMetaBox.salePriceStartDate !== metaBoxData.salePriceStartDate ||
+              prevMetaBox.salePriceEndDate !== metaBoxData.salePriceEndDate ||
+              JSON.stringify(prevMetaBox.downloadableFiles) !== JSON.stringify(metaBoxData.downloadableFiles) ||
+              prevMetaBox.length !== metaBoxData.length ||
+              prevMetaBox.width !== metaBoxData.width ||
+              prevMetaBox.height !== metaBoxData.height ||
+              prevMetaBox.weight !== metaBoxData.weight ||
+              prevMetaBox.shippingClass !== metaBoxData.shippingClass ||
+              prevMetaBox.manageStock !== metaBoxData.manageStock ||
+              prevMetaBox.stockQuantity !== metaBoxData.stockQuantity ||
+              prevMetaBox.stockStatus !== metaBoxData.stockStatus ||
+              prevMetaBox.lowStockThreshold !== metaBoxData.lowStockThreshold ||
+              prevMetaBox.backorders !== metaBoxData.backorders ||
+              prevMetaBox.soldIndividually !== metaBoxData.soldIndividually ||
+              JSON.stringify(prevMetaBox.attributes) !== JSON.stringify(metaBoxData.attributes) ||
+              JSON.stringify(prevMetaBox.variations) !== JSON.stringify(metaBoxData.variations) ||
+              prevMetaBox.purchaseNote !== metaBoxData.purchaseNote ||
+              prevMetaBox.menuOrder !== metaBoxData.menuOrder ||
+              prevMetaBox.enableReviews !== metaBoxData.enableReviews;
+            
+            // Check if synced fields changed
+            const hasSyncedFieldChanges = 
+              prev.sku !== (metaBoxData.sku || prev.sku) ||
+              prev.length !== (metaBoxData.length || prev.length) ||
+              prev.width !== (metaBoxData.width || prev.width) ||
+              prev.height !== (metaBoxData.height || prev.height) ||
+              prev.weight !== (metaBoxData.weight || prev.weight);
+            
+            if (!hasMetaBoxChanges && !hasSyncedFieldChanges) {
+              return prev;
+            }
+            
+            return {
+              ...prev,
+              productDataMetaBox: metaBoxData,
+              // Sync some fields from meta box to form data
+              sku: metaBoxData.sku || prev.sku,
+              length: metaBoxData.length || prev.length,
+              width: metaBoxData.width || prev.width,
+              height: metaBoxData.height || prev.height,
+              weight: metaBoxData.weight || prev.weight,
+            };
+          });
+        }}
+        productId={productId}
+      />
+
+      {/* Short Description Editor - Nằm dưới ProductDataMetaBox và trên SEO Meta Box */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Mô tả ngắn</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              Đoạn văn bản &quot;mồi&quot; hiển thị ngay bên cạnh ảnh sản phẩm và phía trên nút Mua hàng ở giao diện Frontend.
+            </p>
+            <ShortDescriptionEditor
+              value={formData.shortDescription}
+              onChange={(html) => {
+                setFormData((prev) => {
+                  const newData = { ...prev, shortDescription: html };
+                  
+                  // Đồng bộ tự động: Copy sang SEO nếu chưa điền
+                  if (!newData.seo?.seoDescription && html) {
+                    // Strip HTML tags for SEO description (max 160 chars)
+                    const textOnly = html.replace(/<[^>]*>/g, '').substring(0, 160);
+                    if (textOnly) {
+                      newData.seo = {
+                        ...newData.seo,
+                        seoDescription: textOnly,
+                      };
+                    }
+                  }
+                  
+                  return newData;
+                });
+              }}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* SEO Meta Box - Nằm sau Short Description Editor */}
+      <SEOMetaBox
+        data={formData.seo || {}}
+        onChange={(seo) => {
+          setFormData((prev) => {
+            // Sync slug from SEO Meta Box to formData.slug if changed
+            const newSlug = seo.slug && seo.slug !== prev.slug ? seo.slug : prev.slug;
+            return { ...prev, seo, slug: newSlug };
+          });
+        }}
+        productName={formData.name}
+        productPrice={formData.productDataMetaBox?.regularPrice || 0}
+        productSalePrice={formData.productDataMetaBox?.salePrice}
+        productSku={formData.productDataMetaBox?.sku || formData.sku || ''}
+        productCategory={formData.categories && formData.categories[0] ? categories.find(c => c.id === formData.categories![0])?.name || '' : ''}
+        productBrand={''} // TODO: Get from product attributes or meta
+        productShortDescription={formData.shortDescription || ''}
+        productDescription={formData.description || ''}
+        productImage={thumbnailUrl || ''}
+        productStockStatus={formData.productDataMetaBox?.stockStatus || 'instock'}
+        productStockQuantity={formData.productDataMetaBox?.stockQuantity || 0}
+        productRating={5.0} // TODO: Get from product reviews
+        productSlug={formData.slug || ''}
+        siteName="Shop Gấu Bông"
+        hasRelatedProducts={
+          // Check if product has related products (upsell/cross-sell)
+          // Note: collectionCombo was removed, but we can check other sources if available
+          false // TODO: Implement when upsell/cross-sell feature is available
+        }
+      />
       </ProductFormLayout>
+
+      {/* Sticky Action Bar */}
+      <StickyActionBar
+        onSave={handleSaveDraft}
+        onPreview={() => {
+          if (productId && formData.slug) {
+            window.open(`/products/${formData.slug}`, '_blank');
+          }
+        }}
+        loading={loading}
+        productId={productId}
+        productSlug={formData.slug}
+      />
     </form>
   );
 }

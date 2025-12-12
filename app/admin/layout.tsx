@@ -9,7 +9,7 @@
 
 import { SessionProvider, useSession } from 'next-auth/react';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { signOut } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,11 @@ import {
   FileText,
   User,
   MessageSquare,
+  Tags,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  List,
 } from 'lucide-react';
 
 function AdminLayoutContent({
@@ -35,6 +40,21 @@ function AdminLayoutContent({
 
   // Don't redirect if on login page
   const isLoginPage = pathname === '/admin/login';
+
+  // Check if products submenu should be expanded
+  const isProductsPath = pathname.startsWith('/admin/products') || pathname.startsWith('/admin/attributes');
+  
+  // IMPORTANT: All hooks must be called before any conditional returns
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
+    new Set(isProductsPath ? ['products'] : [])
+  );
+
+  // Auto-expand menu if on submenu page
+  useEffect(() => {
+    if (isProductsPath && !expandedMenus.has('products')) {
+      setExpandedMenus((prev) => new Set(prev).add('products'));
+    }
+  }, [pathname, isProductsPath, expandedMenus]);
 
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated
@@ -79,15 +99,47 @@ function AdminLayoutContent({
     await signOut({ callbackUrl: '/admin/login' });
   };
 
-  const navItems = [
+  interface NavItem {
+    href: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    submenu?: Array<{
+      href: string;
+      label: string;
+      icon?: React.ComponentType<{ className?: string }>;
+    }>;
+  }
+
+  const navItems: NavItem[] = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
-    { href: '/admin/products', label: 'Sản phẩm', icon: Package },
+    {
+      href: '/admin/products',
+      label: 'Sản phẩm',
+      icon: Package,
+      submenu: [
+        { href: '/admin/products', label: 'Tất cả sản phẩm', icon: List },
+        { href: '/admin/products/new', label: 'Thêm mới', icon: Plus },
+        { href: '/admin/attributes', label: 'Thuộc tính', icon: Tags },
+      ],
+    },
     { href: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
     { href: '/admin/categories', label: 'Danh mục', icon: FolderTree },
     { href: '/admin/posts', label: 'Bài viết', icon: FileText },
     { href: '/admin/authors', label: 'Tác giả', icon: User },
     { href: '/admin/comments', label: 'Bình luận', icon: MessageSquare },
   ];
+
+  const toggleMenu = (menuKey: string) => {
+    setExpandedMenus((prev) => {
+      const next = new Set(prev);
+      if (next.has(menuKey)) {
+        next.delete(menuKey);
+      } else {
+        next.add(menuKey);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -98,18 +150,70 @@ function AdminLayoutContent({
           <p className="text-sm text-gray-500 mt-1">Shop Gấu Bông</p>
         </div>
 
-        <nav className="px-4 space-y-2">
+        <nav className="px-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
+            const hasSubmenu = item.submenu && item.submenu.length > 0;
+            const isExpanded = hasSubmenu && expandedMenus.has(item.href);
+            const isActive = pathname === item.href || 
+                            (item.href !== '/admin' && pathname.startsWith(item.href)) ||
+                            (hasSubmenu && item.submenu?.some(sub => pathname.startsWith(sub.href)));
+
             return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 px-4 py-3 text-gray-700 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <Icon className="w-5 h-5" />
-                <span>{item.label}</span>
-              </Link>
+              <div key={item.href}>
+                {/* Main Menu Item */}
+                <div className="flex items-center">
+                  <Link
+                    href={item.href}
+                    className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      isActive && !hasSubmenu
+                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                  {hasSubmenu && (
+                    <button
+                      onClick={() => toggleMenu(item.href)}
+                      className="px-2 py-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      aria-label={isExpanded ? 'Thu gọn' : 'Mở rộng'}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Submenu */}
+                {hasSubmenu && isExpanded && (
+                  <div className="ml-4 space-y-1 border-l-2 border-gray-200 pl-2">
+                    {item.submenu.map((subItem) => {
+                      const SubIcon = subItem.icon || Package;
+                      const isSubActive = pathname === subItem.href || 
+                                         (subItem.href !== '/admin/products' && pathname.startsWith(subItem.href));
+                      return (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm ${
+                            isSubActive
+                              ? 'bg-blue-50 text-blue-700 font-medium'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <SubIcon className="w-4 h-4" />
+                          <span>{subItem.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
         </nav>

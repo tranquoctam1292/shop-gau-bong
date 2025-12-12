@@ -22,10 +22,12 @@ export interface MappedProduct {
   salePrice: string;
   onSale: boolean;
   image: {
+    id?: string; // Attachment ID (new structure)
     sourceUrl: string;
     altText: string;
   } | null;
   galleryImages: Array<{
+    id?: string; // Attachment ID (new structure)
     sourceUrl: string;
     altText: string;
   }>;
@@ -59,6 +61,7 @@ export interface MappedProduct {
     position: number;
     visible: boolean;
     variation: boolean;
+    globalAttributeId?: string; // Reference to global attribute ID (for Phase 6)
   }>;
   // Product type: simple, variable, grouped, external
   type?: 'simple' | 'variable' | 'grouped' | 'external';
@@ -219,7 +222,10 @@ export interface MongoProduct {
   sku?: string;
   minPrice: number;
   maxPrice?: number;
-  images: string[]; // Array of image URLs
+  // Image fields (new structure)
+  _thumbnail_id?: string; // Attachment ID for featured image
+  _product_image_gallery?: string; // Comma-separated attachment IDs for gallery
+  images?: string[]; // Array of image URLs (backward compatibility)
   category?: string; // Category ID or slug
   tags?: string[];
   variants?: Array<{
@@ -260,23 +266,59 @@ type MongoDocument = MongoProduct & { _id: any };
 export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any): MappedProduct {
   const productId = mongoProduct._id.toString();
   
-  // Calculate price from variants or use minPrice
-  const price = mongoProduct.variants && mongoProduct.variants.length > 0
-    ? String(Math.min(...mongoProduct.variants.map(v => v.price)))
-    : String(mongoProduct.minPrice || 0);
+  // Priority 1: Use productDataMetaBox prices if available
+  // Priority 2: Calculate from variants
+  // Priority 3: Use minPrice/maxPrice
+  const regularPrice = mongoProduct.productDataMetaBox?.regularPrice !== undefined
+    ? String(mongoProduct.productDataMetaBox.regularPrice)
+    : mongoProduct.variants && mongoProduct.variants.length > 0
+    ? String(Math.max(...mongoProduct.variants.map(v => v.price || v.regularPrice || 0)))
+    : String(mongoProduct.maxPrice || mongoProduct.minPrice || 0);
   
-  const maxPrice = mongoProduct.maxPrice || mongoProduct.minPrice;
-  const regularPrice = String(maxPrice || mongoProduct.minPrice || 0);
+  const salePrice = mongoProduct.productDataMetaBox?.salePrice !== undefined
+    ? String(mongoProduct.productDataMetaBox.salePrice)
+    : '';
   
-  // Extract attributes from variants
-  const sizeOptions = mongoProduct.variants
-    ? [...new Set(mongoProduct.variants.map(v => v.size).filter(Boolean))]
-    : [];
-  const colorOptions = mongoProduct.variants
-    ? [...new Set(mongoProduct.variants.map(v => v.color).filter(Boolean))]
-    : [];
+  const onSale = salePrice && parseFloat(salePrice) > 0 && parseFloat(salePrice) < parseFloat(regularPrice);
+  
+  // Use salePrice if on sale, otherwise use regularPrice
+  const price = onSale ? salePrice : regularPrice;
+  
+  // Extract attributes from variants (priority: variants > productDataMetaBox.variations)
+  // Priority 1: Use variants array (converted from productDataMetaBox.variations)
+  // Priority 2: Extract from productDataMetaBox.variations if variants not available (backward compatibility)
+  let sizeOptions: string[] = [];
+  let colorOptions: string[] = [];
+  
+  if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+    // Use variants array (new format)
+    sizeOptions = [...new Set(mongoProduct.variants.map((v: any) => v.size).filter(Boolean))];
+    colorOptions = [...new Set(mongoProduct.variants.map((v: any) => v.color).filter(Boolean))];
+  } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+    // Fallback: Extract from productDataMetaBox.variations (backward compatibility)
+    mongoProduct.productDataMetaBox.variations.forEach((variation: any) => {
+      if (variation.attributes) {
+        Object.entries(variation.attributes).forEach(([attrName, value]) => {
+          const attrNameLower = attrName.toLowerCase();
+          if (attrNameLower.includes('size') || attrNameLower === 'pa_size' || attrNameLower === 'kích thước') {
+            const size = String(value);
+            if (size && !sizeOptions.includes(size)) {
+              sizeOptions.push(size);
+            }
+          } else if (attrNameLower.includes('color') || attrNameLower === 'pa_color' || attrNameLower === 'màu') {
+            const color = String(value);
+            if (color && !colorOptions.includes(color)) {
+              colorOptions.push(color);
+            }
+          }
+        });
+      }
+    });
+  }
   
   // Build attributes array
+  // Priority: Use productDataMetaBox.attributes if available (includes globalAttributeId)
+  // Fallback: Build from variants/extracted options
   const attributes: Array<{
     id: number;
     name: string;
@@ -284,59 +326,116 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     position: number;
     visible: boolean;
     variation: boolean;
+    globalAttributeId?: string;
   }> = [];
   
-  if (sizeOptions.length > 0) {
-    attributes.push({
-      id: 1,
-      name: 'pa_size',
-      options: sizeOptions,
-      position: 0,
-      visible: true,
-      variation: true,
+  // Check if productDataMetaBox.attributes exists (new format with globalAttributeId)
+  if (mongoProduct.productDataMetaBox?.attributes && mongoProduct.productDataMetaBox.attributes.length > 0) {
+    // Map from productDataMetaBox.attributes (includes globalAttributeId)
+    mongoProduct.productDataMetaBox.attributes.forEach((attr: any, index: number) => {
+      if (attr.values && attr.values.length > 0) {
+        attributes.push({
+          id: index + 1,
+          name: attr.name,
+          options: attr.values,
+          position: index,
+          visible: true,
+          variation: attr.usedForVariations || false,
+          globalAttributeId: attr.globalAttributeId, // Include globalAttributeId
+        });
+      }
     });
-  }
-  
-  if (colorOptions.length > 0) {
-    attributes.push({
-      id: 2,
-      name: 'pa_color',
-      options: colorOptions,
-      position: 1,
-      visible: true,
-      variation: true,
-    });
+  } else {
+    // Fallback: Build from extracted options (backward compatibility)
+    if (sizeOptions.length > 0) {
+      attributes.push({
+        id: 1,
+        name: 'pa_size',
+        options: sizeOptions,
+        position: 0,
+        visible: true,
+        variation: true,
+      });
+    }
+    
+    if (colorOptions.length > 0) {
+      attributes.push({
+        id: 2,
+        name: 'pa_color',
+        options: colorOptions,
+        position: 1,
+        visible: true,
+        variation: true,
+      });
+    }
   }
   
   // Determine product type
-  const type: 'simple' | 'variable' = mongoProduct.variants && mongoProduct.variants.length > 0
-    ? 'variable'
-    : 'simple';
+  const hasVariants = (mongoProduct.variants && mongoProduct.variants.length > 0) ||
+                      (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0);
+  const type: 'simple' | 'variable' = hasVariants ? 'variable' : 'simple';
   
   return {
-    id: `gid://shop-gau-bong/Product/${productId}`,
-    databaseId: parseInt(productId, 16) || 0, // Fallback ID
+    id: productId, // Use MongoDB ObjectId directly (not GraphQL format)
+    databaseId: productId, // Use ObjectId string as databaseId for compatibility
     name: mongoProduct.name,
     slug: mongoProduct.slug,
     price,
     regularPrice,
-    salePrice: '', // TODO: Add sale price support
-    onSale: false, // TODO: Add sale price support
-    image: mongoProduct.images?.[0] ? {
-      sourceUrl: mongoProduct.images[0],
-      altText: mongoProduct.name,
-    } : null,
-    galleryImages: mongoProduct.images?.slice(1).map(img => ({
-      sourceUrl: img,
-      altText: mongoProduct.name,
-    })) || [],
+    salePrice,
+    onSale,
+    // Map images - try new structure first, fallback to old structure
+    image: (() => {
+      // TODO: Expand _thumbnail_id to full URL when media API is available
+      // For now, use images array or return null
+      if (mongoProduct._thumbnail_id) {
+        // New structure: return object with id
+        return {
+          id: mongoProduct._thumbnail_id,
+          sourceUrl: mongoProduct.images?.[0] || '', // Fallback to images array
+          altText: mongoProduct.name,
+        } as any;
+      }
+      // Old structure: use images array
+      return mongoProduct.images?.[0] ? {
+        sourceUrl: mongoProduct.images[0],
+        altText: mongoProduct.name,
+      } : null;
+    })(),
+    galleryImages: (() => {
+      // TODO: Expand _product_image_gallery IDs to full URLs when media API is available
+      // For now, use images array or return empty
+      if (mongoProduct._product_image_gallery) {
+        // New structure: parse comma-separated IDs
+        const galleryIds = mongoProduct._product_image_gallery.split(',').filter(Boolean);
+        // Map IDs to objects (temporary: use images array for URLs)
+        const imageUrls = mongoProduct.images?.slice(1) || [];
+        return galleryIds.map((id, idx) => ({
+          id: id.trim(),
+          sourceUrl: imageUrls[idx] || '', // Fallback to images array
+          altText: mongoProduct.name,
+        })) as any;
+      }
+      // Old structure: use images array
+      return mongoProduct.images?.slice(1).map(img => ({
+        sourceUrl: img,
+        altText: mongoProduct.name,
+      })) || [];
+    })(),
     description: mongoProduct.description || '',
     shortDescription: mongoProduct.shortDescription || '',
-    sku: mongoProduct.sku || '',
-    stockStatus: mongoProduct.variants && mongoProduct.variants.length > 0
+    sku: mongoProduct.productDataMetaBox?.sku || mongoProduct.sku || '',
+    // Priority 1: Use productDataMetaBox stock fields if available
+    // Priority 2: Calculate from variants
+    // Priority 3: Default to instock
+    stockStatus: mongoProduct.productDataMetaBox?.stockStatus !== undefined
+      ? mongoProduct.productDataMetaBox.stockStatus
+      : mongoProduct.variants && mongoProduct.variants.length > 0
       ? mongoProduct.variants.some(v => (v.stock || 0) > 0) ? 'instock' : 'outofstock'
       : 'instock',
-    stockQuantity: mongoProduct.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || null,
+    stockQuantity: mongoProduct.productDataMetaBox?.stockQuantity !== undefined
+      ? mongoProduct.productDataMetaBox.stockQuantity
+      : mongoProduct.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || null,
     weight: mongoProduct.weight ? String(mongoProduct.weight) : null,
     length: mongoProduct.length || null,
     width: mongoProduct.width || null,
@@ -352,7 +451,8 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     })),
     attributes: attributes.length > 0 ? attributes : undefined,
     type,
-    variations: mongoProduct.variants?.map((_, idx) => idx + 1) || [],
+    variations: (mongoProduct.variants?.map((_, idx) => idx + 1) || 
+                 mongoProduct.productDataMetaBox?.variations?.map((_, idx) => idx + 1) || []),
   };
 }
 

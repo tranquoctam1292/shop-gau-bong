@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
-import { connectToDatabase } from '@/lib/mongodb';
-import { ObjectId } from 'mongodb';
+import { getCollections, ObjectId } from '@/lib/db';
 
 /**
  * POST /api/admin/products/validate-sku
@@ -10,8 +7,11 @@ import { ObjectId } from 'mongodb';
  */
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user) {
+    // Authentication check
+    const { requireAdmin } = await import('@/lib/auth');
+    try {
+      await requireAdmin();
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -23,8 +23,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ available: true });
     }
 
-    const { db } = await connectToDatabase();
-    const productsCollection = db.collection('products');
+    const { products } = await getCollections();
 
     // Build query
     const query: any = { sku: sku.trim() };
@@ -39,7 +38,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if SKU exists
-    const existingProduct = await productsCollection.findOne(query);
+    const existingProduct = await products.findOne(query);
 
     if (existingProduct) {
       return NextResponse.json({

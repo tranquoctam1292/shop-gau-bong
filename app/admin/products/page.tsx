@@ -22,10 +22,32 @@ export default function AdminProductsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
 
+  // Debounce search to prevent race conditions
+  useEffect(() => {
+    // Clear previous timer
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+    
+    // Set new timer
+    const timer = setTimeout(() => {
+      fetchProducts();
+    }, 300); // 300ms debounce
+    
+    setSearchDebounceTimer(timer);
+    
+    // Cleanup
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [search]);
+
+  // Fetch products when page changes (not debounced)
   useEffect(() => {
     fetchProducts();
-  }, [page, search]);
+  }, [page]);
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -62,6 +84,11 @@ export default function AdminProductsPage() {
 
       if (response.ok) {
         fetchProducts();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        // Show error message to user
+        const errorMessage = errorData.error || `Không thể xóa sản phẩm (${response.status})`;
+        alert(errorMessage);
       }
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -130,14 +157,33 @@ export default function AdminProductsPage() {
     }
 
     try {
-      const promises = selectedProducts.map((id) =>
-        fetch(`/api/admin/products/${id}`, {
+      const promises = selectedProducts.map(async (id) => {
+        const response = await fetch(`/api/admin/products/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status }),
-        })
-      );
-      await Promise.all(promises);
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          // Log error but continue with other products
+          console.error(`Failed to update product ${id}:`, errorData);
+        }
+        
+        return response;
+      });
+      
+      const results = await Promise.all(promises);
+      const successCount = results.filter(r => r.ok).length;
+      const failCount = results.filter(r => !r.ok).length;
+      
+      // Show result message to user
+      if (failCount > 0) {
+        alert(`Cập nhật thành công ${successCount}/${selectedProducts.length} sản phẩm. ${failCount} sản phẩm thất bại.`);
+      } else {
+        alert(`Đã cập nhật thành công ${successCount} sản phẩm.`);
+      }
+      
       setSelectedProducts([]);
       fetchProducts();
     } catch (error) {
