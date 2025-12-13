@@ -162,7 +162,7 @@ async function testPhase1Complete() {
       );
 
       console.log(`   ✅ ${currentStatus} -> ${transition.to}: Success`);
-      currentStatus = transition.to;
+      currentStatus = transition.to as OrderStatus;
     }
     results.push({ name: 'Valid Transitions với History', passed: true });
 

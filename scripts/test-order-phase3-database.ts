@@ -168,8 +168,8 @@ async function runTests() {
         orderId,
         'confirmed',
         'processing',
-        'admin',
         'test-admin-id',
+        'admin',
         'Test Admin'
       );
 

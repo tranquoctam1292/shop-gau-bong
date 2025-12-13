@@ -323,7 +323,7 @@ async function runTests() {
     // Test 8: Update refund status
     await test('Update refund status', async () => {
       const refundList = await getOrderRefunds(orderId2);
-      const firstRefund = refundList[0];
+      const firstRefund = refundList[0] as any;
 
       if (!firstRefund._id) {
         throw new Error('Refund ID not found');

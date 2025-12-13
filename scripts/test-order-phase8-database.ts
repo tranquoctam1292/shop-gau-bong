@@ -370,9 +370,9 @@ async function runTests() {
   <title>Nhãn vận chuyển</title>
 </head>
 <body>
-  ${ordersWithItems
+      ${ordersWithItems
     .map(
-      (order) => `
+      (order: any) => `
     <div class="label">
       <div>NHÃN VẬN CHUYỂN</div>
       <div>Mã đơn: ${order.orderNumber}</div>
