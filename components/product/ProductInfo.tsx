@@ -13,7 +13,7 @@ import { getColorHex } from '@/lib/utils/colorMapping';
 import { generateSlug } from '@/lib/utils/slug';
 import { cn } from '@/lib/utils/cn';
 import type { MappedProduct } from '@/lib/utils/productMapper';
-import { Gift, ShoppingCart, Check, Loader2, Zap } from 'lucide-react';
+import { Gift, ShoppingCart, Check, Loader2 } from 'lucide-react';
 import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
 
 interface ProductInfoProps {
@@ -41,33 +41,40 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   );
 
   // Find selected variation based on selectedSize
+  // MongoVariant structure: { id, size, color, price, stock, ... }
+  // Match variation by size directly (not through attributes array)
   const selectedVariation = useMemo(() => {
     if (!product || !selectedSize || variations.length === 0) return null;
     
-    const sizeAttribute = product.attributes?.find(
-      (attr) => attr.name.toLowerCase().includes('size') || 
-                 attr.name.toLowerCase().includes('kích thước') ||
-                 attr.name.toLowerCase().includes('kich thuoc')
-    );
+    // Match variation by size directly (MongoDB variant structure)
+    const matchedVariation = variations.find((variation) => {
+      // Check if variation.size matches selectedSize
+      if (variation.size && variation.size === selectedSize) {
+        // If color is also selected, check if it matches
+        // But if variation doesn't have color (null/undefined), still match by size
+        if (selectedColor) {
+          // Only require color match if variation has a color value
+          // If variation.color is null/undefined, it means this variation doesn't have color attribute
+          // So we should still match it by size only
+          return !variation.color || variation.color === selectedColor;
+        }
+        return true;
+      }
+      return false;
+    });
     
-    if (!sizeAttribute) return null;
-    
-    return variations.find((variation) => {
-      const sizeAttr = variation.attributes.find(
-        (attr) => attr.id === sizeAttribute.id || 
-                  attr.name.toLowerCase() === sizeAttribute.name.toLowerCase()
-      );
-      return sizeAttr && sizeAttr.option === selectedSize;
-    }) || null;
-  }, [selectedSize, variations, product]);
+    return matchedVariation || null;
+  }, [selectedSize, selectedColor, variations, product]);
 
   // Dynamic pricing
+  // MongoVariant structure: { id, size, color, price, stock, ... }
+  // MongoVariant không có on_sale, sale_price, regular_price fields
   const displayPrice = useMemo(() => {
     if (!product) return '0';
     if (selectedVariation) {
-      return selectedVariation.on_sale && selectedVariation.sale_price
-        ? selectedVariation.sale_price
-        : selectedVariation.price || selectedVariation.regular_price;
+      // MongoVariant chỉ có price field
+      const price = String(selectedVariation.price || 0);
+      return price;
     }
     return product.onSale ? product.salePrice : product.price;
   }, [selectedVariation, product]);
@@ -75,7 +82,9 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   const displayRegularPrice = useMemo(() => {
     if (!product) return null;
     if (selectedVariation) {
-      return selectedVariation.regular_price;
+      // MongoVariant không có regular_price field
+      // Return null để không hiển thị line-through
+      return null;
     }
     return product.regularPrice;
   }, [selectedVariation, product]);
@@ -83,9 +92,13 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   const isOnSale = useMemo(() => {
     if (!product) return false;
     if (selectedVariation) {
-      return selectedVariation.on_sale || false;
+      // MongoVariant không có on_sale field
+      // Check if variation price is different from product regular price
+      const variationPrice = selectedVariation.price || 0;
+      const productRegularPrice = parseFloat(product.regularPrice) || 0;
+      return variationPrice < productRegularPrice && variationPrice > 0;
     }
-    return product.onSale;
+    return product.onSale || false;
   }, [selectedVariation, product]);
 
   // Extract Size and Color attributes (trước early return để dùng trong useEffect)
@@ -221,10 +234,10 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
     setAddingType(isGift ? 'gift' : isQuickCheckout ? 'quick' : 'buy');
 
     try {
+      // MongoVariant structure: { id, size, color, price, stock, ... }
+      // MongoVariant chỉ có price field, không có on_sale, sale_price, regular_price
       const priceToUse = selectedVariation 
-        ? (selectedVariation.on_sale && selectedVariation.sale_price 
-            ? selectedVariation.sale_price 
-            : selectedVariation.price || selectedVariation.regular_price)
+        ? String(selectedVariation.price || 0)
         : (product.onSale ? product.salePrice : product.price);
 
       for (let i = 0; i < quantity; i++) {
@@ -457,26 +470,6 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
             )}
           </Button>
         </div>
-
-        {/* Quick Checkout Button - Mua ngay */}
-        <Button
-          className="w-full rounded-full bg-[#D6336C] hover:bg-[#BE185D] text-white border-none px-6 h-10 md:h-12 min-h-[44px] text-sm md:text-base gap-2 font-bold !flex items-center justify-center"
-          disabled={isOutOfStock || isAdding}
-          onClick={() => handleAddToCartClick(false, true)}
-          aria-label="Mua ngay"
-        >
-          {isAdding && addingType === 'quick' ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin flex-shrink-0" />
-              <span className="whitespace-nowrap">Đang xử lý...</span>
-            </>
-          ) : (
-            <>
-              <Zap className="w-4 h-4 flex-shrink-0" />
-              <span className="whitespace-nowrap">Mua ngay</span>
-            </>
-          )}
-        </Button>
       </div>
     </div>
   );

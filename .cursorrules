@@ -56,6 +56,10 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Image Handling:** Next.js `Image` component is mandatory. Fallback to placeholder if source is null.
 - **State Management:** Zustand for cart state (localStorage persistence), React Query for server state.
 - **Product Variations:** Support variable products with size and color attributes. Use `useProductVariations` hook for lazy loading.
+  - **CRITICAL:** MongoDB variants use direct `size` and `color` fields, NOT an `attributes` object.
+  - **Structure:** `MongoVariant { id, size, color?, colorCode?, price, stock, image?, sku? }`
+  - **Matching:** Match variations by `variation.size === selectedSize` directly, not through `variation.attributes.find()`
+  - **Pricing:** Variants only have `price` field (no `on_sale`, `sale_price`, `regular_price`)
 - **Button Styling:** Use `buttonVariants` from `lib/utils/button-variants.ts`. Default variant includes gradient and shadow effects. Ghost variant for subtle buttons.
 - **Product Filters:** 
   - Component: `components/product/ProductFilters.tsx`
@@ -107,6 +111,11 @@ Before implementing any feature, you MUST reference the following sources based 
 - **NO console.log in production:** Remove all debug console.log statements before committing.
 - **State Management:** Use separate state variables for mobile and desktop when components render conditionally (e.g., `lg:hidden` vs `hidden lg:block`).
 - **Popover State:** When using Radix UI Popover with React Portals, ensure conditional rendering sections (mobile/desktop) use separate state variables to prevent duplicate PopoverContent rendering.
+- **Product Variations Handling:**
+  - **CRITICAL:** Never use `variation.attributes.find()` - MongoDB variants don't have `attributes` object
+  - Always match by `variation.size` and `variation.color` directly
+  - Always check for null/undefined before accessing `variation.size` or `variation.color`
+  - Example: `if (variation.size && variation.size === selectedSize) { ... }`
 
 # BUSINESS LOGIC RULES
 - **Language:** UI text MUST be **Vietnamese**. Code comments in English/Vietnamese.
@@ -115,6 +124,7 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Homepage:** Each product section displays **8 products** (2 rows × 4 columns on desktop, 2 columns × 4 rows on mobile).
 - **Homepage Sections:** Hero Carousel, New Arrivals, Bigsize Products, Category Products, Trending Products, Categories Grid, Featured Products, Best Sellers, Video Section, Stories Section, Store Locations. (Customer Photos section has been removed)
 - **Product Variations:** Products can have size and color variations. Display up to 4 size options and 4 color options on ProductCard. Dynamic pricing based on selected variation.
+  - **Product Info Actions:** Only "Thêm giỏ hàng" (Add to cart) and "GỬI TẶNG" (Gift) buttons are available. "Mua ngay" (Quick checkout) button has been removed.
 - **Cart UI:** CartDrawer uses Shadcn Sheet component. Cart button uses ghost variant with hover effect. Buttons have proper padding (`px-10 py-5`) and text centering.
 
 # RESPONSE GUIDELINES

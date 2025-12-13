@@ -250,26 +250,108 @@ export async function GET(request: NextRequest) {
     const perPage = parseInt(searchParams.get('per_page') || '10', 10);
     const search = searchParams.get('search');
     const status = searchParams.get('status');
+    const trashed = searchParams.get('trashed') === 'true';
+    const stockStatus = searchParams.get('stock_status');
+    const category = searchParams.get('category');
+    const brand = searchParams.get('brand');
+    const priceMin = searchParams.get('price_min');
+    const priceMax = searchParams.get('price_max');
     
     const { products } = await getCollections();
     
     // Build query
     const query: any = {};
     
-    if (search) {
+    // Soft Delete Logic: Handle trashed and status params
+    if (trashed || status === 'trash') {
+      // Show only trashed products (deletedAt IS NOT NULL)
+      query.deletedAt = { $ne: null };
+    } else {
+      // Default: Show only non-trashed products (deletedAt IS NULL or not exists)
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } },
+        { deletedAt: null },
+        { deletedAt: { $exists: false } }
       ];
     }
     
-    if (status) {
+    // Status filter (active, draft, etc.)
+    if (status && status !== 'trash') {
       query.status = status;
     }
     
+    // Search: name, SKU, barcode
+    if (search) {
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { sku: { $regex: search, $options: 'i' } },
+          // Search in productDataMetaBox.sku if exists
+          { 'productDataMetaBox.sku': { $regex: search, $options: 'i' } },
+        ],
+      });
+    }
+    
+    // Category filter
+    if (category) {
+      try {
+        const categoryId = new ObjectId(category);
+        query.$or = query.$or || [];
+        query.$or.push(
+          { category: category },
+          { categoryId: category },
+          { category: categoryId },
+          { categoryId: categoryId.toString() }
+        );
+      } catch {
+        // If category is not a valid ObjectId, search by name
+        query.category = { $regex: category, $options: 'i' };
+      }
+    }
+    
+    // Brand filter (if brand field exists)
+    if (brand) {
+      query.brand = brand;
+    }
+    
+    // Price range filter
+    if (priceMin || priceMax) {
+      const priceQuery: any = {};
+      if (priceMin) {
+        priceQuery.$gte = parseFloat(priceMin);
+      }
+      if (priceMax) {
+        priceQuery.$lte = parseFloat(priceMax);
+      }
+      if (Object.keys(priceQuery).length > 0) {
+        query.$or = query.$or || [];
+        query.$or.push(
+          { price: priceQuery },
+          { minPrice: priceQuery },
+          { 'productDataMetaBox.regularPrice': priceQuery },
+          { 'productDataMetaBox.salePrice': priceQuery }
+        );
+      }
+    }
+    
+    // Stock status filter
+    if (stockStatus) {
+      query.$or = query.$or || [];
+      query.$or.push(
+        { stockStatus: stockStatus },
+        { 'productDataMetaBox.stockStatus': stockStatus }
+      );
+    }
+    
+    // Fix $or array if it exists and has only one condition
+    if (query.$or && Array.isArray(query.$or) && query.$or.length === 1) {
+      Object.assign(query, query.$or[0]);
+      delete query.$or;
+    }
+    
     // Fetch products
-    const [productsList, total] = await Promise.all([
+    const [productsList, total, trashCount] = await Promise.all([
       products
         .find(query)
         .sort({ createdAt: -1 })
@@ -277,6 +359,8 @@ export async function GET(request: NextRequest) {
         .limit(perPage)
         .toArray(),
       products.countDocuments(query),
+      // Count trashed products for trash tab badge
+      products.countDocuments({ deletedAt: { $ne: null } }),
     ]);
     
     const mappedProducts = productsList.map((product) => mapMongoProduct(product));
@@ -291,6 +375,9 @@ export async function GET(request: NextRequest) {
         perPage,
         hasNextPage: page < totalPages,
         hasPrevPage: page > 1,
+      },
+      filters: {
+        trashCount,
       },
     });
   } catch (error: any) {

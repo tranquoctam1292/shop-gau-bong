@@ -138,6 +138,9 @@ export interface Collections {
   shipments: Collection;
   // Refunds
   refunds: Collection;
+  // Menu Management
+  menus: Collection;
+  menuItems: Collection;
 }
 
 /**
@@ -179,6 +182,9 @@ export async function getCollections(): Promise<Collections> {
     shipments: db.collection('shipments'),
     // Refunds
     refunds: db.collection('refunds'),
+    // Menu Management
+    menus: db.collection('menus'),
+    menuItems: db.collection('menu_items'),
   };
 }
 

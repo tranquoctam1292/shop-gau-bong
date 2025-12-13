@@ -1,6 +1,6 @@
 # 📊 Schema Context - Custom CMS (MongoDB)
 
-**Last Updated:** 2025-01-XX  
+**Last Updated:** 2025-12-13  
 **Database:** MongoDB  
 **API Method:** Next.js API Routes  
 **Base URL:** `/api/cms/` (public) và `/api/admin/` (admin)
@@ -113,27 +113,43 @@ interface MongoProduct {
 
 ### Product Variants
 
+**⚠️ IMPORTANT:** MongoDB variant structure uses direct `size` and `color` fields, NOT an `attributes` object.
+
 ```typescript
 interface MongoVariant {
-  _id: ObjectId;                    // Variant ID
-  productId: ObjectId;              // Parent product ID
-  name: string;                     // Variant name (e.g., "Size: L, Color: Red")
-  sku?: string;                     // Variant SKU
-  price: number;                    // Variant price
-  regularPrice?: number;            // Regular price
-  salePrice?: number;               // Sale price
-  stockStatus: 'instock' | 'outofstock' | 'onbackorder';
-  stockQuantity?: number;           // Stock quantity
-  attributes: {
-    size?: string;                  // Size attribute value
-    color?: string;                 // Color attribute value
-    [key: string]: string | undefined;
-  };
-  image?: string;                   // Variant-specific image
-  createdAt: Date;
-  updatedAt: Date;
+  id: string;                       // Variant ID (string, not ObjectId)
+  size: string;                     // Size value (e.g., "25cm", "30cm", "L", "M")
+  color?: string;                   // Color value (optional, e.g., "Hồng", "Xanh")
+  colorCode?: string;               // Hex color code (optional, e.g., "#FF9EB5")
+  price: number;                    // Variant price (required)
+  stock: number;                    // Stock quantity (required)
+  image?: string;                   // Variant-specific image URL (optional)
+  sku?: string;                     // Variant SKU (optional)
 }
 ```
+
+**Usage in Components:**
+```typescript
+// ✅ CORRECT: Match variation by size/color directly
+const matchedVariation = variations.find((variation) => {
+  if (variation.size && variation.size === selectedSize) {
+    if (selectedColor) {
+      return !variation.color || variation.color === selectedColor;
+    }
+    return true;
+  }
+  return false;
+});
+
+// ❌ WRONG: Don't use variation.attributes.find() - this doesn't exist
+const sizeAttr = variation.attributes.find(...); // ERROR: attributes is undefined
+```
+
+**Note:** 
+- MongoDB variants are stored in `product.variants` array
+- API endpoint: `GET /api/cms/products/[id]/variations`
+- Hook: `useProductVariations(productId)` returns `MongoVariant[]`
+- No `on_sale`, `sale_price`, `regular_price` fields - only `price`
 
 ### Product Images
 
@@ -437,5 +453,13 @@ const product = await collections.products.findOne({
 
 ---
 
-**Last Updated:** 2025-01-XX  
+**Last Updated:** 2025-12-13  
 **Status:** ✅ Updated for Custom CMS (MongoDB)
+
+## 🔄 Recent Changes (2025-12-13)
+
+### Product Variations Structure Update
+- **Changed:** MongoDB variants now use direct `size` and `color` fields instead of nested `attributes` object
+- **Impact:** All variation matching logic updated to use `variation.size` and `variation.color` directly
+- **Removed:** "Mua ngay" (Quick checkout) button from ProductInfo component - only "Thêm giỏ hàng" and "GỬI TẶNG" remain
+- **Fixed:** Runtime error `Cannot read properties of undefined (reading 'find')` in ProductInfo by updating variation matching logic

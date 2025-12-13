@@ -655,30 +655,47 @@ export async function DELETE(
     
     // Find product
     let productId: ObjectId | null = null;
+    let product = null;
     
     if (ObjectId.isValid(id)) {
       productId = new ObjectId(id);
+      product = await products.findOne({ _id: productId });
     } else {
-      const product = await products.findOne({ slug: id });
+      product = await products.findOne({ slug: id });
       if (product) {
         productId = product._id;
       }
     }
     
-    if (!productId) {
+    if (!productId || !product) {
       return NextResponse.json(
         { error: 'Product not found' },
         { status: 404 }
       );
     }
     
-    // Delete product
-    await products.deleteOne({ _id: productId });
-    
-    return NextResponse.json(
-      { message: 'Product deleted successfully' },
-      { status: 200 }
+    // Soft Delete: Set deletedAt = new Date() and status = 'trash'
+    const now = new Date();
+    await products.updateOne(
+      { _id: productId },
+      {
+        $set: {
+          deletedAt: now,
+          status: 'trash',
+          updatedAt: now,
+        },
+      }
     );
+    
+    // Fetch updated product
+    const updatedProduct = await products.findOne({ _id: productId });
+    const mappedProduct = updatedProduct ? mapMongoProduct(updatedProduct) : null;
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Đã chuyển vào thùng rác',
+      product: mappedProduct,
+    });
   } catch (error: any) {
     console.error('[Admin Product API] Error:', error);
     return NextResponse.json(

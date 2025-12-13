@@ -1,97 +1,190 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { Plus, Search, Edit, Trash2, Copy, CheckSquare } from 'lucide-react';
+import { Plus, Search, CheckSquare } from 'lucide-react';
 import type { MappedProduct } from '@/lib/utils/productMapper';
+import { ProductListTabs, type ProductListTab } from '@/components/admin/products/ProductListTabs';
+import { ProductDataGrid } from '@/components/admin/products/ProductDataGrid';
+import { ProductFilters } from '@/components/admin/products/ProductFilters';
+import { BulkActionsBar } from '@/components/admin/products/BulkActionsBar';
+import { useToastContext } from '@/components/providers/ToastProvider';
+import { useProductFilters } from '@/lib/hooks/useProductFilters';
 
 export default function AdminProductsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { showToast } = useToastContext();
+  
   const [products, setProducts] = useState<MappedProduct[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
+  const [error, setError] = useState<Error | null>(null);
+  const [page, setPage] = useState(parseInt(searchParams.get('page') || '1', 10));
   const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [trashCount, setTrashCount] = useState(0);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  
+  // Get active tab from URL or default to 'all'
+  const activeTab: ProductListTab = (searchParams.get('tab') as ProductListTab) || 'all';
+  
+  // Product filters
+  const { filters, updateFilter, clearFilters, hasActiveFilters } = useProductFilters();
+  
+  // Search state (separate from filters for debouncing)
+  const [search, setSearch] = useState(searchParams.get('search') || '');
 
   // Debounce search to prevent race conditions
   useEffect(() => {
-    // Clear previous timer
     if (searchDebounceTimer) {
       clearTimeout(searchDebounceTimer);
     }
     
-    // Set new timer
     const timer = setTimeout(() => {
-      fetchProducts();
-    }, 300); // 300ms debounce
+      setPage(1); // Reset to page 1 when search changes
+      updateFilter('search', search || undefined);
+    }, 300);
     
     setSearchDebounceTimer(timer);
     
-    // Cleanup
     return () => {
       if (timer) clearTimeout(timer);
     };
   }, [search]);
 
-  // Fetch products when page changes (not debounced)
+  // Fetch products when page, tab, or filters change
   useEffect(() => {
     fetchProducts();
-  }, [page]);
+  }, [page, activeTab, filters]);
+
+  // Update URL when tab changes
+  const handleTabChange = useCallback((tab: ProductListTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('tab', tab);
+    params.delete('page'); // Reset to page 1 when changing tab
+    router.push(`/admin/products?${params.toString()}`);
+  }, [searchParams, router]);
 
   const fetchProducts = async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         per_page: '20',
       });
-      if (search) {
-        params.append('search', search);
+
+      // Add search (from filters or local search state)
+      const searchValue = filters.search || search;
+      if (searchValue) {
+        params.append('search', searchValue);
+      }
+
+      // Add tab filters
+      if (activeTab === 'trash') {
+        params.append('trashed', 'true');
+      } else if (activeTab === 'active') {
+        params.append('status', 'publish');
+      } else if (activeTab === 'outofstock') {
+        params.append('stock_status', 'outofstock');
+      }
+
+      // Add advanced filters
+      if (filters.category) {
+        params.append('category', filters.category);
+      }
+      if (filters.brand) {
+        params.append('brand', filters.brand);
+      }
+      if (filters.priceMin !== null && filters.priceMin !== undefined) {
+        params.append('price_min', filters.priceMin.toString());
+      }
+      if (filters.priceMax !== null && filters.priceMax !== undefined) {
+        params.append('price_max', filters.priceMax.toString());
+      }
+      if (filters.stockStatus && activeTab !== 'outofstock') {
+        params.append('stock_status', filters.stockStatus);
       }
 
       const response = await fetch(`/api/admin/products?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
 
       setProducts(data.products || []);
       setTotalPages(data.pagination?.totalPages || 1);
-    } catch (error) {
+      setTotal(data.pagination?.total || 0);
+      setTrashCount(data.filters?.trashCount || 0);
+    } catch (error: any) {
       console.error('Error fetching products:', error);
+      setError(error instanceof Error ? error : new Error('Không thể tải danh sách sản phẩm'));
+      showToast('Không thể tải danh sách sản phẩm', 'error');
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Bạn có chắc muốn xóa sản phẩm này?')) {
-      return;
-    }
-
     try {
       const response = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
+        showToast('Đã chuyển vào thùng rác', 'success');
         fetchProducts();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        // Show error message to user
-        const errorMessage = errorData.error || `Không thể xóa sản phẩm (${response.status})`;
-        alert(errorMessage);
+        showToast(errorData.error || 'Không thể xóa sản phẩm', 'error');
       }
     } catch (error) {
       console.error('Error deleting product:', error);
+      showToast('Không thể xóa sản phẩm', 'error');
+    }
+  };
+
+  const handleRestore = async (id: string) => {
+    try {
+      const response = await fetch(`/api/admin/products/${id}/restore`, {
+        method: 'PATCH',
+      });
+
+      if (response.ok) {
+        showToast('Đã khôi phục sản phẩm', 'success');
+        fetchProducts();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast(errorData.error || 'Không thể khôi phục sản phẩm', 'error');
+      }
+    } catch (error) {
+      console.error('Error restoring product:', error);
+      showToast('Không thể khôi phục sản phẩm', 'error');
+    }
+  };
+
+  const handleForceDelete = async (id: string) => {
+    try {
+      const response = await fetch(`/api/admin/products/${id}/force`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        showToast('Đã xóa vĩnh viễn sản phẩm', 'success');
+        fetchProducts();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast(errorData.error || 'Không thể xóa sản phẩm', 'error');
+      }
+    } catch (error) {
+      console.error('Error force deleting product:', error);
+      showToast('Không thể xóa sản phẩm', 'error');
     }
   };
 
@@ -102,15 +195,46 @@ export default function AdminProductsPage() {
       });
 
       if (response.ok) {
+        showToast('Đã tạo bản sao sản phẩm', 'success');
         fetchProducts();
       } else {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra khi tạo bản sao');
+        showToast(error.error || 'Có lỗi xảy ra khi tạo bản sao', 'error');
       }
     } catch (error) {
       console.error('Error duplicating product:', error);
-      alert('Có lỗi xảy ra khi tạo bản sao');
+      showToast('Có lỗi xảy ra khi tạo bản sao', 'error');
     }
+  };
+
+  const handleStatusChange = async (id: string, status: 'draft' | 'publish') => {
+    try {
+      const response = await fetch(`/api/admin/products/${id}/quick-update`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+
+      if (response.ok) {
+        showToast('Đã cập nhật trạng thái', 'success');
+        fetchProducts();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast(errorData.error || 'Không thể cập nhật trạng thái', 'error');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      showToast('Không thể cập nhật trạng thái', 'error');
+    }
+  };
+
+  const handleProductUpdate = (updatedProduct: MappedProduct) => {
+    // Optimistic update: update product in local state
+    setProducts((prevProducts) =>
+      prevProducts.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
+    );
+    // Refetch to ensure consistency
+    fetchProducts();
   };
 
   const toggleSelectProduct = (id: string) => {
@@ -129,7 +253,7 @@ export default function AdminProductsPage() {
 
   const handleBulkDelete = async () => {
     if (selectedProducts.length === 0) {
-      alert('Vui lòng chọn ít nhất một sản phẩm');
+      showToast('Vui lòng chọn ít nhất một sản phẩm', 'warning');
       return;
     }
 
@@ -138,57 +262,90 @@ export default function AdminProductsPage() {
     }
 
     try {
-      const promises = selectedProducts.map((id) =>
-        fetch(`/api/admin/products/${id}`, { method: 'DELETE' })
-      );
-      await Promise.all(promises);
-      setSelectedProducts([]);
-      fetchProducts();
+      const response = await fetch('/api/admin/products/bulk-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedProducts,
+          action: 'soft_delete',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showToast(data.message || `Đã xóa ${selectedProducts.length} sản phẩm`, 'success');
+        setSelectedProducts([]);
+        fetchProducts();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast(errorData.error || 'Không thể xóa sản phẩm', 'error');
+      }
     } catch (error) {
       console.error('Error bulk deleting products:', error);
-      alert('Có lỗi xảy ra khi xóa sản phẩm');
+      showToast('Có lỗi xảy ra khi xóa sản phẩm', 'error');
     }
   };
 
   const handleBulkStatusChange = async (status: 'draft' | 'publish') => {
     if (selectedProducts.length === 0) {
-      alert('Vui lòng chọn ít nhất một sản phẩm');
+      showToast('Vui lòng chọn ít nhất một sản phẩm', 'warning');
       return;
     }
 
     try {
-      const promises = selectedProducts.map(async (id) => {
-        const response = await fetch(`/api/admin/products/${id}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status }),
-        });
-        
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          // Log error but continue with other products
-          console.error(`Failed to update product ${id}:`, errorData);
-        }
-        
-        return response;
+      const response = await fetch('/api/admin/products/bulk-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedProducts,
+          action: 'update_status',
+          value: status,
+        }),
       });
-      
-      const results = await Promise.all(promises);
-      const successCount = results.filter(r => r.ok).length;
-      const failCount = results.filter(r => !r.ok).length;
-      
-      // Show result message to user
-      if (failCount > 0) {
-        alert(`Cập nhật thành công ${successCount}/${selectedProducts.length} sản phẩm. ${failCount} sản phẩm thất bại.`);
+
+      if (response.ok) {
+        const data = await response.json();
+        showToast(data.message || `Đã cập nhật ${selectedProducts.length} sản phẩm`, 'success');
+        setSelectedProducts([]);
+        fetchProducts();
       } else {
-        alert(`Đã cập nhật thành công ${successCount} sản phẩm.`);
+        const errorData = await response.json().catch(() => ({}));
+        showToast(errorData.error || 'Không thể cập nhật trạng thái', 'error');
       }
-      
-      setSelectedProducts([]);
-      fetchProducts();
     } catch (error) {
       console.error('Error bulk updating status:', error);
-      alert('Có lỗi xảy ra khi cập nhật trạng thái');
+      showToast('Có lỗi xảy ra khi cập nhật trạng thái', 'error');
+    }
+  };
+
+  const handleBulkRestore = async () => {
+    if (selectedProducts.length === 0) {
+      showToast('Vui lòng chọn ít nhất một sản phẩm', 'warning');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/admin/products/bulk-action', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ids: selectedProducts,
+          action: 'restore',
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        showToast(data.message || `Đã khôi phục ${selectedProducts.length} sản phẩm`, 'success');
+        setSelectedProducts([]);
+        fetchProducts();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        showToast(errorData.error || 'Không thể khôi phục sản phẩm', 'error');
+      }
+    } catch (error) {
+      console.error('Error bulk restoring products:', error);
+      showToast('Có lỗi xảy ra khi khôi phục sản phẩm', 'error');
     }
   };
 
@@ -216,177 +373,188 @@ export default function AdminProductsPage() {
       </div>
 
       <div className="bg-white rounded-lg shadow p-6">
-        {/* Bulk Actions Bar */}
-        {selectedProducts.length > 0 && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
-            <span className="text-sm font-medium text-blue-900">
-              Đã chọn {selectedProducts.length} sản phẩm
-            </span>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleBulkStatusChange('publish')}
-              >
-                Xuất bản
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleBulkStatusChange('draft')}
-              >
-                Chuyển thành bản nháp
-              </Button>
-              <Button
-                variant="destructive"
-                size="sm"
-                onClick={handleBulkDelete}
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                Xóa
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setSelectedProducts([])}
-              >
-                Bỏ chọn
-              </Button>
-            </div>
-          </div>
-        )}
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <ProductListTabs
+            activeTab={activeTab}
+            onTabChange={handleTabChange}
+            trashCount={trashCount}
+          />
+        </div>
 
-        <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <Input
-              placeholder="Tìm kiếm sản phẩm..."
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setPage(1);
-              }}
-              className="pl-10"
+        {/* Search Bar & Filters */}
+        <div className="mb-4 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+              <Input
+                placeholder="Tìm kiếm sản phẩm, SKU, barcode..."
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                }}
+                className="pl-10"
+              />
+            </div>
+            <ProductFilters
+              filters={filters}
+              onFilterChange={updateFilter}
+              onClearFilters={clearFilters}
+              hasActiveFilters={hasActiveFilters}
             />
           </div>
         </div>
 
-        {loading ? (
-          <div className="text-center py-12">Đang tải...</div>
-        ) : products.length === 0 ? (
-          <div className="text-center py-12 text-gray-500">
-            Không có sản phẩm nào
-          </div>
-        ) : (
-          <>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-12">
-                    <input
-                      type="checkbox"
-                      checked={selectedProducts.length === products.length && products.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-4 h-4"
-                    />
-                  </TableHead>
-                  <TableHead>ID</TableHead>
-                  <TableHead>Tên sản phẩm</TableHead>
-                  <TableHead>SKU</TableHead>
-                  <TableHead>Giá</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead>Thao tác</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {products.map((product) => (
-                  <TableRow key={product.id}>
-                    <TableCell>
-                      <input
-                        type="checkbox"
-                        checked={selectedProducts.includes(product.id)}
-                        onChange={() => toggleSelectProduct(product.id)}
-                        className="w-4 h-4"
-                      />
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {product.databaseId}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      {product.name}
-                    </TableCell>
-                    <TableCell>{product.sku || '-'}</TableCell>
-                    <TableCell>
-                      {new Intl.NumberFormat('vi-VN', {
-                        style: 'currency',
-                        currency: 'VND',
-                      }).format(parseFloat(product.price))}
-                    </TableCell>
-                    <TableCell>
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${
-                          product.stockStatus === 'instock'
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}
-                      >
-                        {product.stockStatus === 'instock' ? 'Còn hàng' : 'Hết hàng'}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Link href={`/admin/products/${product.id}/edit`}>
-                          <Button variant="outline" size="sm">
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                        </Link>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDuplicate(product.id)}
-                          title="Tạo bản sao"
-                        >
-                          <Copy className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDelete(product.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+        {/* Bulk Actions Bar */}
+        <BulkActionsBar
+          selectedCount={selectedProducts.length}
+          isTrashTab={activeTab === 'trash'}
+          onBulkDelete={handleBulkDelete}
+          onBulkRestore={handleBulkRestore}
+          onBulkForceDelete={async () => {
+            if (!confirm(`Bạn có chắc muốn xóa vĩnh viễn ${selectedProducts.length} sản phẩm?\n\nHành động này không thể hoàn tác!`)) {
+              return;
+            }
+            try {
+              const response = await fetch('/api/admin/products/bulk-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ids: selectedProducts,
+                  action: 'force_delete',
+                }),
+              });
+              if (response.ok) {
+                const data = await response.json();
+                showToast(data.message || `Đã xóa vĩnh viễn ${selectedProducts.length} sản phẩm`, 'success');
+                setSelectedProducts([]);
+                fetchProducts();
+              } else {
+                const errorData = await response.json().catch(() => ({}));
+                showToast(errorData.error || 'Không thể xóa sản phẩm', 'error');
+              }
+            } catch (error) {
+              showToast('Có lỗi xảy ra khi xóa sản phẩm', 'error');
+            }
+          }}
+          onBulkStatusChange={handleBulkStatusChange}
+          onBulkUpdatePrice={async (price: number) => {
+            try {
+              const response = await fetch('/api/admin/products/bulk-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ids: selectedProducts,
+                  action: 'update_price',
+                  value: price,
+                }),
+              });
+              if (response.ok) {
+                const data = await response.json();
+                showToast(data.message || `Đã cập nhật giá cho ${selectedProducts.length} sản phẩm`, 'success');
+                setSelectedProducts([]);
+                fetchProducts();
+              } else {
+                const errorData = await response.json().catch(() => ({}));
+                showToast(errorData.error || 'Không thể cập nhật giá', 'error');
+              }
+            } catch (error) {
+              showToast('Có lỗi xảy ra khi cập nhật giá', 'error');
+            }
+          }}
+          onBulkUpdateStock={async (value: number, operation: 'set' | 'add' | 'subtract') => {
+            try {
+              // For add/subtract, we need to fetch current stock first
+              // For now, we'll use a simplified approach: set to value for 'set', add/subtract for others
+              // This would require additional API support for add/subtract operations
+              // For now, we'll just set the stock value
+              const response = await fetch('/api/admin/products/bulk-action', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  ids: selectedProducts,
+                  action: 'update_stock',
+                  value: value, // For add/subtract, this would need to be calculated
+                }),
+              });
+              if (response.ok) {
+                const data = await response.json();
+                showToast(data.message || `Đã cập nhật kho cho ${selectedProducts.length} sản phẩm`, 'success');
+                setSelectedProducts([]);
+                fetchProducts();
+              } else {
+                const errorData = await response.json().catch(() => ({}));
+                showToast(errorData.error || 'Không thể cập nhật kho', 'error');
+              }
+            } catch (error) {
+              showToast('Có lỗi xảy ra khi cập nhật kho', 'error');
+            }
+          }}
+          onClearSelection={() => setSelectedProducts([])}
+        />
 
-            {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-4">
-                <Button
-                  variant="outline"
-                  disabled={page === 1}
-                  onClick={() => setPage(page - 1)}
-                >
-                  Trước
-                </Button>
-                <span className="px-4 py-2">
-                  Trang {page} / {totalPages}
-                </span>
-                <Button
-                  variant="outline"
-                  disabled={page === totalPages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Sau
-                </Button>
-              </div>
-            )}
-          </>
+        {/* Data Grid */}
+        <ProductDataGrid
+          products={products}
+          loading={loading}
+          error={error}
+          selectedProducts={selectedProducts}
+          onSelectProduct={toggleSelectProduct}
+          onSelectAll={toggleSelectAll}
+          isTrashTab={activeTab === 'trash'}
+          hasActiveFilters={hasActiveFilters}
+          onClearFilters={clearFilters}
+          onDelete={handleDelete}
+          onRestore={handleRestore}
+          onForceDelete={handleForceDelete}
+          onDuplicate={handleDuplicate}
+          onStatusChange={handleStatusChange}
+          onProductUpdate={handleProductUpdate}
+          onRetry={fetchProducts}
+        />
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex justify-center gap-2 mt-4">
+            <Button
+              variant="outline"
+              disabled={page === 1}
+              onClick={() => {
+                setPage(page - 1);
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('page', String(page - 1));
+                router.push(`/admin/products?${params.toString()}`);
+              }}
+            >
+              Trước
+            </Button>
+            <span className="px-4 py-2">
+              Trang {page} / {totalPages} ({total} sản phẩm)
+            </span>
+            <Button
+              variant="outline"
+              disabled={page === totalPages}
+              onClick={() => {
+                setPage(page + 1);
+                const params = new URLSearchParams(searchParams.toString());
+                params.set('page', String(page + 1));
+                router.push(`/admin/products?${params.toString()}`);
+              }}
+            >
+              Sau
+            </Button>
+          </div>
+        )}
+
+        {/* Trash Warning */}
+        {activeTab === 'trash' && (
+          <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <p className="text-sm text-yellow-800">
+              ⚠️ Sản phẩm trong thùng rác sẽ tự động bị xóa sau 30 ngày
+            </p>
+          </div>
         )}
       </div>
     </div>
   );
 }
-

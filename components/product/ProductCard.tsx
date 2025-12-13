@@ -32,12 +32,26 @@ export function ProductCard({ product }: ProductCardProps) {
   // (có thể gây 40+ API calls đồng thời), chúng ta chỉ fetch khi:
   // 1. User hover vào card → Prefetch để sẵn sàng khi user click size
   // 2. User đã chọn size → Cần để hiển thị giá động
+  // 3. Product không có giá bán thường → Cần lấy giá thấp nhất từ variations
   // 
   // Kết quả: Giảm initial API calls từ 40 xuống 0, cải thiện Time to Interactive ~80%
   const [isHovered, setIsHovered] = useState(false);
-  const shouldFetchVariations = isHovered || selectedSize !== null;
   
-  // Fetch variations nếu product là variable type và đã hover/select size
+  // Kiểm tra xem product có giá bán thường không
+  const hasRegularPrice = useMemo(() => {
+    if (!product) return false;
+    const price = parseFloat(product.price || '0');
+    const regularPrice = parseFloat(product.regularPrice || '0');
+    return (price > 0) || (regularPrice > 0);
+  }, [product]);
+  
+  // Fetch variations nếu:
+  // 1. User hover vào card (prefetch)
+  // 2. User đã chọn size
+  // 3. Product không có giá bán thường (cần lấy giá từ variations)
+  const shouldFetchVariations = isHovered || selectedSize !== null || !hasRegularPrice;
+  
+  // Fetch variations nếu product là variable type
   const { variations, isLoading: isLoadingVariations } = useProductVariations(
     product?.databaseId,
     { 
@@ -77,19 +91,41 @@ export function ProductCard({ product }: ProductCardProps) {
   }, [selectedSize, selectedColor, variations, product]);
   
   // Logic hiển thị giá: Ưu tiên variation price, sau đó mới đến product price
+  // Nếu không có giá bán thường, lấy giá thấp nhất từ variations
   // MongoVariant structure: { id, size, color, price, stock, ... }
   const displayPrice = useMemo(() => {
     if (!product) return '0';
+    
+    // Nếu có variation được chọn, dùng giá của variation
     if (selectedVariation) {
-      // Nếu có variation được chọn, dùng giá của variation
-      // MongoVariant chỉ có price (number), không có on_sale/sale_price
       const price = String(selectedVariation.price || 0);
       return price;
     }
+    
     // Fallback về giá product gốc
     const fallbackPrice = product.onSale ? product.salePrice : product.price;
+    const numFallbackPrice = parseFloat(fallbackPrice || '0');
+    
+    // Nếu product không có giá bán thường (hoặc giá = 0), nhưng có variations
+    // → Lấy giá thấp nhất từ variations
+    if (numFallbackPrice <= 0 && variations.length > 0) {
+      const prices = variations
+        .map(v => v.price || 0)
+        .filter(p => p > 0);
+      
+      if (prices.length > 0) {
+        const minPrice = Math.min(...prices);
+        return String(minPrice);
+      }
+    }
+    
+    // Nếu có minPrice từ product (đã được map từ MongoDB)
+    if (numFallbackPrice <= 0 && product.minPrice && product.minPrice > 0) {
+      return String(product.minPrice);
+    }
+    
     return fallbackPrice;
-  }, [selectedVariation, product]);
+  }, [selectedVariation, product, variations]);
   
   // Regular price để hiển thị line-through khi có sale
   const displayRegularPrice = useMemo(() => {

@@ -21,6 +21,8 @@ export interface MappedProduct {
   regularPrice: string;
   salePrice: string;
   onSale: boolean;
+  minPrice?: number; // Minimum price (for variable products)
+  maxPrice?: number; // Maximum price (for variable products)
   image: {
     id?: string; // Attachment ID (new structure)
     sourceUrl: string;
@@ -67,6 +69,10 @@ export interface MappedProduct {
   type?: 'simple' | 'variable' | 'grouped' | 'external';
   // Variation IDs (for variable products)
   variations?: number[];
+  // Status field (draft, publish, trash)
+  status?: 'draft' | 'publish' | 'trash';
+  // isActive field (for backward compatibility)
+  isActive?: boolean;
 }
 
 /**
@@ -399,6 +405,8 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     regularPrice,
     salePrice,
     onSale,
+    minPrice: mongoProduct.minPrice,
+    maxPrice: mongoProduct.maxPrice,
     // Map images - try new structure first, fallback to old structure
     image: (() => {
       // Priority 1: Use images array if available (these are already URLs from payload)
@@ -503,6 +511,8 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     type,
     variations: (mongoProduct.variants?.map((_, idx) => idx + 1) || 
                  mongoProduct.productDataMetaBox?.variations?.map((_, idx) => idx + 1) || []),
+    status: mongoProduct.status || 'draft',
+    isActive: mongoProduct.isActive !== undefined ? mongoProduct.isActive : (mongoProduct.status === 'publish'),
   };
   
   return mappedResult;

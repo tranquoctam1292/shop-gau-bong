@@ -27,6 +27,7 @@ import {
   ChevronRight,
   Plus,
   List,
+  Menu,
 } from 'lucide-react';
 
 function AdminLayoutContent({
@@ -45,6 +46,9 @@ function AdminLayoutContent({
   const isProductsPath = pathname.startsWith('/admin/products') || 
                          pathname.startsWith('/admin/attributes') || 
                          pathname.startsWith('/admin/categories');
+  
+  // Check if menus path
+  const isMenusPath = pathname.startsWith('/admin/menus');
   
   // IMPORTANT: All hooks must be called before any conditional returns
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
@@ -126,6 +130,7 @@ function AdminLayoutContent({
       ],
     },
     { href: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
+    { href: '/admin/menus', label: 'Menu', icon: Menu },
     { href: '/admin/posts', label: 'Bài viết', icon: FileText },
     { href: '/admin/authors', label: 'Tác giả', icon: User },
     { href: '/admin/comments', label: 'Bình luận', icon: MessageSquare },

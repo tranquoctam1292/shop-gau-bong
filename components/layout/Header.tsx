@@ -11,11 +11,11 @@ import { cn } from '@/lib/utils/cn';
 // Dynamic imports for heavy components
 const CartDrawer = lazy(() => import('@/components/cart/CartDrawer').then(mod => ({ default: mod.CartDrawer })));
 const EnhancedSearchBar = lazy(() => import('@/components/search/EnhancedSearchBar').then(mod => ({ default: mod.EnhancedSearchBar })));
-const NavigationMenu = lazy(() => import('@/components/layout/NavigationMenu').then(mod => ({ default: mod.NavigationMenu })));
+const DynamicNavigationMenu = lazy(() => import('@/components/layout/DynamicNavigationMenu').then(mod => ({ default: mod.DynamicNavigationMenu })));
 
 // MobileMenu lazy import - can be pre-loaded
-const mobileMenuImport = () => import('@/components/layout/MobileMenu').then(mod => ({ default: mod.MobileMenu }));
-const MobileMenu = lazy(mobileMenuImport);
+const mobileMenuImport = () => import('@/components/layout/DynamicMobileMenu').then(mod => ({ default: mod.DynamicMobileMenu }));
+const DynamicMobileMenu = lazy(mobileMenuImport);
 
 const SearchModal = lazy(() => import('@/components/search/SearchModal').then(mod => ({ default: mod.SearchModal })));
 
@@ -57,7 +57,7 @@ export function Header() {
 
           {/* Desktop Navigation */}
           <Suspense fallback={<div className="hidden lg:block w-64 h-10" />}>
-            <NavigationMenu />
+            <DynamicNavigationMenu location="primary" fallbackToHardcoded={true} />
           </Suspense>
 
           {/* Mobile Menu - Pre-load on hover for better UX */}
@@ -67,7 +67,7 @@ export function Header() {
             onTouchStart={handleMobileMenuHover} // Also pre-load on touch (mobile)
           >
             <Suspense fallback={<div className="w-10 h-10" />}>
-              <MobileMenu />
+              <DynamicMobileMenu location="mobile" fallbackToHardcoded={true} />
             </Suspense>
           </div>
 
