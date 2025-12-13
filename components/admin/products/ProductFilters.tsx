@@ -105,14 +105,14 @@ export function ProductFilters({
             <div>
               <label className="text-sm font-medium mb-2 block">Trạng thái kho</label>
               <Select
-                value={filters.stockStatus || ''}
-                onValueChange={(value) => onFilterChange('stockStatus', value || null)}
+                value={filters.stockStatus || 'all'}
+                onValueChange={(value) => onFilterChange('stockStatus', value === 'all' ? null : value)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Tất cả trạng thái" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả trạng thái</SelectItem>
+                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
                   <SelectItem value="instock">Còn hàng</SelectItem>
                   <SelectItem value="outofstock">Hết hàng</SelectItem>
                   <SelectItem value="onbackorder">Đặt hàng trước</SelectItem>

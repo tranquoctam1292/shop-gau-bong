@@ -414,16 +414,16 @@ export function OrderFilters({ filters, onFiltersChange, onClear }: OrderFilters
         <div className="lg:col-span-1">
           <Label className="text-sm font-medium mb-2 block">Kênh</Label>
           <Select
-            value={localFilters.channel || ''}
+            value={localFilters.channel || 'all'}
             onValueChange={(value) =>
-              handleFilterChange('channel', value || undefined)
+              handleFilterChange('channel', value === 'all' ? undefined : value)
             }
           >
             <SelectTrigger>
               <SelectValue placeholder="Tất cả" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Tất cả</SelectItem>
+              <SelectItem value="all">Tất cả</SelectItem>
               {CHANNELS.map((channel) => (
                 <SelectItem key={channel.value} value={channel.value}>
                   {channel.label}
@@ -437,16 +437,16 @@ export function OrderFilters({ filters, onFiltersChange, onClear }: OrderFilters
         <div className="lg:col-span-1">
           <Label className="text-sm font-medium mb-2 block">Thanh toán</Label>
           <Select
-            value={localFilters.paymentMethod || ''}
+            value={localFilters.paymentMethod || 'all'}
             onValueChange={(value) =>
-              handleFilterChange('paymentMethod', value || undefined)
+              handleFilterChange('paymentMethod', value === 'all' ? undefined : value)
             }
           >
             <SelectTrigger>
               <SelectValue placeholder="Tất cả" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Tất cả</SelectItem>
+              <SelectItem value="all">Tất cả</SelectItem>
               {PAYMENT_METHODS.map((method) => (
                 <SelectItem key={method.value} value={method.value}>
                   {method.label}

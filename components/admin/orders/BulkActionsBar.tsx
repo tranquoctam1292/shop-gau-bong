@@ -22,7 +22,7 @@ interface BulkActionsBarProps {
 
 export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActionsBarProps) {
   const [loading, setLoading] = useState<string | null>(null);
-  const [newStatus, setNewStatus] = useState<string>('');
+  const [newStatus, setNewStatus] = useState<string>('__none__');
 
   const handleBulkApprove = async () => {
     if (selectedOrders.length === 0) return;
@@ -52,7 +52,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
   };
 
   const handleBulkUpdateStatus = async () => {
-    if (selectedOrders.length === 0 || !newStatus) {
+    if (selectedOrders.length === 0 || newStatus === '__none__' || !newStatus) {
       alert('Vui lòng chọn trạng thái mới');
       return;
     }
@@ -75,7 +75,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
       }
 
       alert(`Đã cập nhật trạng thái ${selectedOrders.length} đơn hàng thành công!`);
-      setNewStatus('');
+      setNewStatus('__none__');
       onActionComplete();
     } catch (error) {
       console.error('Error bulk updating status:', error);
@@ -197,7 +197,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
                 <SelectValue placeholder="Chọn trạng thái..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Chọn trạng thái...</SelectItem>
+                <SelectItem value="__none__">Chọn trạng thái...</SelectItem>
                 <SelectItem value="confirmed">Đã xác nhận</SelectItem>
                 <SelectItem value="processing">Đang xử lý</SelectItem>
                 <SelectItem value="shipping">Đang giao hàng</SelectItem>
@@ -207,7 +207,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
             </Select>
             <Button
               onClick={handleBulkUpdateStatus}
-              disabled={loading !== null || !newStatus}
+              disabled={loading !== null || newStatus === '__none__' || !newStatus}
               variant="outline"
               size="sm"
               className="min-h-[44px]"

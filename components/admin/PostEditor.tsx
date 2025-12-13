@@ -252,14 +252,14 @@ export function PostEditor({ postId, initialData }: PostEditorProps) {
             <div>
               <Label htmlFor="authorId">Tác giả</Label>
               <Select
-                value={formData.authorId}
-                onValueChange={(value) => setFormData((prev) => ({ ...prev, authorId: value }))}
+                value={formData.authorId || '__none__'}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, authorId: value === '__none__' ? '' : value }))}
               >
                 <SelectTrigger id="authorId">
                   <SelectValue placeholder="Chọn tác giả" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Chọn tác giả</SelectItem>
+                  <SelectItem value="__none__">Chọn tác giả</SelectItem>
                   {authors.map((author) => (
                     <SelectItem key={author._id} value={author._id}>
                       {author.name}

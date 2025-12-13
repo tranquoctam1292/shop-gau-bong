@@ -263,7 +263,7 @@ export function VariationsBulkEditToolbar({
                     <SelectValue placeholder="Chọn thuộc tính..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Chọn thuộc tính...</SelectItem>
+                    <SelectItem value="__none__">Chọn thuộc tính...</SelectItem>
                     {attributes.map((attr) => (
                       <SelectItem key={attr.id} value={attr.name}>
                         {attr.name}
@@ -277,12 +277,12 @@ export function VariationsBulkEditToolbar({
                 <div className="space-y-2">
                   <Label className="text-xs">Giá trị</Label>
                   <Select
-                    value={filter.attributeValue || ''}
+                    value={filter.attributeValue || '__none__'}
                     onValueChange={(value) => {
                       setFilter({
                         applyToAll: false,
                         attributeName: filter.attributeName,
-                        attributeValue: value,
+                        attributeValue: value === '__none__' ? undefined : value,
                       });
                     }}
                   >
@@ -290,7 +290,7 @@ export function VariationsBulkEditToolbar({
                       <SelectValue placeholder="Chọn giá trị..." />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Chọn giá trị...</SelectItem>
+                      <SelectItem value="__none__">Chọn giá trị...</SelectItem>
                       {filterOptions
                         .filter((opt) => opt.attributeName === filter.attributeName)
                         .map((opt, idx) => (
