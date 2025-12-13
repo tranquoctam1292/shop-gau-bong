@@ -32,12 +32,5 @@
       "source": "/graphql",
       "destination": "/api/graphql"
     }
-  ],
-  "crons": [
-    {
-      "path": "/api/admin/products/auto-cleanup-trash",
-      "schedule": "0 2 * * *"
-    }
   ]
 }
-
