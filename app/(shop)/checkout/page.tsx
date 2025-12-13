@@ -7,7 +7,7 @@ import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useCheckoutREST, type CheckoutFormData } from '@/lib/hooks/useCheckoutREST';
 import { useCartStore, type CartItem } from '@/lib/store/cartStore';
 import { formatPrice } from '@/lib/utils/format';
@@ -426,11 +426,16 @@ export default function CheckoutPage() {
                         Quốc gia *
                       </label>
                       <Select
-                        required
                         value={formData.billingCountry}
-                        onChange={(e) => handleInputChange('billingCountry', e.target.value)}
+                        onValueChange={(value) => handleInputChange('billingCountry', value)}
+                        required
                       >
-                        <option value="VN">Việt Nam</option>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn quốc gia" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="VN">Việt Nam</SelectItem>
+                        </SelectContent>
                       </Select>
                     </div>
                   </div>
