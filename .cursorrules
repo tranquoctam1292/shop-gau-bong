@@ -182,10 +182,27 @@ Before implementing any feature, you MUST reference the following sources based 
   - **Product Info Actions:** Only "Thêm giỏ hàng" (Add to cart) and "GỬI TẶNG" (Gift) buttons are available. "Mua ngay" (Quick checkout) button has been removed.
 - **Cart UI:** CartDrawer uses Shadcn Sheet component. Cart button uses ghost variant with hover effect. Buttons have proper padding (`px-10 py-5`) and text centering.
 
+# PRE-DEPLOYMENT & GIT WORKFLOW RULES (CRITICAL)
+- **MANDATORY Pre-Deploy Check:** ALWAYS run `npm run pre-deploy` before pushing to GitHub.
+  - This checks: TypeScript errors, build errors, cron jobs limit, required files
+  - **NEVER push code that fails pre-deploy check**
+  - If pre-deploy fails, fix all errors before committing/pushing
+- **Pre-Deploy Script:** Located at `scripts/pre-deploy-check.js`
+  - Automatically checks: type-check, build, lint, cron jobs, env files
+  - Exit code 1 = errors found (do not deploy)
+  - Exit code 0 = all checks passed (safe to deploy)
+- **Git Workflow:**
+  1. Make code changes
+  2. Run `npm run pre-deploy` to check for errors
+  3. Fix any errors found
+  4. Only then commit and push to GitHub
+  5. Deploy to Vercel (will auto-deploy from GitHub push)
+
 # RESPONSE GUIDELINES
 - **Code First:** Provide robust, copy-pasteable code blocks.
 - **Explain Safety:** Briefly explain: "I added `?.` here to prevent crash if database returns null".
 - **Mobile Check:** explicitly state: "Optimized for mobile with `touch-action` and stacked layout."
+- **Pre-Deploy Reminder:** When user asks to push code, remind them to run `npm run pre-deploy` first if not already done.
 
 # FULL CODE CONTEXT FILE UPDATE
 - **When user requests to update `full_code_context.txt`:** Automatically run the PowerShell command to regenerate the file.

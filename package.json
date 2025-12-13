@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "next lint",
     "type-check": "tsc --noEmit",
+    "pre-deploy": "node scripts/pre-deploy-check.js",
     "setup:env": "node scripts/setup-env.js",
     "test": "jest",
     "test:watch": "jest --watch",
@@ -34,7 +35,8 @@
     "create:admin-user": "tsx scripts/create-admin-user.ts",
     "import:woocommerce": "tsx scripts/import-products-from-woocommerce.ts",
     "test:product-management": "tsx scripts/test-product-management.ts",
-    "test:menu-phase5": "tsx scripts/test-menu-phase5.ts"
+    "test:menu-phase5": "tsx scripts/test-menu-phase5.ts",
+    "generate:nextauth-secret": "node scripts/generate-nextauth-secret.js"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
