@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { wcApi } from '@/lib/api/woocommerce';
+import { getCollections, ObjectId } from '@/lib/db';
 import { formatOrderForInvoiceREST } from '@/lib/utils/invoiceREST';
 import jsPDF from 'jspdf';
 // @ts-ignore - jspdf-autotable doesn't have type definitions
@@ -15,24 +15,51 @@ export async function GET(
 ) {
   try {
     const orderId = params.orderId;
+    const { orders, orderItems } = await getCollections();
 
-    // Parse order ID
+    // Find order by ObjectId or orderNumber
+    let order = null;
+    
+    if (ObjectId.isValid(orderId)) {
+      order = await orders.findOne({ _id: new ObjectId(orderId) });
+    }
+    
+    if (!order) {
+      order = await orders.findOne({ orderNumber: orderId });
+    }
+    
+    // Try parsing as number (legacy support)
+    if (!order) {
     const orderIdNum = parseInt(orderId, 10);
-    if (isNaN(orderIdNum)) {
-      return NextResponse.json({ error: 'Invalid order ID' }, { status: 400 });
+      if (!isNaN(orderIdNum)) {
+        order = await orders.findOne({ orderNumber: String(orderIdNum) });
+      }
     }
 
-    // Fetch order data from WooCommerce REST API
-    const order = await wcApi.getOrder(orderIdNum);
-    
-    if (!order || !order.id) {
+    if (!order) {
       return NextResponse.json({ error: 'Order not found' }, { status: 404 });
     }
+
+    // Fetch order items
+    const items = await orderItems
+      .find({ orderId: order._id.toString() })
+      .toArray();
 
     // Format order data for invoice
     let invoiceData;
     try {
-      invoiceData = formatOrderForInvoiceREST(order);
+      // Map order items to format expected by invoice formatter
+      const formattedItems = items.map((item: any) => ({
+        productName: item.productName || '',
+        sku: item.sku,
+        quantity: item.quantity || 0,
+        price: item.price || 0,
+      }));
+      
+      invoiceData = formatOrderForInvoiceREST({
+        ...order,
+        items: formattedItems,
+      } as any);
       if (!invoiceData) {
         console.error('formatOrderForInvoiceREST returned null');
         return NextResponse.json(

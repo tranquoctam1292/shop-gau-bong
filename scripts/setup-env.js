@@ -20,45 +20,38 @@ if (fs.existsSync(envLocalPath)) {
 if (!fs.existsSync(envExamplePath)) {
   console.log('⚠️  .env.example not found. Creating .env.local with default values...');
   // Create default .env.local content
-  const defaultEnv = `# WordPress Configuration
-# Local Development: Point to Local XAMPP WordPress
-NEXT_PUBLIC_WORDPRESS_URL=http://localhost/wordpress
-# Staging: https://staging.yourdomain.com
-# Production: https://yourdomain.com
+  const defaultEnv = `# Database
+MONGODB_URI=mongodb://localhost:27017/shop-gau-bong
+MONGODB_DB_NAME=shop-gau-bong
 
-# GraphQL Endpoint
-# Local Development: Point to Local XAMPP GraphQL
-NEXT_PUBLIC_GRAPHQL_ENDPOINT=http://localhost/wordpress/graphql
-# Staging: https://staging.yourdomain.com/graphql
-# Production: https://yourdomain.com/graphql
+# Authentication (for Admin Panel)
+AUTH_SECRET=EXAMPLE_ONLY_abc123XYZ789_GENERATE_YOUR_OWN_WITH_OPENSSL
+NEXTAUTH_URL=http://localhost:3000
 
-# JWT Authentication (nếu sử dụng)
-JWT_SECRET=your_jwt_secret_here
+# Admin Credentials
+ADMIN_EMAIL=admin@yourdomain.com
+ADMIN_PASSWORD=your-strong-password-here
+
+# Site URL
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 # Payment Gateway - VietQR
-NEXT_PUBLIC_VIETQR_API_KEY=your_vietqr_api_key_here
+NEXT_PUBLIC_VIETQR_ACCOUNT_NO=your_account_number
+NEXT_PUBLIC_VIETQR_ACCOUNT_NAME=SHOP GAU BONG
+NEXT_PUBLIC_VIETQR_ACQ_ID=970415
+VIETQR_WEBHOOK_SECRET=your_webhook_secret
 
 # Payment Gateway - MoMo
 NEXT_PUBLIC_MOMO_PARTNER_CODE=your_momo_partner_code
 MOMO_SECRET_KEY=your_momo_secret_key
-
-# Payment Gateway - ZaloPay (optional)
-NEXT_PUBLIC_ZALOPAY_APP_ID=your_zalopay_app_id
-ZALOPAY_KEY1=your_zalopay_key1
-ZALOPAY_KEY2=your_zalopay_key2
-
-# NextAuth (nếu sử dụng)
-NEXTAUTH_URL=http://localhost:3000
-NEXTAUTH_SECRET=your_nextauth_secret_here
-
-# Optional: Analytics
-NEXT_PUBLIC_GA_ID=your_google_analytics_id
 `;
   fs.writeFileSync(envLocalPath, defaultEnv);
   console.log('✅ Created .env.local with default local development values!');
   console.log('');
   console.log('📝 Please update the following if needed:');
-  console.log('   - NEXT_PUBLIC_WORDPRESS_URL (if your WordPress is in a different folder)');
+  console.log('   - MONGODB_URI (if using MongoDB Atlas or different connection)');
+  console.log('   - AUTH_SECRET (generate with: openssl rand -base64 32)');
+  console.log('   - ADMIN_EMAIL and ADMIN_PASSWORD');
   console.log('   - Payment gateway keys (when ready)');
   console.log('');
   process.exit(0);
@@ -69,9 +62,9 @@ const envExample = fs.readFileSync(envExamplePath, 'utf8');
 
 // Create .env.local with default values for local development
 const envLocal = envExample
-  .replace(/NEXT_PUBLIC_WORDPRESS_URL=.*/g, 'NEXT_PUBLIC_WORDPRESS_URL=http://localhost/wordpress')
-  .replace(/NEXT_PUBLIC_GRAPHQL_ENDPOINT=.*/g, 'NEXT_PUBLIC_GRAPHQL_ENDPOINT=http://localhost/wordpress/graphql')
-  .replace(/NEXTAUTH_URL=.*/g, 'NEXTAUTH_URL=http://localhost:3000');
+  .replace(/MONGODB_URI=.*/g, 'MONGODB_URI=mongodb://localhost:27017/shop-gau-bong')
+  .replace(/NEXTAUTH_URL=.*/g, 'NEXTAUTH_URL=http://localhost:3000')
+  .replace(/NEXT_PUBLIC_SITE_URL=.*/g, 'NEXT_PUBLIC_SITE_URL=http://localhost:3000');
 
 // Write .env.local
 fs.writeFileSync(envLocalPath, envLocal);
@@ -79,7 +72,9 @@ fs.writeFileSync(envLocalPath, envLocal);
 console.log('✅ Created .env.local with default local development values!');
 console.log('');
 console.log('📝 Please update the following if needed:');
-console.log('   - NEXT_PUBLIC_WORDPRESS_URL (if your WordPress is in a different folder)');
+console.log('   - MONGODB_URI (if using MongoDB Atlas or different connection)');
+console.log('   - AUTH_SECRET (generate with: openssl rand -base64 32)');
+console.log('   - ADMIN_EMAIL and ADMIN_PASSWORD');
 console.log('   - Payment gateway keys (when ready)');
 console.log('');
 

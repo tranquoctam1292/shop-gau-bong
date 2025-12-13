@@ -2,6 +2,23 @@
 
 import { formatPrice } from '@/lib/utils/format';
 import type { WooCommerceVariation } from '@/types/woocommerce';
+import type { MongoVariant } from '@/types/mongodb';
+
+/**
+ * Variation type that supports both WooCommerce and MongoDB formats
+ */
+type Variation = WooCommerceVariation | MongoVariant | {
+  size?: string;
+  color?: string;
+  price: string | number;
+  regular_price?: string | number;
+  sale_price?: string | number;
+  on_sale?: boolean;
+  attributes?: Array<{
+    name: string;
+    option: string;
+  }>;
+};
 
 interface ProductHighlightsProps {
   description?: string;
@@ -11,7 +28,7 @@ interface ProductHighlightsProps {
   }>;
   material?: string;
   origin?: string;
-  variations?: WooCommerceVariation[];
+  variations?: Variation[];
 }
 
 export function ProductHighlights({
@@ -47,17 +64,41 @@ export function ProductHighlights({
   if (origin) highlights.push(`Xuất xứ: ${origin}`);
 
   // Price Table from variations
+  // Support both WooCommerce format (with attributes) and MongoDB format (direct size/color fields)
   const priceTable = variations
-    ?.filter((v) => v.price || v.regular_price)
+    ?.filter((v) => {
+      const price = typeof v.price === 'number' ? v.price : parseFloat(String(v.price || '0'));
+      const regularPrice = typeof (v as any).regular_price === 'number' 
+        ? (v as any).regular_price 
+        : parseFloat(String((v as any).regular_price || '0'));
+      return price > 0 || regularPrice > 0;
+    })
     .map((v) => {
-      const sizeAttr = v.attributes.find((attr) =>
-        attr.name.toLowerCase().includes('size') ||
-        attr.name.toLowerCase().includes('kích thước') ||
-        attr.name.toLowerCase().includes('kich thuoc')
+      // Try MongoDB format first (direct size field)
+      let size = 'N/A';
+      if ('size' in v && v.size) {
+        size = String(v.size);
+      } else if ('attributes' in v && Array.isArray(v.attributes)) {
+        // Fallback to WooCommerce format (attributes array)
+        const sizeAttr = v.attributes.find((attr: any) =>
+          attr.name?.toLowerCase().includes('size') ||
+          attr.name?.toLowerCase().includes('kích thước') ||
+          attr.name?.toLowerCase().includes('kich thuoc')
       );
+        size = sizeAttr?.option || 'N/A';
+      }
+      
+      // Get price (support both formats)
+      // MongoDB variants don't have on_sale, only price
+      const hasOnSale = 'on_sale' in v && (v as any).on_sale;
+      const salePrice = (v as any).sale_price;
+      const price = (hasOnSale && salePrice) 
+        ? salePrice 
+        : (v.price || (v as any).regular_price || '0');
+      
       return {
-        size: sizeAttr?.option || 'N/A',
-        price: v.on_sale && v.sale_price ? v.sale_price : v.price || v.regular_price || '0',
+        size,
+        price: typeof price === 'number' ? price.toString() : String(price),
       };
     })
     .sort((a, b) => {

@@ -28,6 +28,7 @@ const fredoka = Fredoka({
 });
 
 import { getDefaultMetadata, generateOpenGraphTags, generateTwitterCardTags } from '@/lib/utils/metadata';
+import { SITE_CONFIG } from '@/lib/constants/config';
 
 const defaultMetadata = getDefaultMetadata();
 const ogTags = generateOpenGraphTags(defaultMetadata);
@@ -36,13 +37,13 @@ const twitterTags = generateTwitterCardTags(defaultMetadata);
 export const metadata: Metadata = {
   title: {
     default: defaultMetadata.title,
-    template: '%s | Shop Gấu Bông',
+    template: `%s | ${SITE_CONFIG.name}`,
   },
   description: defaultMetadata.description,
   keywords: ['gấu bông', 'teddy bear', 'thú nhồi bông', 'quà tặng', 'đồ chơi', 'shop gấu bông'],
-  authors: [{ name: 'Shop Gấu Bông' }],
-  creator: 'Shop Gấu Bông',
-  publisher: 'Shop Gấu Bông',
+  authors: [{ name: SITE_CONFIG.name }],
+  creator: SITE_CONFIG.name,
+  publisher: SITE_CONFIG.name,
   formatDetection: {
     email: false,
     address: false,
@@ -59,7 +60,7 @@ export const metadata: Metadata = {
         url: ogTags['og:image'],
         width: 1200,
         height: 630,
-        alt: 'Shop Gấu Bông',
+        alt: SITE_CONFIG.name,
       },
     ],
     locale: ogTags['og:locale'],

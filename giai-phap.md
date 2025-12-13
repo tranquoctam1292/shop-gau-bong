@@ -1,169 +1,138 @@
-# GIẢI PHÁP: LỖI HIỂN THỊ 2 KẾT QUẢ BỘ LỌC
+Báo Cáo Rà Soát Mã Nguồn & Chuyển Đổi Hệ Thống
 
-**Trạng thái:** ✅ ĐÃ ÁP DỤNG VÀ SỬA THÀNH CÔNG  
-**Ngày hoàn thành:** 11/12/2025
+Dự án: Chuyển đổi WordPress/WooCommerce sang Next.js + MongoDB
+Ngày: 13/12/2025
 
----
+1. Tổng Quan Tình Trạng
 
-## 1. Nguyên nhân gây lỗi
-Lỗi này xuất phát từ "Xung đột trạng thái (Shared State)" kết hợp với cơ chế "React Portals".
+Hệ thống hiện tại đang sử dụng Next.js App Router kết hợp với Shadcn/ui và Tailwind CSS. Mã nguồn vẫn còn chứa các "tàn dư" của cấu trúc WordPress (metadata, xử lý HTML) và một số cấu hình CSS chưa được tối ưu.
 
-Cấu trúc HTML: Trong file components/product/ProductFilters.tsx, bạn đang render giao diện 2 lần để phục vụ Responsive:
+2. Rà Soát API & Data Fetching (Kết nối dữ liệu)
 
-Khối Mobile (Dòng 2893): Được bao bọc bởi class lg:hidden (ẩn trên màn hình lớn).
+Các điểm kết nối dữ liệu cần được thay đổi hoàn toàn từ REST API của WordPress sang truy vấn trực tiếp MongoDB (hoặc Internal API của Next.js).
 
-Khối Desktop (Dòng 3007): Được bao bọc bởi class hidden lg:block (ẩn trên màn hình nhỏ).
+Khu vực / File
 
-Dùng chung State: Cả hai khối này đều sử dụng chung các biến state để điều khiển việc đóng/mở Popover:
+Vấn đề phát hiện
 
-pricePopoverOpen
+Mức độ
 
-sizePopoverOpen (Đây là cái bạn đang click trong ảnh)
+Hành động khuyến nghị
 
-colorPopoverOpen
+Data Fetching (Server Components)
 
-Cơ chế React Portal: Component PopoverContent (trong components/ui/popover.tsx) sử dụng PopoverPrimitive.Portal. Portal sẽ render nội dung Popover ra ngoài DOM hiện tại (thường là cuối thẻ <body>) để tránh bị che khuất.
+Có khả năng vẫn sử dụng fetch() tới endpoint /wp-json/wc/v3/... hoặc /wp-json/wp/v2/....
 
-Kết quả: Khi bạn click nút "Kích thước" trên Desktop:
+Cao
 
-sizePopoverOpen set thành true.
+Thay thế bằng hàm truy vấn Mongoose trực tiếp (ví dụ: Product.find({...})) để tăng tốc độ và bảo mật.
 
-Cả Popover Desktop và Popover Mobile đều nhận lệnh mở.
+Image Domains (next.config.js)
 
-Popover Desktop hiển thị đúng vị trí (do nút trigger hiển thị).
+Cấu hình images.domains có thể đang whitelist domain cũ của WordPress (ví dụ: wp-content hoặc domain cũ).
 
-Popover Mobile VẪN ĐƯỢC RENDER ra khỏi thẻ body (do cơ chế Portal thoát khỏi display: none của cha). Tuy nhiên, vì nút trigger mobile đang bị ẩn (display: none), thư viện không tính toán được vị trí neo (anchor), nên nó văng về toạ độ mặc định (thường là góc trái màn hình 0,0), tạo ra cái hộp thừa mà bạn thấy.
+Trung bình
 
-2. Giải pháp khắc phục
-Cách xử lý triệt để là tách biệt State giữa giao diện Mobile và Desktop. Chúng ta sẽ tạo thêm bộ state riêng cho Mobile.
+Chuyển sang sử dụng dịch vụ lưu trữ mới (S3, Cloudinary) và cập nhật lại domain trong config.
 
-Bạn hãy sửa file components/product/ProductFilters.tsx như sau:
+API Routes (app/api/...)
 
-Bước 1: Khai báo thêm State cho Mobile
-Tại phần đầu component (khoảng dòng 2881), thêm các state mới có tiền tố mobile:
+Các route API trung gian (proxy) gọi về WordPress Backend không còn cần thiết.
 
-TypeScript
+Cao
 
-// ... imports
+Xóa bỏ các file route proxy. Viết lại logic xử lý dữ liệu trực tiếp tại API route kết nối MongoDB.
 
-export function ProductFilters() {
-  const { filters, updateFilters, clearFilters } = useProductFilters();
-  
-  // --- STATE HIỆN TẠI (Dùng cho Desktop) ---
-  const [pricePopoverOpen, setPricePopoverOpen] = useState(false);
-  const [sizePopoverOpen, setSizePopoverOpen] = useState(false);
-  const [colorPopoverOpen, setColorPopoverOpen] = useState(false);
+Authentication
 
-  // --- THÊM MỚI: STATE RIÊNG CHO MOBILE ---
-  const [mobilePriceOpen, setMobilePriceOpen] = useState(false);
-  const [mobileSizeOpen, setMobileSizeOpen] = useState(false);
-  const [mobileColorOpen, setMobileColorOpen] = useState(false);
+Nếu đang dùng JWT từ plugin WordPress (JWT Auth), token này sẽ vô hiệu.
 
-  // ... (giữ nguyên các phần code khác)
-Bước 2: Cập nhật khối Mobile (Khối lg:hidden)
-Tìm đến khối div có class lg:hidden (khoảng dòng 2893). Thay thế các biến state trong các thẻ Popover bên trong khối này thành biến mobile... tương ứng.
+Cao
 
-Sửa Popover Giá (Mobile):
+Triển khai NextAuth.js (Auth.js) đấu nối với User Collection trong MongoDB.
 
-TypeScript
+3. Rà Soát Code & Logic (Frontend/Backend)
 
-{/* Tìm đoạn này trong khối lg:hidden */}
-<Popover 
-  open={mobilePriceOpen} // Sửa ở đây
-  onOpenChange={setMobilePriceOpen} // Sửa ở đây
-  modal={false}
->
-  {/* ... nội dung bên trong giữ nguyên ... */}
-  {/* Lưu ý: Button "Áp dụng" bên trong cũng cần cập nhật để đóng đúng state */}
-  <Button
-    size="sm"
-    className="flex-1"
-    onClick={() => {
-        handlePriceApply();
-        setMobilePriceOpen(false); // Sửa: Đóng mobile popover
-    }}
-    disabled={!!priceError}
-  >
-    Áp dụng
-  </Button>
-  {/* ... */}
-</Popover>
-Sửa Popover Kích thước (Mobile):
+3.1. Cấu trúc Metadata & SEO (app/(blog)/posts/metadata.ts)
 
-TypeScript
+Đoạn mã hiện tại:
 
-<Popover 
-  open={mobileSizeOpen} // Sửa ở đây
-  onOpenChange={setMobileSizeOpen} // Sửa ở đây
-  modal={false}
->
-  {/* ... nội dung bên trong ... */}
-  {/* Trong hàm map size options: */}
-  <button
-    key={option.value}
-    onClick={() => {
-        handleSizeSelect(option.value);
-        setMobileSizeOpen(false); // Sửa: Đóng mobile popover
-    }}
+export const metadata: Metadata = {
+  title: 'Blog | Shop Gấu Bông',
+  description: 'Đọc các bài viết...',
+  // ...
+}
+
+
+Vấn đề: Hardcode (gán cứng) các chuỗi văn bản như 'Shop Gấu Bông'.
+
+Giải pháp: Tạo file constants/config.ts hoặc lấy từ Database (Settings Collection) để dễ dàng thay đổi tên thương hiệu sau này mà không cần sửa code.
+
+3.2. Xử lý nội dung HTML (Migration từ WP)
+
+Trong WordPress, nội dung bài viết/sản phẩm lưu dưới dạng HTML thô.
+
+Vấn đề: Sử dụng dangerouslySetInnerHTML hoặc thư viện html-react-parser để render nội dung cũ. Điều này gây rủi ro XSS và khó style.
+
+Giải pháp:
+
+Nếu giữ nguyên HTML cũ: Cần sanitize kỹ lưỡng (dùng dompurify).
+
+Nếu chuyển đổi: Convert HTML cũ sang dạng JSON (như Editor.js hoặc Slate.js) để lưu vào MongoDB.
+
+3.3. Tailwind CSS & UI (tailwind.config.ts)
+
+File config chứa định nghĩa màu sắc rất chi tiết cho Shadcn/ui:
+
+chart: {
+    '1': 'hsl(var(--chart-1))',
+    '2': 'hsl(var(--chart-2))',
     // ...
-  >
-  {/* ... */}
-</Popover>
-Sửa Popover Màu sắc (Mobile):
+}
 
-TypeScript
 
-<Popover 
-  open={mobileColorOpen} // Sửa ở đây
-  onOpenChange={setMobileColorOpen} // Sửa ở đây
-  modal={false}
->
-  {/* ... nội dung bên trong ... */}
-  {/* Trong hàm map color options: */}
-  <button
-    key={option.value}
-    onClick={() => {
-        handleColorSelect(option.value);
-        setMobileColorOpen(false); // Sửa: Đóng mobile popover
-    }}
-    // ...
-  >
-  {/* ... */}
-</Popover>
-Bước 3: Cập nhật hàm xử lý sự kiện (Helper Functions)
-Sửa lại các hàm xử lý chọn để đóng đúng Popover dựa trên việc người dùng đang mở cái nào (hoặc đóng cả hai cho chắc chắn).
+Vấn đề: Các biến màu chart, sidebar, popover thường dư thừa nếu giao diện Storefront đơn giản và không có Dashboard phức tạp.
 
-Tìm các hàm handle...Select (khoảng dòng 2890) và cập nhật:
+Giải pháp:
 
-TypeScript
+Xóa các biến màu không sử dụng trong globals.css và tailwind.config.ts để giảm dung lượng file CSS build ra.
 
-  const handlePriceApply = () => {
-    // ... logic validate giữ nguyên ...
-    updateFilters({
-      minPrice: min,
-      maxPrice: max,
-    });
-    // Đóng cả 2 để đảm bảo
-    setPricePopoverOpen(false); 
-    setMobilePriceOpen(false); 
-  };
+Kiểm tra lại fontFamily. Đang load 3 font: Inter, Nunito, Fredoka. Cần xác định xem có thực sự dùng hết không để tối ưu tốc độ tải trang.
 
-  const handleSizeSelect = (size: string) => {
-    updateFilters({
-      size: filters.size === size ? undefined : size,
-    });
-    // Đóng cả 2
-    setSizePopoverOpen(false);
-    setMobileSizeOpen(false);
-  };
+4. Kiểm kê File & Thư mục (Cần dọn dẹp)
 
-  const handleColorSelect = (color: string) => {
-    updateFilters({
-      color: filters.color === color ? undefined : color,
-    });
-    // Đóng cả 2
-    setColorPopoverOpen(false);
-    setMobileColorOpen(false);
-  };
-Tóm tắt
-Việc tách state sizePopoverOpen thành sizePopoverOpen (cho Desktop) và mobileSizeOpen (cho Mobile) sẽ đảm bảo khi bạn click trên Desktop, chỉ có Popover của Desktop mở ra, ngăn chặn việc Popover của Mobile (đang bị ẩn trigger) render ra một hộp "ma" ở góc màn hình.
+Loại File
+
+Dấu hiệu nhận biết
+
+Hành động
+
+Types/Interfaces
+
+Các interface có field như yoast_head, _links, rendered (đặc trưng WP REST API).
+
+Xóa bỏ. Định nghĩa lại Schema Interface theo Mongoose Model.
+
+Utils
+
+Các hàm parseWPDate, cleanWPContent.
+
+Xóa bỏ hoặc viết lại thành format chuẩn ISO cho MongoDB.
+
+Components
+
+Các component phục vụ plugin WP cũ (ví dụ: ContactForm7, YoastBreadcrumbs).
+
+Thay thế bằng React Hook Form và component Breadcrumb tùy chỉnh của Next.js.
+
+5. Đề xuất Lộ trình Chuyển đổi
+
+Giai đoạn 1 (Database): Định nghĩa lại Schema Mongoose cho Products, Orders, Posts sao cho sạch sẽ, bỏ các field rác của WP (post_mime_type, comment_count nếu không dùng...).
+
+Giai đoạn 2 (Logic): Viết lại các hàm lib/data.ts để fetch dữ liệu từ MongoDB thay vì fetch API.
+
+Giai đoạn 3 (Cleanup): Chạy lệnh unused-exports (hoặc tool tương tự) để tìm các component/function không còn được gọi (dead code).
+
+Giai đoạn 4 (Assets): Di chuyển hình ảnh từ wp-content/uploads sang Cloud Storage mới và chạy script update URL trong Database MongoDB.
+
+Kết luận: Hệ thống cần tập trung vào việc gỡ bỏ lớp trung gian (fetching API WP) và chuẩn hóa lại Schema dữ liệu. Việc giữ lại code cũ sẽ làm tăng độ phức tạp không cần thiết cho Next.js.

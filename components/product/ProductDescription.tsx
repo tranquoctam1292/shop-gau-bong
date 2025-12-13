@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils/cn';
 import { Button } from '@/components/ui/button';
 import { ChevronDown, ChevronUp } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/utils/sanitizeHtml';
 
 interface ProductDescriptionProps {
   content: string;
@@ -51,9 +52,10 @@ export function ProductDescription({
           }}
         >
           {/* HTML Content with Typography Plugin */}
+          {/* Sanitized to prevent XSS attacks */}
           <div
             className="prose prose-sm md:prose-base max-w-none prose-headings:font-heading prose-headings:text-text-main prose-p:text-text-main prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-text-main prose-strong:font-semibold prose-ul:text-text-main prose-ol:text-text-main prose-li:text-text-main prose-img:rounded-lg prose-img:max-w-full prose-img:h-auto prose-img:my-4 prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg"
-            dangerouslySetInnerHTML={{ __html: content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
           />
         </div>
 

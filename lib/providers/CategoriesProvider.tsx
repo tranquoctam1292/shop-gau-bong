@@ -58,7 +58,7 @@ export function CategoriesProvider({ children, params }: CategoriesProviderProps
         }, {} as Record<string, string>)
       ).toString();
 
-      const response = await fetch(`/api/woocommerce/categories?${queryString}`);
+      const response = await fetch(`/api/cms/categories?${queryString}`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch categories: ${response.status} ${response.statusText}`);

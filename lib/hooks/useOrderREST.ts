@@ -1,16 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import type { WooCommerceOrder } from '@/types/woocommerce';
+import type { Order } from '@/types/mongodb';
 
 /**
  * Hook để fetch single order từ CMS API
  * 
  * @param orderId - Order ID (MongoDB ObjectId string or orderNumber)
  * @returns Order, loading, error
+ * 
+ * Note: Returns Order type which is compatible with both WooCommerce and MongoDB formats
  */
 export function useOrderREST(orderId: string | number | null | undefined) {
-  const [order, setOrder] = useState<WooCommerceOrder | null>(null);
+  const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 

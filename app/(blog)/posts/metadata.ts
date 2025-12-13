@@ -1,25 +1,26 @@
 import { Metadata } from 'next';
 import { getDefaultMetadata, generateOpenGraphTags, generateTwitterCardTags } from '@/lib/utils/metadata';
+import { SITE_CONFIG } from '@/lib/constants/config';
 
 export const metadata: Metadata = {
-  title: 'Blog | Shop Gấu Bông',
-  description: 'Đọc các bài viết về gấu bông, tin tức và cập nhật từ Shop Gấu Bông.',
+  title: `Blog | ${SITE_CONFIG.name}`,
+  description: `Đọc các bài viết về gấu bông, tin tức và cập nhật từ ${SITE_CONFIG.name}.`,
   openGraph: {
     ...generateOpenGraphTags({
       ...getDefaultMetadata(),
-      title: 'Blog | Shop Gấu Bông',
-      description: 'Đọc các bài viết về gấu bông, tin tức và cập nhật từ Shop Gấu Bông.',
+      title: `Blog | ${SITE_CONFIG.name}`,
+      description: `Đọc các bài viết về gấu bông, tin tức và cập nhật từ ${SITE_CONFIG.name}.`,
       url: '/blog/posts',
     }),
     type: 'website',
   },
   twitter: generateTwitterCardTags({
     ...getDefaultMetadata(),
-    title: 'Blog | Shop Gấu Bông',
-    description: 'Đọc các bài viết về gấu bông, tin tức và cập nhật từ Shop Gấu Bông.',
+    title: `Blog | ${SITE_CONFIG.name}`,
+    description: `Đọc các bài viết về gấu bông, tin tức và cập nhật từ ${SITE_CONFIG.name}.`,
   }),
   alternates: {
-    canonical: `${process.env.NEXT_PUBLIC_SITE_URL || 'https://shop-gaubong.com'}/blog/posts`,
+    canonical: `${SITE_CONFIG.url}/blog/posts`,
   },
 };
 

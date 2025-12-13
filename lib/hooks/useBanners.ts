@@ -28,7 +28,7 @@ export function useBanners() {
         setLoading(true);
         setError(null);
 
-        const response = await fetch('/api/woocommerce/banners');
+        const response = await fetch('/api/cms/banners');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch banners: ${response.status}`);

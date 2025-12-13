@@ -81,7 +81,7 @@ shop-gau-bong/
 │   └── layout/            # Layout components
 ├── lib/                    # Utilities
 │   ├── api/               # API client
-│   │   └── woocommerce.ts # WooCommerce REST API client
+│   │   └── cms.ts         # Custom CMS API client
 │   ├── hooks/             # Custom React hooks
 │   │   ├── useProductsREST.ts
 │   │   ├── useProductVariations.ts
@@ -92,11 +92,15 @@ shop-gau-bong/
 │   │   ├── shipping.ts    # Volumetric weight calculation
 │   │   ├── format.ts      # Price formatting
 │   │   ├── productMapper.ts # Product data mapper
+│   │   ├── sanitizeHtml.ts # HTML sanitization
 │   │   └── cn.ts          # Class name utility
+│   ├── constants/         # Constants
+│   │   └── config.ts     # Site configuration
 │   └── providers/         # React providers
 │       └── QueryProvider.tsx # React Query provider
 ├── types/                 # TypeScript types
-│   └── woocommerce.ts     # WooCommerce REST API types
+│   ├── mongodb.ts         # MongoDB types
+│   └── woocommerce.ts     # WooCommerce types (deprecated, for backward compatibility)
 ├── docs/                  # Documentation
 └── public/                # Static assets
 ```
@@ -119,11 +123,12 @@ Xem file `docs/DESIGN_SYSTEM.md` để biết:
 
 ## 📚 Tài liệu
 
-- [Schema Context](./docs/SCHEMA_CONTEXT.md) - WooCommerce REST API structure
+- [Schema Context](./docs/SCHEMA_CONTEXT.md) - MongoDB schema structure
 - [Design System](./docs/DESIGN_SYSTEM.md) - Color palette, typography, components
-- [WooCommerce Variations Guide](./docs/WOOCOMMERCE_VARIATIONS_GUIDE.md) - How to add product variations
-- [Setup WooCommerce REST API](./docs/SETUP_WOOCOMMERCE_REST_API.md) - API configuration
+- [Order Management System](./docs/ORDER_MANAGEMENT_SYSTEM_PROGRESS.md) - Order management features
 - [Troubleshooting](./docs/TROUBLESHOOTING.md) - Common issues and solutions
+
+**Note:** Legacy documentation about WordPress/WooCommerce is kept for historical reference only. The system now uses Custom CMS with MongoDB.
 
 ## 🔑 Tính năng chính
 

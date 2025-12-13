@@ -9,6 +9,7 @@ import { Edit, Trash2, Copy, ArrowLeft, MessageSquare, BarChart3 } from 'lucide-
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { ProductReviews } from '@/components/admin/products/ProductReviews';
 import { ProductAnalytics } from '@/components/admin/products/ProductAnalytics';
+import { sanitizeHtml } from '@/lib/utils/sanitizeHtml';
 
 export default function ProductDetailPage({
   params,
@@ -198,9 +199,10 @@ export default function ProductDetailPage({
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Mô tả chi tiết</label>
+                {/* Sanitized to prevent XSS attacks */}
                 <div
                   className="text-sm prose max-w-none"
-                  dangerouslySetInnerHTML={{ __html: product.description || '' }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeHtml(product.description) }}
                 />
               </div>
             </CardContent>

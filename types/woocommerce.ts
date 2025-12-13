@@ -4,6 +4,9 @@
  * Based on WooCommerce REST API v3 documentation
  * https://woocommerce.github.io/woocommerce-rest-api-docs/
  * 
+ * @deprecated This file is kept for backward compatibility during migration.
+ * New code should use MongoDB types from @/lib/utils/productMapper or @/docs/SCHEMA_CONTEXT.md
+ * 
  * Note: ACF (Advanced Custom Fields) sẽ nằm trong `meta_data` array
  * với key như 'length', 'width', 'height', 'volumetric_weight'
  */

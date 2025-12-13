@@ -1,7 +1,7 @@
 {
   "name": "shop-gau-bong",
   "version": "1.0.0",
-  "description": "Website bán gấu bông sử dụng WordPress backend và Next.js frontend",
+  "description": "Website bán gấu bông sử dụng Custom CMS với MongoDB và Next.js",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -21,8 +21,6 @@
     "test:lighthouse": "node scripts/lighthouse-audit.js",
     "test:performance": "node scripts/performance-test.js",
     "test:bundle-size": "node scripts/analyze-bundle.js",
-    "test:woocommerce-api": "node scripts/test-woocommerce-api.js",
-    "test:wordpress-api": "node scripts/test-wordpress-api.js",
     "test:phase3": "node scripts/test-phase3-api.js",
     "test:mongodb": "tsx scripts/test-mongodb-connection.ts",
     "db:setup-indexes": "tsx scripts/setup-database-indexes.ts",
@@ -97,6 +95,7 @@
     "lighthouse": "^12.8.2",
     "postcss": "^8.4.0",
     "tailwindcss": "^3.3.0",
+    "ts-prune": "^0.10.3",
     "tsx": "^4.21.0",
     "typescript": "^5.3.0"
   },

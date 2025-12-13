@@ -84,8 +84,8 @@ function OrderConfirmationContent() {
             {/* VietQR Payment - Show if payment method is 'bacs' */}
             {paymentMethod === 'bacs' && (
               <VietQRPayment
-                orderId={order.number?.toString() || order.id.toString()}
-                amount={parseFloat(order.total || '0')}
+                orderId={order.number?.toString() || String(order.id)}
+                amount={parseFloat(String(order.total || '0'))}
                 accountNo={process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NO || '1234567890'}
                 accountName={process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NAME || 'SHOP GAU BONG'}
                 acqId={process.env.NEXT_PUBLIC_VIETQR_ACQ_ID || '970415'}
@@ -99,8 +99,8 @@ function OrderConfirmationContent() {
             {/* MoMo Payment - Show if payment method is 'momo' */}
             {paymentMethod === 'momo' && typeof window !== 'undefined' && (
               <MoMoPayment
-                orderId={order.number?.toString() || order.id.toString()}
-                amount={parseFloat(order.total || '0')}
+                orderId={order.number?.toString() || String(order.id)}
+                amount={parseFloat(String(order.total || '0'))}
                 returnUrl={`${window.location.origin}/order-confirmation?orderId=${order.id}&paymentMethod=momo&status=success`}
                 notifyUrl={`${window.location.origin}/api/payment/webhook/momo`}
                 onPaymentSuccess={() => {
@@ -115,16 +115,16 @@ function OrderConfirmationContent() {
             {/* COD Payment - Show if payment method is 'cod' */}
             {paymentMethod === 'cod' && (
               <CODPayment
-                orderId={order.number?.toString() || order.id.toString()}
-                amount={parseFloat(order.total || '0')}
+                orderId={order.number?.toString() || String(order.id)}
+                amount={parseFloat(String(order.total || '0'))}
               />
             )}
 
             {/* Bank Transfer Payment - Show if payment method is 'bank_transfer' */}
             {paymentMethod === 'bank_transfer' && (
               <BankTransferPayment
-                orderId={order.number?.toString() || order.id.toString()}
-                amount={parseFloat(order.total || '0')}
+                orderId={order.number?.toString() || String(order.id)}
+                amount={parseFloat(String(order.total || '0'))}
               />
             )}
           </div>

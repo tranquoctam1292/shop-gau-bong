@@ -3,10 +3,25 @@
  * 
  * Map WooCommerce REST API product format sang frontend format
  * để đảm bảo tương thích với components hiện tại
+ * 
+ * Note: This file still supports mapping from WooCommerce format for backward compatibility
+ * during migration. New code should use mapMongoProduct() instead.
  */
 
 import type { WooCommerceProduct } from '@/types/woocommerce';
-import { getMetaValue } from '@/lib/api/woocommerce';
+
+/**
+ * Helper function để extract ACF field value từ meta_data array
+ * (Extracted from lib/api/woocommerce.ts for independence)
+ * 
+ * @param metaData - Array of meta_data objects
+ * @param key - Key to extract
+ * @returns Value hoặc undefined
+ */
+function getMetaValue(metaData: Array<{ key: string; value: any }>, key: string): any {
+  const meta = metaData?.find(m => m.key === key);
+  return meta?.value;
+}
 
 /**
  * Mapped Product Type - Format cho frontend components

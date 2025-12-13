@@ -9,7 +9,8 @@ const nextConfig = {
   
   // Image Optimization
   images: {
-    domains: [], // Thêm domain WordPress của bạn vào đây
+    // Note: Add image storage domains here (S3, Cloudinary, etc.)
+    domains: [],
     remotePatterns: [
       {
         protocol: 'https',
@@ -48,11 +49,8 @@ const nextConfig = {
     return config;
   },
   
-  env: {
-    NEXT_PUBLIC_WORDPRESS_URL: process.env.NEXT_PUBLIC_WORDPRESS_URL,
-    NEXT_PUBLIC_WOOCOMMERCE_KEY: process.env.NEXT_PUBLIC_WOOCOMMERCE_KEY,
-    NEXT_PUBLIC_WOOCOMMERCE_SECRET: process.env.NEXT_PUBLIC_WOOCOMMERCE_SECRET,
-  },
+  // Environment variables are accessed directly via process.env
+  // No need to explicitly expose WordPress/WooCommerce env vars anymore
 }
 
 module.exports = nextConfig

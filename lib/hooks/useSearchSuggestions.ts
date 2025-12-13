@@ -26,8 +26,8 @@ export function useSearchSuggestions() {
     setIsLoading(true);
 
     try {
-      // Fetch từ Next.js API route (proxy)
-      const response = await fetch(`/api/woocommerce/products?search=${encodeURIComponent(searchTerm)}&per_page=${MAX_SUGGESTIONS}`);
+      // Fetch từ CMS API
+      const response = await fetch(`/api/cms/products?search=${encodeURIComponent(searchTerm)}&per_page=${MAX_SUGGESTIONS}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch search suggestions');

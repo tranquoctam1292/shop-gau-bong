@@ -1,5 +1,4 @@
 import { MetadataRoute } from 'next';
-import { wcApi } from '@/lib/api/woocommerce';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://shop-gaubong.com';
@@ -39,31 +38,36 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   try {
-    // Check if WordPress URL is configured
-    const wpUrl = process.env.NEXT_PUBLIC_WORDPRESS_URL;
-    if (!wpUrl || wpUrl.includes('localhost')) {
-      // Skip dynamic sitemap generation if WordPress is not configured
-      return staticPages;
+    // Fetch products from CMS API
+    const response = await fetch(`${baseUrl}/api/cms/products?per_page=100&status=publish`, {
+      // Use absolute URL for server-side fetch
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // Disable cache for sitemap generation
+      cache: 'no-store',
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch products: ${response.status}`);
     }
 
-    // Fetch products using REST API
-    const products = await wcApi.getProducts({ per_page: 100, status: 'publish' });
-    // Ensure products is an array (not { data, headers })
-    const productsArray = Array.isArray(products) ? products : (products as any)?.data || [];
-    const productPages: MetadataRoute.Sitemap = productsArray.map((product: any) => ({
+    const data = await response.json();
+    const products = data.products || [];
+    
+    const productPages: MetadataRoute.Sitemap = products.map((product: any) => ({
       url: `${baseUrl}/products/${product.slug}`,
-      lastModified: product.date_modified ? new Date(product.date_modified) : new Date(),
+      lastModified: product.updatedAt ? new Date(product.updatedAt) : new Date(),
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     }));
 
-    // Note: Blog posts still use GraphQL, so we'll skip them for now
-    // or fetch from WordPress REST API if needed
+    // Note: Blog posts can be added later from CMS API if needed
 
     return [...staticPages, ...productPages];
   } catch (error: any) {
     // Silently fail and return static pages only
-    // This prevents build failures when WordPress is not available
+    // This prevents build failures when CMS API is not available
     if (process.env.NODE_ENV === 'development') {
       console.error('Error generating sitemap:', error?.message || error);
     }
