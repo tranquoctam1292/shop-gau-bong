@@ -197,7 +197,7 @@ function AdminLayoutContent({
                 </div>
 
                 {/* Submenu */}
-                {hasSubmenu && isExpanded && (
+                {hasSubmenu && isExpanded && item.submenu && (
                   <div className="ml-4 space-y-1 border-l-2 border-gray-200 pl-2">
                     {item.submenu.map((subItem) => {
                       const SubIcon = subItem.icon || Package;
