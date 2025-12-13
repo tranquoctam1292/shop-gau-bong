@@ -149,7 +149,7 @@ export function useProductsREST(perPage: number = 12) {
           setTotalPages(paginationInfo.totalPages);
         } else {
           // Fallback: estimate based on current page results
-          setTotalPages(productsData.length < perPage ? currentPage : currentPage + 1);
+          setTotalPages(mappedProducts.length < perPage ? currentPage : currentPage + 1);
         }
         
         // If this is page 1 or filters changed, replace products; otherwise append (for load more)

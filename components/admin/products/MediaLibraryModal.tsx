@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Upload, X, Image as ImageIcon, Video, File, Loader2, Link as LinkIcon } from 'lucide-react';
 import { convertVideoUrlToEmbed, isAllowedVideoDomain } from '@/lib/utils/videoEmbed';
@@ -633,30 +633,36 @@ export function MediaLibraryModal({
                     <div>
                       <Label htmlFor="media-alignment">Căn chỉnh</Label>
                       <Select
-                        id="media-alignment"
                         value={alignment}
-                        onChange={(e) => setAlignment(e.target.value as typeof alignment)}
-                        className="mt-1"
+                        onValueChange={(value) => setAlignment(value as typeof alignment)}
                       >
-                        <option value="none">Không</option>
-                        <option value="left">Trái</option>
-                        <option value="center">Giữa</option>
-                        <option value="right">Phải</option>
+                        <SelectTrigger id="media-alignment" className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Không</SelectItem>
+                          <SelectItem value="left">Trái</SelectItem>
+                          <SelectItem value="center">Giữa</SelectItem>
+                          <SelectItem value="right">Phải</SelectItem>
+                        </SelectContent>
                       </Select>
                     </div>
 
                     <div>
                       <Label htmlFor="media-link">Liên kết tới</Label>
                       <Select
-                        id="media-link"
                         value={linkTo}
-                        onChange={(e) => setLinkTo(e.target.value as typeof linkTo)}
-                        className="mt-1"
+                        onValueChange={(value) => setLinkTo(value as typeof linkTo)}
                       >
-                        <option value="none">Không</option>
-                        <option value="file">Tập tin đa phương tiện</option>
-                        <option value="attachment">Trang đính kèm</option>
-                        <option value="custom">Tùy chỉnh URL</option>
+                        <SelectTrigger id="media-link" className="mt-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Không</SelectItem>
+                          <SelectItem value="file">Tập tin đa phương tiện</SelectItem>
+                          <SelectItem value="attachment">Trang đính kèm</SelectItem>
+                          <SelectItem value="custom">Tùy chỉnh URL</SelectItem>
+                        </SelectContent>
                       </Select>
                     </div>
 
@@ -683,15 +689,18 @@ export function MediaLibraryModal({
                       <div>
                         <Label htmlFor="media-size">Kích cỡ</Label>
                         <Select
-                          id="media-size"
                           value={size}
-                          onChange={(e) => setSize(e.target.value as typeof size)}
-                          className="mt-1"
+                          onValueChange={(value) => setSize(value as typeof size)}
                         >
-                          <option value="thumbnail">Thumbnail (150x150)</option>
-                          <option value="medium">Medium (300x300)</option>
-                          <option value="large">Large (1024x1024)</option>
-                          <option value="full">Full Size</option>
+                          <SelectTrigger id="media-size" className="mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="thumbnail">Thumbnail (150x150)</SelectItem>
+                            <SelectItem value="medium">Medium (300x300)</SelectItem>
+                            <SelectItem value="large">Large (1024x1024)</SelectItem>
+                            <SelectItem value="full">Full Size</SelectItem>
+                          </SelectContent>
                         </Select>
                       </div>
                     )}

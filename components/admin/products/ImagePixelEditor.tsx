@@ -6,7 +6,7 @@ import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RotateCw, RotateCcw, FlipVertical, FlipHorizontal, Undo2, Eye } from 'lucide-react';
 
 interface ImagePixelEditorProps {
@@ -317,13 +317,17 @@ export function ImagePixelEditor({
               <label className="text-sm font-medium">Tỷ lệ:</label>
               <Select
                 defaultValue="free"
-                onChange={(e) => handleAspectRatioChange(e.target.value)}
-                className="w-32"
+                onValueChange={(value) => handleAspectRatioChange(value)}
               >
-                <option value="1:1">1:1 (Vuông)</option>
-                <option value="16:9">16:9 (Video)</option>
-                <option value="4:3">4:3 (Ảnh)</option>
-                <option value="free">Tự do</option>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1:1">1:1 (Vuông)</SelectItem>
+                  <SelectItem value="16:9">16:9 (Video)</SelectItem>
+                  <SelectItem value="4:3">4:3 (Ảnh)</SelectItem>
+                  <SelectItem value="free">Tự do</SelectItem>
+                </SelectContent>
               </Select>
             </div>
 

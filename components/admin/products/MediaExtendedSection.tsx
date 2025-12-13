@@ -26,7 +26,7 @@ interface MediaExtendedSectionProps {
 }
 
 export function MediaExtendedSection({ data, onChange, productImages = [] }: MediaExtendedSectionProps) {
-  const [videoInput, setVideoInput] = useState({ url: '', type: 'youtube' as const, thumbnail: '' });
+  const [videoInput, setVideoInput] = useState<{ url: string; type: 'youtube' | 'vimeo' | 'upload'; thumbnail: string }>({ url: '', type: 'youtube', thumbnail: '' });
   const [view360Input, setView360Input] = useState('');
   const [altTextInputs, setAltTextInputs] = useState<Record<string, string>>({});
 

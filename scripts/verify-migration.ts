@@ -212,7 +212,7 @@ async function verifyDataIntegrity(collections: Awaited<ReturnType<typeof getCol
   for (const product of allProducts) {
     if (product.variants && product.variants.length > 0) {
       const invalidVariants = product.variants.filter(
-        v => !v.size || !v.price || v.price < 0 || !v.id
+        (v: any) => !v.size || !v.price || v.price < 0 || !v.id
       );
       
       if (invalidVariants.length > 0) {

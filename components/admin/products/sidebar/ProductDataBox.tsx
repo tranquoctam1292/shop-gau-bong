@@ -3,7 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package, Box } from 'lucide-react';
 
 interface ProductDataBoxProps {
@@ -74,17 +74,21 @@ export function ProductDataBox({
           <div className="space-y-2">
             <Label htmlFor="sidebar-stock-status">Trạng thái tồn kho</Label>
             <Select
-              id="sidebar-stock-status"
               value={stockStatus}
-              onChange={(e) =>
+              onValueChange={(value) =>
                 onStockStatusChange(
-                  e.target.value as 'instock' | 'outofstock' | 'onbackorder'
+                  value as 'instock' | 'outofstock' | 'onbackorder'
                 )
               }
             >
-              <option value="instock">Còn hàng</option>
-              <option value="outofstock">Hết hàng</option>
-              <option value="onbackorder">Đặt hàng trước</option>
+              <SelectTrigger id="sidebar-stock-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="instock">Còn hàng</SelectItem>
+                <SelectItem value="outofstock">Hết hàng</SelectItem>
+                <SelectItem value="onbackorder">Đặt hàng trước</SelectItem>
+              </SelectContent>
             </Select>
           </div>
         )}

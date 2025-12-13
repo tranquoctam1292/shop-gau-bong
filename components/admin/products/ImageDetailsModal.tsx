@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { FocalPointPicker } from './FocalPointPicker';
 import { Sparkles, Wand2, Camera } from 'lucide-react';
@@ -231,8 +231,8 @@ export function ImageDetailsModal({
     // Build attributes
     // Preserve alignment classes from existing class attribute
     const existingClass = imageNode.attrs.class || '';
-    const alignmentClasses = existingClass.split(' ').filter(c => c.startsWith('align'));
-    const otherClasses = existingClass.split(' ').filter(c => !c.startsWith('align') && c.trim());
+    const alignmentClasses = existingClass.split(' ').filter((c: string) => c.startsWith('align'));
+    const otherClasses = existingClass.split(' ').filter((c: string) => !c.startsWith('align') && c.trim());
     
     // Merge CSS classes
     const allClasses = [
@@ -414,15 +414,19 @@ export function ImageDetailsModal({
             <div>
               <Label htmlFor="display-size">Kích thước hiển thị</Label>
               <Select
-                id="display-size"
                 value={formData.displaySize}
-                onChange={(e) => handleDisplaySizeChange(e.target.value as any)}
+                onValueChange={(value) => handleDisplaySizeChange(value as any)}
               >
-                <option value="thumbnail">Thumbnail (150px)</option>
-                <option value="medium">Medium (300px)</option>
-                <option value="large">Large (1024px)</option>
-                <option value="full">Full Size (Gốc)</option>
-                <option value="custom">Custom Size</option>
+                <SelectTrigger id="display-size">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="thumbnail">Thumbnail (150px)</SelectItem>
+                  <SelectItem value="medium">Medium (300px)</SelectItem>
+                  <SelectItem value="large">Large (1024px)</SelectItem>
+                  <SelectItem value="full">Full Size (Gốc)</SelectItem>
+                  <SelectItem value="custom">Custom Size</SelectItem>
+                </SelectContent>
               </Select>
             </div>
 
@@ -470,13 +474,17 @@ export function ImageDetailsModal({
             <div>
               <Label htmlFor="link-to">Liên kết tới</Label>
               <Select
-                id="link-to"
                 value={formData.linkTo}
-                onChange={(e) => handleInputChange('linkTo', e.target.value as any)}
+                onValueChange={(value) => handleInputChange('linkTo', value as any)}
               >
-                <option value="none">None (Không link)</option>
-                <option value="media">Media File (Link xem ảnh gốc)</option>
-                <option value="custom">Custom URL</option>
+                <SelectTrigger id="link-to">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (Không link)</SelectItem>
+                  <SelectItem value="media">Media File (Link xem ảnh gốc)</SelectItem>
+                  <SelectItem value="custom">Custom URL</SelectItem>
+                </SelectContent>
               </Select>
             </div>
 

@@ -18,7 +18,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Calendar, Filter, ChevronDown } from 'lucide-react';
@@ -272,14 +272,18 @@ export function OrderFilters({ filters, onFiltersChange, onClear }: OrderFilters
           {/* Sort - Mobile */}
           <Select
             value={getSortValue()}
-            onChange={(e) => handleSortChange(e.target.value)}
-            className="flex-shrink-0 w-40"
+            onValueChange={(value) => handleSortChange(value)}
           >
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+            <SelectTrigger className="flex-shrink-0 w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
 
           {/* Clear Filters */}
@@ -411,16 +415,21 @@ export function OrderFilters({ filters, onFiltersChange, onClear }: OrderFilters
           <Label className="text-sm font-medium mb-2 block">Kênh</Label>
           <Select
             value={localFilters.channel || ''}
-            onChange={(e) =>
-              handleFilterChange('channel', e.target.value || undefined)
+            onValueChange={(value) =>
+              handleFilterChange('channel', value || undefined)
             }
           >
-            <option value="">Tất cả</option>
-            {CHANNELS.map((channel) => (
-              <option key={channel.value} value={channel.value}>
-                {channel.label}
-              </option>
-            ))}
+            <SelectTrigger>
+              <SelectValue placeholder="Tất cả" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tất cả</SelectItem>
+              {CHANNELS.map((channel) => (
+                <SelectItem key={channel.value} value={channel.value}>
+                  {channel.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
 
@@ -429,28 +438,38 @@ export function OrderFilters({ filters, onFiltersChange, onClear }: OrderFilters
           <Label className="text-sm font-medium mb-2 block">Thanh toán</Label>
           <Select
             value={localFilters.paymentMethod || ''}
-            onChange={(e) =>
-              handleFilterChange('paymentMethod', e.target.value || undefined)
+            onValueChange={(value) =>
+              handleFilterChange('paymentMethod', value || undefined)
             }
           >
-            <option value="">Tất cả</option>
-            {PAYMENT_METHODS.map((method) => (
-              <option key={method.value} value={method.value}>
-                {method.label}
-              </option>
-            ))}
+            <SelectTrigger>
+              <SelectValue placeholder="Tất cả" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Tất cả</SelectItem>
+              {PAYMENT_METHODS.map((method) => (
+                <SelectItem key={method.value} value={method.value}>
+                  {method.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
 
         {/* Sort */}
         <div className="lg:col-span-1">
           <Label className="text-sm font-medium mb-2 block">Sắp xếp</Label>
-          <Select value={getSortValue()} onChange={(e) => handleSortChange(e.target.value)}>
-            {SORT_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
+          <Select value={getSortValue()} onValueChange={(value) => handleSortChange(value)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
           </Select>
         </div>
 

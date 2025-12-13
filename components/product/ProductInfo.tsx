@@ -148,11 +148,11 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   // Create a map of globalAttributeId -> terms
   const globalTermsMap = useMemo(() => {
     // If there's an error, return empty map (fallback to old behavior)
-    if (globalTermsError || !globalAttributeTermsData) {
-      return new Map<string, typeof globalAttributeTermsData[0]>();
+    if (globalTermsError || !globalAttributeTermsData || globalAttributeTermsData.length === 0) {
+      return new Map<string, any>();
     }
     
-    const map = new Map<string, typeof globalAttributeTermsData[0]>();
+    const map = new Map<string, any>();
     globalAttributeTermsData.forEach((data) => {
       if (data?.attribute?.id) {
         map.set(data.attribute.id, data);
@@ -247,7 +247,7 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
           price: priceToUse || '0',
           image: product.image?.sourceUrl,
           quantity: 1,
-          variationId: selectedVariation?.id,
+          variationId: selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined,
           isGift: isGift,
           length: product.length || undefined,
           width: product.width || undefined,
@@ -258,7 +258,7 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
       }
 
       if (onAddToCart) {
-        onAddToCart(selectedVariation?.id, isGift);
+        onAddToCart(selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined, isGift);
       }
 
       // Mở QuickCheckoutModal sau khi thêm vào giỏ (cho cả "Thêm giỏ hàng" và "Mua ngay")

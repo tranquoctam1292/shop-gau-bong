@@ -3,6 +3,8 @@ import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
 
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
 /**
  * API endpoint để tách nền ảnh bằng AI
  * POST /api/admin/images/remove-background

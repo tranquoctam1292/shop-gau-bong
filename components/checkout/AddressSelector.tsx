@@ -9,7 +9,7 @@ import {
   type District,
   type Ward,
 } from '@/lib/utils/vietnamAddress';
-import { Select } from '@/components/ui/select';
+// Using native HTML select for AddressSelector
 import { cn } from '@/lib/utils/cn';
 
 interface AddressSelectorProps {
@@ -176,12 +176,12 @@ export function AddressSelector({
         <label className="block text-sm font-medium text-text-main mb-2">
           Tỉnh/Thành {required && '*'}
         </label>
-        <Select
+        <select
           value={province || ''}
           onChange={handleProvinceChange}
           required={required}
           disabled={loading}
-          className={cn(error && 'border-destructive')}
+          className={cn('flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50', error && 'border-destructive')}
         >
           <option value="">-- Chọn Tỉnh/Thành --</option>
           {cities.map((city) => (
@@ -189,7 +189,7 @@ export function AddressSelector({
               {city.name}
             </option>
           ))}
-        </Select>
+        </select>
         {error && <p className="text-xs text-destructive mt-1">{error}</p>}
       </div>
 
@@ -198,12 +198,12 @@ export function AddressSelector({
         <label className="block text-sm font-medium text-text-main mb-2">
           Quận/Huyện {required && '*'}
         </label>
-        <Select
+        <select
           value={district || ''}
           onChange={handleDistrictChange}
           required={required}
           disabled={loading || !province || districts.length === 0}
-          className={cn(error && 'border-destructive')}
+          className={cn('flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50', error && 'border-destructive')}
         >
           <option value="">-- Chọn Quận/Huyện --</option>
           {districts.map((d) => (
@@ -211,7 +211,7 @@ export function AddressSelector({
               {d.name}
             </option>
           ))}
-        </Select>
+        </select>
       </div>
 
       {/* Phường/Xã */}
@@ -219,12 +219,12 @@ export function AddressSelector({
         <label className="block text-sm font-medium text-text-main mb-2">
           Phường/Xã {required && '*'}
         </label>
-        <Select
+        <select
           value={ward || ''}
           onChange={handleWardChange}
           required={required}
           disabled={loading || !province || !district || wards.length === 0}
-          className={cn(error && 'border-destructive')}
+          className={cn('flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50', error && 'border-destructive')}
         >
           <option value="">-- Chọn Phường/Xã --</option>
           {wards.map((w) => (
@@ -232,7 +232,7 @@ export function AddressSelector({
               {w.name}
             </option>
           ))}
-        </Select>
+        </select>
       </div>
     </div>
   );

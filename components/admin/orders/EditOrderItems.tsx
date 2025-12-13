@@ -69,7 +69,7 @@ export function EditOrderItems({
 }: EditOrderItemsProps) {
   const [showProductModal, setShowProductModal] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
-  const [updatingQuantities, setUpdatingQuantities] = useState<Record<string, number>>({});
+  const [updatingQuantities, setUpdatingQuantities] = useState<Record<string, number | undefined>>({});
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
 
   const canEdit = canEditOrder(orderStatus);

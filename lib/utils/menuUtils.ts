@@ -178,7 +178,7 @@ export async function validateMenuDepth(
   let currentParentId: ObjectId | null = newParentId;
   
   while (currentParentId) {
-    const parent = await menuItems.findOne({ _id: currentParentId });
+    const parent: any = await menuItems.findOne({ _id: currentParentId });
     if (!parent) {
       break;
     }
@@ -190,7 +190,7 @@ export async function validateMenuDepth(
         error: 'Maximum depth exceeded (max 3 levels)',
       };
     }
-    currentParentId = parent.parentId;
+    currentParentId = parent.parentId as ObjectId | null;
   }
   
   return { valid: true, depth };

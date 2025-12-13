@@ -79,9 +79,9 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
       async function fetchCategory() {
         try {
           // Extract ID from GraphQL format if needed
-          let id = categoryId;
-          if (categoryId.startsWith('gid://shop-gau-bong/ProductCategory/')) {
-            id = categoryId.replace('gid://shop-gau-bong/ProductCategory/', '');
+          let id = categoryId!;
+          if (categoryId!.startsWith('gid://shop-gau-bong/ProductCategory/')) {
+            id = categoryId!.replace('gid://shop-gau-bong/ProductCategory/', '');
           }
           
           const response = await fetch(`/api/admin/categories/${id}`);

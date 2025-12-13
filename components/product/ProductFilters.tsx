@@ -38,7 +38,7 @@ import { formatPrice } from '@/lib/utils/format';
 import { getColorHex } from '@/lib/utils/colorMapping';
 
 export function ProductFilters() {
-  const { filters, updateFilters, clearFilters } = useProductFilters();
+  const { filters, updateFilter, clearFilters } = useProductFilters();
   const { getSizeOptions, getColorOptions, isLoading: attributesLoading } = useProductAttributes();
   const [isSheetOpen, setIsSheetOpen] = useState(false);
   
@@ -98,7 +98,7 @@ export function ProductFilters() {
         key: 'color',
         label: 'Màu',
         value: filters.color,
-        onRemove: () => updateFilters({ color: undefined }),
+        onRemove: () => updateFilter('color', null),
       });
     }
     
@@ -107,7 +107,7 @@ export function ProductFilters() {
         key: 'size',
         label: 'Kích thước',
         value: filters.size,
-        onRemove: () => updateFilters({ size: undefined }),
+        onRemove: () => updateFilter('size', null),
       });
     }
     
@@ -122,7 +122,10 @@ export function ProductFilters() {
         label: 'Giá',
         value: priceLabel,
         onRemove: () => {
-          updateFilters({ minPrice: undefined, maxPrice: undefined });
+          updateFilter('priceMin', null);
+          updateFilter('minPrice', null);
+          updateFilter('priceMax', null);
+          updateFilter('maxPrice', null);
           setLocalMinPrice('');
           setLocalMaxPrice('');
         },
@@ -134,7 +137,7 @@ export function ProductFilters() {
         key: 'material',
         label: 'Chất liệu',
         value: filters.material,
-        onRemove: () => updateFilters({ material: undefined }),
+        onRemove: () => updateFilter('material', null),
       });
     }
     
@@ -145,7 +148,7 @@ export function ProductFilters() {
         value: filters.category.split(',').length > 1 
           ? `${filters.category.split(',').length} danh mục`
           : filters.category,
-        onRemove: () => updateFilters({ category: undefined }),
+        onRemove: () => updateFilter('category', null),
       });
     }
     
@@ -185,28 +188,24 @@ export function ProductFilters() {
     
     setPriceError('');
     // Update URL khi nhấn "Áp dụng"
-    updateFilters({
-      minPrice: min,
-      maxPrice: max,
-    });
+    updateFilter('priceMin', min ?? null);
+    updateFilter('minPrice', min ?? null);
+    updateFilter('priceMax', max ?? null);
+    updateFilter('maxPrice', max ?? null);
     // Đóng cả 2 Popover (Desktop và Mobile)
     setPricePopoverOpen(false);
     setMobilePriceOpen(false);
   };
 
   const handleSizeSelect = (size: string) => {
-    updateFilters({
-      size: filters.size === size ? undefined : size,
-    });
+    updateFilter('size', filters.size === size ? null : size);
     // Đóng cả 2 Popover (Desktop và Mobile)
     setSizePopoverOpen(false);
     setMobileSizeOpen(false);
   };
 
   const handleColorSelect = (color: string) => {
-    updateFilters({
-      color: filters.color === color ? undefined : color,
-    });
+    updateFilter('color', filters.color === color ? null : color);
     // Đóng cả 2 Popover (Desktop và Mobile)
     setColorPopoverOpen(false);
     setMobileColorOpen(false);
@@ -218,7 +217,9 @@ export function ProductFilters() {
   const handleApplyFilters = () => {
     if (filterFormRef.current) {
       const filtersToApply = filterFormRef.current.getFilters();
-      updateFilters(filtersToApply);
+      Object.entries(filtersToApply).forEach(([key, value]) => {
+        updateFilter(key as keyof typeof filters, value);
+      });
       setIsSheetOpen(false);
     }
   };
@@ -495,7 +496,10 @@ export function ProductFilters() {
                       setLocalMinPrice('');
                       setLocalMaxPrice('');
                       setPriceError('');
-                      updateFilters({ minPrice: undefined, maxPrice: undefined });
+                      updateFilter('priceMin', null);
+          updateFilter('minPrice', null);
+          updateFilter('priceMax', null);
+          updateFilter('maxPrice', null);
                       // Đóng cả 2 Popover (Desktop và Mobile)
                       setPricePopoverOpen(false);
                       setMobilePriceOpen(false);
@@ -638,7 +642,7 @@ export function ProductFilters() {
                     size="sm"
                     className="w-full"
                     onClick={() => {
-                      updateFilters({ size: undefined });
+                      updateFilter('size', null);
                       // Đóng cả 2 Popover (Desktop và Mobile)
                       setSizePopoverOpen(false);
                       setMobileSizeOpen(false);
@@ -768,7 +772,7 @@ export function ProductFilters() {
                     size="sm"
                     className="w-full"
                     onClick={() => {
-                      updateFilters({ color: undefined });
+                      updateFilter('color', null);
                       // Đóng cả 2 Popover (Desktop và Mobile)
                       setColorPopoverOpen(false);
                       setMobileColorOpen(false);
@@ -793,7 +797,7 @@ export function ProductFilters() {
                   key={option.value}
                   onClick={() => {
                     if (actualSelected) {
-                      updateFilters({ sortBy: undefined });
+                      updateFilter('sortBy', null);
                     } else {
                       let sortValue: 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'newest' | undefined;
                       if (option.value === 'hot' || option.value === 'bestseller') {
@@ -801,7 +805,7 @@ export function ProductFilters() {
                       } else {
                         sortValue = option.value as typeof sortValue;
                       }
-                      updateFilters({ sortBy: sortValue });
+                      updateFilter('sortBy', sortValue);
                     }
                   }}
                   type="button"
@@ -968,7 +972,10 @@ export function ProductFilters() {
                         setLocalMinPrice('');
                         setLocalMaxPrice('');
                         setPriceError('');
-                        updateFilters({ minPrice: undefined, maxPrice: undefined });
+                        updateFilter('priceMin', null);
+          updateFilter('minPrice', null);
+          updateFilter('priceMax', null);
+          updateFilter('maxPrice', null);
                         setPricePopoverOpen(false);
                       }}
                     >
@@ -1052,7 +1059,7 @@ export function ProductFilters() {
                       size="sm"
                       className="w-full"
                       onClick={() => {
-                        updateFilters({ size: undefined });
+                        updateFilter('size', null);
                         setSizePopoverOpen(false);
                       }}
                     >
@@ -1124,7 +1131,7 @@ export function ProductFilters() {
                       size="sm"
                       className="w-full"
                       onClick={() => {
-                        updateFilters({ color: undefined });
+                        updateFilter('color', null);
                         setColorPopoverOpen(false);
                       }}
                     >
@@ -1152,7 +1159,7 @@ export function ProductFilters() {
                   key={option.value}
                   onClick={() => {
                     if (actualSelected) {
-                      updateFilters({ sortBy: undefined });
+                      updateFilter('sortBy', null);
                     } else {
                       let sortValue: 'price_asc' | 'price_desc' | 'name_asc' | 'name_desc' | 'newest' | undefined;
                       if (option.value === 'hot' || option.value === 'bestseller') {
@@ -1160,7 +1167,7 @@ export function ProductFilters() {
                       } else {
                         sortValue = option.value as typeof sortValue;
                       }
-                      updateFilters({ sortBy: sortValue });
+                      updateFilter('sortBy', sortValue);
                     }
                   }}
                   className={cn(

@@ -35,27 +35,19 @@ export const VideoEmbed = Node.create({
   },
 
   renderHTML({ HTMLAttributes }) {
-    if (!HTMLAttributes.html) return ['div'];
+    if (!HTMLAttributes.html) return ['div', {}];
     // Return raw HTML - Tiptap will parse it
-    return {
-      HTMLAttributes: {},
-      // Use a fragment to insert raw HTML
-    };
+    return ['div', { ...HTMLAttributes }];
   },
 
   addCommands() {
     return {
       setVideoEmbed:
         (html: string) =>
-        ({ commands, tr }) => {
+        ({ commands }: { commands: any; tr?: any }) => {
           // Insert raw HTML directly
-          const slice = this.editor.schema.nodeFromJSON({
-            type: 'paragraph',
-            content: [],
-          });
-          // Use insertContent with raw HTML
           return commands.insertContent(html);
         },
-    };
+    } as any;
   },
 });

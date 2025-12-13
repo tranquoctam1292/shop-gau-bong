@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save, Eye, Bold, Italic, List, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 import { generateSlug } from '@/lib/utils/slug';
@@ -252,28 +252,36 @@ export function PostEditor({ postId, initialData }: PostEditorProps) {
             <div>
               <Label htmlFor="authorId">Tác giả</Label>
               <Select
-                id="authorId"
                 value={formData.authorId}
-                onChange={(e) => setFormData((prev) => ({ ...prev, authorId: e.target.value }))}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, authorId: value }))}
               >
-                <option value="">Chọn tác giả</option>
-                {authors.map((author) => (
-                  <option key={author._id} value={author._id}>
-                    {author.name}
-                  </option>
-                ))}
+                <SelectTrigger id="authorId">
+                  <SelectValue placeholder="Chọn tác giả" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Chọn tác giả</SelectItem>
+                  {authors.map((author) => (
+                    <SelectItem key={author._id} value={author._id}>
+                      {author.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
               </Select>
             </div>
 
             <div>
               <Label htmlFor="status">Trạng thái</Label>
               <Select
-                id="status"
                 value={formData.status}
-                onChange={(e) => setFormData((prev) => ({ ...prev, status: e.target.value as 'draft' | 'publish' }))}
+                onValueChange={(value) => setFormData((prev) => ({ ...prev, status: value as 'draft' | 'publish' }))}
               >
-                <option value="draft">Bản nháp</option>
-                <option value="publish">Xuất bản</option>
+                <SelectTrigger id="status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Bản nháp</SelectItem>
+                  <SelectItem value="publish">Xuất bản</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>

@@ -210,7 +210,7 @@ export function InlineImageToolbar({ editor }: InlineImageToolbarProps) {
     // Remove old alignment classes
     const cleanedClass = currentClass
       .split(' ')
-      .filter(c => !c.startsWith('align'))
+      .filter((c: string) => !c.startsWith('align'))
       .join(' ')
       .trim();
     
@@ -232,15 +232,17 @@ export function InlineImageToolbar({ editor }: InlineImageToolbarProps) {
     // Use requestAnimationFrame to ensure DOM is updated after Tiptap's internal update cycle
     requestAnimationFrame(() => {
       // Find the updated image element using Tiptap's nodeDOM API (most reliable)
+      if (imagePos === null) return;
       const domNode = editor.view.nodeDOM(imagePos);
       let updatedImg: HTMLElement | null = null;
       
-      if (domNode) {
-        if (domNode.nodeType === Node.ELEMENT_NODE && (domNode as HTMLElement).tagName === 'IMG') {
-          updatedImg = domNode as HTMLElement;
-        } else if (domNode.nodeType === Node.ELEMENT_NODE) {
+      if (domNode && domNode.nodeType === Node.ELEMENT_NODE) {
+        const element = domNode as HTMLElement;
+        if (element.tagName === 'IMG') {
+          updatedImg = element;
+        } else {
           // If it's a wrapper element, find the img inside
-          updatedImg = (domNode as HTMLElement).querySelector('img');
+          updatedImg = element.querySelector('img');
         }
       }
       

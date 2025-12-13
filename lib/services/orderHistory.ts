@@ -17,7 +17,9 @@ export type OrderHistoryAction =
   | 'update_address'
   | 'apply_coupon'
   | 'cancel'
-  | 'refund';
+  | 'refund'
+  | 'refund_processed'
+  | 'shipment_created';
 
 export type ActorType = 'admin' | 'customer' | 'system';
 

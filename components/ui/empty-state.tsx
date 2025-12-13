@@ -15,7 +15,8 @@ interface EmptyStateProps {
   icon?: ReactNode;
   action?: {
     label: string;
-    href: string;
+    href?: string;
+    onClick?: () => void;
   };
   className?: string;
 }
@@ -43,9 +44,15 @@ export function EmptyState({
         </p>
       )}
       {action && (
-        <Link href={action.href} className={buttonVariants()}>
-          {action.label}
-        </Link>
+        action.href ? (
+          <Link href={action.href} className={buttonVariants()}>
+            {action.label}
+          </Link>
+        ) : (
+          <button onClick={action.onClick} className={buttonVariants()}>
+            {action.label}
+          </button>
+        )
       )}
     </Card>
   );

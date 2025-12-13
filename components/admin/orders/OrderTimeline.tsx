@@ -24,13 +24,13 @@ import {
   Calendar,
 } from 'lucide-react';
 import { getStatusLabel, getStatusColor, type OrderStatus } from '@/lib/utils/orderStateMachine';
-import type { MongoOrderHistory } from '@/lib/services/orderHistory';
+import type { OrderHistoryEntry } from '@/lib/services/orderHistory';
 
 interface OrderTimelineProps {
   orderId: string;
 }
 
-interface HistoryEntry extends MongoOrderHistory {
+interface HistoryEntry extends Omit<OrderHistoryEntry, '_id' | 'createdAt'> {
   _id: string;
   createdAt: string;
 }

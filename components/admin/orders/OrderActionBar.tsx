@@ -38,6 +38,7 @@ interface OrderActionBarProps {
   paymentStatus: string;
   grandTotal: number;
   onStatusChange: () => void; // Callback to refresh order data
+  onCreateShipment?: () => void; // Callback to create shipment
 }
 
 export function OrderActionBar({

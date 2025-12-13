@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
@@ -231,14 +231,14 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                     }).format(order.subtotal)}
                   </span>
                 </div>
-                {order.discountTotal > 0 && (
+                {(order.discountTotal ?? 0) > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Giảm giá:</span>
                     <span>
                       -{new Intl.NumberFormat('vi-VN', {
                         style: 'currency',
                         currency: 'VND',
-                      }).format(order.discountTotal)}
+                      }).format(order.discountTotal ?? 0)}
                     </span>
                   </div>
                 )}
@@ -251,14 +251,14 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                     }).format(order.shippingCost || 0)}
                   </span>
                 </div>
-                {order.taxTotal > 0 && (
+                {(order.taxTotal ?? 0) > 0 && (
                   <div className="flex justify-between">
                     <span>Thuế:</span>
                     <span>
                       {new Intl.NumberFormat('vi-VN', {
                         style: 'currency',
                         currency: 'VND',
-                      }).format(order.taxTotal)}
+                      }).format(order.taxTotal ?? 0)}
                     </span>
                   </div>
                 )}
@@ -348,32 +348,40 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
               <div>
                 <Label htmlFor="status">Thay đổi trạng thái</Label>
                 <Select
-                  id="status"
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  onValueChange={(value) => setStatus(value)}
                 >
-                  <option value="pending">Chờ xử lý</option>
-                  <option value="awaiting_payment">Chờ thanh toán</option>
-                  <option value="confirmed">Đã xác nhận</option>
-                  <option value="processing">Đang xử lý</option>
-                  <option value="shipping">Đang giao hàng</option>
-                  <option value="completed">Hoàn thành</option>
-                  <option value="cancelled">Đã hủy</option>
-                  <option value="refunded">Đã hoàn tiền</option>
-                  <option value="failed">Thất bại</option>
+                  <SelectTrigger id="status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Chờ xử lý</SelectItem>
+                    <SelectItem value="awaiting_payment">Chờ thanh toán</SelectItem>
+                    <SelectItem value="confirmed">Đã xác nhận</SelectItem>
+                    <SelectItem value="processing">Đang xử lý</SelectItem>
+                    <SelectItem value="shipping">Đang giao hàng</SelectItem>
+                    <SelectItem value="completed">Hoàn thành</SelectItem>
+                    <SelectItem value="cancelled">Đã hủy</SelectItem>
+                    <SelectItem value="refunded">Đã hoàn tiền</SelectItem>
+                    <SelectItem value="failed">Thất bại</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label htmlFor="paymentStatus">Trạng thái thanh toán</Label>
                 <Select
-                  id="paymentStatus"
                   value={paymentStatus}
-                  onChange={(e) => setPaymentStatus(e.target.value)}
+                  onValueChange={(value) => setPaymentStatus(value)}
                 >
-                  <option value="pending">Chờ thanh toán</option>
-                  <option value="paid">Đã thanh toán</option>
-                  <option value="failed">Thanh toán thất bại</option>
-                  <option value="refunded">Đã hoàn tiền</option>
+                  <SelectTrigger id="paymentStatus">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pending">Chờ thanh toán</SelectItem>
+                    <SelectItem value="paid">Đã thanh toán</SelectItem>
+                    <SelectItem value="failed">Thanh toán thất bại</SelectItem>
+                    <SelectItem value="refunded">Đã hoàn tiền</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </CardContent>

@@ -322,7 +322,10 @@ export async function PATCH(
         quantity: item.quantity,
         price: item.price,
         total: item.total,
-        variant: item.variationId ? { id: item.variationId } : undefined,
+        variant: (item as any).attributes ? {
+          size: (item as any).attributes?.size,
+          color: (item as any).attributes?.color,
+        } : undefined,
       })),
       shippingAddress: order.shipping,
       currentShippingTotal: order.shippingTotal || 0,

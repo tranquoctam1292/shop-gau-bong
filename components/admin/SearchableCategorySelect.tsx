@@ -27,10 +27,10 @@ function getCategoryDisplayName(category: MappedCategory, allCategories: MappedC
   
   // Find parent and build path
   const path: string[] = [category.name];
-  let currentParentId: number | null = category.parentId;
+  let currentParentId: string | null = category.parentId;
   
   while (currentParentId) {
-    const parent = allCategories.find(cat => cat.databaseId === currentParentId);
+    const parent = allCategories.find(cat => cat.id === currentParentId || cat.databaseId?.toString() === currentParentId);
     if (!parent) break;
     path.unshift(parent.name);
     currentParentId = parent.parentId;
@@ -46,11 +46,11 @@ function getCategoryLevel(category: MappedCategory, allCategories: MappedCategor
   if (!category.parentId) return 0;
   
   let level = 0;
-  let currentParentId: number | null = category.parentId;
+  let currentParentId: string | null = category.parentId;
   
   while (currentParentId) {
     level++;
-    const parent = allCategories.find(cat => cat.databaseId === currentParentId);
+    const parent = allCategories.find(cat => cat.id === currentParentId || cat.databaseId?.toString() === currentParentId);
     if (!parent) break;
     currentParentId = parent.parentId;
   }

@@ -81,7 +81,7 @@ function generateProductSchemaFromData(productDoc: any, siteUrl: string = 'https
         const uniqueSizes = [...new Set(sizeVariations)];
         if (uniqueSizes.length === 1) {
           // Single size variant
-          additionalProperties.push({ name: 'Size', value: uniqueSizes[0] });
+          additionalProperties.push({ name: 'Size', value: String(uniqueSizes[0]) });
         } else if (uniqueSizes.length > 1) {
           // Multiple sizes - use first one or comma-separated
           additionalProperties.push({ name: 'Size', value: uniqueSizes.join(', ') });

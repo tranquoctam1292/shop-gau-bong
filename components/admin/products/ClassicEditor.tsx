@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { MediaLibraryModal } from './MediaLibraryModal';
 import { InlineImageToolbar } from './InlineImageToolbar';
 import { ImageEditorErrorBoundary } from './ImageEditorErrorBoundary';
@@ -1055,9 +1055,8 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
             <div className="flex items-center gap-1 p-2 border-b border-input">
               <Select
                 defaultValue="paragraph"
-                onChange={(e) => {
+                onValueChange={(value) => {
                   if (mode === 'visual' && editor) {
-                    const value = e.target.value;
                     if (value === 'paragraph') {
                       editor.chain().focus().setParagraph().run();
                     } else if (value.startsWith('heading')) {
@@ -1067,15 +1066,19 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
                   }
                 }}
                 disabled={mode === 'text'}
-                className="w-40 h-8 text-xs"
               >
-                <option value="paragraph">Đoạn văn</option>
-                <option value="heading1">Tiêu đề 1</option>
-                <option value="heading2">Tiêu đề 2</option>
-                <option value="heading3">Tiêu đề 3</option>
-                <option value="heading4">Tiêu đề 4</option>
-                <option value="heading5">Tiêu đề 5</option>
-                <option value="heading6">Tiêu đề 6</option>
+                <SelectTrigger className="w-40 h-8 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="paragraph">Đoạn văn</SelectItem>
+                  <SelectItem value="heading1">Tiêu đề 1</SelectItem>
+                  <SelectItem value="heading2">Tiêu đề 2</SelectItem>
+                  <SelectItem value="heading3">Tiêu đề 3</SelectItem>
+                  <SelectItem value="heading4">Tiêu đề 4</SelectItem>
+                  <SelectItem value="heading5">Tiêu đề 5</SelectItem>
+                  <SelectItem value="heading6">Tiêu đề 6</SelectItem>
+                </SelectContent>
               </Select>
               <div className="h-6 w-px bg-border mx-1" />
               <Button
@@ -1504,9 +1507,8 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
           <div className="flex items-center gap-1 p-2 border-b border-input">
             <Select
               defaultValue="paragraph"
-              onChange={(e) => {
+              onValueChange={(value) => {
                 if (mode === 'visual' && editor) {
-                  const value = e.target.value;
                   if (value === 'paragraph') {
                     editor.chain().focus().setParagraph().run();
                   } else if (value.startsWith('heading')) {
@@ -1516,15 +1518,19 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
                 }
               }}
               disabled={mode === 'text'}
-              className="w-40 h-8 text-xs"
             >
-              <option value="paragraph">Đoạn văn</option>
-              <option value="heading1">Tiêu đề 1</option>
-              <option value="heading2">Tiêu đề 2</option>
-              <option value="heading3">Tiêu đề 3</option>
-              <option value="heading4">Tiêu đề 4</option>
-              <option value="heading5">Tiêu đề 5</option>
-              <option value="heading6">Tiêu đề 6</option>
+              <SelectTrigger className="w-40 h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paragraph">Đoạn văn</SelectItem>
+                <SelectItem value="heading1">Tiêu đề 1</SelectItem>
+                <SelectItem value="heading2">Tiêu đề 2</SelectItem>
+                <SelectItem value="heading3">Tiêu đề 3</SelectItem>
+                <SelectItem value="heading4">Tiêu đề 4</SelectItem>
+                <SelectItem value="heading5">Tiêu đề 5</SelectItem>
+                <SelectItem value="heading6">Tiêu đề 6</SelectItem>
+              </SelectContent>
             </Select>
 
             <div className="h-6 w-px bg-border mx-1" />

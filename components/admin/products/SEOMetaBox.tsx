@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckCircle2, AlertCircle, XCircle, Star, Package, Image as ImageIcon, Link, FileText, Code, Copy } from 'lucide-react';
 import { MediaLibraryModal, type MediaItem } from './MediaLibraryModal';
 import { generateProductSchema } from '@/lib/utils/schema';
@@ -680,14 +680,18 @@ export function SEOMetaBox({
             <div>
               <Label htmlFor="robotsMeta">Meta Robots</Label>
               <Select
-                id="robotsMeta"
                 value={data.robotsMeta || (productStockQuantity === 0 ? 'noindex, follow' : 'index, follow')}
-                onChange={(e) => updateField('robotsMeta', e.target.value)}
+                onValueChange={(value) => updateField('robotsMeta', value)}
               >
-                <option value="index, follow">Index, Follow (Mặc định)</option>
-                <option value="index, nofollow">Index, NoFollow</option>
-                <option value="noindex, follow">NoIndex, Follow</option>
-                <option value="noindex, nofollow">NoIndex, NoFollow</option>
+                <SelectTrigger id="robotsMeta">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="index, follow">Index, Follow (Mặc định)</SelectItem>
+                  <SelectItem value="index, nofollow">Index, NoFollow</SelectItem>
+                  <SelectItem value="noindex, follow">NoIndex, Follow</SelectItem>
+                  <SelectItem value="noindex, nofollow">NoIndex, NoFollow</SelectItem>
+                </SelectContent>
               </Select>
               <p className="text-xs text-gray-500 mt-1">
                 {productStockQuantity === 0 && (

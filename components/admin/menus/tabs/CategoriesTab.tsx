@@ -6,7 +6,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Search, Loader2, ChevronRight, ChevronDown } from 'lucide-react';
 import { EmptyState } from '@/components/ui/empty-state';
 import { useCategories } from '@/lib/hooks/useCategories';
-import type { MappedCategory } from '@/lib/utils/categoryMapper';
+import type { MappedCategory } from '@/lib/utils/productMapper';
 
 interface SelectedItem {
   id: string;
@@ -65,7 +65,7 @@ function CategoryItem({
   const visibleChildren = useMemo(() => {
     if (!hasChildren) return [];
     if (!searchQuery) return category.children || [];
-    return (category.children || []).filter((child) =>
+    return (category.children || []).filter((child: MappedCategory) =>
       child.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       child.slug.toLowerCase().includes(searchQuery.toLowerCase())
     );
@@ -114,7 +114,7 @@ function CategoryItem({
       {/* Children */}
       {hasChildren && isExpanded && (
         <div className="ml-6 space-y-1">
-          {visibleChildren.map((child) => (
+          {visibleChildren.map((child: MappedCategory) => (
             <CategoryItem
               key={child.id}
               category={child}

@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dialog,
   DialogContent,
@@ -227,16 +227,21 @@ export function VariationsBulkEditToolbar({
             <Label className="text-xs">Áp dụng cho</Label>
             <Select
               value={filter.applyToAll ? 'all' : 'filtered'}
-              onChange={(e) => {
-                if (e.target.value === 'all') {
+              onValueChange={(value) => {
+                if (value === 'all') {
                   setFilter({ applyToAll: true });
                 } else {
                   setFilter({ applyToAll: false });
                 }
               }}
             >
-              <option value="all">Tất cả biến thể</option>
-              <option value="filtered">Lọc theo thuộc tính</option>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tất cả biến thể</SelectItem>
+                <SelectItem value="filtered">Lọc theo thuộc tính</SelectItem>
+              </SelectContent>
             </Select>
           </div>
 
@@ -246,20 +251,25 @@ export function VariationsBulkEditToolbar({
                 <Label className="text-xs">Thuộc tính</Label>
                 <Select
                   value={filter.attributeName || ''}
-                  onChange={(e) => {
+                  onValueChange={(value) => {
                     setFilter({
                       applyToAll: false,
-                      attributeName: e.target.value,
+                      attributeName: value,
                       attributeValue: undefined,
                     });
                   }}
                 >
-                  <option value="">Chọn thuộc tính...</option>
-                  {attributes.map((attr) => (
-                    <option key={attr.id} value={attr.name}>
-                      {attr.name}
-                    </option>
-                  ))}
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn thuộc tính..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Chọn thuộc tính...</SelectItem>
+                    {attributes.map((attr) => (
+                      <SelectItem key={attr.id} value={attr.name}>
+                        {attr.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
 
@@ -268,22 +278,27 @@ export function VariationsBulkEditToolbar({
                   <Label className="text-xs">Giá trị</Label>
                   <Select
                     value={filter.attributeValue || ''}
-                    onChange={(e) => {
+                    onValueChange={(value) => {
                       setFilter({
                         applyToAll: false,
                         attributeName: filter.attributeName,
-                        attributeValue: e.target.value,
+                        attributeValue: value,
                       });
                     }}
                   >
-                    <option value="">Chọn giá trị...</option>
-                    {filterOptions
-                      .filter((opt) => opt.attributeName === filter.attributeName)
-                      .map((opt, idx) => (
-                        <option key={idx} value={opt.value}>
-                          {opt.value}
-                        </option>
-                      ))}
+                    <SelectTrigger>
+                      <SelectValue placeholder="Chọn giá trị..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Chọn giá trị...</SelectItem>
+                      {filterOptions
+                        .filter((opt) => opt.attributeName === filter.attributeName)
+                        .map((opt, idx) => (
+                          <SelectItem key={idx} value={opt.value}>
+                            {opt.value}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
                   </Select>
                 </div>
               )}
@@ -422,10 +437,15 @@ export function VariationsBulkEditToolbar({
               <Label>Trạng thái kho</Label>
               <Select
                 value={stockStatus}
-                onChange={(e) => setStockStatus(e.target.value as 'instock' | 'outofstock')}
+                onValueChange={(value) => setStockStatus(value as 'instock' | 'outofstock')}
               >
-                <option value="instock">Còn hàng</option>
-                <option value="outofstock">Hết hàng</option>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="instock">Còn hàng</SelectItem>
+                  <SelectItem value="outofstock">Hết hàng</SelectItem>
+                </SelectContent>
               </Select>
             </div>
             <p className="text-sm text-muted-foreground">

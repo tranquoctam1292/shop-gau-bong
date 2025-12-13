@@ -237,7 +237,7 @@ export function ProductCard({ product }: ProductCardProps) {
       price: priceToUse || '0',
       image: product.image?.sourceUrl,
       quantity: 1,
-      variationId: selectedVariation?.id,
+      variationId: selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined,
       length: product.length || undefined,
       width: product.width || undefined,
       height: product.height || undefined,

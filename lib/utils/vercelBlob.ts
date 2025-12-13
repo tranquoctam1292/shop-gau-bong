@@ -54,7 +54,7 @@ export async function uploadToBlob(
 
     // Upload to Vercel Blob
     const blob = await put(pathname, buffer, {
-      access: options.access || 'public',
+      access: (options.access || 'public') as 'public',
       addRandomSuffix: options.addRandomSuffix ?? false,
       contentType: contentType,
       cacheControlMaxAge: options.cacheControlMaxAge,
@@ -63,9 +63,9 @@ export async function uploadToBlob(
     return {
       url: blob.url,
       pathname: blob.pathname,
-      size: blob.size,
-      uploadedAt: blob.uploadedAt,
-      contentType: blob.contentType || contentType || 'application/octet-stream',
+      size: (blob as any).size || 0,
+      uploadedAt: (blob as any).uploadedAt || new Date(),
+      contentType: (blob as any).contentType || contentType || 'application/octet-stream',
     };
   } catch (error) {
     console.error('Error uploading to Vercel Blob:', error);
@@ -104,11 +104,11 @@ export async function listBlobFiles(
       limit,
     });
 
-    return blobs.map((blob) => ({
+    return blobs.map((blob: any) => ({
       url: blob.url,
       pathname: blob.pathname,
-      size: blob.size,
-      uploadedAt: blob.uploadedAt,
+      size: blob.size || 0,
+      uploadedAt: blob.uploadedAt || new Date(),
       contentType: blob.contentType || 'application/octet-stream',
     }));
   } catch (error) {

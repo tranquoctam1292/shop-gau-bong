@@ -113,10 +113,16 @@ export async function processRefund(
 
   await orders.updateOne({ _id: new ObjectId(orderId) }, { $set: updateData });
 
+  // Fetch the created refund with _id
+  const createdRefund = await refunds.findOne({ _id: result.insertedId });
+  if (!createdRefund) {
+    throw new Error('Failed to create refund');
+  }
+
   return {
-    ...refundData,
-    orderId: refundData.orderId,
-  };
+    ...createdRefund,
+    _id: createdRefund._id,
+  } as RefundData & { _id: ObjectId };
 }
 
 /**
@@ -131,7 +137,20 @@ export async function getOrderRefunds(orderId: string): Promise<RefundData[]> {
     .find({ orderId })
     .sort({ createdAt: -1 })
     .toArray();
-  return refundList as RefundData[];
+  return refundList.map((r) => ({
+    orderId: r.orderId as string,
+    amount: r.amount as number,
+    reason: r.reason as string | undefined,
+    type: r.type as 'partial' | 'full',
+    status: r.status as 'pending' | 'processing' | 'completed' | 'failed',
+    paymentMethod: r.paymentMethod as string | undefined,
+    refundMethod: r.refundMethod as string | undefined,
+    transactionId: r.transactionId as string | undefined,
+    createdAt: r.createdAt as Date,
+    updatedAt: r.updatedAt as Date,
+    processedBy: r.processedBy as string | undefined,
+    processedAt: r.processedAt as Date | undefined,
+  }));
 }
 
 /**

@@ -164,15 +164,15 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
   useEffect(() => {
     if (!categories || categories.length === 0) return;
 
-    // Get top-level categories (parentId === 0 or null)
+    // Get top-level categories (parentId === null)
     const topLevelCategories = categories.filter((cat) => 
-      !cat.parentId || cat.parentId === 0
+      !cat.parentId
     );
 
     // Get subcategories grouped by parent
-    const subcategoriesByParent = new Map<number, typeof categories>();
+    const subcategoriesByParent = new Map<string, typeof categories>();
     categories.forEach((cat) => {
-      if (cat.parentId && cat.parentId !== 0) {
+      if (cat.parentId) {
         if (!subcategoriesByParent.has(cat.parentId)) {
           subcategoriesByParent.set(cat.parentId, []);
         }
@@ -195,7 +195,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
     // Group 1: First top-level category and its children
     if (topLevelCategories.length > 0) {
       const firstParent = topLevelCategories[0];
-      const children = subcategoriesByParent.get(firstParent.databaseId) || [];
+      const children = subcategoriesByParent.get(firstParent.id) || [];
       const displayCategories = children.length > 0 
         ? children.slice(0, 6) 
         : [firstParent].slice(0, 6);
@@ -203,7 +203,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
       groups.push({
         title: firstParent.name,
         categories: displayCategories.map((cat) => ({
-          id: cat.databaseId,
+          id: typeof cat.databaseId === 'number' ? cat.databaseId : parseInt(cat.id, 16) || 0,
           name: cat.name,
           slug: cat.slug,
           count: cat.count || 0,
@@ -215,7 +215,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
     // Group 2: Second top-level category and its children
     if (topLevelCategories.length > 1) {
       const secondParent = topLevelCategories[1];
-      const children = subcategoriesByParent.get(secondParent.databaseId) || [];
+      const children = subcategoriesByParent.get(secondParent.id) || [];
       const displayCategories = children.length > 0 
         ? children.slice(0, 6) 
         : [secondParent].slice(0, 6);
@@ -223,7 +223,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
       groups.push({
         title: secondParent.name,
         categories: displayCategories.map((cat) => ({
-          id: cat.databaseId,
+          id: typeof cat.databaseId === 'number' ? cat.databaseId : parseInt(cat.id, 16) || 0,
           name: cat.name,
           slug: cat.slug,
           count: cat.count || 0,
@@ -236,7 +236,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
     if (topLevelCategories.length > 2) {
       const otherParents = topLevelCategories.slice(2, 5); // Limit to 3 more groups
       otherParents.forEach((parent) => {
-        const children = subcategoriesByParent.get(parent.databaseId) || [];
+        const children = subcategoriesByParent.get(parent.id) || [];
         const displayCategories = children.length > 0 
           ? children.slice(0, 6) 
           : [parent].slice(0, 6);
@@ -245,7 +245,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
           groups.push({
             title: parent.name,
             categories: displayCategories.map((cat) => ({
-              id: cat.databaseId,
+              id: typeof cat.databaseId === 'number' ? cat.databaseId : parseInt(cat.id, 16) || 0,
               name: cat.name,
               slug: cat.slug,
               count: cat.count || 0,
@@ -261,7 +261,7 @@ export function ShopMegaMenu({ label, href, className }: ShopMegaMenuProps) {
       groups.push({
         title: 'Danh mục',
         categories: topLevelCategories.slice(0, 6).map((cat) => ({
-          id: cat.databaseId,
+          id: typeof cat.databaseId === 'number' ? cat.databaseId : parseInt(cat.id, 16) || 0,
           name: cat.name,
           slug: cat.slug,
           count: cat.count || 0,

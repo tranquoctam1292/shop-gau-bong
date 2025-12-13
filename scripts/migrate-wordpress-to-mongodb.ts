@@ -260,7 +260,9 @@ async function fetchAllProducts(): Promise<WooCommerceProduct[]> {
 
   while (hasMore) {
     try {
-      const { data, headers } = await wcApi.getProducts({ per_page: perPage, page }, true);
+      const result = await wcApi.getProducts({ per_page: perPage, page }, true);
+      const data = Array.isArray(result) ? result : (result as { data: any[]; headers: Headers }).data;
+      const headers = Array.isArray(result) ? new Headers() : (result as { data: any[]; headers: Headers }).headers;
       const products = Array.isArray(data) ? data : [];
       
       if (products.length === 0) {

@@ -186,7 +186,16 @@ export async function PUT(
     }
 
     // Validate input
-    const validatedData = termSchema.parse(body);
+    const validatedData = termSchema.parse(body) as {
+      name?: string;
+      slug?: string;
+      description?: string;
+      sortOrder?: number;
+      colorHex?: string;
+      colorHex2?: string;
+      imageUrl?: string;
+      imageId?: string;
+    };
 
     // Handle slug generation if name is updated
     let slug = validatedData.slug;

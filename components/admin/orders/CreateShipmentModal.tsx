@@ -22,7 +22,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Package, Truck } from 'lucide-react';
 
 interface CreateShipmentModalProps {
@@ -172,13 +172,17 @@ export function CreateShipmentModal({
             <div className="space-y-2">
               <Label htmlFor="carrier">Đơn vị vận chuyển</Label>
               <Select
-                id="carrier"
                 value={carrier}
-                onChange={(e) => setCarrier(e.target.value as 'ghtk' | 'ghn' | 'custom')}
+                onValueChange={(value) => setCarrier(value as 'ghtk' | 'ghn' | 'custom')}
               >
-                <option value="ghtk">Giao Hàng Tiết Kiệm (GHTK)</option>
-                <option value="ghn">Giao Hàng Nhanh (GHN)</option>
-                <option value="custom">Tùy chỉnh</option>
+                <SelectTrigger id="carrier">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ghtk">Giao Hàng Tiết Kiệm (GHTK)</SelectItem>
+                  <SelectItem value="ghn">Giao Hàng Nhanh (GHN)</SelectItem>
+                  <SelectItem value="custom">Tùy chỉnh</SelectItem>
+                </SelectContent>
               </Select>
             </div>
 
@@ -206,13 +210,16 @@ export function CreateShipmentModal({
               <div className="space-y-2">
                 <Label htmlFor="carrier-service">Loại dịch vụ</Label>
                 <Select
-                  id="carrier-service"
                   value={carrierService}
-                  onChange={(e) => setCarrierService(e.target.value)}
-                  className="w-full"
+                  onValueChange={(value) => setCarrierService(value)}
                 >
-                  <option value="Standard">Tiêu chuẩn</option>
-                  <option value="Express">Nhanh</option>
+                  <SelectTrigger id="carrier-service" className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Standard">Tiêu chuẩn</SelectItem>
+                    <SelectItem value="Express">Nhanh</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             )}

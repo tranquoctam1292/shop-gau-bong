@@ -12,7 +12,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckCircle2, FileDown, Printer, RefreshCw, Loader2 } from 'lucide-react';
 
 interface BulkActionsBarProps {
@@ -191,15 +191,19 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
           <div className="flex gap-2 items-center">
             <Select
               value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
-              className="min-w-[150px]"
+              onValueChange={(value) => setNewStatus(value)}
             >
-              <option value="">Chọn trạng thái...</option>
-              <option value="confirmed">Đã xác nhận</option>
-              <option value="processing">Đang xử lý</option>
-              <option value="shipping">Đang giao hàng</option>
-              <option value="completed">Hoàn thành</option>
-              <option value="cancelled">Đã hủy</option>
+              <SelectTrigger className="min-w-[150px]">
+                <SelectValue placeholder="Chọn trạng thái..." />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Chọn trạng thái...</SelectItem>
+                <SelectItem value="confirmed">Đã xác nhận</SelectItem>
+                <SelectItem value="processing">Đang xử lý</SelectItem>
+                <SelectItem value="shipping">Đang giao hàng</SelectItem>
+                <SelectItem value="completed">Hoàn thành</SelectItem>
+                <SelectItem value="cancelled">Đã hủy</SelectItem>
+              </SelectContent>
             </Select>
             <Button
               onClick={handleBulkUpdateStatus}

@@ -12,14 +12,14 @@ function SearchContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const query = searchParams.get('q') || '';
-  const { updateFilters } = useProductFilters();
+  const { updateFilter } = useProductFilters();
 
   // Sync search query với filters
   useEffect(() => {
     if (query) {
-      updateFilters({ search: query });
+      updateFilter('search', query);
     } else {
-      updateFilters({ search: undefined });
+      updateFilter('search', undefined);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);

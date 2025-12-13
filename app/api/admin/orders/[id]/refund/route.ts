@@ -82,6 +82,7 @@ export async function POST(
     let actorName: string | undefined;
     let actorType: ActorType = 'admin';
 
+    let processedBy: string | undefined;
     try {
       const { getSession } = await import('@/lib/auth');
       const session = await getSession();
@@ -95,7 +96,9 @@ export async function POST(
       actorName = 'System';
     }
 
-    let processedBy: string | undefined = actorId || actorName;
+    if (!processedBy) {
+      processedBy = actorId || actorName;
+    }
 
     // Process refund
     const refund = await processRefund(
@@ -109,7 +112,7 @@ export async function POST(
     const refundTypeLabel = refund.type === 'full' ? 'toàn bộ' : 'một phần';
     await createHistoryEntry({
       orderId: orderId.toString(),
-      action: 'refund_processed',
+      action: 'refund',
       description: `Hoàn tiền ${refundTypeLabel}: ${new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
@@ -118,7 +121,7 @@ export async function POST(
       actorType,
       actorName,
       metadata: {
-        refundId: refund._id?.toString(),
+        refundId: (refund as any)._id?.toString(),
         amount: refund.amount,
         type: refund.type,
         reason: validatedData.reason,

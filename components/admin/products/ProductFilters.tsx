@@ -90,8 +90,8 @@ export function ProductFilters({
             {/* Price Range Filter */}
             <div>
               <PriceRangeFilter
-                minPrice={filters.priceMin}
-                maxPrice={filters.priceMax}
+                minPrice={filters.priceMin ?? null}
+                maxPrice={filters.priceMax ?? null}
                 onMinPriceChange={(value) => onFilterChange('priceMin', value)}
                 onMaxPriceChange={(value) => onFilterChange('priceMax', value)}
                 onClear={() => {
@@ -137,7 +137,7 @@ export function ProductFilters({
               </button>
             </span>
           )}
-          {filters.priceMin !== null && (
+          {filters.priceMin !== null && filters.priceMin !== undefined && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm">
               Giá từ: {filters.priceMin.toLocaleString('vi-VN')} VND
               <button
@@ -148,7 +148,7 @@ export function ProductFilters({
               </button>
             </span>
           )}
-          {filters.priceMax !== null && (
+          {filters.priceMax !== null && filters.priceMax !== undefined && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-50 text-blue-700 rounded text-sm">
               Giá đến: {filters.priceMax.toLocaleString('vi-VN')} VND
               <button

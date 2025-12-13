@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
-import { Select } from '@/components/ui/select';
+// Using native HTML select for FilterForm
 import { Input } from '@/components/ui/input';
 import { useProductFilters, type ProductFilters as ProductFiltersType } from '@/lib/hooks/useProductFilters';
 import { useCategoriesREST } from '@/lib/hooks/useCategoriesREST';
@@ -32,7 +32,7 @@ export interface FilterFormRef {
  */
 export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
   ({ className, mode = 'auto' }, ref) => {
-  const { filters, updateFilters } = useProductFilters();
+  const { filters, updateFilter } = useProductFilters();
   const { categories, loading: categoriesLoading } = useCategoriesREST();
   const { getMaterialOptions, isLoading: attributesLoading } = useProductAttributes();
   
@@ -87,15 +87,16 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
         <label className="block text-sm font-medium text-text-main mb-2">
           Danh mục
         </label>
-        <Select
+        <select
           value={mode === 'manual' ? localCategory : (filters.category || '')}
           onChange={(e) => {
             if (mode === 'auto') {
-              updateFilters({ category: e.target.value || undefined });
+              updateFilter('category', e.target.value || null);
             } else {
               setLocalCategory(e.target.value);
             }
           }}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <option value="">Tất cả danh mục</option>
           {categoriesLoading ? (
@@ -107,7 +108,7 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
               </option>
             ))
           )}
-        </Select>
+        </select>
       </div>
 
       {/* Price Range */}
@@ -144,9 +145,8 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
               setPriceError('');
               // Chỉ update URL khi blur nếu mode='auto' và validation pass
               if (mode === 'auto') {
-                updateFilters({
-                  minPrice: min,
-                });
+                updateFilter('priceMin', min ?? null);
+                updateFilter('minPrice', min ?? null);
               }
             }}
             className={cn("flex-1", priceError && "border-destructive")}
@@ -179,9 +179,8 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
               setPriceError('');
               // Chỉ update URL khi blur nếu mode='auto' và validation pass
               if (mode === 'auto') {
-                updateFilters({
-                  maxPrice: max,
-                });
+                updateFilter('priceMax', max ?? null);
+                updateFilter('maxPrice', max ?? null);
               }
             }}
             className={cn("flex-1", priceError && "border-destructive")}
@@ -197,16 +196,17 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
         <label className="block text-sm font-medium text-text-main mb-2">
           Chất liệu
         </label>
-        <Select
+        <select
           value={mode === 'manual' ? localMaterial : (filters.material || '')}
           onChange={(e) => {
             if (mode === 'auto') {
-              updateFilters({ material: e.target.value || undefined });
+              updateFilter('material', e.target.value || null);
             } else {
               setLocalMaterial(e.target.value);
             }
           }}
           disabled={attributesLoading}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <option value="">Tất cả</option>
           {attributesLoading ? (
@@ -218,7 +218,7 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
               </option>
             ))
           )}
-        </Select>
+        </select>
       </div>
 
       {/* Sort */}
@@ -226,17 +226,16 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
         <label className="block text-sm font-medium text-text-main mb-2">
           Sắp xếp
         </label>
-        <Select
+        <select
           value={mode === 'manual' ? localSortBy : (filters.sortBy || '')}
           onChange={(e) => {
             if (mode === 'auto') {
-              updateFilters({
-                sortBy: (e.target.value as ProductFiltersType['sortBy']) || undefined,
-              });
+              updateFilter('sortBy', (e.target.value as ProductFiltersType['sortBy']) || null);
             } else {
               setLocalSortBy(e.target.value);
             }
           }}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
         >
           <option value="">Mặc định</option>
           <option value="price_asc">Giá: Thấp đến cao</option>
@@ -244,7 +243,7 @@ export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
           <option value="name_asc">Tên: A-Z</option>
           <option value="name_desc">Tên: Z-A</option>
           <option value="newest">Mới nhất</option>
-        </Select>
+        </select>
       </div>
     </div>
   );

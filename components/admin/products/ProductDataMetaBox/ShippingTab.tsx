@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Package, Ruler, Truck } from 'lucide-react';
 import type { ProductDataMetaBoxState } from './ProductDataMetaBox';
 
@@ -77,11 +77,15 @@ export function ShippingTab({ state, onUpdate }: ShippingTabProps) {
             <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
               <Select
                 value={weightUnit}
-                onChange={(e) => setWeightUnit(e.target.value as 'kg' | 'g')}
-                className="w-12 h-6 text-xs border-0 bg-transparent p-0 focus:ring-0"
+                onValueChange={(value) => setWeightUnit(value as 'kg' | 'g')}
               >
-                <option value="kg">kg</option>
-                <option value="g">g</option>
+                <SelectTrigger className="w-12 h-6 text-xs border-0 bg-transparent p-0 focus:ring-0">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="kg">kg</SelectItem>
+                  <SelectItem value="g">g</SelectItem>
+                </SelectContent>
               </Select>
             </div>
           </div>
@@ -101,11 +105,15 @@ export function ShippingTab({ state, onUpdate }: ShippingTabProps) {
           <span className="text-xs text-muted-foreground">Đơn vị:</span>
           <Select
             value={dimensionUnit}
-            onChange={(e) => setDimensionUnit(e.target.value as 'cm' | 'm')}
-            className="w-20 h-8 text-xs"
+            onValueChange={(value) => setDimensionUnit(value as 'cm' | 'm')}
           >
-            <option value="cm">cm</option>
-            <option value="m">m</option>
+            <SelectTrigger className="w-20 h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="cm">cm</SelectItem>
+              <SelectItem value="m">m</SelectItem>
+            </SelectContent>
           </Select>
         </div>
         <div className="grid grid-cols-3 gap-3">
@@ -172,16 +180,19 @@ export function ShippingTab({ state, onUpdate }: ShippingTabProps) {
           Lớp giao hàng
         </Label>
         <Select
-          id="shipping-class"
           value={state.shippingClass || ''}
-          onChange={(e) => onUpdate({ shippingClass: e.target.value || undefined })}
-          className="w-full"
+          onValueChange={(value) => onUpdate({ shippingClass: value || undefined })}
         >
-          {shippingClasses.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
+          <SelectTrigger id="shipping-class" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {shippingClasses.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
         </Select>
         <p className="text-xs text-muted-foreground">
           Chọn lớp giao hàng phù hợp để tính phí vận chuyển chính xác. Ví dụ: Hàng dễ vỡ có thể có phí bảo hiểm cao hơn.

@@ -269,7 +269,7 @@ export function SmartValueInput({
         }}
         attributeName={attributeName}
         attributeType={attributeType}
-        terms={terms}
+        terms={terms as any}
         selectedValues={selectedValues}
         loading={loading}
         onQuickAdd={onQuickAdd}

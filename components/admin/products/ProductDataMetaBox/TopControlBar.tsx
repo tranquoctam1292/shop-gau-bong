@@ -1,7 +1,7 @@
 'use client';
 
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import type { ProductType } from './ProductDataMetaBox';
 
@@ -37,15 +37,18 @@ export function TopControlBar({
           Loại sản phẩm:
         </Label>
         <Select
-          id="product-type"
           value={productType}
-          onChange={(e) => onProductTypeChange(e.target.value as ProductType)}
-          className="w-[220px] h-9 text-sm"
+          onValueChange={(value) => onProductTypeChange(value as ProductType)}
         >
-          <option value="simple">Sản phẩm đơn giản</option>
-          <option value="variable">Sản phẩm có biến thể</option>
-          <option value="grouped">Sản phẩm nhóm</option>
-          <option value="external">Sản phẩm bên ngoài/Liên kết</option>
+          <SelectTrigger id="product-type" className="w-[220px] h-9 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="simple">Sản phẩm đơn giản</SelectItem>
+            <SelectItem value="variable">Sản phẩm có biến thể</SelectItem>
+            <SelectItem value="grouped">Sản phẩm nhóm</SelectItem>
+            <SelectItem value="external">Sản phẩm bên ngoài/Liên kết</SelectItem>
+          </SelectContent>
         </Select>
       </div>
 

@@ -192,7 +192,7 @@ export function mapWooCommerceCategory(wcCategory: {
     name: wcCategory.name,
     slug: wcCategory.slug,
     count: wcCategory.count || null,
-    parentId: wcCategory.parent !== undefined ? wcCategory.parent : null, // 0 = top-level, null = not provided
+    parentId: wcCategory.parent !== undefined && wcCategory.parent !== 0 ? String(wcCategory.parent) : null, // 0 = top-level, null = not provided
     image: wcCategory.image ? {
       sourceUrl: wcCategory.image.src,
       altText: wcCategory.image.alt || wcCategory.name,
@@ -285,14 +285,14 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
   const regularPrice = mongoProduct.productDataMetaBox?.regularPrice !== undefined
     ? String(mongoProduct.productDataMetaBox.regularPrice)
     : mongoProduct.variants && mongoProduct.variants.length > 0
-    ? String(Math.max(...mongoProduct.variants.map(v => v.price || v.regularPrice || 0)))
+    ? String(Math.max(...mongoProduct.variants.map((v: any) => v.price || v.regularPrice || 0)))
     : String(mongoProduct.maxPrice || mongoProduct.minPrice || 0);
   
   const salePrice = mongoProduct.productDataMetaBox?.salePrice !== undefined
     ? String(mongoProduct.productDataMetaBox.salePrice)
     : '';
   
-  const onSale = salePrice && parseFloat(salePrice) > 0 && parseFloat(salePrice) < parseFloat(regularPrice);
+  const onSale = Boolean(salePrice && parseFloat(salePrice) > 0 && parseFloat(salePrice) < parseFloat(regularPrice));
   
   // Use salePrice if on sale, otherwise use regularPrice
   // If price is 0 or invalid, it will be handled by formatPrice to show "Liên hệ"
@@ -310,11 +310,11 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     sizeOptions = [...new Set(mongoProduct.variants
       .map((v: any) => v.size)
       .filter((size: any) => size && String(size).trim().length > 0)
-      .map((size: any) => String(size).trim()))];
+      .map((size: any) => String(size).trim()))] as string[];
     colorOptions = [...new Set(mongoProduct.variants
       .map((v: any) => v.color)
       .filter((color: any) => color && String(color).trim().length > 0)
-      .map((color: any) => String(color).trim()))];
+      .map((color: any) => String(color).trim()))] as string[];
   } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
     // Fallback: Extract from productDataMetaBox.variations (backward compatibility)
     mongoProduct.productDataMetaBox.variations.forEach((variation: any) => {
@@ -446,7 +446,7 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
         
         // Map gallery IDs to image URLs
         // Try to match IDs with URLs in images array, or use images array as fallback
-        return galleryIds.map((id, idx) => {
+        return galleryIds.map((id: string, idx: number) => {
           const trimmedId = id.trim();
           let imageUrl = '';
           
@@ -466,12 +466,12 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
             sourceUrl: imageUrl,
             altText: mongoProduct.name,
           };
-        }).filter(img => img.sourceUrl) as any; // Filter out images without URL
+        }).filter((img: { sourceUrl: string }) => img.sourceUrl) as any; // Filter out images without URL
       }
       
       // Priority 2: Use images array (old structure) - skip first image (featured)
       if (mongoProduct.images && mongoProduct.images.length > 1) {
-        return mongoProduct.images.slice(1).map(img => ({
+        return mongoProduct.images.slice(1).map((img: any) => ({
           sourceUrl: img,
           altText: mongoProduct.name,
         })) as any;
@@ -489,11 +489,11 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     stockStatus: mongoProduct.productDataMetaBox?.stockStatus !== undefined
       ? mongoProduct.productDataMetaBox.stockStatus
       : mongoProduct.variants && mongoProduct.variants.length > 0
-      ? mongoProduct.variants.some(v => (v.stock || 0) > 0) ? 'instock' : 'outofstock'
+      ? mongoProduct.variants.some((v: { stock?: number }) => (v.stock || 0) > 0) ? 'instock' : 'outofstock'
       : 'instock',
     stockQuantity: mongoProduct.productDataMetaBox?.stockQuantity !== undefined
       ? mongoProduct.productDataMetaBox.stockQuantity
-      : mongoProduct.variants?.reduce((sum, v) => sum + (v.stock || 0), 0) || null,
+      : mongoProduct.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || null,
     weight: mongoProduct.weight ? String(mongoProduct.weight) : null,
     length: mongoProduct.length || null,
     width: mongoProduct.width || null,
@@ -502,15 +502,15 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     material: mongoProduct.material || null,
     origin: mongoProduct.origin || null,
     categories: [], // TODO: Populate from category reference
-    tags: (mongoProduct.tags || []).map((tag, idx) => ({
+    tags: (mongoProduct.tags || []).map((tag: any, idx: number) => ({
       id: idx + 1,
       name: tag,
       slug: tag.toLowerCase().replace(/\s+/g, '-'),
     })),
     attributes: attributes.length > 0 ? attributes : undefined,
     type,
-    variations: (mongoProduct.variants?.map((_, idx) => idx + 1) || 
-                 mongoProduct.productDataMetaBox?.variations?.map((_, idx) => idx + 1) || []),
+    variations: (mongoProduct.variants?.map((_: any, idx: number) => idx + 1) || 
+                 mongoProduct.productDataMetaBox?.variations?.map((_: any, idx: number) => idx + 1) || []),
     status: mongoProduct.status || 'draft',
     isActive: mongoProduct.isActive !== undefined ? mongoProduct.isActive : (mongoProduct.status === 'publish'),
   };

@@ -8,8 +8,14 @@ export interface ProductFilters {
   brand?: string | null;
   priceMin?: number | null;
   priceMax?: number | null;
+  minPrice?: number | null; // Alias for priceMin
+  maxPrice?: number | null; // Alias for priceMax
   stockStatus?: 'instock' | 'outofstock' | 'onbackorder' | null;
   search?: string;
+  material?: string | null;
+  size?: string | null;
+  sortBy?: string | null;
+  color?: string | null;
 }
 
 interface UseProductFiltersOptions {

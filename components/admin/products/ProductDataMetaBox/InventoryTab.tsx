@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Package, AlertCircle, CheckCircle2, Info, Loader2 } from 'lucide-react';
 import type { ProductDataMetaBoxState } from './ProductDataMetaBox';
@@ -191,21 +191,27 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
             Trạng thái tồn kho
           </Label>
           <Select
-            id="stock-status"
             value={state.stockStatus}
-            onChange={(e) =>
-              onUpdate({ stockStatus: e.target.value as ProductDataMetaBoxState['stockStatus'] })
+            onValueChange={(value) =>
+              onUpdate({ stockStatus: value as ProductDataMetaBoxState['stockStatus'] })
             }
-            className="w-full"
           >
-            {stockStatusOptions.map((option) => {
-              const Icon = option.icon;
-              return (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              );
-            })}
+            <SelectTrigger id="stock-status" className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {stockStatusOptions.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <SelectItem key={option.value} value={option.value}>
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-4 w-4" />
+                      {option.label}
+                    </div>
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
           </Select>
           {currentStatusOption && (
             <div className="flex items-center gap-2 text-sm">
@@ -287,16 +293,19 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
           Cho phép đặt hàng trước
         </Label>
         <Select
-          id="backorders"
           value={state.backorders}
-          onChange={(e) =>
-            onUpdate({ backorders: e.target.value as ProductDataMetaBoxState['backorders'] })
+          onValueChange={(value) =>
+            onUpdate({ backorders: value as ProductDataMetaBoxState['backorders'] })
           }
-          className="w-full"
         >
-          <option value="no">Không cho phép</option>
-          <option value="notify">Cho phép nhưng thông báo khách</option>
-          <option value="yes">Cho phép</option>
+          <SelectTrigger id="backorders" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="no">Không cho phép</SelectItem>
+            <SelectItem value="notify">Cho phép nhưng thông báo khách</SelectItem>
+            <SelectItem value="yes">Cho phép</SelectItem>
+          </SelectContent>
         </Select>
         <div className="text-xs text-muted-foreground space-y-1">
           <p>

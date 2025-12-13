@@ -121,12 +121,12 @@ export function ProductSearchInput({
                 name: product.name || '',
                 price: typeof product.price === 'string' ? parseFloat(product.price) : product.price,
                 image: product.image?.sourceUrl || product.images?.[0]?.sourceUrl || product.images?.[0],
-                sku: product.sku,
+                sku: product.sku || '',
               };
             })
-            .filter((p: ProductSearchResult | null): p is ProductSearchResult => 
+            .filter((p) => 
               p !== null && !allExcludeIds.includes(p.id)
-            );
+            ) as ProductSearchResult[];
           
           setResults(products);
           setShowResults(true);

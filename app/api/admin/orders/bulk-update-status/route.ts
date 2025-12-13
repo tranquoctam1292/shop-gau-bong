@@ -106,14 +106,14 @@ export async function POST(request: NextRequest) {
         );
 
         // Create history entry
-        await createStatusChangeHistory({
-          orderId: order._id.toString(),
-          oldStatus: currentStatus,
+        await createStatusChangeHistory(
+          order._id.toString(),
+          currentStatus,
           newStatus,
           actorId,
           actorType,
-          actorName,
-        });
+          actorName
+        );
 
         results.success++;
       } catch (error: any) {

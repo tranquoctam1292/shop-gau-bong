@@ -54,6 +54,7 @@ export interface ProductDataMetaBoxState {
     id: string;
     name: string;
     isGlobal: boolean;
+    globalAttributeId?: string; // Reference to global attribute ID
     values: string[];
     usedForVariations: boolean;
     colorCodes?: Record<string, string>; // For color attributes

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch order items for each order
     const ordersWithItems = await Promise.all(
-      orderList.map(async (order) => {
+      orderList.map(async (order: any) => {
         const items = await orderItems
           .find({ orderId: order._id.toString() })
           .toArray();

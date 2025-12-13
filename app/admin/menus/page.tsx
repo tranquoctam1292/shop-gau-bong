@@ -127,7 +127,7 @@ export default function AdminMenusPage() {
     }
   };
 
-  const handleDeleteClick = (id: string) => {
+  const handleDeleteClick = async (id: string): Promise<void> => {
     const menu = menus.find((m) => m.id === id);
     if (menu) {
       setMenuToDelete(menu);

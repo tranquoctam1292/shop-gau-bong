@@ -20,6 +20,8 @@ export interface WooCommerceProduct {
   permalink: string;
   type: 'simple' | 'variable' | 'grouped' | 'external';
   status: 'draft' | 'pending' | 'private' | 'publish';
+  date_created?: string;
+  date_modified?: string;
   featured: boolean;
   catalog_visibility: 'visible' | 'catalog' | 'search' | 'hidden';
   description: string;

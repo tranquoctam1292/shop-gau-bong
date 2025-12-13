@@ -12,10 +12,18 @@ import { z } from 'zod';
 export const dynamic = 'force-dynamic';
 
 // Structure item schema
-const structureItemSchema = z.object({
+type StructureItem = {
+  id: string;
+  children: StructureItem[];
+};
+
+const structureItemSchema: z.ZodType<StructureItem> = z.object({
   id: z.string(),
-  children: z.array(z.lazy(() => structureItemSchema)).default([]),
-});
+  children: z.array(z.lazy(() => structureItemSchema)),
+}).transform((data) => ({
+  ...data,
+  children: data.children || [],
+}));
 
 const structureSchema = z.array(structureItemSchema);
 
@@ -23,7 +31,7 @@ const structureSchema = z.array(structureItemSchema);
  * Calculate max depth of a structure item
  * Returns the maximum depth from this item (0 = root, 1 = child, 2 = grandchild)
  */
-function calculateMaxDepth(item: { id: string; children: any[] }, currentDepth: number = 0): number {
+function calculateMaxDepth(item: StructureItem, currentDepth: number = 0): number {
   // Current item is at currentDepth
   let maxDepth = currentDepth;
   

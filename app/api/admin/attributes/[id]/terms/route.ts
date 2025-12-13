@@ -199,7 +199,16 @@ export async function POST(
     }
 
     // Validate input
-    const validatedData = termSchema.parse(body);
+    const validatedData = termSchema.parse(body) as {
+      name: string;
+      slug?: string;
+      description?: string;
+      sortOrder?: number;
+      colorHex?: string;
+      colorHex2?: string;
+      imageUrl?: string;
+      imageId?: string;
+    };
 
     // Auto-generate slug if not provided
     let slug = validatedData.slug || generateSlug(validatedData.name);

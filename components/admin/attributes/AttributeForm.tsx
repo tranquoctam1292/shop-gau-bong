@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2 } from 'lucide-react';
 import { generateSlug } from '@/lib/utils/slug';
 import type { Attribute } from '@/app/admin/attributes/page';
@@ -137,15 +137,18 @@ export function AttributeForm({ initialData, onSubmit, onCancel }: AttributeForm
       <div className="space-y-2">
         <Label htmlFor="type">Loại hiển thị <span className="text-red-500">*</span></Label>
         <Select
-          id="type"
           value={type}
-          onChange={(e) => setType(e.target.value as Attribute['type'])}
-          required
+          onValueChange={(value) => setType(value as Attribute['type'])}
         >
-          <option value="text">Văn bản (Select/Text)</option>
-          <option value="color">Màu sắc (Color Swatch)</option>
-          <option value="image">Hình ảnh (Image Swatch)</option>
-          <option value="button">Nút bấm (Button/Label)</option>
+          <SelectTrigger id="type">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="text">Văn bản (Select/Text)</SelectItem>
+            <SelectItem value="color">Màu sắc (Color Swatch)</SelectItem>
+            <SelectItem value="image">Hình ảnh (Image Swatch)</SelectItem>
+            <SelectItem value="button">Nút bấm (Button/Label)</SelectItem>
+          </SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">
           {type === 'text' && 'Hiển thị dạng dropdown text (Mặc định)'}
@@ -159,13 +162,17 @@ export function AttributeForm({ initialData, onSubmit, onCancel }: AttributeForm
       <div className="space-y-2">
         <Label htmlFor="sortOrder">Sắp xếp mặc định</Label>
         <Select
-          id="sortOrder"
           value={sortOrder}
-          onChange={(e) => setSortOrder(e.target.value as Attribute['sortOrder'])}
+          onValueChange={(value) => setSortOrder(value as Attribute['sortOrder'])}
         >
-          <option value="name">Tên</option>
-          <option value="number">Số</option>
-          <option value="id">ID</option>
+          <SelectTrigger id="sortOrder">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="name">Tên</SelectItem>
+            <SelectItem value="number">Số</SelectItem>
+            <SelectItem value="id">ID</SelectItem>
+          </SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">
           Cách sắp xếp các giá trị (terms) của thuộc tính này.

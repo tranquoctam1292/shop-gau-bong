@@ -17,7 +17,7 @@ interface AdvancedFiltersProps {
 }
 
 export function AdvancedFilters({ className }: AdvancedFiltersProps) {
-  const { filters, updateFilters, clearFilters } = useProductFilters();
+  const { filters, updateFilter, clearFilters } = useProductFilters();
   const { categories, loading: categoriesLoading } = useCategoriesREST();
   const { getSizeOptions, getMaterialOptions, isLoading: attributesLoading } = useProductAttributes();
   const [isOpen, setIsOpen] = useState(false);
@@ -39,23 +39,26 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
   const MIN_PRICE = 0;
   const MAX_PRICE = 1000000;
   
+  const minPrice = filters.minPrice ?? filters.priceMin ?? null;
+  const maxPrice = filters.maxPrice ?? filters.priceMax ?? null;
+  
   const [priceRange, setPriceRange] = useState<[number, number]>([
-    filters.minPrice || MIN_PRICE,
-    filters.maxPrice || MAX_PRICE,
+    minPrice || MIN_PRICE,
+    maxPrice || MAX_PRICE,
   ]);
 
   // Sync priceRange với filters khi filters thay đổi từ bên ngoài (URL params)
   useEffect(() => {
     setPriceRange([
-      filters.minPrice || MIN_PRICE,
-      filters.maxPrice || MAX_PRICE,
+      minPrice || MIN_PRICE,
+      maxPrice || MAX_PRICE,
     ]);
-  }, [filters.minPrice, filters.maxPrice]);
+  }, [minPrice, maxPrice]);
 
   const hasActiveFilters = 
     (filters.category && filters.category.split(',').length > 0) ||
-    filters.minPrice || 
-    filters.maxPrice || 
+    minPrice || 
+    maxPrice || 
     filters.material || 
     filters.size ||
     filters.sortBy;
@@ -68,19 +71,17 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
     setSelectedCategories(newCategories);
     
     // Update filter với tất cả categories (comma-separated)
-    updateFilters({
-      category: newCategories.length > 0 ? newCategories.join(',') : undefined,
-    });
+    updateFilter('category', newCategories.length > 0 ? newCategories.join(',') : null);
   };
 
   const handlePriceRangeChange = (values: number[]) => {
     const [min, max] = values;
     setPriceRange([min, max]);
     
-    updateFilters({
-      minPrice: min > MIN_PRICE ? min : undefined,
-      maxPrice: max < MAX_PRICE ? max : undefined,
-    });
+    updateFilter('priceMin', min > MIN_PRICE ? min : null);
+    updateFilter('priceMax', max < MAX_PRICE ? max : null);
+    updateFilter('minPrice', min > MIN_PRICE ? min : null);
+    updateFilter('maxPrice', max < MAX_PRICE ? max : null);
   };
 
   // Material và Size options được lấy động từ WooCommerce attributes
@@ -118,19 +119,19 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
       }
     }
     
-    if (filters.minPrice) {
+    if (minPrice) {
       active.push({ 
         key: 'minPrice', 
         label: 'Giá từ', 
-        value: formatPrice(filters.minPrice) 
+        value: formatPrice(minPrice) 
       });
     }
     
-    if (filters.maxPrice && filters.maxPrice < MAX_PRICE) {
+    if (maxPrice && maxPrice < MAX_PRICE) {
       active.push({ 
         key: 'maxPrice', 
         label: 'Giá đến', 
-        value: formatPrice(filters.maxPrice) 
+        value: formatPrice(maxPrice) 
       });
     }
     
@@ -170,24 +171,26 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
     switch (key) {
       case 'category':
         setSelectedCategories([]);
-        updateFilters({ category: undefined });
+        updateFilter('category', null);
         break;
       case 'minPrice':
-        updateFilters({ minPrice: undefined });
+        updateFilter('priceMin', null);
+        updateFilter('minPrice', null);
         setPriceRange([MIN_PRICE, priceRange[1]]);
         break;
       case 'maxPrice':
-        updateFilters({ maxPrice: undefined });
+        updateFilter('priceMax', null);
+        updateFilter('maxPrice', null);
         setPriceRange([priceRange[0], MAX_PRICE]);
         break;
       case 'material':
-        updateFilters({ material: undefined });
+        updateFilter('material', null);
         break;
       case 'size':
-        updateFilters({ size: undefined });
+        updateFilter('size', null);
         break;
       case 'sortBy':
-        updateFilters({ sortBy: undefined });
+        updateFilter('sortBy', null);
         break;
     }
   };
@@ -357,9 +360,7 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
                       variant={isSelected ? 'default' : 'outline'}
                       size="sm"
                       onClick={() =>
-                        updateFilters({
-                          material: isSelected ? undefined : option.value,
-                        })
+                        updateFilter('material', isSelected ? null : option.value)
                       }
                       className={cn(
                         'min-h-[44px]',
@@ -394,9 +395,7 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
                       variant={isSelected ? 'default' : 'outline'}
                       size="sm"
                       onClick={() =>
-                        updateFilters({
-                          size: isSelected ? undefined : option.value,
-                        })
+                        updateFilter('size', isSelected ? null : option.value)
                       }
                       className={cn(
                         'min-h-[44px]',
@@ -416,13 +415,12 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
               <label className="block text-sm font-medium text-text-main mb-2">
                 Sắp xếp
               </label>
-              <Select
+              <select
                 value={filters.sortBy || ''}
                 onChange={(e) =>
-                  updateFilters({
-                    sortBy: (e.target.value as ProductFiltersType['sortBy']) || undefined,
-                  })
+                  updateFilter('sortBy', (e.target.value as ProductFiltersType['sortBy']) || null)
                 }
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
               >
                 <option value="">Mặc định</option>
                 <option value="price_asc">Giá: Thấp đến cao</option>
@@ -430,7 +428,7 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
                 <option value="name_asc">Tên: A-Z</option>
                 <option value="name_desc">Tên: Z-A</option>
                 <option value="newest">Mới nhất</option>
-              </Select>
+              </select>
             </div>
           </div>
         </Card>

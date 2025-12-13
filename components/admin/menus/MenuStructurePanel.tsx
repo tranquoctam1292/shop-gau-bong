@@ -40,7 +40,7 @@ import { MenuItemEditor } from './MenuItemEditor';
 
 interface MenuItem {
   id: string;
-  title: string;
+  title: string | null;
   type: 'custom' | 'category' | 'product' | 'page' | 'post';
   url: string | null;
   referenceId: string | null;
@@ -276,7 +276,12 @@ const SortableMenuItem = memo(function SortableMenuItem({
   };
 
   const handleSave = async (updates: Partial<MenuItem>) => {
-    await onUpdate?.(item.id, updates);
+    // Convert null to undefined for title to match MenuItem type
+    const normalizedUpdates = { ...updates };
+    if ('title' in normalizedUpdates && normalizedUpdates.title === null) {
+      normalizedUpdates.title = undefined;
+    }
+    await onUpdate?.(item.id, normalizedUpdates as Partial<MenuItem>);
     setEditing(false);
   };
 
@@ -1107,8 +1112,8 @@ export function MenuStructurePanel({
             return current;
           }
           // Move up to parent
-          if (current.parentId) {
-            current = allItems.find((i) => i.id === current.parentId) || null;
+          if (current?.parentId) {
+            current = allItems.find((i) => i.id === current!.parentId) || null;
           } else {
             break;
           }
