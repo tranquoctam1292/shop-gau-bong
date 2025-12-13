@@ -17,14 +17,17 @@ export function middleware(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
   
   // Build CSP directives
-  // Note: 'unsafe-inline' is needed for Tailwind CSS (generated styles)
-  // Consider using nonce-based approach for scripts in the future
+  // Note: 'unsafe-inline' is needed for Tailwind CSS (generated styles) and Next.js scripts
+  // Removed 'strict-dynamic' to allow Next.js auto-injected scripts without nonce
+  // Added 'unsafe-eval' for Next.js development mode and dynamic imports
+  // Added 'https:' to script-src for Vercel CDN and external scripts
   const cspHeader = `
     default-src 'self';
-    script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-eval' 'unsafe-inline';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' https:;
+    script-src-elem 'self' 'unsafe-inline' https:;
     style-src 'self' 'unsafe-inline';
     img-src 'self' blob: data: https:;
-    font-src 'self' data:;
+    font-src 'self' data: https:;
     object-src 'none';
     base-uri 'self';
     form-action 'self';
