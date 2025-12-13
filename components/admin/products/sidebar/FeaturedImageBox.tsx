@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Image as ImageIcon } from 'lucide-react';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import type { MediaPickerValue } from '@/components/admin/media/MediaPicker';
@@ -9,8 +11,10 @@ import type { MediaPickerValue } from '@/components/admin/media/MediaPicker';
 interface FeaturedImageBoxProps {
   thumbnailId?: string; // Attachment ID
   thumbnailUrl?: string; // Thumbnail URL for display
+  altText?: string; // Alt text for SEO
   onImageChange: (attachmentId: string, thumbnailUrl: string) => void;
   onImageRemove: () => void;
+  onAltTextChange?: (altText: string) => void; // Callback for alt text changes
 }
 
 /**
@@ -25,8 +29,10 @@ interface FeaturedImageBoxProps {
 export function FeaturedImageBox({
   thumbnailId,
   thumbnailUrl,
+  altText = '',
   onImageChange,
   onImageRemove,
+  onAltTextChange,
 }: FeaturedImageBoxProps) {
   const [mediaValue, setMediaValue] = useState<MediaPickerValue | undefined>();
 
@@ -82,6 +88,26 @@ export function FeaturedImageBox({
           multiple={false}
           type="image"
         />
+
+        {/* Alt Text Input - Only show when image is selected */}
+        {thumbnailId && (
+          <div className="mt-4 space-y-2">
+            <Label htmlFor="featured-image-alt" className="text-xs font-medium">
+              Văn bản thay thế (Alt Text) cho SEO
+            </Label>
+            <Input
+              id="featured-image-alt"
+              type="text"
+              placeholder="Mô tả hình ảnh cho SEO (ví dụ: Gấu bông Teddy màu nâu)"
+              value={altText}
+              onChange={(e) => onAltTextChange?.(e.target.value)}
+              className="text-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Alt text giúp cải thiện SEO và khả năng tiếp cận cho người dùng khiếm thị
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

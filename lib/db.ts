@@ -143,6 +143,10 @@ export interface Collections {
   menuItems: Collection;
   // Media Library
   media: Collection;
+  // Admin Account Management (RBAC)
+  adminUsers: Collection;
+  adminActivityLogs: Collection;
+  rateLimits: Collection;
 }
 
 /**
@@ -189,6 +193,11 @@ export async function getCollections(): Promise<Collections> {
     menuItems: db.collection('menu_items'),
     // Media Library
     media: db.collection('media'),
+    // Admin Account Management (RBAC)
+    adminUsers: db.collection('admin_users'),
+    adminActivityLogs: db.collection('admin_activity_logs'),
+    // Rate Limiting (for serverless environments)
+    rateLimits: db.collection('rate_limits'),
   };
 }
 

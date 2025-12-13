@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 import { Image as ImageIcon, X, GripVertical } from 'lucide-react';
 import {
   DndContext,
@@ -26,11 +28,13 @@ interface GalleryImage {
   id: string; // Attachment ID
   thumbnail_url: string; // Thumbnail URL for display
   title?: string; // Image title for tooltip
+  altText?: string; // Alt text for SEO
 }
 
 interface ProductGalleryBoxProps {
-  galleryImages?: GalleryImage[]; // Array of {id, thumbnail_url, title}
+  galleryImages?: GalleryImage[]; // Array of {id, thumbnail_url, title, altText}
   onImagesChange: (images: GalleryImage[]) => void;
+  onAltTextChange?: (imageId: string, altText: string) => void; // Callback for alt text changes
 }
 
 /**
@@ -119,6 +123,7 @@ function SortableGalleryItem({
 export function ProductGalleryBox({
   galleryImages = [],
   onImagesChange,
+  onAltTextChange,
 }: ProductGalleryBoxProps) {
   const [showMediaModal, setShowMediaModal] = useState(false);
   const [images, setImages] = useState<GalleryImage[]>(galleryImages);
@@ -248,6 +253,47 @@ export function ProductGalleryBox({
             <p className="text-xs text-muted-foreground">
               {images.length} hình ảnh • Kéo thả để sắp xếp
             </p>
+          )}
+
+          {/* Alt Text Inputs for Gallery Images */}
+          {images.length > 0 && (
+            <div className="mt-4 space-y-3 pt-4 border-t">
+              <Label className="text-xs font-medium">
+                Văn bản thay thế (Alt Text) cho SEO
+              </Label>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {images.map((image) => (
+                  <div key={image.id} className="flex gap-2 items-center">
+                    <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden border">
+                      <img
+                        src={image.thumbnail_url}
+                        alt={image.altText || `Gallery ${image.id}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <Input
+                      type="text"
+                      placeholder="Nhập alt text cho hình ảnh này"
+                      value={image.altText || ''}
+                      onChange={(e) => {
+                        const updatedImages = images.map((img) =>
+                          img.id === image.id
+                            ? { ...img, altText: e.target.value }
+                            : img
+                        );
+                        setImages(updatedImages);
+                        onImagesChange(updatedImages);
+                        onAltTextChange?.(image.id, e.target.value);
+                      }}
+                      className="text-xs flex-1"
+                    />
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Alt text giúp cải thiện SEO và khả năng tiếp cận
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>

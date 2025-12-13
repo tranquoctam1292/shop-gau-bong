@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { searchMedia } from '@/lib/repositories/mediaRepository';
 import { getMediaListSchema } from '@/lib/validations/mediaSchema';
 import { handleValidationError } from '@/lib/utils/validation-errors';
@@ -19,12 +19,11 @@ export const dynamic = 'force-dynamic';
  * Advanced search with multiple filters
  */
 export async function GET(request: NextRequest) {
-  try {
-    // Check authentication
-    await requireAdmin();
-
-    // Parse query params
-    const { searchParams } = new URL(request.url);
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      // Permission: media:read (checked by middleware)
+      // Parse query params
+      const { searchParams } = new URL(req.url);
     const params = Object.fromEntries(searchParams.entries());
 
     // Validate query params (reuse getMediaListSchema)
@@ -140,5 +139,6 @@ export async function GET(request: NextRequest) {
       { success: false, error: 'Failed to search media' },
       { status: 500 }
     );
-  }
+    }
+  }, 'media:read');
 }

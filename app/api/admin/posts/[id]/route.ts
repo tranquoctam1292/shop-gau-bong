@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
 import { handleValidationError } from '@/lib/utils/validation-errors';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,67 +36,57 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { posts } = await getCollections();
-    const { id } = params;
-    
-    // Find by ObjectId or slug
-    let post = null;
-    
-    if (ObjectId.isValid(id)) {
-      post = await posts.findOne({ _id: new ObjectId(id) });
-    }
-    
-    if (!post) {
-      post = await posts.findOne({ slug: id });
-    }
-    
-    if (!post) {
+      // Permission: blog:read (checked by middleware)
+      const { posts } = await getCollections();
+      const { id } = params;
+      
+      // Find by ObjectId or slug
+      let post = null;
+      
+      if (ObjectId.isValid(id)) {
+        post = await posts.findOne({ _id: new ObjectId(id) });
+      }
+      
+      if (!post) {
+        post = await posts.findOne({ slug: id });
+      }
+      
+      if (!post) {
+        return NextResponse.json(
+          { error: 'Post not found' },
+          { status: 404 }
+        );
+      }
+      
+      return NextResponse.json({ post });
+    } catch (error: any) {
+      console.error('[Admin Post API] Error:', error);
       return NextResponse.json(
-        { error: 'Post not found' },
-        { status: 404 }
+        { 
+          error: error.message || 'Failed to fetch post',
+          details: process.env.NODE_ENV === 'development' 
+            ? { stack: error.stack }
+            : undefined,
+        },
+        { status: 500 }
       );
     }
-    
-    return NextResponse.json({ post });
-  } catch (error: any) {
-    console.error('[Admin Post API] Error:', error);
-    return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch post',
-        details: process.env.NODE_ENV === 'development' 
-          ? { stack: error.stack }
-          : undefined,
-      },
-      { status: 500 }
-    );
-  }
+  }, 'blog:read');
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+      // Permission: blog:manage (checked by middleware)
     
     const { posts } = await getCollections();
     const { id } = params;
-    const body = await request.json();
+    const body = await req.json();
     
     // Validate input
     const validatedData = postUpdateSchema.parse(body);
@@ -183,21 +174,17 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'blog:manage');
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+      // Permission: blog:manage (checked by middleware)
     
     const { posts } = await getCollections();
     const { id } = params;
@@ -239,6 +226,7 @@ export async function DELETE(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'blog:manage');
 }
 

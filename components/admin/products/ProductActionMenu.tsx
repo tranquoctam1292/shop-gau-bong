@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Copy, Trash2, RotateCcw, AlertTriangle } from 'lucide-react';
+import { MoreHorizontal, Eye, Copy, Trash2, RotateCcw, AlertTriangle, Loader2 } from 'lucide-react';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { useToastContext } from '@/components/providers/ToastProvider';
 import { RestoreProductModal } from './RestoreProductModal';
@@ -20,6 +20,7 @@ import { ForceDeleteModal } from './ForceDeleteModal';
 interface ProductActionMenuProps {
   product: MappedProduct;
   isTrashTab?: boolean;
+  isDeleting?: boolean;
   onDelete?: (id: string) => Promise<void>;
   onRestore?: (id: string) => Promise<void>;
   onForceDelete?: (id: string) => Promise<void>;
@@ -143,8 +144,12 @@ export function ProductActionMenu({
               disabled={isLoading}
               className="cursor-pointer text-red-600"
             >
-              <Trash2 className="mr-2 h-4 w-4" />
-              Xóa tạm
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="mr-2 h-4 w-4" />
+              )}
+              {isLoading ? 'Đang xóa...' : 'Xóa tạm'}
             </DropdownMenuItem>
           </>
         )}
@@ -155,8 +160,12 @@ export function ProductActionMenu({
               disabled={isLoading}
               className="cursor-pointer"
             >
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Khôi phục
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RotateCcw className="mr-2 h-4 w-4" />
+              )}
+              {isLoading ? 'Đang xử lý...' : 'Khôi phục'}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -164,8 +173,12 @@ export function ProductActionMenu({
               disabled={isLoading}
               className="cursor-pointer text-red-600"
             >
-              <AlertTriangle className="mr-2 h-4 w-4" />
-              Xóa vĩnh viễn
+              {isLoading ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <AlertTriangle className="mr-2 h-4 w-4" />
+              )}
+              {isLoading ? 'Đang xóa...' : 'Xóa vĩnh viễn'}
             </DropdownMenuItem>
           </>
         )}

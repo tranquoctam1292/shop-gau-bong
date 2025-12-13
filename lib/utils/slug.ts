@@ -49,3 +49,62 @@ export function isValidSlug(slug: string): boolean {
   // Should not have consecutive hyphens
   return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug);
 }
+
+/**
+ * Generate a random short ID (4-6 characters)
+ * Used as suffix for duplicate slugs
+ * 
+ * @returns Random alphanumeric string
+ */
+export function generateShortId(): string {
+  // Generate 4-6 character random string using alphanumeric
+  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  const length = 4 + Math.floor(Math.random() * 3); // 4-6 chars
+  let result = '';
+  for (let i = 0; i < length; i++) {
+    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return result;
+}
+
+/**
+ * Generate unique slug with duplicate check
+ * If slug exists, appends random short ID suffix
+ * 
+ * @param baseSlug - Base slug to check
+ * @param checkExists - Function to check if slug exists (returns Promise<boolean>)
+ * @returns Unique slug
+ */
+export async function generateUniqueSlug(
+  baseSlug: string,
+  checkExists: (slug: string) => Promise<boolean>
+): Promise<string> {
+  if (!baseSlug) {
+    return '';
+  }
+
+  // Check if base slug is available
+  const exists = await checkExists(baseSlug);
+  if (!exists) {
+    return baseSlug;
+  }
+
+  // Generate unique slug with random suffix
+  let attempts = 0;
+  const maxAttempts = 10; // Prevent infinite loop
+  
+  while (attempts < maxAttempts) {
+    const suffix = generateShortId();
+    const uniqueSlug = `${baseSlug}-${suffix}`;
+    
+    const slugExists = await checkExists(uniqueSlug);
+    if (!slugExists) {
+      return uniqueSlug;
+    }
+    
+    attempts++;
+  }
+
+  // Fallback: use timestamp if all attempts failed
+  return `${baseSlug}-${Date.now().toString(36)}`;
+}

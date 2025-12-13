@@ -52,7 +52,7 @@ const nextConfig = {
   // Environment variables are accessed directly via process.env
   // No need to explicitly expose WordPress/WooCommerce env vars anymore
   
-  // HTTP Security Headers
+  // HTTP Security Headers (V1.2: Enhanced security for RBAC module)
   async headers() {
     return [
       {
@@ -62,21 +62,37 @@ const nextConfig = {
             key: 'X-DNS-Prefetch-Control',
             value: 'on'
           },
+          // V1.2: Strict Transport Security (HTTPS only in production)
           {
             key: 'Strict-Transport-Security',
-            value: 'max-age=63072000; includeSubDomains; preload'
+            value: process.env.NODE_ENV === 'production' 
+              ? 'max-age=31536000; includeSubDomains; preload'
+              : 'max-age=0' // Disable in development
           },
+          // V1.2: Frame Options (prevent clickjacking)
           {
             key: 'X-Frame-Options',
-            value: 'SAMEORIGIN'
+            value: 'DENY'
           },
+          // V1.2: Content Type Options (prevent MIME sniffing)
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff'
           },
+          // V1.2: XSS Protection
+          {
+            key: 'X-XSS-Protection',
+            value: '1; mode=block'
+          },
+          // V1.2: Referrer Policy
           {
             key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin'
+            value: 'strict-origin-when-cross-origin'
+          },
+          // V1.2: Permissions Policy (restrict browser features)
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
           }
         ]
       }

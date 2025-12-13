@@ -8,7 +8,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { 
   getMediaById, 
   updateMedia, 
@@ -33,9 +33,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Check authentication
-    await requireAdmin();
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      // Permission: media:read (checked by middleware)
 
     // Validate params
     const validationResult = getMediaDetailSchema.safeParse({ id: params.id });
@@ -99,7 +99,8 @@ export async function GET(
       { success: false, error: 'Failed to get media detail' },
       { status: 500 }
     );
-  }
+    }
+  }, 'media:read');
 }
 
 /**
@@ -110,9 +111,9 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Check authentication
-    await requireAdmin();
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      // Permission: media:upload (checked by middleware)
 
     // Validate params
     const paramsValidation = updateMediaParamsSchema.safeParse({ id: params.id });
@@ -128,7 +129,7 @@ export async function PUT(
     }
 
     // Parse body
-    const body = await request.json();
+    const body = await req.json();
 
     // Validate body
     const bodyValidation = updateMediaSchema.safeParse(body);
@@ -202,7 +203,8 @@ export async function PUT(
       { success: false, error: 'Failed to update media' },
       { status: 500 }
     );
-  }
+    }
+  }, 'media:upload');
 }
 
 /**
@@ -213,9 +215,9 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Check authentication
-    await requireAdmin();
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      // Permission: media:upload (checked by middleware)
 
     // Validate params
     const validationResult = deleteMediaParamsSchema.safeParse({ id: params.id });
@@ -291,5 +293,6 @@ export async function DELETE(
       { success: false, error: 'Failed to delete media' },
       { status: 500 }
     );
-  }
+    }
+  }, 'media:upload');
 }

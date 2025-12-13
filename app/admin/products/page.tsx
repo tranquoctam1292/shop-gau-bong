@@ -28,6 +28,7 @@ export default function AdminProductsPage() {
   const [trashCount, setTrashCount] = useState(0);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
   const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  const [deletingProducts, setDeletingProducts] = useState<Set<string>>(new Set());
   
   // Get active tab from URL or default to 'all'
   const activeTab: ProductListTab = (searchParams.get('tab') as ProductListTab) || 'all';
@@ -55,6 +56,22 @@ export default function AdminProductsPage() {
       if (timer) clearTimeout(timer);
     };
   }, [search]);
+
+  // Reset page to 1 when filters change (except search which is handled separately)
+  useEffect(() => {
+    // Check if any filter (except search) has changed
+    const hasFilterChanged = filters.category || filters.brand || 
+                             filters.priceMin !== null || filters.priceMax !== null || 
+                             filters.stockStatus;
+    
+    if (hasFilterChanged && page !== 1) {
+      setPage(1);
+      // Update URL to remove page param
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('page');
+      router.push(`/admin/products?${params.toString()}`);
+    }
+  }, [filters.category, filters.brand, filters.priceMin, filters.priceMax, filters.stockStatus]);
 
   // Fetch products when page, tab, or filters change
   useEffect(() => {
@@ -132,6 +149,9 @@ export default function AdminProductsPage() {
   };
 
   const handleDelete = async (id: string) => {
+    // Add to deleting set
+    setDeletingProducts((prev) => new Set(prev).add(id));
+    
     try {
       const response = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
@@ -147,6 +167,13 @@ export default function AdminProductsPage() {
     } catch (error) {
       console.error('Error deleting product:', error);
       showToast('Không thể xóa sản phẩm', 'error');
+    } finally {
+      // Remove from deleting set
+      setDeletingProducts((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 

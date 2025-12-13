@@ -32,9 +32,14 @@ export async function GET(request: NextRequest) {
     const { products, categories } = await getCollections();
     
     // Build MongoDB query
+    // Only show published, active products that are not deleted
     const query: any = {
       status: 'publish',
       isActive: true,
+      $or: [
+        { deletedAt: null },
+        { deletedAt: { $exists: false } },
+      ],
     };
     
     // Search filter

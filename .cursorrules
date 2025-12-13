@@ -21,6 +21,12 @@ Before implementing any feature, you MUST reference the following sources based 
   - READ: `docs/SCHEMA_CONTEXT.md`
   - RULE: Do not guess field names. Look at `SCHEMA_CONTEXT.md` to see exactly which fields exist in MongoDB documents.
   - RULE: Always use Next.js API routes (`/api/cms/*`) for public access and (`/api/admin/*`) for admin access. Never call MongoDB directly from client.
+- **IF Working with Product Module:**
+  - READ: `docs/PRODUCT_MODULE_CONTEXT.md`
+  - RULE: Always include `version` field in PUT requests for optimistic locking
+  - RULE: Use soft delete (`deletedAt`, `status: 'trash'`) instead of hard delete
+  - RULE: Validate `salePrice < regularPrice` in Zod schema
+  - RULE: Only auto-generate slug when creating new product, preserve on edit
 
 - **IF Planning / Architectural Decisions:**
   - READ: `KE_HOACH_DU_AN.md`
@@ -50,6 +56,18 @@ Before implementing any feature, you MUST reference the following sources based 
   - Shipment Management: Integration with carriers (GHTK, GHN)
   - Bulk Operations: Bulk approve, update status, export, print labels
   - See: `docs/ORDER_MANAGEMENT_SYSTEM_PROGRESS.md` for details
+- **Product Management System:** ✅ Complete (Phase 1-4)
+  - Soft Delete: Products use `deletedAt` and `status: 'trash'` instead of hard delete
+  - Optimistic Locking: Version field prevents concurrent edit conflicts
+  - Price Validation: Zod schema validates `salePrice < regularPrice`
+  - Slug Management: Auto-generate only on create, preserve on edit, duplicate check with random suffix
+  - XSS Protection: All HTML content sanitized with `isomorphic-dompurify`
+  - Form Optimization: Input fields use onBlur with local state to reduce rerenders
+  - Price Formatting: `PriceInput` component formats numbers with thousand separators (10.000.000 đ)
+  - Image Alt Text: SEO alt text inputs in FeaturedImageBox and ProductGalleryBox
+  - Rich Text Editor: Image paste uploads to server instead of Base64
+  - Error Handling: Toast notifications with specific error messages from server
+  - See: `docs/PRODUCT_MODULE_FIX_PLAN.md` and `docs/PRODUCT_MODULE_REVIEW_REPORT.md` for details
 - **Safe Mapping:** MongoDB documents are mapped to frontend format using `productMapper`. Use `mapMongoProduct()` helper.
   - *Bad:* Direct access to MongoDB `_id` or nested fields without mapping
   - *Good:* Use `mapMongoProduct(mongoProduct)` to get frontend-compatible format
@@ -132,6 +150,14 @@ Before implementing any feature, you MUST reference the following sources based 
   - Always match by `variation.size` and `variation.color` directly
   - Always check for null/undefined before accessing `variation.size` or `variation.color`
   - Example: `if (variation.size && variation.size === selectedSize) { ... }`
+- **Product Form Best Practices:**
+  - **Optimistic Locking:** Always include `version` field in PUT requests. Check for `VERSION_MISMATCH` error (409) and handle gracefully
+  - **Dirty Check:** Use `isDirty()` function to compare current formData with initialFormData before submitting
+  - **Price Input:** Use `PriceInput` component for price fields (formats with thousand separators automatically)
+  - **Error Messages:** Use `showToast()` from `useToastContext()` instead of `alert()` for user feedback
+  - **Form Optimization:** Use local state for input fields and update formData onBlur to reduce rerenders
+  - **Slug Generation:** Only auto-generate slug when creating new product (`!productId`). Preserve existing slug when editing
+  - **Image Alt Text:** Always provide alt text for SEO. Use `mediaExtended.imageAltTexts` object to store alt texts by image ID
 
 ## 5. TypeScript Type Safety Rules (CRITICAL)
 - **NO implicit any types:** Always add explicit type annotations for callback parameters in map/filter/reduce operations.
@@ -181,6 +207,8 @@ Before implementing any feature, you MUST reference the following sources based 
 - **When to use native select:** If you need native HTML `<select>` behavior (e.g., form submission, browser autocomplete), use native `<select>` with Tailwind classes instead of Radix Select.
   - *Good:* `<select className="flex h-10 w-full rounded-md border..." value={value} onChange={handleChange}>`
 - **Select props:** Radix Select does NOT support `id`, `onChange`, or `<option>` children. Use `onValueChange` and `SelectItem` instead.
+- **Select empty value:** Radix Select does NOT allow empty string (`""`) as value. Use special placeholder value like `"__none__"` and convert to `undefined` when updating state.
+  - *Good:* `<SelectItem value="__none__">Không có</SelectItem>` then `onValueChange={(val) => setValue(val === '__none__' ? undefined : val)}`
 
 ## 7. Cron Jobs & Deployment Rules
 - **Vercel Cron Jobs Limit:** Free/Pro plans have limits (typically 2 cron jobs per team). Check before adding new cron jobs.
@@ -197,6 +225,13 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Product Variations:** Products can have size and color variations. Display up to 4 size options and 4 color options on ProductCard. Dynamic pricing based on selected variation.
   - **Product Info Actions:** Only "Thêm giỏ hàng" (Add to cart) and "GỬI TẶNG" (Gift) buttons are available. "Mua ngay" (Quick checkout) button has been removed.
 - **Cart UI:** CartDrawer uses Shadcn Sheet component. Cart button uses ghost variant with hover effect. Buttons have proper padding (`px-10 py-5`) and text centering.
+- **Product Management:**
+  - **Soft Delete:** Products are never hard deleted. Use `deletedAt` field and `status: 'trash'` for soft delete
+  - **Public API:** Only returns products with `status: 'publish'` and `deletedAt: null`
+  - **Price Validation:** `salePrice` must always be less than `regularPrice` (validated in Zod schema)
+  - **Slug Uniqueness:** Slugs must be unique. Auto-generate with random suffix if duplicate
+  - **Optimistic Locking:** Products have `version` field. Check version on update to prevent concurrent edit conflicts
+  - **Image Alt Text:** All product images should have alt text for SEO (stored in `mediaExtended.imageAltTexts`)
 
 # PRE-DEPLOYMENT & GIT WORKFLOW RULES (CRITICAL)
 - **MANDATORY Pre-Deploy Check:** ALWAYS run `npm run pre-deploy` before pushing to GitHub.

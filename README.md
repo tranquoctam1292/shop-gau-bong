@@ -18,8 +18,9 @@ Website thương mại điện tử bán gấu bông được xây dựng với 
 ### Backend
 - **MongoDB** - NoSQL database
 - **Next.js API Routes** - Custom API endpoints
-- **NextAuth.js** - Authentication for admin panel
+- **NextAuth.js** - Authentication for admin panel with RBAC
 - **MongoDB Native Driver** - Database access
+- **RBAC System** - Role-Based Access Control for admin accounts
 
 ## 📋 Yêu cầu hệ thống
 
@@ -50,6 +51,13 @@ MONGODB_URI=mongodb://localhost:27017/shop-gau-bong
 MONGODB_DB_NAME=shop-gau-bong
 NEXTAUTH_URL=http://localhost:3000
 NEXTAUTH_SECRET=your-secret-key-here
+
+# Optional: Admin User Creation
+ADMIN_USERNAME=admin
+ADMIN_EMAIL=admin@example.com
+ADMIN_PASSWORD=admin123
+ADMIN_NAME=Admin User
+ADMIN_ROLE=SUPER_ADMIN
 ```
 
 **Lưu ý:** MongoDB connection string và NextAuth secret được lưu trong `.env.local` (không commit lên Git).
@@ -60,6 +68,45 @@ npm run dev
 ```
 
 Mở [http://localhost:3000](http://localhost:3000) trong trình duyệt.
+
+### 5. Setup Database và Admin Users
+
+#### Setup Database Indexes
+```bash
+npm run db:setup-indexes
+```
+
+#### Create Admin Users
+
+**Option 1: Seed sample users (recommended for testing)**
+```bash
+npm run seed:admin-users
+```
+
+This creates 5 sample users:
+- `admin` / `ChangeMe@123` - SUPER_ADMIN
+- `product` / `ChangeMe@123` - PRODUCT_MANAGER
+- `order` / `ChangeMe@123` - ORDER_MANAGER
+- `editor` / `ChangeMe@123` - CONTENT_EDITOR
+- `viewer` / `ChangeMe@123` - VIEWER
+
+**Option 2: Create single admin user**
+```bash
+npm run create:admin-user
+```
+
+**Option 3: Migrate from old users collection**
+```bash
+npm run migrate:users-to-admin-users
+```
+
+**⚠️ Security:** All users must change password on first login!
+
+### 6. Access Admin Panel
+
+1. Navigate to [http://localhost:3000/admin/login](http://localhost:3000/admin/login)
+2. Login with your admin credentials
+3. If `must_change_password` is true, you'll be redirected to change password page
 
 ## 📁 Cấu trúc dự án
 

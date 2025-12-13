@@ -11,6 +11,7 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import { Iframe, VideoEmbedWrapper } from '@/lib/tiptap/extensions/Iframe';
 import { convertVideoUrlToEmbed, isStandaloneVideoUrl } from '@/lib/utils/videoEmbed';
+import { useToastContext } from '@/components/providers/ToastProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -60,6 +61,7 @@ interface ClassicEditorProps {
  * - Text mode với QuickTags
  */
 export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dung...' }: ClassicEditorProps) {
+  const { showToast } = useToastContext();
   const [mode, setMode] = useState<'visual' | 'text'>('visual');
   const [showToolbarRow2, setShowToolbarRow2] = useState(false);
   const [showMediaModal, setShowMediaModal] = useState(false);
@@ -133,7 +135,7 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
         },
       }).configure({
         inline: true,
-        allowBase64: true,
+        allowBase64: false, // Disable Base64 - force server upload via paste handler
         HTMLAttributes: {
           class: 'max-w-full h-auto',
         },
@@ -175,14 +177,62 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
     },
   });
 
-  // Handle paste events for video embedding
+  // Handle paste events for video embedding and image upload
   useEffect(() => {
     if (!editor) return;
 
-    const handlePaste = (view: any, event: ClipboardEvent) => {
+    const handlePaste = async (view: any, event: ClipboardEvent) => {
       const clipboardData = event.clipboardData || (window as any).clipboardData;
       if (!clipboardData) {
         return false;
+      }
+
+      // Handle image paste - upload to server instead of Base64
+      const items = Array.from(clipboardData.items) as DataTransferItem[];
+      const imageItem = items.find((item) => item.type.indexOf('image') !== -1);
+      
+      if (imageItem) {
+        event.preventDefault();
+        const file = imageItem.getAsFile();
+        if (file) {
+          // Upload image to server
+          try {
+            const formData = new FormData();
+            formData.append('file', file);
+            formData.append('folder', 'products'); // Organize in products folder
+            
+            const response = await fetch('/api/admin/media/upload', {
+              method: 'POST',
+              body: formData,
+            });
+
+            if (response.ok) {
+              const data = await response.json();
+              const imageUrl = data.url || data.media?.url;
+              
+              if (imageUrl) {
+                // Insert image with server URL
+                editor.chain().focus().setImage({ 
+                  src: imageUrl,
+                  alt: file.name || 'Product image'
+                }).run();
+                
+                // Update content
+                const newHtml = editor.getHTML();
+                setTextContent(newHtml);
+                onChange(newHtml);
+                return true;
+              }
+            } else {
+              const errorData = await response.json().catch(() => ({}));
+              showToast(errorData.error || 'Không thể upload ảnh. Vui lòng thử lại.', 'error');
+            }
+          } catch (error) {
+            console.error('Error uploading pasted image:', error);
+            showToast('Có lỗi xảy ra khi upload ảnh. Vui lòng thử lại.', 'error');
+          }
+        }
+        return true;
       }
 
       const pastedText = clipboardData.getData('text/plain');

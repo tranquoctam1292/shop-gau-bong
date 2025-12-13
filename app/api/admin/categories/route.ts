@@ -12,6 +12,7 @@ import { mapMongoCategory } from '@/lib/utils/productMapper';
 import { buildCategoryTree } from '@/lib/utils/categoryHelpers';
 import { z } from 'zod';
 import { handleValidationError } from '@/lib/utils/validation-errors';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,16 +30,10 @@ const categorySchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const searchParams = request.nextUrl.searchParams;
+      // Permission: category:read or product:read (checked by middleware)
+      const searchParams = req.nextUrl.searchParams;
     const type = searchParams.get('type') || 'flat'; // 'tree' or 'flat'
     const status = searchParams.get('status') || 'all'; // 'active', 'inactive', or 'all'
     const parentId = searchParams.get('parent');
@@ -78,31 +73,26 @@ export async function GET(request: NextRequest) {
     }
     
     return NextResponse.json({ categories: mappedCategories, type: 'flat' });
-  } catch (error: any) {
-    console.error('[Admin Categories API] Error:', error);
-    return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch categories',
-        details: process.env.NODE_ENV === 'development' 
-          ? { stack: error.stack }
-          : undefined,
-      },
-      { status: 500 }
-    );
-  }
+    } catch (error: any) {
+      console.error('[Admin Categories API] Error:', error);
+      return NextResponse.json(
+        { 
+          error: error.message || 'Failed to fetch categories',
+          details: process.env.NODE_ENV === 'development' 
+            ? { stack: error.stack }
+            : undefined,
+        },
+        { status: 500 }
+      );
+    }
+  }, 'category:read');
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const body = await request.json();
+      // Permission: category:manage or product:update (checked by middleware)
+      const body = await req.json();
     
     // Validate input
     const validatedData = categorySchema.parse(body);
@@ -203,6 +193,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'category:manage');
 }
 

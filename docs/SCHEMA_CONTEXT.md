@@ -27,10 +27,20 @@
 interface MongoProduct {
   _id: ObjectId;                    // MongoDB ObjectId
   name: string;                     // Product name
-  slug: string;                     // URL slug (unique)
+  slug: string;                     // URL slug (unique, auto-generated from name)
   type: 'simple' | 'variable';      // Product type
-  status: 'draft' | 'publish';       // Product status
+  status: 'draft' | 'publish' | 'trash'; // Product status
   featured: boolean;                 // Featured product flag
+  isActive: boolean;                // Product active flag
+  visibility?: 'public' | 'private' | 'password'; // Visibility setting
+  password?: string;                // Password if visibility === 'password'
+  
+  // Soft Delete (Phase 1)
+  deletedAt?: Date | null;          // Soft delete timestamp (null = not deleted)
+  // When deleted: deletedAt = new Date(), status = 'trash'
+  
+  // Optimistic Locking (Phase 4)
+  version?: number;                  // Version field for optimistic locking (starts at 1)
   price: number;                     // Current price (sale or regular)
   regularPrice?: number;            // Regular price
   salePrice?: number;               // Sale price (if on sale)
@@ -40,9 +50,14 @@ interface MongoProduct {
   sku?: string;                     // SKU
   description?: string;             // Full description
   shortDescription?: string;        // Short description
-  images: string[];                  // Array of image URLs
-  category: string;                  // Category ID (ObjectId as string)
-  categories?: string[];            // Additional category IDs
+  // Images (Phase 3)
+  images?: string[];                 // Legacy: Array of image URLs (for backward compatibility)
+  _thumbnail_id?: string;           // Attachment ID for featured image (new structure)
+  _product_image_gallery?: string;  // Comma-separated attachment IDs for gallery (new structure)
+  
+  category?: string;                 // Legacy: Single category ID (ObjectId as string)
+  categoryId?: string;               // Single primary category ID
+  categories?: string[];             // Multiple category IDs (new structure)
   tags?: string[];                  // Product tags
   variants?: MongoVariant[];         // Product variations
   // Dimensions
@@ -89,7 +104,48 @@ interface MongoProduct {
       thumbnail?: string;
     }>;
     view360Images?: string[];
-    imageAltTexts?: Record<string, string>;
+    imageAltTexts?: Record<string, string>; // imageId -> altText (Phase 3: SEO Alt Text)
+  };
+  
+  // Product Data Meta Box (Phase 1-4)
+  productDataMetaBox?: {
+    productType: 'simple' | 'variable' | 'grouped' | 'external';
+    isVirtual: boolean;
+    isDownloadable: boolean;
+    sku?: string;
+    manageStock: boolean;
+    stockQuantity?: number;
+    stockStatus: 'instock' | 'outofstock' | 'onbackorder';
+    weight?: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    regularPrice?: number;
+    salePrice?: number;              // Must be < regularPrice (Phase 1: Validation)
+    salePriceStartDate?: Date;
+    salePriceEndDate?: Date;
+    costPrice?: number;
+    lowStockThreshold?: number;
+    backorders: 'no' | 'notify' | 'yes';
+    soldIndividually: boolean;
+    purchaseNote?: string;
+    menuOrder: number;
+    enableReviews: boolean;
+    attributes?: Array<{
+      name: string;
+      options: string[];
+      visible: boolean;
+      variation: boolean;
+    }>;
+    variations?: Array<{
+      id: string;
+      attributes: Record<string, string>;
+      regularPrice: number;
+      salePrice?: number;            // Must be < regularPrice (Phase 1: Validation)
+      stockQuantity?: number;
+      sku?: string;
+      image?: string;
+    }>;
   };
   collectionCombo?: {
     collections?: string[];
@@ -103,11 +159,23 @@ interface MongoProduct {
     upsellProducts?: string[];
     crossSellProducts?: string[];
   };
+  // SEO (Phase 1)
+  seo?: {
+    seoTitle?: string;
+    seoDescription?: string;
+    seoKeywords?: string[];
+    ogImage?: string;
+    canonicalUrl?: string;
+    robotsMeta?: string;
+  };
+  _productSchema?: object;          // JSON-LD schema for SEO
+  
   // Metadata
   createdAt: Date;
   updatedAt: Date;
-  minPrice?: number;                // Calculated from variants
-  maxPrice?: number;                // Calculated from variants
+  scheduledDate?: Date;             // For scheduled publishing
+  minPrice?: number;                 // Calculated from variants
+  maxPrice?: number;                 // Calculated from variants
 }
 ```
 
@@ -543,9 +611,22 @@ media.createIndex({ createdAt: -1 });
   - MediaLibraryModal sync with main Media Library module
 - **See:** `docs/MEDIA_LIBRARY_COMPLETE.md` for complete documentation
 
-## 🔄 Recent Changes (2025-12-13)
+## 🔄 Recent Changes (2025-01-13)
 
-### Product Variations Structure Update
+### Product Module Refactoring (Phase 1-4) ✅ Complete
+- **Soft Delete:** Products use `deletedAt` and `status: 'trash'` instead of hard delete
+- **Optimistic Locking:** Added `version` field to prevent concurrent edit conflicts
+- **Price Validation:** Zod schema validates `salePrice < regularPrice` (including variations)
+- **Slug Management:** Auto-generate only on create, preserve on edit, duplicate check with random suffix
+- **XSS Protection:** All HTML content sanitized with `isomorphic-dompurify`
+- **Form Optimization:** Input fields use onBlur with local state to reduce rerenders
+- **Price Formatting:** `PriceInput` component formats numbers with thousand separators
+- **Image Alt Text:** SEO alt text inputs in FeaturedImageBox and ProductGalleryBox
+- **Rich Text Editor:** Image paste uploads to server instead of Base64
+- **Error Handling:** Toast notifications with specific error messages
+- **See:** `docs/PRODUCT_MODULE_FIX_PLAN.md` and `docs/PRODUCT_MODULE_CONTEXT.md` for details
+
+### Product Variations Structure Update (2025-12-13)
 - **Changed:** MongoDB variants now use direct `size` and `color` fields instead of nested `attributes` object
 - **Impact:** All variation matching logic updated to use `variation.size` and `variation.color` directly
 - **Removed:** "Mua ngay" (Quick checkout) button from ProductInfo component - only "Thêm giỏ hàng" and "GỬI TẶNG" remain

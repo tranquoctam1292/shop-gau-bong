@@ -7,7 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/auth';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { getMediaList, createMedia } from '@/lib/repositories/mediaRepository';
 import { getStorageServiceSingleton } from '@/lib/storage/storageFactory';
 import { 
@@ -47,12 +47,11 @@ function getMediaTypeFromMime(mimeType: string): MediaType {
  * List media with filters and pagination
  */
 export async function GET(request: NextRequest) {
-  try {
-    // Check authentication
-    await requireAdmin();
-
-    // Parse query params
-    const { searchParams } = new URL(request.url);
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      // Permission: media:read (checked by middleware)
+      // Parse query params
+      const { searchParams } = new URL(req.url);
     const params = Object.fromEntries(searchParams.entries());
 
     // Validate query params
@@ -134,6 +133,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+  }, 'media:read');
 }
 
 /**
@@ -141,13 +141,12 @@ export async function GET(request: NextRequest) {
  * Upload new media file
  */
 export async function POST(request: NextRequest) {
-  try {
-    // Check authentication
-    const session = await requireAdmin();
-    const userId = (session.user as any)?._id ? new ObjectId((session.user as any)._id) : undefined;
-
-    // Parse form data
-    const formData = await request.formData();
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      // Permission: media:upload (checked by middleware)
+      const userId = req.adminUser?._id;
+      // Parse form data
+      const formData = await req.formData();
     const file = formData.get('file') as File;
     const name = formData.get('name') as string | null;
     const altText = formData.get('altText') as string | null;
@@ -313,5 +312,6 @@ export async function POST(request: NextRequest) {
       { success: false, error: 'Failed to upload media file' },
       { status: 500 }
     );
-  }
+    }
+  }, 'media:upload');
 }

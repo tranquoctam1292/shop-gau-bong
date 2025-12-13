@@ -27,6 +27,10 @@ export async function GET(
         _id: new ObjectId(id),
         status: 'publish',
         isActive: true,
+        $or: [
+          { deletedAt: null },
+          { deletedAt: { $exists: false } },
+        ],
       });
     }
     
@@ -36,6 +40,10 @@ export async function GET(
         slug: id,
         status: 'publish',
         isActive: true,
+        $or: [
+          { deletedAt: null },
+          { deletedAt: { $exists: false } },
+        ],
       });
     }
     

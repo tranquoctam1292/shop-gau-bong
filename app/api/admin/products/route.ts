@@ -12,6 +12,7 @@ import { mapMongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { z } from 'zod';
 import { handleValidationError } from '@/lib/utils/validation-errors';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -234,19 +235,40 @@ const productSchema = z.object({
     menuOrder: z.number().optional(),
     enableReviews: z.boolean().optional(),
   }).passthrough().optional(),
+}).passthrough().refine((data) => {
+  // Validate: salePrice must be less than regularPrice if both exist
+  if (data.productDataMetaBox?.salePrice !== undefined && 
+      data.productDataMetaBox?.regularPrice !== undefined) {
+    if (data.productDataMetaBox.salePrice >= data.productDataMetaBox.regularPrice) {
+      return false;
+    }
+  }
+  return true;
+}, {
+  message: "Giá khuyến mãi phải nhỏ hơn giá gốc",
+  path: ["productDataMetaBox", "salePrice"],
+}).refine((data) => {
+  // Validate: variations salePrice must be less than regularPrice
+  if (data.productDataMetaBox?.variations) {
+    for (const variation of data.productDataMetaBox.variations) {
+      if (variation.salePrice !== undefined && variation.regularPrice !== undefined) {
+        if (variation.salePrice >= variation.regularPrice) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}, {
+  message: "Giá khuyến mãi của biến thể phải nhỏ hơn giá gốc",
+  path: ["productDataMetaBox", "variations"],
 });
 
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const searchParams = request.nextUrl.searchParams;
+      // Permission: product:read (checked by middleware)
+      const searchParams = req.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const perPage = parseInt(searchParams.get('per_page') || '10', 10);
     const search = searchParams.get('search');
@@ -392,23 +414,18 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:create');
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+      // Permission: product:create (checked by middleware)
+      const body = await req.json();
     
-    const body = await request.json();
-    
-    // Validate input - Use passthrough to keep unknown fields
-    const validatedData = productSchema.passthrough().parse(body);
+    // Validate input - Schema already has passthrough
+    const validatedData = productSchema.parse(body);
     
     const { products, categories } = await getCollections();
     
@@ -491,6 +508,7 @@ export async function POST(request: NextRequest) {
       volumetricWeight,
       createdAt: new Date(),
       updatedAt: new Date(),
+      version: 1, // Initialize version for optimistic locking
     };
     
     // Handle scheduledDate - convert ISO string to Date if provided
@@ -661,6 +679,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:create');
 }
 

@@ -12,6 +12,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -234,23 +235,44 @@ const productUpdateSchema = z.object({
     menuOrder: z.number().optional(),
     enableReviews: z.boolean().optional(),
   }).passthrough().optional(),
+}).passthrough().refine((data) => {
+  // Validate: salePrice must be less than regularPrice if both exist
+  if (data.productDataMetaBox?.salePrice !== undefined && 
+      data.productDataMetaBox?.regularPrice !== undefined) {
+    if (data.productDataMetaBox.salePrice >= data.productDataMetaBox.regularPrice) {
+      return false;
+    }
+  }
+  return true;
+}, {
+  message: "Giá khuyến mãi phải nhỏ hơn giá gốc",
+  path: ["productDataMetaBox", "salePrice"],
+}).refine((data) => {
+  // Validate: variations salePrice must be less than regularPrice
+  if (data.productDataMetaBox?.variations) {
+    for (const variation of data.productDataMetaBox.variations) {
+      if (variation.salePrice !== undefined && variation.regularPrice !== undefined) {
+        if (variation.salePrice >= variation.regularPrice) {
+          return false;
+        }
+      }
+    }
+  }
+  return true;
+}, {
+  message: "Giá khuyến mãi của biến thể phải nhỏ hơn giá gốc",
+  path: ["productDataMetaBox", "variations"],
 });
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { products } = await getCollections();
-    let { id } = params;
+      // Permission: product:read (checked by middleware)
+      const { products } = await getCollections();
+      let { id } = params;
     
     // Extract ObjectId from GraphQL format if needed (backward compatibility)
     // Format: gid://shop-gau-bong/Product/OBJECT_ID
@@ -320,23 +342,18 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:read');
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { products, categories } = await getCollections();
+      // Permission: product:update (checked by middleware)
+      const { products, categories } = await getCollections();
     let { id } = params;
     const body = await request.json();
     
@@ -346,8 +363,8 @@ export async function PUT(
       id = id.replace('gid://shop-gau-bong/Product/', '');
     }
     
-    // Validate input - Use passthrough to keep unknown fields
-    const validatedData = productUpdateSchema.passthrough().parse(body);
+    // Validate input - Schema already has passthrough
+    const validatedData = productUpdateSchema.parse(body);
     
     // Map category to categoryId if category is provided
     let categoryId: string | undefined = undefined;
@@ -387,6 +404,21 @@ export async function PUT(
       );
     }
     
+    // Optimistic Locking: Check version if provided
+    const currentVersion = product.version || 0;
+    const requestVersion = validatedData.version;
+    
+    if (requestVersion !== undefined && requestVersion !== currentVersion) {
+      return NextResponse.json(
+        { 
+          error: 'Product has been modified by another user. Please refresh and try again.',
+          code: 'VERSION_MISMATCH',
+          currentVersion,
+        },
+        { status: 409 }
+      );
+    }
+    
     // Check slug uniqueness if slug is being updated
     if (validatedData.slug && validatedData.slug !== product.slug) {
       const existingProduct = await products.findOne({ 
@@ -417,6 +449,8 @@ export async function PUT(
     }
     
     updateData.updatedAt = new Date();
+    // Increment version for optimistic locking
+    updateData.version = (currentVersion || 0) + 1;
     
     // Handle scheduledDate - convert ISO string to Date if provided
     if (validatedData.scheduledDate) {
@@ -628,23 +662,18 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:update');
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { products } = await getCollections();
+      // Permission: product:delete (checked by middleware)
+      const { products } = await getCollections();
     let { id } = params;
     
     // Extract ObjectId from GraphQL format if needed (backward compatibility)
@@ -707,6 +736,7 @@ export async function DELETE(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:delete');
 }
 

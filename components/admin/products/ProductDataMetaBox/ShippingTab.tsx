@@ -25,8 +25,10 @@ export function ShippingTab({ state, onUpdate }: ShippingTabProps) {
   const [dimensionUnit, setDimensionUnit] = useState<'cm' | 'm'>('cm');
 
   // Shipping class options
+  // Note: Cannot use empty string for SelectItem value (Radix UI restriction)
+  // Use '__none__' as special value for "no shipping class"
   const shippingClasses = [
-    { value: '', label: 'Không có' },
+    { value: '__none__', label: 'Không có' },
     { value: 'standard', label: 'Hàng thường' },
     { value: 'fragile', label: 'Hàng dễ vỡ' },
     { value: 'bulky', label: 'Hàng cồng kềnh' },
@@ -180,8 +182,11 @@ export function ShippingTab({ state, onUpdate }: ShippingTabProps) {
           Lớp giao hàng
         </Label>
         <Select
-          value={state.shippingClass || ''}
-          onValueChange={(value) => onUpdate({ shippingClass: value || undefined })}
+          value={state.shippingClass || '__none__'}
+          onValueChange={(value) => {
+            // Convert '__none__' to undefined when saving
+            onUpdate({ shippingClass: value === '__none__' ? undefined : value });
+          }}
         >
           <SelectTrigger id="shipping-class" className="w-full">
             <SelectValue />

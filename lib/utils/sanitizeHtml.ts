@@ -2,11 +2,13 @@
  * HTML Sanitization Utility
  * 
  * Sanitizes HTML content to prevent XSS attacks
- * Uses DOMPurify for client-side sanitization
+ * Uses isomorphic-dompurify for both client and server-side sanitization
  */
 
+import DOMPurify from 'isomorphic-dompurify';
+
 /**
- * Sanitize HTML content (client-side only)
+ * Sanitize HTML content (works on both client and server)
  * 
  * @param html - HTML string to sanitize
  * @returns Sanitized HTML string
@@ -22,17 +24,7 @@ export function sanitizeHtml(html: string | null | undefined): string {
     return '';
   }
 
-  // Client-side only - DOMPurify requires window object
-  if (typeof window === 'undefined') {
-    // Server-side: return as-is (will be sanitized on client)
-    // Note: In production, consider server-side sanitization
-    return html;
-  }
-
-  // Dynamic import for DOMPurify (client-side only)
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const DOMPurify = require('dompurify');
     return DOMPurify.sanitize(html, {
       // Allow common HTML tags for rich content
       ALLOWED_TAGS: [
@@ -46,7 +38,7 @@ export function sanitizeHtml(html: string | null | undefined): string {
       ],
       // Allow data attributes for custom functionality
       ALLOW_DATA_ATTR: true,
-      // Add rel="noopener noreferrer" to external links
+      // Add rel="noopener noreferrer" to external links automatically
       ADD_ATTR: ['target'],
       ADD_TAGS: [],
     });
@@ -60,22 +52,13 @@ export function sanitizeHtml(html: string | null | undefined): string {
 /**
  * Sanitize HTML content for server-side rendering
  * 
- * Note: This is a placeholder. For production, consider using
- * a server-side HTML sanitization library like `isomorphic-dompurify`
- * or `sanitize-html` (Node.js compatible)
+ * Note: Now uses isomorphic-dompurify which works on both client and server.
+ * This function is kept for backward compatibility but now just calls sanitizeHtml.
  * 
  * @param html - HTML string to sanitize
- * @returns Sanitized HTML string (or original if sanitization unavailable)
+ * @returns Sanitized HTML string
  */
 export function sanitizeHtmlServer(html: string | null | undefined): string {
-  if (!html || typeof html !== 'string') {
-    return '';
-  }
-
-  // Basic server-side sanitization (remove script tags)
-  // For production, use a proper server-side sanitization library
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '') // Remove event handlers
-    .replace(/javascript:/gi, ''); // Remove javascript: protocol
+  // Now uses the same implementation as sanitizeHtml (isomorphic-dompurify)
+  return sanitizeHtml(html);
 }

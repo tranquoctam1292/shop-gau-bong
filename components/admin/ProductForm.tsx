@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useToastContext } from '@/components/providers/ToastProvider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -22,7 +23,7 @@ import { ClassicEditor } from './products/ClassicEditor';
 import { ShortDescriptionEditor } from './products/ShortDescriptionEditor';
 import { ProductDataMetaBox, type ProductDataMetaBoxState, type ProductType } from './products/ProductDataMetaBox';
 import { StickyActionBar } from './products/ProductDataMetaBox/StickyActionBar';
-import { generateSlug } from '@/lib/utils/slug';
+import { generateSlug, generateShortId } from '@/lib/utils/slug';
 
 interface ProductVariant {
   id: string;
@@ -64,6 +65,8 @@ interface ProductFormData {
   seo?: SEOMetaBoxData;
   // Product Data Meta Box fields
   productDataMetaBox?: Partial<ProductDataMetaBoxState>;
+  // Optimistic locking version
+  version?: number;
   // Gift features
   giftFeatures?: {
     giftWrapping: boolean;
@@ -82,18 +85,22 @@ interface ProductFormProps {
 
 export function ProductForm({ productId, initialData }: ProductFormProps) {
   const router = useRouter();
+  const { showToast } = useToastContext();
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
   const [currentProductId, setCurrentProductId] = useState<string | undefined>(productId); // Track current product ID
   const [categories, setCategories] = useState<MappedCategory[]>([]);
   // Image URLs for display (separate from IDs stored in formData)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>(undefined);
-  const [galleryImages, setGalleryImages] = useState<Array<{id: string, thumbnail_url: string, title?: string}>>([]);
+  const [galleryImages, setGalleryImages] = useState<Array<{id: string, thumbnail_url: string, title?: string, altText?: string}>>([]);
+  // Local state for input fields to reduce rerenders (onBlur optimization)
+  const [localName, setLocalName] = useState<string>('');
   // Publish Box states
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [password, setPassword] = useState<string>('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [lastAutosaveTime, setLastAutosaveTime] = useState<Date | null>(null);
+  const [initialFormData, setInitialFormData] = useState<ProductFormData | null>(null);
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     slug: '',
@@ -136,14 +143,65 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     fetchCategories();
   }, []);
 
-  // Auto-generate slug from name
+  // Auto-generate slug from name with duplicate check
   useEffect(() => {
     if (!productId && formData.name && !formData.slug) {
-      const slug = generateSlug(formData.name);
-      setFormData((prev) => ({ ...prev, slug }));
+      const generateUniqueSlugAsync = async () => {
+        const baseSlug = generateSlug(formData.name);
+        if (!baseSlug) return;
+
+        // Check if slug exists
+        try {
+          const response = await fetch(`/api/admin/products/validate-slug?slug=${encodeURIComponent(baseSlug)}`);
+          const data = await response.json();
+          
+          if (data.exists) {
+            // Slug exists, generate unique one with random suffix
+            let attempts = 0;
+            let uniqueSlug = '';
+            
+            // Try up to 5 times to find a unique slug
+            while (attempts < 5) {
+              const suffix = generateShortId();
+              uniqueSlug = `${baseSlug}-${suffix}`;
+              
+              const checkResponse = await fetch(`/api/admin/products/validate-slug?slug=${encodeURIComponent(uniqueSlug)}`);
+              const checkData = await checkResponse.json();
+              
+              if (!checkData.exists) {
+                setFormData((prev) => ({ ...prev, slug: uniqueSlug }));
+                return;
+              }
+              
+              attempts++;
+            }
+            
+            // Fallback: use timestamp if all attempts failed
+            setFormData((prev) => ({ ...prev, slug: `${baseSlug}-${Date.now().toString(36)}` }));
+          } else {
+            // Slug is available
+            setFormData((prev) => ({ ...prev, slug: baseSlug }));
+          }
+        } catch (error) {
+          // On error, just use base slug (will be validated on submit)
+          console.error('Error checking slug:', error);
+          setFormData((prev) => ({ ...prev, slug: baseSlug }));
+        }
+      };
+
+      generateUniqueSlugAsync();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData.name, productId]); // formData.slug intentionally excluded to avoid infinite loop
+
+  // Sync localName when formData.name changes from external source (e.g., when product loads)
+  // This ensures localName stays in sync with formData.name without causing rerenders on every keystroke
+  useEffect(() => {
+    if (formData.name !== localName && formData.name) {
+      setLocalName(formData.name);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.name]); // Only sync when formData.name changes from external source
 
   // Đồng bộ tự động: Tên sản phẩm và Mô tả ngắn copy sang SEO nếu chưa điền
   useEffect(() => {
@@ -240,7 +298,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
             if (apiProduct.password) {
               setPassword(apiProduct.password);
             }
-            setFormData({
+            const loadedFormData: ProductFormData = {
               name: product.name,
               slug: product.slug,
               description: product.description || '',
@@ -275,7 +333,14 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               status: (apiProduct.status as 'draft' | 'publish' | 'trash') || 'draft',
               visibility: (apiProduct.visibility as 'public' | 'private' | 'password') || 'public',
               productDataMetaBox: metaBoxData,
-            });
+              mediaExtended: apiProduct.mediaExtended || {},
+              version: apiProduct.version || 0, // Load version for optimistic locking
+            };
+            setFormData(loadedFormData);
+            // Sync local state for input fields (onBlur optimization)
+            setLocalName(loadedFormData.name);
+            // Store initial data for dirty check
+            setInitialFormData(JSON.parse(JSON.stringify(loadedFormData)));
 
             // Set image URLs for display
             
@@ -292,7 +357,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               setThumbnailUrl(product.image.sourceUrl);
             }
 
-            // Set gallery images
+            // Set gallery images with alt text
+            const imageAltTexts = apiProduct.mediaExtended?.imageAltTexts || {};
             if (apiProduct._product_image_gallery) {
               // New structure: use gallery array if available
               if (apiProduct.gallery && Array.isArray(apiProduct.gallery)) {
@@ -300,23 +366,32 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
                   id: img.id?.toString() || '',
                   thumbnail_url: img.thumbnail_url || img.url,
                   title: img.title,
+                  altText: imageAltTexts[img.id?.toString() || ''] || '',
                 })));
               } else if (product.galleryImages && product.galleryImages.length > 0) {
                 // Fallback: map from galleryImages with IDs from _product_image_gallery
                 const galleryIds = apiProduct._product_image_gallery.split(',').filter(Boolean);
-                setGalleryImages(product.galleryImages.map((img: any, idx: number) => ({
-                  id: galleryIds[idx] || `gallery-${idx}`,
-                  thumbnail_url: img.sourceUrl || img.url,
-                  title: img.title || img.alt,
-                })));
+                setGalleryImages(product.galleryImages.map((img: any, idx: number) => {
+                  const imageId = galleryIds[idx] || `gallery-${idx}`;
+                  return {
+                    id: imageId,
+                    thumbnail_url: img.sourceUrl || img.url,
+                    title: img.title || img.alt,
+                    altText: imageAltTexts[imageId] || '',
+                  };
+                }));
               }
             } else if (product.galleryImages && product.galleryImages.length > 0) {
               // Old structure: map from galleryImages
-              setGalleryImages(product.galleryImages.map((img: any, idx: number) => ({
-                id: img.id?.toString() || `gallery-${idx}`,
-                thumbnail_url: img.sourceUrl || img.url,
-                title: img.title || img.alt,
-              })));
+              setGalleryImages(product.galleryImages.map((img: any, idx: number) => {
+                const imageId = img.id?.toString() || `gallery-${idx}`;
+                return {
+                  id: imageId,
+                  thumbnail_url: img.sourceUrl || img.url,
+                  title: img.title || img.alt,
+                  altText: imageAltTexts[imageId] || '',
+                };
+              }));
             }
           }
         } catch (error) {
@@ -331,7 +406,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   const preparePayload = () => {
     // Validate required fields
     if (!formData.name.trim()) {
-      alert('Vui lòng nhập tên sản phẩm');
+      showToast('Vui lòng nhập tên sản phẩm', 'error');
       return null;
     }
 
@@ -365,7 +440,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
     // Validate minPrice
     if (minPrice < 0 || isNaN(minPrice)) {
-      alert('Giá sản phẩm không hợp lệ');
+      showToast('Giá sản phẩm không hợp lệ', 'error');
       return null;
     }
 
@@ -402,6 +477,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       // Include image IDs in payload
       _thumbnail_id: formData._thumbnail_id || undefined,
       _product_image_gallery: formData._product_image_gallery || undefined,
+      // Include version for optimistic locking
+      version: formData.version || 0,
       // Include ProductDataMetaBox fields in payload
       sku: metaBoxData.sku || formData.sku,
       length: metaBoxData.length || formData.length,
@@ -457,9 +534,31 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     await handleSave('publish');
   };
 
+  // Check if form has unsaved changes
+  const isDirty = (): boolean => {
+    if (!productId && !currentProductId) {
+      // New product: check if any field is filled
+      return !!(formData.name || formData.slug || formData.description);
+    }
+    
+    if (!initialFormData) {
+      return false; // No initial data to compare
+    }
+    
+    // Deep compare formData with initialFormData
+    return JSON.stringify(formData) !== JSON.stringify(initialFormData);
+  };
+
   const handleSave = async (saveStatus: 'draft' | 'publish' | 'keep' = 'keep') => {
     // Prevent double submission
     if (isSubmitting) {
+      return;
+    }
+
+    // Check if form is dirty (only for "keep" status - "Lưu thay đổi")
+    if (saveStatus === 'keep' && !isDirty()) {
+      // No changes, show message and return
+      showToast('Không có thay đổi nào để lưu', 'info');
       return;
     }
 
@@ -520,18 +619,64 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        const errorData = await response.json().catch(() => ({}));
+        
+        // Handle optimistic locking conflict
+        if (response.status === 409 && errorData.code === 'VERSION_MISMATCH') {
+          showToast(
+            'Sản phẩm đã được chỉnh sửa bởi người khác. Vui lòng làm mới trang và thử lại.',
+            'error'
+          );
+          // Optionally refresh the product data
+          if (currentProductId) {
+            setTimeout(() => {
+              window.location.reload();
+            }, 2000); // Give user time to read the message
+          }
+          setIsSubmitting(false);
+          setLoading(false);
+          return;
+        }
+        
+        // Parse error message from server
+        let errorMessage = 'Có lỗi xảy ra khi lưu sản phẩm';
+        
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.details && Array.isArray(errorData.details)) {
+          // Zod validation errors
+          const firstError = errorData.details[0];
+          if (firstError?.path && firstError?.message) {
+            errorMessage = `${firstError.path.join('.')}: ${firstError.message}`;
+          }
+        }
+        
+        showToast(errorMessage, 'error');
         setIsSubmitting(false);
         setLoading(false);
         return;
       }
-
+      
       const result = await response.json();
+      
+      // Update version after successful save
+      const updatedVersion = result.product?.version;
+      if (updatedVersion !== undefined) {
+        setFormData((prev) => ({ ...prev, version: updatedVersion }));
+      }
       
       // Clear unsaved changes flag after successful save
       setHasUnsavedChanges(false);
       setLastAutosaveTime(new Date());
+      
+      // Update initialFormData after successful save (including new version)
+      const savedFormData = JSON.parse(JSON.stringify({
+        ...formData,
+        version: updatedVersion !== undefined ? updatedVersion : formData.version,
+      }));
+      setInitialFormData(savedFormData);
       
       // If creating new product, update productId immediately to prevent duplicate autosave
       if (!effectiveProductId && result.product?._id) {
@@ -544,9 +689,10 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         // Just refresh if editing
         router.refresh();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving product:', error);
-      alert('Có lỗi xảy ra khi lưu sản phẩm');
+      const errorMessage = error?.message || 'Có lỗi xảy ra khi lưu sản phẩm';
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
       setIsSubmitting(false);
@@ -623,7 +769,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
         if (!response.ok) {
           const error = await response.json();
-          alert(error.error || 'Có lỗi xảy ra');
+          const errorMessage = error?.error || error?.message || 'Có lỗi xảy ra';
+          showToast(errorMessage, 'error');
           return;
         }
 
@@ -631,7 +778,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         router.push('/admin/products');
       } catch (error: any) {
         console.error('Error deleting product:', error);
-        alert('Có lỗi xảy ra khi xóa sản phẩm');
+        showToast('Có lỗi xảy ra khi xóa sản phẩm', 'error');
       } finally {
         setLoading(false);
       }
@@ -726,6 +873,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       <FeaturedImageBox
         thumbnailId={formData._thumbnail_id}
         thumbnailUrl={thumbnailUrl}
+        altText={formData.mediaExtended?.imageAltTexts?.[formData._thumbnail_id || ''] || ''}
         onImageChange={(attachmentId, thumbUrl) => {
           setFormData((prev) => ({
             ...prev,
@@ -737,8 +885,30 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           setFormData((prev) => ({
             ...prev,
             _thumbnail_id: undefined,
+            mediaExtended: {
+              ...prev.mediaExtended,
+              imageAltTexts: {
+                ...prev.mediaExtended?.imageAltTexts,
+                [prev._thumbnail_id || '']: undefined,
+              },
+            },
           }));
           setThumbnailUrl(undefined);
+        }}
+        onAltTextChange={(altText) => {
+          if (formData._thumbnail_id) {
+            const thumbnailId = formData._thumbnail_id;
+            setFormData((prev) => ({
+              ...prev,
+              mediaExtended: {
+                ...prev.mediaExtended,
+                imageAltTexts: {
+                  ...prev.mediaExtended?.imageAltTexts,
+                  [thumbnailId]: altText,
+                },
+              },
+            }));
+          }
         }}
       />
 
@@ -748,9 +918,35 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         onImagesChange={(images) => {
           setGalleryImages(images);
           // Update _product_image_gallery with comma-separated IDs
+          // Also update alt texts in mediaExtended
+          const altTexts: Record<string, string> = {};
+          images.forEach((img) => {
+            if (img.altText) {
+              altTexts[img.id] = img.altText;
+            }
+          });
           setFormData((prev) => ({
             ...prev,
             _product_image_gallery: images.map(img => img.id).join(','),
+            mediaExtended: {
+              ...prev.mediaExtended,
+              imageAltTexts: {
+                ...prev.mediaExtended?.imageAltTexts,
+                ...altTexts,
+              },
+            },
+          }));
+        }}
+        onAltTextChange={(imageId, altText) => {
+          setFormData((prev) => ({
+            ...prev,
+            mediaExtended: {
+              ...prev.mediaExtended,
+              imageAltTexts: {
+                ...prev.mediaExtended?.imageAltTexts,
+                [imageId]: altText,
+              },
+            },
           }));
         }}
       />
@@ -772,8 +968,11 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       <Input
         type="text"
         placeholder="Nhập tên sản phẩm..."
-        value={formData.name}
-        onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+        value={localName}
+        onChange={(e) => setLocalName(e.target.value)}
+        onBlur={(e) => {
+          setFormData((prev) => ({ ...prev, name: e.target.value }));
+        }}
         className="text-2xl font-bold border-0 p-0 focus-visible:ring-0 focus-visible:ring-offset-0"
       />
     </div>
@@ -792,8 +991,11 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
             <Label htmlFor="name">Tên sản phẩm *</Label>
             <Input
               id="name"
-              value={formData.name}
-              onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              onBlur={(e) => {
+                setFormData((prev) => ({ ...prev, name: e.target.value }));
+              }}
               required
               className="mt-2"
             />

@@ -73,6 +73,32 @@ async function setupIndexes() {
     await collections.users.createIndex({ email: 1 }, { unique: true });
     console.log('   ✅ Users indexes created');
 
+    // Admin Users indexes (RBAC)
+    console.log('📦 Setting up admin_users indexes...');
+    await collections.adminUsers.createIndex({ username: 1 }, { unique: true });
+    await collections.adminUsers.createIndex({ email: 1 }, { unique: true });
+    await collections.adminUsers.createIndex({ role: 1 });
+    await collections.adminUsers.createIndex({ is_active: 1 });
+    await collections.adminUsers.createIndex({ token_version: 1 }); // V1.2: For token revocation
+    await collections.adminUsers.createIndex({ created_by: 1 });
+    console.log('   ✅ Admin users indexes created');
+
+    // Admin Activity Logs indexes (RBAC)
+    console.log('📦 Setting up admin_activity_logs indexes...');
+    await collections.adminActivityLogs.createIndex({ admin_id: 1, createdAt: -1 });
+    await collections.adminActivityLogs.createIndex({ action: 1 });
+    await collections.adminActivityLogs.createIndex({ target_collection: 1, target_id: 1 });
+    await collections.adminActivityLogs.createIndex({ createdAt: -1 });
+    console.log('   ✅ Admin activity logs indexes created');
+
+    // Rate Limits indexes (Serverless Rate Limiting)
+    console.log('📦 Setting up rate_limits indexes...');
+    await collections.rateLimits.createIndex({ key: 1 }, { unique: true });
+    // TTL index: Automatically delete expired entries after resetAt time
+    await collections.rateLimits.createIndex({ resetAt: 1 }, { expireAfterSeconds: 0 });
+    await collections.rateLimits.createIndex({ createdAt: 1 });
+    console.log('   ✅ Rate limits indexes created (with TTL auto-cleanup)');
+
     // Banners indexes
     console.log('📦 Setting up banners indexes...');
     await collections.banners.createIndex({ position: 1 });
@@ -206,6 +232,9 @@ async function setupIndexes() {
       { name: 'menus', collection: collections.menus },
       { name: 'menu_items', collection: collections.menuItems },
       { name: 'media', collection: collections.media },
+      { name: 'admin_users', collection: collections.adminUsers },
+      { name: 'admin_activity_logs', collection: collections.adminActivityLogs },
+      { name: 'rate_limits', collection: collections.rateLimits },
     ];
 
     for (const { name, collection } of allCollections) {

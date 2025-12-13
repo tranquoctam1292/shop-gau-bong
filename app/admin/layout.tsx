@@ -29,7 +29,10 @@ import {
   List,
   Menu,
   Image,
+  Users,
+  Shield,
 } from 'lucide-react';
+import { AdminRole } from '@/types/admin';
 
 function AdminLayoutContent({
   children,
@@ -40,8 +43,9 @@ function AdminLayoutContent({
   const router = useRouter();
   const pathname = usePathname();
 
-  // Don't redirect if on login page
+  // Don't redirect if on login page or change password page
   const isLoginPage = pathname === '/admin/login';
+  const isChangePasswordPage = pathname === '/admin/change-password';
 
   // Check if products submenu should be expanded
   const isProductsPath = pathname.startsWith('/admin/products') || 
@@ -66,13 +70,14 @@ function AdminLayoutContent({
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated
     // Don't redirect during loading state - wait for session to be determined
-    if (!isLoginPage && status === 'unauthenticated') {
+    // Allow change password page without authentication (user may need to change password on first login)
+    if (!isLoginPage && !isChangePasswordPage && status === 'unauthenticated') {
       router.push('/admin/login');
     }
-  }, [status, router, isLoginPage]);
+  }, [status, router, isLoginPage, isChangePasswordPage]);
 
-  // For login page, render without sidebar
-  if (isLoginPage) {
+  // For login page or change password page, render without sidebar
+  if (isLoginPage || isChangePasswordPage) {
     return (
       <div className="min-h-screen bg-gray-50">
         {children}
@@ -98,11 +103,29 @@ function AdminLayoutContent({
     return null; // Will redirect via useEffect
   }
 
-  if (!session || (session.user as any)?.role !== 'admin') {
+  // CRITICAL FIX: Use AdminRole enum instead of hardcoded strings
+  // RBAC: Check if user has any admin role
+  const userRole = (session?.user as any)?.role;
+  const validAdminRoles = Object.values(AdminRole); // Get all enum values
+  // Also allow legacy 'admin' role for backward compatibility
+  const isValidRole = userRole && (validAdminRoles.includes(userRole) || userRole === 'admin');
+  
+  if (!session || !isValidRole) {
     return null;
   }
 
+  // CRITICAL FIX: Log logout activity before signOut
   const handleLogout = async () => {
+    try {
+      // Call logout API to log activity before clearing session
+      await fetch('/api/admin/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      // Continue with logout even if API call fails
+      console.error('[Logout] Error logging activity:', error);
+    }
     await signOut({ callbackUrl: '/admin/login' });
   };
 
@@ -116,6 +139,9 @@ function AdminLayoutContent({
       icon?: React.ComponentType<{ className?: string }>;
     }>;
   }
+
+  // Check if user is SUPER_ADMIN to show Users menu
+  const isSuperAdmin = (session.user as any)?.role === 'SUPER_ADMIN';
 
   const navItems: NavItem[] = [
     { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -136,6 +162,21 @@ function AdminLayoutContent({
     { href: '/admin/posts', label: 'Bài viết', icon: FileText },
     { href: '/admin/authors', label: 'Tác giả', icon: User },
     { href: '/admin/comments', label: 'Bình luận', icon: MessageSquare },
+    // Only show Users menu for SUPER_ADMIN
+    ...(isSuperAdmin
+      ? [
+          {
+            href: '/admin/users',
+            label: 'Quản lý tài khoản',
+            icon: Users,
+          } as NavItem,
+        ]
+      : []),
+    {
+      href: '/admin/settings/security',
+      label: 'Bảo mật',
+      icon: Shield,
+    },
   ];
 
   const toggleMenu = (menuKey: string) => {

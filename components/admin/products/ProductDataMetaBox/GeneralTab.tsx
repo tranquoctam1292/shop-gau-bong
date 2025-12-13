@@ -8,6 +8,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { DollarSign, TrendingUp, Percent, Calendar, Upload, X, File } from 'lucide-react';
 import type { ProductDataMetaBoxState } from './ProductDataMetaBox';
 import { DownloadableFilesSection } from './DownloadableFilesSection';
+import { PriceInput } from '../PriceInput';
 
 interface GeneralTabProps {
   state: ProductDataMetaBoxState;
@@ -70,22 +71,6 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
     return new Intl.NumberFormat('vi-VN').format(value);
   };
 
-  // Handle price change with validation
-  const handlePriceChange = (field: 'costPrice' | 'regularPrice' | 'salePrice', value: string) => {
-    const numValue = value === '' ? undefined : parseFloat(value);
-    
-    // Validation
-    if (numValue !== undefined && numValue < 0) {
-      return;
-    }
-    
-    // Sale price must be less than regular price
-    if (field === 'salePrice' && numValue !== undefined && state.regularPrice && numValue >= state.regularPrice) {
-      return; // Don't update if invalid
-    }
-
-    onUpdate({ [field]: numValue });
-  };
 
   return (
     <div className="space-y-6">
@@ -103,21 +88,12 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
           Giá vốn
           <span className="text-xs text-muted-foreground font-normal">(Tùy chọn)</span>
         </Label>
-        <div className="relative">
-          <Input
-            id="cost-price"
-            type="number"
-            step="1000"
-            min="0"
-            placeholder="0"
-            value={state.costPrice || ''}
-            onChange={(e) => handlePriceChange('costPrice', e.target.value)}
-            className="pr-20"
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-            đ
-          </span>
-        </div>
+        <PriceInput
+          id="cost-price"
+          placeholder="0"
+          value={state.costPrice}
+          onChange={(value) => onUpdate({ costPrice: value })}
+        />
         <p className="text-xs text-muted-foreground">
           Giá vốn dùng để tính toán lợi nhuận. Chỉ hiển thị cho admin.
         </p>
@@ -130,22 +106,13 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
           Giá bán thường
           <span className="text-red-500">*</span>
         </Label>
-        <div className="relative">
-          <Input
-            id="regular-price"
-            type="number"
-            step="1000"
-            min="0"
-            placeholder="0"
-            required
-            value={state.regularPrice || ''}
-            onChange={(e) => handlePriceChange('regularPrice', e.target.value)}
-            className="pr-20"
-          />
-          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-            đ
-          </span>
-        </div>
+        <PriceInput
+          id="regular-price"
+          placeholder="0"
+          required
+          value={state.regularPrice}
+          onChange={(value) => onUpdate({ regularPrice: value })}
+        />
         {/* Real-time Profit Calculation */}
         {profit && state.costPrice && (
           <div className="flex items-center gap-2 text-sm">
@@ -165,22 +132,19 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
             Giá khuyến mãi
             <span className="text-xs text-muted-foreground font-normal">(Tùy chọn)</span>
           </Label>
-          <div className="relative">
-            <Input
-              id="sale-price"
-              type="number"
-              step="1000"
-              min="0"
-              placeholder="0"
-              value={state.salePrice || ''}
-              onChange={(e) => handlePriceChange('salePrice', e.target.value)}
-              className="pr-20"
-              disabled={!state.regularPrice}
-            />
-            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-              đ
-            </span>
-          </div>
+          <PriceInput
+            id="sale-price"
+            placeholder="0"
+            value={state.salePrice}
+            onChange={(value) => {
+              // Validate: salePrice must be less than regularPrice
+              if (value !== undefined && state.regularPrice && value >= state.regularPrice) {
+                return; // Don't update if invalid
+              }
+              onUpdate({ salePrice: value });
+            }}
+            disabled={!state.regularPrice}
+          />
           {state.salePrice && state.regularPrice && discountPercent && (
             <div className="flex items-center gap-2 text-sm">
               <Percent className="h-4 w-4 text-orange-600" />

@@ -77,32 +77,54 @@ try {
 
 ### 4. Utilities
 
-#### `scripts/create-admin-user.ts`
-- ✅ Script để tạo admin user đầu tiên
-- ✅ Hash password với bcryptjs
-- ✅ Update existing user nếu đã tồn tại
+#### Admin User Scripts (RBAC System)
 
-**Usage:**
+**1. Create Single Admin User:**
 ```bash
 npm run create:admin-user
 ```
 
+**2. Seed Sample Users (5 users with different roles):**
+```bash
+npm run seed:admin-users
+```
+
+**3. Migrate from old users collection:**
+```bash
+npm run migrate:users-to-admin-users
+```
+
 **Environment Variables:**
 ```env
+ADMIN_USERNAME=admin
 ADMIN_EMAIL=admin@example.com
 ADMIN_PASSWORD=admin123
 ADMIN_NAME=Admin User
+ADMIN_ROLE=SUPER_ADMIN
 ```
+
+**See:** `docs/ADMIN_ACCOUNT_RBAC_USER_GUIDE.md` for detailed usage instructions.
 
 ## Features
 
-### ✅ Authentication
+### ✅ Authentication & Authorization (RBAC System - V1.2)
 
 - **NextAuth.js** với Credentials provider
-- **MongoDB** user storage
-- **bcryptjs** password hashing
+- **MongoDB** admin_users collection storage
+- **RBAC (Role-Based Access Control)** with 5 roles:
+  - SUPER_ADMIN - Full access
+  - PRODUCT_MANAGER - Products & Categories management
+  - ORDER_MANAGER - Orders management
+  - CONTENT_EDITOR - Blog, Pages & Media management
+  - VIEWER - Read-only access
+- **bcryptjs** password hashing (12 rounds in production)
 - **JWT** session strategy
-- **Admin role** check
+- **Token Revocation (V1.2)** - Force logout all devices
+- **Rate Limiting** - 5 attempts per 15 minutes on login
+- **Audit Logging** - All admin actions logged
+- **Password Strength Validation** - Minimum 8 chars, uppercase, lowercase, number
+- **Cookie Security (V1.2)** - httpOnly, Secure, SameSite=Strict
+- **HTTP Security Headers (V1.2)** - XSS, Clickjacking, MIME sniffing protection
 
 ### ✅ Admin Dashboard
 
@@ -192,37 +214,54 @@ This will create an admin user in MongoDB with:
 
 ## Database Schema
 
-### Users Collection
+### Admin Users Collection (RBAC System)
 
 ```typescript
 {
   _id: ObjectId,
-  email: string,
-  password: string, // bcrypt hashed
-  name: string,
-  role: 'admin' | 'editor' | 'user',
+  username: string, // Unique, for login
+  email: string, // Unique
+  password_hash: string, // bcrypt hashed
+  full_name: string,
+  role: AdminRole, // SUPER_ADMIN | PRODUCT_MANAGER | ORDER_MANAGER | CONTENT_EDITOR | VIEWER
+  permissions?: Permission[], // Custom permissions (override role)
+  is_active: boolean,
+  must_change_password: boolean,
+  token_version: number, // V1.2: For token revocation
+  last_login?: Date,
+  created_by?: ObjectId, // Reference to AdminUser._id
   createdAt: Date,
   updatedAt: Date,
 }
 ```
 
+**See also:**
+- `docs/ADMIN_ACCOUNT_RBAC_API.md` - Complete API documentation
+- `docs/ADMIN_ACCOUNT_RBAC_USER_GUIDE.md` - User guide
+- `docs/ADMIN_ACCOUNT_RBAC_PLAN.md` - Implementation plan
+
 ## Security Considerations
 
-### ✅ Implemented
+### ✅ Implemented (RBAC System V1.2)
 
-- Password hashing với bcryptjs
-- JWT session strategy
-- Admin role check
-- Protected API routes
-- Protected admin pages
+- ✅ Password hashing với bcryptjs (12 rounds in production)
+- ✅ JWT session strategy với token version tracking
+- ✅ RBAC with 5 roles and granular permissions
+- ✅ Protected API routes với permission checks
+- ✅ Protected admin pages với PermissionGuard
+- ✅ Password strength requirements (min 8 chars, uppercase, lowercase, number)
+- ✅ Rate limiting cho login (5 attempts / 15 min)
+- ✅ Audit logging cho all admin actions
+- ✅ Token revocation (V1.2) - Force logout all devices
+- ✅ Cookie security (V1.2) - httpOnly, Secure, SameSite=Strict
+- ✅ HTTP Security Headers (V1.2) - XSS, Clickjacking, MIME sniffing protection
 
-### ⚠️ TODO
+### ⚠️ Future Enhancements
 
-- [ ] Password strength requirements
-- [ ] Rate limiting cho login
 - [ ] Two-factor authentication (optional)
-- [ ] Session timeout
-- [ ] Audit logging
+- [ ] Session timeout configurable
+- [ ] IP whitelisting for SUPER_ADMIN
+- [ ] Email notifications for security events
 
 ## Next Steps
 

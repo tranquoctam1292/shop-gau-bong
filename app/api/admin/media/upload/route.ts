@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/authOptions';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { uploadToBlob } from '@/lib/utils/vercelBlob';
 
 // Maximum file size: 10MB
@@ -22,17 +21,10 @@ const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_VIDEO_TYPES];
  * Requires admin authentication
  */
 export async function POST(request: NextRequest) {
-  try {
-    // Check authentication
-    const session = await getServerSession(authOptions);
-    if (!session || (session.user as any)?.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
-    }
-
-    const formData = await request.formData();
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      // Permission: media:upload (checked by middleware)
+      const formData = await req.formData();
     const file = formData.get('file') as File;
 
     if (!file) {
@@ -87,5 +79,6 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to upload media file' },
       { status: 500 }
     );
-  }
+    }
+  }, 'media:upload');
 }
