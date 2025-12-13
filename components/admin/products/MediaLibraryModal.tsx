@@ -53,6 +53,7 @@ export function MediaLibraryModal({
   const [selectedMedia, setSelectedMedia] = useState<MediaItem | null>(null);
   const [selectedMediaMultiple, setSelectedMediaMultiple] = useState<MediaItem[]>([]); // For multiple selection
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
+  const [loadingMedia, setLoadingMedia] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   
@@ -102,14 +103,48 @@ export function MediaLibraryModal({
     }
   }, [isOpen, selectedIds, mediaItems, mode]);
 
-  // Load media library on mount
+  // Load media library from API when modal opens and library tab is active
   useEffect(() => {
-    if (isOpen) {
-      // TODO: Fetch media from API
-      // For now, use empty array
+    if (isOpen && activeTab === 'library') {
+      const fetchMedia = async () => {
+        setLoadingMedia(true);
+        try {
+          const response = await fetch('/api/admin/media?page=1&limit=100&sort=newest');
+          if (!response.ok) {
+            throw new Error('Failed to fetch media');
+          }
+          const result = await response.json();
+          
+          if (result.success && result.data) {
+            // Map API response to MediaItem format
+            const mappedItems: MediaItem[] = result.data.map((item: any) => ({
+              id: item._id,
+              url: item.url,
+              thumbnail_url: item.thumbnail_url || (item.type === 'image' ? item.url : undefined),
+              type: item.type === 'image' ? 'image' : item.type === 'video' ? 'video' : 'file',
+              alt: item.altText || item.name,
+              title: item.name,
+              caption: item.caption,
+              description: item.description,
+            }));
+            setMediaItems(mappedItems);
+          } else {
+            setMediaItems([]);
+          }
+        } catch (error) {
+          console.error('Error fetching media:', error);
+          setMediaItems([]);
+        } finally {
+          setLoadingMedia(false);
+        }
+      };
+      
+      fetchMedia();
+    } else if (!isOpen) {
+      // Reset media items when modal closes
       setMediaItems([]);
     }
-  }, [isOpen]);
+  }, [isOpen, activeTab]);
 
   const handleFileSelect = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -141,7 +176,8 @@ export function MediaLibraryModal({
         const uploadFormData = new FormData();
         uploadFormData.append('file', file);
 
-        const uploadResponse = await fetch('/api/admin/media/upload', {
+        // Use new Media Library API endpoint
+        const uploadResponse = await fetch('/api/admin/media', {
           method: 'POST',
           body: uploadFormData,
         });
@@ -154,13 +190,16 @@ export function MediaLibraryModal({
         const uploadResult = await uploadResponse.json();
         setUploadProgress((prev) => ({ ...prev, [fileId]: 100 }));
 
+        // Map new API response format to MediaItem
         const mediaItem: MediaItem = {
-          id: uploadResult.id || fileId,
-          url: uploadResult.url,
-          thumbnail_url: uploadResult.thumbnail_url || (file.type.startsWith('image/') ? uploadResult.url : undefined),
-          type: uploadResult.type || (file.type.startsWith('image/') ? 'image' : 'video'),
-          title: uploadResult.title || file.name.replace(/\.[^/.]+$/, ''),
-          alt: uploadResult.alt || file.name.replace(/\.[^/.]+$/, ''),
+          id: uploadResult.data._id || fileId,
+          url: uploadResult.data.url,
+          thumbnail_url: uploadResult.data.thumbnail_url || (file.type.startsWith('image/') ? uploadResult.data.url : undefined),
+          type: uploadResult.data.type === 'image' ? 'image' : uploadResult.data.type === 'video' ? 'video' : 'file',
+          title: uploadResult.data.name || file.name.replace(/\.[^/.]+$/, ''),
+          alt: uploadResult.data.altText || file.name.replace(/\.[^/.]+$/, ''),
+          caption: uploadResult.data.caption,
+          description: uploadResult.data.description,
         };
 
         newItems.push(mediaItem);
@@ -175,7 +214,39 @@ export function MediaLibraryModal({
       }
     }
 
-    setMediaItems((prev) => [...prev, ...newItems]);
+    // Refresh media list from API after upload to ensure sync with main Media Library
+    // This ensures modal shows all media including newly uploaded ones
+    if (activeTab === 'library') {
+      const refreshMedia = async () => {
+        try {
+          const response = await fetch('/api/admin/media?page=1&limit=100&sort=newest');
+          if (response.ok) {
+            const result = await response.json();
+            if (result.success && result.data) {
+              const mappedItems: MediaItem[] = result.data.map((item: any) => ({
+                id: item._id,
+                url: item.url,
+                thumbnail_url: item.thumbnail_url || (item.type === 'image' ? item.url : undefined),
+                type: item.type === 'image' ? 'image' : item.type === 'video' ? 'video' : 'file',
+                alt: item.altText || item.name,
+                title: item.name,
+                caption: item.caption,
+                description: item.description,
+              }));
+              setMediaItems(mappedItems);
+            }
+          }
+        } catch (error) {
+          console.error('Error refreshing media:', error);
+          // Fallback: add new items to existing list if refresh fails
+          setMediaItems((prev) => [...prev, ...newItems]);
+        }
+      };
+      refreshMedia();
+    } else {
+      // If not on library tab, just add to list
+      setMediaItems((prev) => [...prev, ...newItems]);
+    }
     setUploading(false);
     setUploadProgress({});
 
@@ -505,7 +576,12 @@ export function MediaLibraryModal({
               </div>
             ) : (
               <div>
-                {mediaItems.length === 0 ? (
+                {loadingMedia ? (
+                  <div className="text-center py-12">
+                    <Loader2 className="h-16 w-16 mx-auto text-muted-foreground mb-4 animate-spin" />
+                    <p className="text-muted-foreground">Đang tải media...</p>
+                  </div>
+                ) : mediaItems.length === 0 ? (
                   <div className="text-center py-12">
                     <ImageIcon className="h-16 w-16 mx-auto text-muted-foreground mb-4" />
                     <p className="text-muted-foreground">Chưa có media nào</p>

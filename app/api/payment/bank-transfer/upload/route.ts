@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { writeFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 import { existsSync } from 'fs';
+import { validateBankTransferFile } from '@/lib/validations/payment';
 
 /**
  * API Route: Upload bank transfer receipt
@@ -14,26 +15,27 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File;
     const orderId = formData.get('orderId') as string;
 
+    // Validate required fields
     if (!file || !orderId) {
       return NextResponse.json(
-        { error: 'Missing file or orderId' },
+        { error: 'Thiếu file hoặc Order ID' },
         { status: 400 }
       );
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
-    if (!allowedTypes.includes(file.type)) {
+    // Validate orderId
+    if (!orderId.trim()) {
       return NextResponse.json(
-        { error: 'Invalid file type. Only JPG, PNG, and PDF are allowed.' },
+        { error: 'Order ID không được để trống' },
         { status: 400 }
       );
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate file using validation helper
+    const fileValidation = validateBankTransferFile(file);
+    if (!fileValidation.valid) {
       return NextResponse.json(
-        { error: 'File size exceeds 5MB limit' },
+        { error: fileValidation.error },
         { status: 400 }
       );
     }

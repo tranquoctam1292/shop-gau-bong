@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { handleValidationError } from '@/lib/utils/validation-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -166,14 +167,10 @@ export async function PUT(
     
     return NextResponse.json({ post: updatedPost });
   } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          error: 'Validation error',
-          details: error.errors,
-        },
-        { status: 400 }
-      );
+    // Handle Zod validation errors
+    const validationError = handleValidationError(error);
+    if (validationError) {
+      return validationError;
     }
     
     console.error('[Admin Post API] Error:', error);

@@ -1,7 +1,12 @@
 /**
  * Vietnam Address Data Utility
  * 
- * Load và parse dữ liệu tỉnh thành, quận huyện, phường xã từ vietnam-seo-2.json
+ * Load và parse dữ liệu tỉnh thành, quận huyện, phường xã từ API routes
+ * 
+ * Note: Đã chuyển từ public JSON file sang API routes để tối ưu:
+ * - Giảm bundle size (không load toàn bộ 1MB JSON)
+ * - Tăng bảo mật (data không expose trực tiếp)
+ * - Lazy loading theo nhu cầu (provinces, districts, wards)
  */
 
 export interface City {
@@ -23,79 +28,91 @@ export interface Ward {
   // cityId is inferred from the district
 }
 
-interface VietnamAddressData {
-  city: City[];
-  district: District[];
-  ward: Ward[];
-}
-
-let addressData: VietnamAddressData | null = null;
-
 /**
- * Load address data from JSON file
- * Lazy load để tránh load toàn bộ dữ liệu khi không cần
+ * Get all cities (provinces) from API
  */
-export async function loadAddressData(): Promise<VietnamAddressData> {
-  if (addressData) {
-    return addressData;
-  }
-
+export async function getCities(): Promise<City[]> {
   try {
-    const response = await fetch('/vietnam-seo-2.json');
+    const response = await fetch('/api/locations/provinces', {
+      cache: 'force-cache', // Cache for better performance
+    });
+    
     if (!response.ok) {
-      throw new Error('Failed to load address data');
+      throw new Error('Failed to load provinces');
     }
+    
     const data = await response.json();
-    addressData = data as VietnamAddressData;
-    return addressData;
+    return data.provinces || [];
   } catch (error) {
-    console.error('Error loading address data:', error);
+    console.error('Error loading cities:', error);
     throw error;
   }
 }
 
 /**
- * Get all cities (provinces)
- */
-export async function getCities(): Promise<City[]> {
-  const data = await loadAddressData();
-  return data.city || [];
-}
-
-/**
- * Get districts by city ID
+ * Get districts by city ID from API
  */
 export async function getDistrictsByCity(cityId: string): Promise<District[]> {
-  const data = await loadAddressData();
-  if (!data.district) return [];
-  return data.district.filter((d) => d.cityId === cityId);
+  if (!cityId) {
+    return [];
+  }
+
+  try {
+    const response = await fetch(`/api/locations/districts?provinceId=${encodeURIComponent(cityId)}`, {
+      cache: 'force-cache', // Cache for better performance
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to load districts');
+    }
+    
+    const data = await response.json();
+    return data.districts || [];
+  } catch (error) {
+    console.error('Error loading districts:', error);
+    throw error;
+  }
 }
 
 /**
- * Get wards by city ID and district ID
+ * Get wards by city ID and district ID from API
  * 
  * Note: Ward objects in JSON only have districtId, wardId, and name
- * (no cityId field). So we filter by districtId only, but verify
- * that the district belongs to the city first for safety.
+ * (no cityId field). We verify that the district belongs to the city first for safety.
  */
 export async function getWardsByDistrict(
   cityId: string,
   districtId: string
 ): Promise<Ward[]> {
-  const data = await loadAddressData();
-  if (!data.ward) return [];
-  
-  // Verify that the district belongs to the city
-  const districts = await getDistrictsByCity(cityId);
-  const districtExists = districts.some((d) => d.districtId === districtId);
-  
-  if (!districtExists) {
-    console.warn(`District ${districtId} does not belong to city ${cityId}`);
+  if (!cityId || !districtId) {
     return [];
   }
-  
-  // Filter wards by districtId only (ward objects don't have cityId)
-  return data.ward.filter((w) => w.districtId === districtId);
+
+  try {
+    // Verify that the district belongs to the city first
+    const districts = await getDistrictsByCity(cityId);
+    const districtExists = districts.some((d) => d.districtId === districtId);
+    
+    if (!districtExists) {
+      console.warn(`District ${districtId} does not belong to city ${cityId}`);
+      return [];
+    }
+    
+    // Get wards by districtId
+    const response = await fetch(`/api/locations/wards?districtId=${encodeURIComponent(districtId)}`, {
+      cache: 'force-cache', // Cache for better performance
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to load wards');
+    }
+    
+    const data = await response.json();
+    return data.wards || [];
+  } catch (error) {
+    console.error('Error loading wards:', error);
+    throw error;
+  }
 }
 
 /**
@@ -134,8 +151,24 @@ export async function getWardById(
  * Useful for cases where you already know the district is valid
  */
 export async function getWardsByDistrictId(districtId: string): Promise<Ward[]> {
-  const data = await loadAddressData();
-  if (!data.ward) return [];
-  return data.ward.filter((w) => w.districtId === districtId);
+  if (!districtId) {
+    return [];
+  }
+
+  try {
+    const response = await fetch(`/api/locations/wards?districtId=${encodeURIComponent(districtId)}`, {
+      cache: 'force-cache', // Cache for better performance
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to load wards');
+    }
+    
+    const data = await response.json();
+    return data.wards || [];
+  } catch (error) {
+    console.error('Error loading wards:', error);
+    throw error;
+  }
 }
 

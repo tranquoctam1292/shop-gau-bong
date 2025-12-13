@@ -10,7 +10,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save, RotateCcw, Image as ImageIcon, X } from 'lucide-react';
 import { generateSlug } from '@/lib/utils/slug';
 import { SearchableCategorySelect } from './SearchableCategorySelect';
-import { MediaLibraryModal, type MediaItem } from './products/MediaLibraryModal';
+import { MediaPicker } from '@/components/admin/media/MediaPicker';
+import type { MediaPickerValue } from '@/components/admin/media/MediaPicker';
 import type { MappedCategory } from '@/lib/utils/productMapper';
 
 interface CategoryFormData {
@@ -37,7 +38,6 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
   const [categories, setCategories] = useState<MappedCategory[]>([]);
   const [slugError, setSlugError] = useState<string>('');
   const [circularRefWarning, setCircularRefWarning] = useState<string>('');
-  const [showMediaModal, setShowMediaModal] = useState(false);
   const [formData, setFormData] = useState<CategoryFormData>({
     name: '',
     slug: '',
@@ -296,64 +296,37 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
           </div>
 
           <div>
-            <Label htmlFor="imageUrl">Hình ảnh đại diện</Label>
-            <div className="space-y-2">
-              {formData.imageUrl ? (
-                <div className="space-y-2">
-                  <div className="relative w-32 h-32 border rounded overflow-hidden">
-                    <img
-                      src={formData.imageUrl}
-                      alt="Preview"
-                      className="w-full h-full object-cover"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none';
-                      }}
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowMediaModal(true)}
-                    >
-                      <ImageIcon className="w-4 h-4 mr-2" />
-                      Thay đổi ảnh
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setFormData((prev) => ({ ...prev, imageUrl: '' }))}
-                    >
-                      <X className="w-4 h-4 mr-2" />
-                      Xóa ảnh
-                    </Button>
-                  </div>
-                </div>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowMediaModal(true)}
-                  className="w-full"
-                >
-                  <ImageIcon className="w-4 h-4 mr-2" />
-                  Thiết lập ảnh đại diện
-                </Button>
-              )}
-              {/* Fallback: URL input */}
-              <div className="text-xs text-gray-500">
-                Hoặc nhập URL:
-              </div>
-              <Input
-                id="imageUrl"
-                type="url"
-                value={formData.imageUrl || ''}
-                onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
-                placeholder="https://example.com/image.jpg"
-              />
+            <Label>Hình ảnh đại diện</Label>
+            <MediaPicker
+              value={formData.imageUrl ? {
+                _id: '',
+                url: formData.imageUrl,
+                name: 'Category Image',
+                type: 'image',
+                thumbnail_url: formData.imageUrl,
+              } : undefined}
+              onChange={(value) => {
+                const mediaValue = Array.isArray(value) ? value[0] : value;
+                setFormData((prev) => ({
+                  ...prev,
+                  imageUrl: mediaValue?.url || '',
+                }));
+              }}
+              multiple={false}
+              type="image"
+            />
+            {/* Fallback: URL input */}
+            <div className="text-xs text-gray-500 mt-2">
+              Hoặc nhập URL:
             </div>
+            <Input
+              id="imageUrl"
+              type="url"
+              value={formData.imageUrl || ''}
+              onChange={(e) => setFormData((prev) => ({ ...prev, imageUrl: e.target.value }))}
+              placeholder="https://example.com/image.jpg"
+              className="mt-1"
+            />
             <p className="text-xs text-gray-500 mt-1">
               Khuyến nghị: 500x500px, định dạng JPG/PNG/WEBP, tối đa 2MB
             </p>
@@ -453,21 +426,6 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
         </Button>
       </div>
 
-      {/* Media Library Modal */}
-      <MediaLibraryModal
-        isOpen={showMediaModal}
-        onClose={() => setShowMediaModal(false)}
-        onSelect={(items) => {
-          const item = Array.isArray(items) ? items[0] : items;
-          setFormData((prev) => ({
-            ...prev,
-            imageUrl: item.thumbnail_url || item.url,
-          }));
-          setShowMediaModal(false);
-        }}
-        mode="single"
-        buttonText="Thiết lập ảnh đại diện"
-      />
     </form>
   );
 }

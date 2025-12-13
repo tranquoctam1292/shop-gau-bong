@@ -28,6 +28,7 @@ import {
   Plus,
   List,
   Menu,
+  Image,
 } from 'lucide-react';
 
 function AdminLayoutContent({
@@ -130,6 +131,7 @@ function AdminLayoutContent({
       ],
     },
     { href: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
+    { href: '/admin/media', label: 'Media', icon: Image },
     { href: '/admin/menus', label: 'Menu', icon: Menu },
     { href: '/admin/posts', label: 'Bài viết', icon: FileText },
     { href: '/admin/authors', label: 'Tác giả', icon: User },

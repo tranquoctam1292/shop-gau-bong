@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateVietQR, formatAmountForVietQR, formatAddInfoForVietQR } from '@/lib/services/vietqr';
+import { vietqrPaymentSchema } from '@/lib/validations/payment';
+import { z } from 'zod';
 
 /**
  * API Route: Generate VietQR Code
@@ -17,15 +19,10 @@ import { generateVietQR, formatAmountForVietQR, formatAddInfoForVietQR } from '@
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orderId, amount, accountNo, accountName, acqId } = body;
-
-    // Validate required fields
-    if (!orderId || !amount || !accountNo || !accountName || !acqId) {
-      return NextResponse.json(
-        { error: 'Thiếu thông tin bắt buộc' },
-        { status: 400 }
-      );
-    }
+    
+    // Validate input with Zod
+    const validatedData = vietqrPaymentSchema.parse(body);
+    const { orderId, amount, accountNo, accountName, acqId } = validatedData;
 
     // Generate QR code
     const qrCodeUrl = await generateVietQR({
@@ -43,6 +40,21 @@ export async function POST(request: NextRequest) {
       paymentContent: formatAddInfoForVietQR(orderId),
     });
   } catch (error: any) {
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          error: 'Dữ liệu không hợp lệ',
+          details: error.errors.map((err) => ({
+            field: err.path.join('.'),
+            message: err.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Handle other errors
     console.error('VietQR API error:', error);
     return NextResponse.json(
       { error: error.message || 'Không thể tạo QR code' },

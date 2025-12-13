@@ -19,6 +19,7 @@ import {
   createPaymentStatusChangeHistory,
   type ActorType,
 } from '@/lib/services/orderHistory';
+import { handleValidationError } from '@/lib/utils/validation-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -303,14 +304,10 @@ export async function PUT(
     
     return NextResponse.json({ order: updatedOrder });
   } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          error: 'Validation error',
-          details: error.errors,
-        },
-        { status: 400 }
-      );
+    // Handle Zod validation errors
+    const validationError = handleValidationError(error);
+    if (validationError) {
+      return validationError;
     }
     
     console.error('[Admin Order API] Error:', error);

@@ -169,6 +169,18 @@ async function setupIndexes() {
     await collections.menuItems.createIndex({ parentId: 1 }); // For finding children
     console.log('   ✅ Menu items indexes created');
 
+    // Media Library indexes (Media Library Phase 1)
+    console.log('📦 Setting up media indexes...');
+    await collections.media.createIndex({ name: 'text', altText: 'text' }); // Text search
+    await collections.media.createIndex({ type: 1 });                       // Filter by type
+    await collections.media.createIndex({ createdAt: -1 });                 // Sort newest
+    await collections.media.createIndex({ folder: 1 });                     // Filter by folder
+    await collections.media.createIndex({ uploadedBy: 1 });                 // Filter by user
+    // Unique indexes for data integrity (defense in depth - auto-renaming already prevents conflicts)
+    await collections.media.createIndex({ path: 1 }, { unique: true, sparse: true }); // Unique path
+    await collections.media.createIndex({ url: 1 }, { unique: true, sparse: true }); // Unique URL
+    console.log('   ✅ Media indexes created');
+
     console.log('\n🎉 All indexes created successfully!\n');
 
     // List all indexes
@@ -193,6 +205,7 @@ async function setupIndexes() {
       { name: 'refunds', collection: collections.refunds },
       { name: 'menus', collection: collections.menus },
       { name: 'menu_items', collection: collections.menuItems },
+      { name: 'media', collection: collections.media },
     ];
 
     for (const { name, collection } of allCollections) {

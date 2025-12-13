@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createMoMoPayment, formatMoMoOrderInfo } from '@/lib/services/momo';
+import { momoPaymentSchema } from '@/lib/validations/payment';
+import { z } from 'zod';
 
 /**
  * API Route: Create MoMo Payment
@@ -7,7 +9,7 @@ import { createMoMoPayment, formatMoMoOrderInfo } from '@/lib/services/momo';
  * 
  * Body:
  * {
- *   orderId: string,
+ *   orderId: string | number,
  *   amount: number,
  *   returnUrl: string,
  *   notifyUrl: string
@@ -16,15 +18,10 @@ import { createMoMoPayment, formatMoMoOrderInfo } from '@/lib/services/momo';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { orderId, amount, returnUrl, notifyUrl } = body;
-
-    // Validate required fields
-    if (!orderId || !amount || !returnUrl || !notifyUrl) {
-      return NextResponse.json(
-        { error: 'Thiếu thông tin bắt buộc' },
-        { status: 400 }
-      );
-    }
+    
+    // Validate input with Zod
+    const validatedData = momoPaymentSchema.parse(body);
+    const { orderId, amount, returnUrl, notifyUrl } = validatedData;
 
     // Get MoMo config from environment
     const config = {
@@ -44,7 +41,7 @@ export async function POST(request: NextRequest) {
 
     // Create payment request
     const response = await createMoMoPayment(config, {
-      orderId: orderId.toString(),
+      orderId,
       orderInfo: formatMoMoOrderInfo(orderId),
       amount,
       returnUrl,
@@ -65,6 +62,21 @@ export async function POST(request: NextRequest) {
       qrCodeUrl: response.qrCodeUrl,
     });
   } catch (error: any) {
+    // Handle Zod validation errors
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        {
+          error: 'Dữ liệu không hợp lệ',
+          details: error.errors.map((err) => ({
+            field: err.path.join('.'),
+            message: err.message,
+          })),
+        },
+        { status: 400 }
+      );
+    }
+    
+    // Handle other errors
     console.error('MoMo API error:', error);
     return NextResponse.json(
       { error: error.message || 'Không thể tạo yêu cầu thanh toán' },

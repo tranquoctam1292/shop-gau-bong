@@ -11,6 +11,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { z } from 'zod';
+import { handleValidationError } from '@/lib/utils/validation-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -644,14 +645,10 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          error: 'Validation error',
-          details: error.errors,
-        },
-        { status: 400 }
-      );
+    // Handle Zod validation errors
+    const validationError = handleValidationError(error);
+    if (validationError) {
+      return validationError;
     }
     
     console.error('[Admin Products API] Error:', error);

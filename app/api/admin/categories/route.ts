@@ -11,6 +11,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoCategory } from '@/lib/utils/productMapper';
 import { buildCategoryTree } from '@/lib/utils/categoryHelpers';
 import { z } from 'zod';
+import { handleValidationError } from '@/lib/utils/validation-errors';
 
 export const dynamic = 'force-dynamic';
 
@@ -186,14 +187,10 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        { 
-          error: 'Validation error',
-          details: error.errors,
-        },
-        { status: 400 }
-      );
+    // Handle Zod validation errors
+    const validationError = handleValidationError(error);
+    if (validationError) {
+      return validationError;
     }
     
     console.error('[Admin Categories API] Error:', error);

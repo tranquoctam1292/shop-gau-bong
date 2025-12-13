@@ -141,6 +141,8 @@ export interface Collections {
   // Menu Management
   menus: Collection;
   menuItems: Collection;
+  // Media Library
+  media: Collection;
 }
 
 /**
@@ -185,6 +187,8 @@ export async function getCollections(): Promise<Collections> {
     // Menu Management
     menus: db.collection('menus'),
     menuItems: db.collection('menu_items'),
+    // Media Library
+    media: db.collection('media'),
   };
 }
 
