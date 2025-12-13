@@ -132,13 +132,12 @@ export default function CheckoutPage() {
 
     setValidationErrors([]);
     
-    // Build line items from cart
-    const lineItems = items.map((item) => ({
-      product_id: item.productId,
-      quantity: item.quantity,
-    }));
+    // Calculate totals
+    const subtotal = getTotalPrice();
+    const shippingTotal = selectedShippingRate?.cost || 0;
+    const total = subtotal + shippingTotal;
     
-    const result = await submitOrder(formData, lineItems);
+    const result = await submitOrder(formData, items, subtotal, shippingTotal, total);
     
     if (result) {
       // Clear cart after successful order

@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import type { WooCommerceOrder } from '@/types/woocommerce';
 
 /**
- * Hook để fetch single order từ WooCommerce REST API
+ * Hook để fetch single order từ CMS API
  * 
- * @param orderId - Order ID (number)
+ * @param orderId - Order ID (MongoDB ObjectId string or orderNumber)
  * @returns Order, loading, error
  */
 export function useOrderREST(orderId: string | number | null | undefined) {
@@ -25,16 +25,18 @@ export function useOrderREST(orderId: string | number | null | undefined) {
         setLoading(true);
         setError(null);
 
-        const orderIdNum = typeof orderId === 'string' ? parseInt(orderId, 10) : orderId;
-        if (isNaN(orderIdNum)) {
-          throw new Error('Invalid order ID');
-        }
+        // Convert to string (CMS API accepts ObjectId string or orderNumber)
+        const orderIdStr = String(orderId);
 
-        // Fetch order từ Next.js API route (proxy)
-        const response = await fetch(`/api/woocommerce/orders/${orderIdNum}`);
+        // Fetch order từ CMS API
+        const response = await fetch(`/api/cms/orders/${orderIdStr}`);
         
         if (!response.ok) {
-          throw new Error('Order not found');
+          if (response.status === 404) {
+            throw new Error('Order not found');
+          }
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.error || 'Failed to fetch order');
         }
 
         const data = await response.json();

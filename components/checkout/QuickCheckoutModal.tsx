@@ -139,12 +139,6 @@ export function QuickCheckoutModal() {
       // Generate email từ phone nếu cần (hoặc để trống)
       const email = formData.phone ? `${formData.phone.replace(/[\s-]/g, '')}@shop-gaubong.com` : '';
 
-      // Build line items from cart
-      const lineItems = items.map((item) => ({
-        product_id: item.productId,
-        quantity: item.quantity,
-      }));
-
       const checkoutData: CheckoutFormData = {
         firstName: firstName || fullName.trim(),
         lastName: lastName,
@@ -160,7 +154,12 @@ export function QuickCheckoutModal() {
         customerNote: formData.customerNote || (isGift ? 'Đơn hàng quà tặng' : ''),
       };
 
-      const result = await submitOrder(checkoutData, lineItems);
+      // Calculate totals
+      const subtotal = totalPrice;
+      const shippingTotal = 0; // TODO: Calculate shipping cost if needed
+      const total = subtotal + shippingTotal;
+
+      const result = await submitOrder(checkoutData, items, subtotal, shippingTotal, total);
       
       if (result) {
         // Clear cart after successful order

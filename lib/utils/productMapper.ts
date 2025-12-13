@@ -396,6 +396,60 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
                       (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0);
   const type: 'simple' | 'variable' = hasVariants ? 'variable' : 'simple';
   
+  // Stock calculation logic:
+  // For variable products: Always calculate from variants (ignore productDataMetaBox.stockQuantity)
+  // For simple products: Use productDataMetaBox.stockQuantity if available
+  let stockQuantity: number | null = null;
+  let stockStatus: string = 'instock';
+  
+  if (hasVariants) {
+    // Variable product: Calculate sum from variants
+    // Priority 1: Sum from variants array (new format)
+    if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+      stockQuantity = mongoProduct.variants.reduce((sum: number, v: any) => {
+        // Support both 'stock' and 'stockQuantity' fields in variants
+        const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : (v.stock || 0);
+        return sum + (variantStock || 0);
+      }, 0);
+      
+      // Check if any variant has stock for stockStatus
+      const hasStock = mongoProduct.variants.some((v: any) => {
+        const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : (v.stock || 0);
+        return (variantStock || 0) > 0;
+      });
+      stockStatus = hasStock ? 'instock' : 'outofstock';
+    } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+      // Priority 2: Sum from productDataMetaBox.variations (backward compatibility)
+      stockQuantity = mongoProduct.productDataMetaBox.variations.reduce((sum: number, v: any) => {
+        const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : 0;
+        return sum + (variantStock || 0);
+      }, 0);
+      
+      // Check if any variation has stock
+      const hasStock = mongoProduct.productDataMetaBox.variations.some((v: any) => (v.stockQuantity || 0) > 0);
+      stockStatus = hasStock ? 'instock' : 'outofstock';
+    } else {
+      // No variants found, use productDataMetaBox values or default
+      stockQuantity = mongoProduct.productDataMetaBox?.stockQuantity !== undefined
+        ? mongoProduct.productDataMetaBox.stockQuantity
+        : null;
+      stockStatus = mongoProduct.productDataMetaBox?.stockStatus || 'instock';
+    }
+    // If sum is 0, set to null
+    if (stockQuantity === 0) {
+      stockQuantity = null;
+    }
+  } else {
+    // Simple product: Use productDataMetaBox.stockQuantity if available
+    stockQuantity = mongoProduct.productDataMetaBox?.stockQuantity !== undefined
+      ? mongoProduct.productDataMetaBox.stockQuantity
+      : null;
+    // Stock status: Use productDataMetaBox.stockStatus or calculate from stockQuantity
+    stockStatus = mongoProduct.productDataMetaBox?.stockStatus !== undefined
+      ? mongoProduct.productDataMetaBox.stockStatus
+      : (stockQuantity !== null && stockQuantity > 0) ? 'instock' : 'outofstock';
+  }
+  
   const mappedResult = {
     id: productId, // Use MongoDB ObjectId directly (not GraphQL format)
     databaseId: productId, // Use ObjectId string as databaseId for compatibility
@@ -483,17 +537,9 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     description: mongoProduct.description || '',
     shortDescription: mongoProduct.shortDescription || '',
     sku: mongoProduct.productDataMetaBox?.sku || mongoProduct.sku || '',
-    // Priority 1: Use productDataMetaBox stock fields if available
-    // Priority 2: Calculate from variants
-    // Priority 3: Default to instock
-    stockStatus: mongoProduct.productDataMetaBox?.stockStatus !== undefined
-      ? mongoProduct.productDataMetaBox.stockStatus
-      : mongoProduct.variants && mongoProduct.variants.length > 0
-      ? mongoProduct.variants.some((v: { stock?: number }) => (v.stock || 0) > 0) ? 'instock' : 'outofstock'
-      : 'instock',
-    stockQuantity: mongoProduct.productDataMetaBox?.stockQuantity !== undefined
-      ? mongoProduct.productDataMetaBox.stockQuantity
-      : mongoProduct.variants?.reduce((sum: number, v: any) => sum + (v.stock || 0), 0) || null,
+    // Use calculated stockQuantity and stockStatus
+    stockStatus,
+    stockQuantity,
     weight: mongoProduct.weight ? String(mongoProduct.weight) : null,
     length: mongoProduct.length || null,
     width: mongoProduct.width || null,

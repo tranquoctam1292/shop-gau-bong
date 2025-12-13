@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { WooCommerceOrderCreateInput } from '@/types/woocommerce';
+import type { CartItem } from '@/lib/store/cartStore';
 
 export interface CheckoutFormData {
   // Customer info
@@ -67,64 +67,70 @@ export function useCheckoutREST() {
 
   const submitOrder = async (
     formData: CheckoutFormData,
-    lineItems: Array<{ product_id: number; quantity: number }>
+    cartItems: CartItem[],
+    subtotal: number,
+    shippingTotal: number = 0,
+    total: number
   ) => {
     setIsProcessing(true);
     setError(null);
 
     try {
+      // Build customer name from firstName and lastName
+      const customerName = [formData.firstName, formData.lastName].filter(Boolean).join(' ') || formData.firstName;
+
       // Use shipping address if provided, otherwise use billing
       const shippingAddress = {
-        first_name: formData.shippingFirstName || formData.firstName,
-        last_name: formData.shippingLastName || formData.lastName,
-        address_1: formData.shippingAddress1 || formData.billingAddress1,
-        address_2: formData.shippingAddress2 || formData.billingAddress2 || '',
+        firstName: formData.shippingFirstName || formData.firstName,
+        lastName: formData.shippingLastName || formData.lastName,
+        address1: formData.shippingAddress1 || formData.billingAddress1,
+        address2: formData.shippingAddress2 || formData.billingAddress2 || '',
         city: formData.shippingCity || formData.billingCity,
         postcode: formData.shippingPostcode || formData.billingPostcode,
         country: formData.shippingCountry || formData.billingCountry,
       };
 
-      // Build order input according to WooCommerce REST API format
-      const orderInput: WooCommerceOrderCreateInput = {
-        payment_method: formData.paymentMethod,
-        payment_method_title: getPaymentMethodTitle(formData.paymentMethod),
-        set_paid: false, // COD và bank transfer không paid ngay
-        billing: {
-          first_name: formData.firstName,
-          last_name: formData.lastName,
-          email: formData.email,
-          phone: formData.phone,
-          address_1: formData.billingAddress1,
-          address_2: formData.billingAddress2 || '',
-          city: [formData.billingProvinceName, formData.billingDistrictName, formData.billingWardName]
-            .filter(Boolean)
-            .join(', ') || formData.billingCity,
-          postcode: formData.billingPostcode,
-          country: formData.billingCountry,
-        },
-        shipping: shippingAddress,
-        line_items: lineItems,
+      // Build billing address
+      const billingAddress = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        address1: formData.billingAddress1,
+        address2: formData.billingAddress2 || '',
+        city: [formData.billingProvinceName, formData.billingDistrictName, formData.billingWardName]
+          .filter(Boolean)
+          .join(', ') || formData.billingCity,
+        postcode: formData.billingPostcode,
+        country: formData.billingCountry,
       };
 
-      // Add shipping lines if shipping method is provided
-      // Note: Shipping cost sẽ được tính bởi WooCommerce dựa trên shipping method
-      if (formData.shippingMethod) {
-        orderInput.shipping_lines = [
-          {
-            method_id: formData.shippingMethod,
-            method_title: 'Shipping',
-            total: '0', // Will be calculated by WooCommerce
-          },
-        ];
-      }
+      // Convert cart items to line items format for CMS API
+      const lineItems = cartItems.map((item) => ({
+        productId: String(item.productId), // Convert to string for MongoDB ObjectId
+        variationId: item.variationId ? String(item.variationId) : undefined,
+        productName: item.productName,
+        quantity: item.quantity,
+        price: parseFloat(item.price) || 0, // Convert price string to number
+      }));
 
-      // Add customer note if provided
-      if (formData.customerNote) {
-        orderInput.customer_note = formData.customerNote;
-      }
+      // Build order input according to CMS API format
+      const orderInput = {
+        customerName,
+        customerEmail: formData.email,
+        customerPhone: formData.phone,
+        orderType: 'personal' as const, // Can be extended to support 'gift' later
+        billing: billingAddress,
+        shipping: shippingAddress,
+        lineItems,
+        paymentMethod: formData.paymentMethod,
+        paymentMethodTitle: getPaymentMethodTitle(formData.paymentMethod),
+        subtotal,
+        shippingTotal,
+        total,
+        customerNote: formData.customerNote || undefined,
+      };
 
-      // Create order via Next.js API route (proxy)
-      const response = await fetch('/api/woocommerce/orders', {
+      // Create order via CMS API
+      const response = await fetch('/api/cms/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -133,18 +139,18 @@ export function useCheckoutREST() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Không thể tạo đơn hàng');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || 'Không thể tạo đơn hàng');
       }
 
       const data = await response.json();
       const order = data.order;
 
-      if (!order || !order.id) {
+      if (!order || !order._id) {
         throw new Error('Không thể tạo đơn hàng');
       }
 
-      const orderId = order.id;
+      const orderId = order._id.toString();
 
       // Store payment method in localStorage for order confirmation
       if (formData.paymentMethod) {
@@ -159,6 +165,7 @@ export function useCheckoutREST() {
     } catch (err: any) {
       setError(err?.message || 'Có lỗi xảy ra khi tạo đơn hàng. Vui lòng thử lại.');
       console.error('Order creation error:', err);
+      throw err; // Re-throw to allow component to handle
     } finally {
       setIsProcessing(false);
     }

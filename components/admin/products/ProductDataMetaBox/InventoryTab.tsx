@@ -232,21 +232,43 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
                 <Label htmlFor="stock-quantity" className="text-sm font-medium">
                   Số lượng trong kho
                 </Label>
-                <Input
-                  id="stock-quantity"
-                  type="number"
-                  min="0"
-                  step="1"
-                  placeholder="0"
-                  value={state.stockQuantity || ''}
-                  onChange={(e) => {
-                    const value = e.target.value === '' ? undefined : parseInt(e.target.value);
-                    onUpdate({ stockQuantity: value });
-                  }}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Số lượng sẽ tự động giảm khi có đơn hàng
-                </p>
+                {state.productType === 'variable' && state.variations.length > 0 ? (
+                  // For variable products, show calculated sum from variations (read-only)
+                  <div>
+                    <Input
+                      id="stock-quantity"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      value={state.variations.reduce((sum, v) => sum + (v.stockQuantity || 0), 0) || ''}
+                      readOnly
+                      className="bg-muted cursor-not-allowed"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Tổng số lượng từ các biến thể (tự động tính). Quản lý tồn kho tại tab "Biến thể"
+                    </p>
+                  </div>
+                ) : (
+                  // For simple products, allow editing
+                  <>
+                    <Input
+                      id="stock-quantity"
+                      type="number"
+                      min="0"
+                      step="1"
+                      placeholder="0"
+                      value={state.stockQuantity || ''}
+                      onChange={(e) => {
+                        const value = e.target.value === '' ? undefined : parseInt(e.target.value);
+                        onUpdate({ stockQuantity: value });
+                      }}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Số lượng sẽ tự động giảm khi có đơn hàng
+                    </p>
+                  </>
+                )}
               </div>
 
               {/* Low Stock Threshold */}
