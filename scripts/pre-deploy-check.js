@@ -200,9 +200,9 @@ try {
       });
       
       // Check if there are actual errors (not just warnings)
-      const hasErrors = lintOutput.includes('Error:') || lintOutput.match(/\d+ error/);
+      const hasLintErrors = lintOutput.includes('Error:') || lintOutput.match(/\d+ error/);
       
-      if (hasErrors) {
+      if (hasLintErrors) {
         log(`❌ ESLint Check: FAILED (errors found)`, 'red');
         log(lintOutput, 'red');
         errors.push({ step: 'ESLint Check', error: 'Linting errors found' });
@@ -216,9 +216,9 @@ try {
     } catch (error) {
       // ESLint may exit with code 1 even for warnings, so check output
       const lintOutput = error.stdout || error.stderr || error.message;
-      const hasErrors = lintOutput.includes('Error:') || lintOutput.match(/\d+ error/);
+      const hasLintErrors = lintOutput.includes('Error:') || lintOutput.match(/\d+ error/);
       
-      if (hasErrors) {
+      if (hasLintErrors) {
         log(`❌ ESLint Check: FAILED (errors found)`, 'red');
         log(lintOutput, 'red');
         errors.push({ step: 'ESLint Check', error: 'Linting errors found' });
