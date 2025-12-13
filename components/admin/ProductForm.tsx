@@ -589,9 +589,11 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       const payload = preparePayload();
       if (!payload) return;
 
+      // Preserve current status instead of forcing to draft
+      // This prevents published products from being reverted to draft
       const finalPayload = {
         ...payload,
-        status: 'draft', // Always save as draft for autosave
+        status: formData.status || 'draft', // Preserve current status
       };
 
       const url = `/api/admin/products/${effectiveProductId}`;
