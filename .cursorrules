@@ -117,6 +117,61 @@ Before implementing any feature, you MUST reference the following sources based 
   - Always check for null/undefined before accessing `variation.size` or `variation.color`
   - Example: `if (variation.size && variation.size === selectedSize) { ... }`
 
+## 5. TypeScript Type Safety Rules (CRITICAL)
+- **NO implicit any types:** Always add explicit type annotations for callback parameters in map/filter/reduce operations.
+  - *Bad:* `.map((v) => v.price)` or `.filter((item) => item.active)`
+  - *Good:* `.map((v: { price: number }) => v.price)` or `.filter((item: Product) => item.active)`
+- **Type assertions:** Use type assertions (`as Type`) only when necessary and safe. Prefer proper type definitions.
+  - *Bad:* `const data = result as any;`
+  - *Good:* `const data = result as RefundData;` or define proper interface
+- **OrderStatus type:** Always use `OrderStatus` type from `@/lib/utils/orderStateMachine`. Never use string literals directly.
+  - *Bad:* `currentStatus = transition.to;` (where transition.to is string)
+  - *Good:* `currentStatus = transition.to as OrderStatus;`
+- **ActorType parameter:** When calling `createStatusChangeHistory`, ensure correct parameter order:
+  - Signature: `(orderId, oldStatus, newStatus, actorId?, actorType, actorName?, metadata?)`
+  - *Bad:* `createStatusChangeHistory(orderId, 'confirmed', 'processing', 'admin', 'test-id', 'Name')`
+  - *Good:* `createStatusChangeHistory(orderId, 'confirmed', 'processing', 'test-id', 'admin', 'Name')`
+- **Boolean types:** Ensure boolean values are properly typed. Use `Boolean()` wrapper when needed.
+  - *Bad:* `onSale: salePrice && parseFloat(salePrice) > 0` (returns string | boolean)
+  - *Good:* `onSale: Boolean(salePrice && parseFloat(salePrice) > 0)`
+- **MongoDB document types:** When accessing MongoDB documents, use proper type assertions for fields that may not exist in TypeScript types.
+  - *Bad:* `refund._id` (if RefundData interface doesn't include _id)
+  - *Good:* `(refund as any)._id` or extend interface to include _id
+- **Vercel Blob types:** Vercel Blob `PutBlobResult` may not have all properties. Use type assertions with fallbacks.
+  - *Good:* `size: (blob as any).size || 0, uploadedAt: (blob as any).uploadedAt || new Date()`
+- **WooCommerceProduct interface:** Always include optional date fields when extending WooCommerceProduct.
+  - *Good:* `date_created?: string; date_modified?: string;` in interface
+
+## 6. Radix UI Component Usage Rules (CRITICAL)
+- **Select Component:** NEVER use Radix UI `Select` like native HTML `<select>`. Always use proper Radix API.
+  - *Bad:* 
+    ```tsx
+    <Select value={value} onChange={(e) => setValue(e.target.value)}>
+      <option value="1">Option 1</option>
+    </Select>
+    ```
+  - *Good:*
+    ```tsx
+    import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+    <Select value={value} onValueChange={(val) => setValue(val)}>
+      <SelectTrigger>
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="1">Option 1</SelectItem>
+      </SelectContent>
+    </Select>
+    ```
+- **When to use native select:** If you need native HTML `<select>` behavior (e.g., form submission, browser autocomplete), use native `<select>` with Tailwind classes instead of Radix Select.
+  - *Good:* `<select className="flex h-10 w-full rounded-md border..." value={value} onChange={handleChange}>`
+- **Select props:** Radix Select does NOT support `id`, `onChange`, or `<option>` children. Use `onValueChange` and `SelectItem` instead.
+
+## 7. Cron Jobs & Deployment Rules
+- **Vercel Cron Jobs Limit:** Free/Pro plans have limits (typically 2 cron jobs per team). Check before adding new cron jobs.
+- **Alternative to Vercel Cron:** Use external services (cron-job.org, EasyCron) or GitHub Actions for scheduled tasks.
+- **Combining cron jobs:** If hitting limits, create a single route that calls multiple tasks: `/api/admin/cron/all-tasks`
+- **Documentation:** Always document cron job setup in `CRON_JOBS_SETUP.md` when adding new scheduled tasks.
+
 # BUSINESS LOGIC RULES
 - **Language:** UI text MUST be **Vietnamese**. Code comments in English/Vietnamese.
 - **Payment:** Prioritize **VietQR** & **MoMo**. COD and Bank Transfer are also supported.
