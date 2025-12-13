@@ -411,25 +411,26 @@ export default function AdminCategoriesPage() {
     if (!search) return nodes;
     
     const query = search.toLowerCase();
-    return nodes
-      .map(node => {
-        const matches = 
-          node.name.toLowerCase().includes(query) ||
-          node.slug.toLowerCase().includes(query);
-        
-        const filteredChildren = node.children 
-          ? filterCategories(node.children)
-          : undefined;
-        
-        if (matches || (filteredChildren && filteredChildren.length > 0)) {
-          return {
-            ...node,
-            children: filteredChildren,
-          };
-        }
-        return null;
-      })
-      .filter((node): node is CategoryTreeNode => node !== null);
+    const filtered: CategoryTreeNode[] = [];
+    
+    for (const node of nodes) {
+      const matches = 
+        node.name.toLowerCase().includes(query) ||
+        node.slug.toLowerCase().includes(query);
+      
+      const filteredChildren = node.children 
+        ? filterCategories(node.children)
+        : undefined;
+      
+      if (matches || (filteredChildren && filteredChildren.length > 0)) {
+        filtered.push({
+          ...node,
+          children: filteredChildren,
+        });
+      }
+    }
+    
+    return filtered;
   };
 
   const filteredTree = search ? filterCategories(categories) : categories;
