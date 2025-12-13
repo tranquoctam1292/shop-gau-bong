@@ -80,7 +80,7 @@ export function ProductFilters({
                   <SelectValue placeholder="Tất cả thương hiệu" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Tất cả thương hiệu</SelectItem>
+                  <SelectItem value="all">Tất cả thương hiệu</SelectItem>
                   <SelectItem value="brand1">Thương hiệu 1</SelectItem>
                   <SelectItem value="brand2">Thương hiệu 2</SelectItem>
                 </SelectContent>
