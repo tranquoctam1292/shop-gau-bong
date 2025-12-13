@@ -31,7 +31,17 @@ Before implementing any feature, you MUST reference the following sources based 
 - **ALWAYS use Custom CMS API** via Next.js API routes. Never call MongoDB directly from client.
 - **API Routes:** 
   - Public routes: `/api/cms/*` (products, categories, orders, banners, posts)
-  - Admin routes: `/api/admin/*` (products, categories, orders, posts, authors, comments) - requires authentication
+  - Admin routes: `/api/admin/*` (products, categories, orders, posts, authors, comments, media) - requires authentication
+- **Media Library System:** ✅ Complete
+  - Upload, manage, search media files (images, videos, files)
+  - Storage adapters: Local Storage, Vercel Blob (with easy switching to AWS S3)
+  - Image processing: Thumbnail generation, metadata extraction using Sharp
+  - Auto-renaming: Unique filename generation (timestamp + UUID) to prevent duplicates
+  - Folder organization: Support for organizing media into folders
+  - Search & filters: Text search, type filter, folder filter, sorting
+  - React Query hooks: `useMediaList`, `useMedia`, `useUpdateMedia`, `useDeleteMedia` for efficient data fetching
+  - Integration: MediaLibraryModal component for Product/Blog forms
+  - See: `docs/MEDIA_LIBRARY_COMPLETE.md` for details
 - **Order Management System (OMS):** ✅ Complete
   - Order State Machine: Strict validation for status transitions
   - Order History/Audit Log: All changes tracked in `orderHistories` collection
@@ -43,7 +53,13 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Safe Mapping:** MongoDB documents are mapped to frontend format using `productMapper`. Use `mapMongoProduct()` helper.
   - *Bad:* Direct access to MongoDB `_id` or nested fields without mapping
   - *Good:* Use `mapMongoProduct(mongoProduct)` to get frontend-compatible format
-- **Type Safety:** Use `types/woocommerce.ts` for frontend types (kept for compatibility), `types/mongodb.ts` for MongoDB types. Never use `any`.
+- **Media Library Integration:**
+  - Use `MediaLibraryModal` component for media selection in Product/Blog forms
+  - Media data is fetched from `/api/admin/media` endpoint
+  - Modal automatically syncs with main Media Library module
+  - Upload endpoint: `POST /api/admin/media` (not `/api/admin/media/upload`)
+  - Always refresh media list after upload to ensure sync
+- **Type Safety:** Use `types/woocommerce.ts` for frontend types (kept for compatibility), `types/mongodb.ts` for MongoDB types, `types/media.ts` for Media Library types. Never use `any`.
 - **Database Access:** Use `lib/db.ts` with `getCollections()` helper. Always use Repository Pattern.
 - **React Query:** Use `@tanstack/react-query` for data fetching, caching, and deduplication. Configured globally via `QueryProvider`.
   - *Use for:* Product variations, product lists, categories

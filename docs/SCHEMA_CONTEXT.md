@@ -221,6 +221,7 @@ collections.productReviews  // Product review documents
 collections.productAnalytics // Product analytics documents
 collections.productAttributes // Global product attributes
 collections.productAttributeTerms // Attribute terms/values
+collections.media // Media Library documents
 ```
 
 ---
@@ -453,8 +454,94 @@ const product = await collections.products.findOne({
 
 ---
 
-**Last Updated:** 2025-12-13  
+**Last Updated:** 2025-01-XX  
 **Status:** ✅ Updated for Custom CMS (MongoDB)
+
+---
+
+## 📸 Media Library Collection
+
+**Status:** ✅ Complete
+
+### Media Document Structure
+
+```typescript
+interface MongoMedia {
+  _id: ObjectId;
+  
+  // Thông tin file cơ bản
+  name: string;             // Tên hiển thị (editable)
+  filename: string;         // Tên file gốc trên đĩa/cloud
+  url: string;              // Đường dẫn truy cập công khai (Public URL)
+  path: string;             // Đường dẫn vật lý hoặc S3 Key (để xóa file)
+  
+  // Phân loại
+  type: 'image' | 'video' | 'document' | 'other';
+  mimeType: string;         // e.g., 'image/jpeg', 'video/mp4'
+  extension: string;        // e.g., 'jpg', 'png'
+  folder?: string;          // Optional: phân cấp thư mục
+  
+  // Metadata kỹ thuật
+  size: number;             // Kích thước file (bytes)
+  width?: number;           // Chỉ dành cho ảnh/video
+  height?: number;          // Chỉ dành cho ảnh/video
+  
+  // Metadata SEO & Quản lý
+  altText?: string;         // Thẻ alt cho SEO
+  caption?: string;         // Chú thích ảnh
+  description?: string;     // Mô tả chi tiết
+  
+  // System
+  uploadedBy?: ObjectId;    // User ID người upload
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+### Media Indexes
+
+```typescript
+// Text search index
+media.createIndex({ name: 'text', altText: 'text' });
+
+// Filter indexes
+media.createIndex({ type: 1 });
+media.createIndex({ folder: 1 });
+media.createIndex({ uploadedBy: 1 });
+
+// Sort index
+media.createIndex({ createdAt: -1 });
+```
+
+### API Routes
+
+**Admin Routes:**
+- `GET /api/admin/media` - List media (with filters, pagination)
+- `POST /api/admin/media` - Upload media
+- `GET /api/admin/media/[id]` - Get media detail
+- `PUT /api/admin/media/[id]` - Update media metadata
+- `DELETE /api/admin/media/[id]` - Delete media
+- `GET /api/admin/media/search` - Advanced search
+
+**See:** `docs/MEDIA_LIBRARY_API_DOCUMENTATION.md` for complete API documentation.
+
+---
+
+## 🔄 Recent Changes (2025-01-XX)
+
+### Media Library Module Added ✅ Complete
+- **Added:** Media Library collection and API endpoints
+- **Features:** Upload, manage, search, delete media files
+- **Integration:** ProductForm, CategoryForm, Editor via MediaLibraryModal
+- **Storage:** Vercel Blob Storage with Adapter pattern (Local/Vercel Blob, easy switching to AWS S3)
+- **Image Processing:** Sharp (resize, optimize, thumbnail, metadata extraction)
+- **Auto-renaming:** Unique filename generation (timestamp + UUID) to prevent duplicates
+- **React Query Hooks:** `useMediaList`, `useMedia`, `useUpdateMedia`, `useDeleteMedia` for efficient data fetching
+- **Fixes Applied:**
+  - Removed `folder` field from update mechanism to prevent broken links
+  - Auto-renaming pattern to prevent duplicate uploads
+  - MediaLibraryModal sync with main Media Library module
+- **See:** `docs/MEDIA_LIBRARY_COMPLETE.md` for complete documentation
 
 ## 🔄 Recent Changes (2025-12-13)
 

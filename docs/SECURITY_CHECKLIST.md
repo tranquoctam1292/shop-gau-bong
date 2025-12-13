@@ -20,9 +20,10 @@
 
 ### 3. Files Checked
 - ✅ `lib/utils/vercelBlob.ts` - Chỉ sử dụng environment variables
-- ✅ `app/api/admin/media/upload/route.ts` - Có authentication check
+- ✅ `app/api/admin/media/route.ts` - Có authentication check (POST endpoint for upload - current)
+- ⚠️ `app/api/admin/media/upload/route.ts` - DEPRECATED (legacy endpoint, not used anymore)
 - ✅ `app/api/admin/images/upload/route.ts` - Không có hardcoded secrets
-- ✅ `lib/api/woocommerce.ts` - Sử dụng environment variables
+- ✅ `lib/api/woocommerce.ts` - Sử dụng environment variables (deprecated, kept for compatibility)
 
 ### 4. Documentation
 - ✅ Tất cả examples trong docs đều dùng placeholder values

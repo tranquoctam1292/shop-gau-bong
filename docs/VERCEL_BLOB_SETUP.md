@@ -55,7 +55,8 @@ Thêm environment variable trong Vercel Dashboard:
 - `lib/utils/vercelBlob.ts` - Utility functions cho upload, delete, list
 
 ### API Routes
-- `app/api/admin/media/upload/route.ts` - Upload media files
+- `app/api/admin/media/route.ts` - Upload media files (POST endpoint - current)
+- ⚠️ `app/api/admin/media/upload/route.ts` - DEPRECATED (legacy endpoint, not used anymore)
 - `app/api/admin/images/upload/route.ts` - Upload edited images (đã cập nhật)
 
 ### Components
