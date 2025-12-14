@@ -78,11 +78,14 @@ export function OrderActionBar({
 
       const statusLabels: Record<OrderStatus, string> = {
         pending: 'Đã xác nhận đơn hàng',
+        awaiting_payment: 'Đã cập nhật trạng thái đơn hàng',
         confirmed: 'Đã chuyển sang xử lý',
         processing: 'Đã tạo vận đơn',
         shipping: 'Đã hoàn thành đơn hàng',
         completed: 'Đã hoàn thành đơn hàng',
         cancelled: 'Đã hủy đơn hàng',
+        refunded: 'Đã hoàn tiền',
+        failed: 'Đã cập nhật trạng thái đơn hàng',
       };
 
       showToast(statusLabels[newStatus] || 'Đã cập nhật trạng thái đơn hàng', 'success');
