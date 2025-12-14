@@ -240,6 +240,18 @@
 - `app/api/admin/products/route.ts` - Thêm version: 1 khi tạo mới
 - `app/api/admin/products/[id]/route.ts` - Optimistic locking check và increment version
 
+### Phase 5 (Additional Improvements) - Từ Deep Code Review
+- [ ] Task 5.1: Cache Revalidation - revalidatePath cho public pages
+- [ ] Task 5.2: Error Boundary - Thêm error boundary cho ProductForm
+- [ ] Task 5.3: API Permission Fix - Đảm bảo tất cả API có đúng permission
+- [ ] Task 5.4: MongoDB Transaction - Đánh giá cần thiết transaction cho operations phức tạp
+
+**Dựa trên:** `Product/report_analysis_product_module.md` (Deep Code Review v5)  
+**Ghi chú:**
+- MongoDB không có built-in transaction như Prisma
+- MongoDB transaction chỉ cần cho operations phức tạp (create + relations)
+- Revalidation đã được xử lý tự động bởi Next.js trong API routes
+
 ---
 
 ## ⏱️ ƯỚC TÍNH THỜI GIAN
@@ -250,6 +262,64 @@
 - **Phase 4:** ~2 giờ (Performance & Security)
 
 **Tổng:** ~11 giờ
+
+---
+
+## 📄 MÃ NGUỒN
+
+**File:** `docs/PRODUCT_MODULE_SOURCE_CODE.txt`  
+**Kích thước:** 221.82 KB  
+**Số dòng:** 6,068 dòng  
+**Nội dung:** Toàn bộ mã nguồn của Product Module (15 files chính)
+
+**Files bao gồm:**
+- ProductForm.tsx, PriceInput.tsx, ClassicEditor.tsx
+- GeneralTab.tsx, ShippingTab.tsx, FeaturedImageBox.tsx, ProductGalleryBox.tsx
+- ProductActionMenu.tsx
+- API routes: route.ts, [id]/route.ts (admin và cms)
+- Utils: slug.ts, sanitizeHtml.ts
+- Products list page: app/admin/products/page.tsx
+
+---
+
+---
+
+## 🔍 PHASE 5 ANALYSIS (Dựa trên Deep Code Review)
+
+### Đã kiểm tra từ `Product/report_analysis_product_module.md`:
+
+#### 1. ✅ HTML Sanitization (High) - RESOLVED
+- **Report:** "Thiếu Sanitize HTML → Stored XSS"
+- **Fix:** Phase 4 đã cài `isomorphic-dompurify` và sanitize toàn bộ HTML
+- **Status:** ✅ Complete
+
+#### 2. ✅ DB Transaction (Medium) - NOT APPLICABLE
+- **Report:** "Thiếu Transaction → Data inconsistency"
+- **Phân tích:** 
+  - Report đề cập Prisma `db.$transaction()`
+  - Project dùng MongoDB Native Driver (không phải Prisma)
+  - MongoDB `insertOne()` là atomic operation
+  - Images/Tags embedded trong document (không phải separate collections)
+- **Status:** ✅ Không cần (MongoDB architecture khác)
+
+#### 3. ✅ Bulk Actions API (Medium) - ALREADY IMPLEMENTED
+- **Report:** "UI có checkbox nhưng thiếu Server Action"
+- **Reality:** `POST /api/admin/products/bulk-action` đã có đầy đủ
+- **Status:** ✅ Đã có sẵn
+
+#### 4. ⏸️ Cache Revalidation (Medium) - LOW PRIORITY
+- **Report:** "Stale data trên public view"
+- **Phân tích:**
+  - Public API đã dùng `dynamic = 'force-dynamic'` → không cache
+  - Có thể thêm `revalidatePath()` nếu cần
+- **Status:** ⏸️ Deferred (không critical)
+
+#### 5. ✅ API Permission Fix (High) - FIXED
+- **Vấn đề:** GET `/api/admin/products` dùng permission `'product:create'` thay vì `'product:read'`
+- **Impact:** Gây lỗi 401 Unauthorized
+- **Fix:** Đã sửa thành `'product:read'`
+- **Commit:** `b3cb5ed`
+- **Status:** ✅ Fixed
 
 ---
 

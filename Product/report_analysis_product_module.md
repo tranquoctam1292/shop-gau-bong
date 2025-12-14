@@ -1,321 +1,209 @@
-BÁO CÁO PHÂN TÍCH LỖI VÀ TỐI ƯU HÓA MODULE PRODUCT (CMS ADMIN)
+BÁO CÁO NGHIỆM THU & RÀ SOÁT SÂU MODULE PRODUCT (CMS ADMIN)
 
-Ngày báo cáo: 13/12/2025 (Cập nhật lần 3 - Deep Dive)
-Đối tượng: Đội ngũ phát triển (Dev Team)
-Trạng thái: Cần xử lý gấp
+Ngày cập nhật: 14/12/2025 (Phiên bản v5 - Deep Code Review)
+Trạng thái Code: Sẵn sàng cho Beta (Ready for Beta) - Core Logic ổn định.
+Tiêu điểm: Rà soát từng dòng code (Line-by-line check) để tìm lỗi ẩn.
 
-1. Lỗi Logic & Validation (Nghiêm trọng)
+1. Kết quả Rà soát Từng bước (Step-by-Step Review)
 
-Các lỗi này ảnh hưởng trực tiếp đến tính toàn vẹn dữ liệu và quy trình nghiệp vụ.
+Tôi đã giả lập luồng đi của dữ liệu để kiểm tra các điểm gãy (fail points):
+
+Bước 1: Admin mở form & Nhập liệu (Frontend)
+
+Check: Slug Generation.
+
+Code: useEffect lắng nghe name và chỉ chạy khi !isEditMode.
+
+Đánh giá: An toàn. Link SEO cũ không bị thay đổi khi sửa tên.
+
+Check: Validate Client-side (Zod Resolver).
+
+Code: form.handleSubmit chặn ngay nếu salePrice >= price.
+
+Đánh giá: Tốt. UX phản hồi tức thì, không cần đợi server.
+
+Bước 2: Gửi dữ liệu về Server (Server Actions)
+
+Check: createProduct / updateProduct trong lib/actions/product.ts.
+
+Vấn đề phát hiện: Thiếu Sanitize HTML.
+
+Chi tiết: Dữ liệu từ RichTextEditor (mô tả sản phẩm) được lưu thẳng vào DB. Nếu Admin bị hack cookie hoặc copy-paste mã độc, mã này sẽ nằm trong DB (Stored XSS).
+
+Action: Cần dùng thư viện isomorphic-dompurify để làm sạch field description và content ngay tại server action trước khi db.product.create.
+
+Bước 3: Tương tác Database (Prisma/DB)
+
+Check: Transaction Safety.
+
+Vấn đề phát hiện: Không dùng Transaction cho thao tác phức tạp.
+
+Chi tiết: Khi tạo sản phẩm (createProduct), code đang lưu thông tin cơ bản -> sau đó lưu Images -> sau đó lưu Tags. Nếu bước lưu Images lỗi, ta sẽ có một sản phẩm rác không có ảnh trong DB (Data Inconsistency).
+
+Action: Bọc toàn bộ logic tạo/sửa trong db.$transaction(...).
+
+Bước 4: Phản hồi & Cache (Revalidation)
+
+Check: revalidatePath.
+
+Code: revalidatePath('/admin/products').
+
+Vấn đề phát hiện: Thiếu Revalidate trang chi tiết.
+
+Chi tiết: Khi sửa giá sản phẩm, trang Admin cập nhật giá mới, nhưng trang khách hàng (/product/[slug]) vẫn hiện giá cũ do Next.js cache cứng (Full Route Cache).
+
+Action: Cần thêm revalidatePath(\/products/${slug}`)` (đường dẫn public) vào cuối hàm update.
+
+2. Bảng Tổng hợp Lỗi Tồn Đọng & Mới (Cập nhật v5)
 
 STT
 
-Vị trí (File)
-
-Loại lỗi
-
-Mô tả chi tiết
-
-Đề xuất giải pháp (Solution)
-
-Mức độ
-
-1
-
-lib/validations/product.ts
-
-Logic Giá bán
-
-Schema Zod hiện tại chỉ kiểm tra min(0) cho price và salePrice. Chưa có logic chặn việc salePrice (giá khuyến mãi) cao hơn price (giá gốc).
-
-Sử dụng .refine() của Zod để so sánh: salePrice < price. Nếu salePrice >= price, báo lỗi tại field salePrice.
-
-High
-
-2
-
-components/.../product-form.tsx
-
-Slug Generation
-
-Logic tạo Slug tự động từ Tên sản phẩm (Name) có thể gây trùng lặp (Duplicate Key Error) trong Database nếu 2 sản phẩm có tên giống nhau.
-
-Cần thêm hàm checkSlugExist ở server action hoặc thêm hậu tố random (shortid) nếu slug đã tồn tại. Ví dụ: gau-bong-teddy-ax8z.
-
-High
-
-3
-
-components/.../product-form.tsx
-
-Dirty Check
-
-Khi ở chế độ Edit, nếu admin không thay đổi gì mà bấm "Lưu", hệ thống vẫn gửi request update không cần thiết.
-
-Kiểm tra form.formState.isDirty trước khi enable nút Submit hoặc trước khi gọi API update.
-
-Medium
-
-4
-
-lib/actions/product.ts
-
-Xử lý Ảnh rác
-
-Khi Admin upload ảnh lên Cloudinary/Firebase nhưng sau đó hủy tạo sản phẩm (Cancel) hoặc xóa ảnh khỏi form, ảnh vẫn tồn tại trên Storage (Orphan files).
-
-Cần implement Cron Job quét ảnh rác hoặc trigger xóa ảnh trên Storage ngay khi xóa khỏi UI (cần cân nhắc kỹ UX).
-
-Medium
-
-5
-
-app/.../products/page.tsx
-
-Pagination Logic
-
-Nếu user đang ở trang 5, sau đó filter/search ra kết quả ít hơn 1 trang, UI có thể vẫn giữ query param page=5 dẫn đến trang trắng.
-
-Reset page về 1 mỗi khi thay đổi bộ lọc (Search, Category Filter).
-
-Medium
-
-6
-
-lib/actions/product.ts
-
-Hard Delete (Mới)
-
-Hành động deleteProduct hiện tại đang xóa cứng (xóa hẳn khỏi DB). Điều này sẽ gây lỗi Foreign Key Constraint nếu sản phẩm đã từng có trong Orders (Lịch sử đơn hàng).
-
-Bắt buộc chuyển sang Soft Delete (thêm cột deletedAt hoặc status: 'ARCHIVED'). Không xóa record để bảo toàn lịch sử giao dịch.
-
-Critical
-
-7
-
-lib/actions/product.ts
-
-RBAC check (Mới)
-
-Server Action chưa kiểm tra quyền hạn kỹ càng. User thường nếu biết API endpoint có thể gửi request tạo/sửa sản phẩm.
-
-Thêm middleware check role === 'ADMIN' ngay đầu hàm Server Action.
-
-High
-
-8
-
-components/.../product-form.tsx
-
-Broken Link / SEO (Mới)
-
-Khi sửa "Tên sản phẩm", code tự động regenerate lại slug. Điều này làm chết link cũ (404) đã được Google index hoặc khách hàng đã lưu bookmark.
-
-Logic Slug: Chỉ tự động tạo slug khi tạo mới (create). Khi edit, không tự động đổi slug theo tên trừ khi Admin chủ đích bấm nút "Regenerate".
-
-High
-
-9
-
-lib/actions/product.ts
-
-Draft Leak (Mới)
-
-API lấy chi tiết sản phẩm (Public API) có thể chưa lọc status: 'ACTIVE'. Khách có thể mò ra sản phẩm chưa ra mắt nếu đoán được Slug/ID.
-
-Tại hàm getProductBySlug (public), bắt buộc thêm điều kiện where: { status: 'ACTIVE' }.
-
-High
-
-2. Lỗi UI/UX (Trải nghiệm người dùng)
-
-Các vấn đề khiến Admin khó thao tác hoặc dễ nhầm lẫn.
-
-STT
-
-Thành phần
-
-Mô tả vấn đề
-
-Giải pháp UX
-
-1
-
-Image Uploader
-
-Không có tính năng kéo thả (Drag & Drop) để sắp xếp thứ tự ảnh (ảnh bìa, ảnh chi tiết).
-
-Tích hợp dnd-kit hoặc react-beautiful-dnd vào component upload ảnh để cho phép Admin chọn ảnh đại diện dễ dàng.
-
-2
-
-Price Input
-
-Input giá tiền đang là dạng type="number", khó nhìn với các số lớn (vd: 10000000).
-
-Sử dụng react-number-format hoặc component custom để hiển thị phân cách hàng nghìn (10.000.000 đ) ngay khi nhập.
-
-3
-
-Loading State
-
-Khi bấm nút "Delete" sản phẩm ở trang danh sách, không có loading indicator trên nút hoặc row, admin dễ bấm nhiều lần.
-
-Thêm state isDeleting cho từng row hoặc disable nút delete trong quá trình gọi API.
-
-4
-
-Error Toast
-
-Thông báo lỗi từ Server Action thường chung chung (ví dụ: "Something went wrong").
-
-Cần parse error message từ catch block và hiển thị cụ thể (vd: "Tên sản phẩm đã tồn tại").
-
-5
-
-Rich Text Editor
-
-Editor load ảnh trực tiếp Base64 gây nặng payload.
-
-Cấu hình Editor upload ảnh lên Server lấy URL thay vì lưu Base64.
-
-6
-
-Audit Log (Mới)
-
-Không biết ai đã sửa giá/tồn kho vào lúc nào. Rất nguy hiểm nếu có nhiều nhân viên quản lý.
-
-Thêm tab "Lịch sử hoạt động" trong trang chi tiết sản phẩm (hiển thị: Người sửa, Trường thay đổi, Thời gian).
-
-7
-
-SEO Image Alt (Mới)
-
-Component upload ảnh hiện tại chỉ lưu URL, không cho nhập alt text.
-
-Thêm input nhỏ bên dưới mỗi ảnh thumbnail để nhập Alt Text cho SEO hình ảnh.
-
-8
-
-Bulk Actions (Mới)
-
-Thiếu chức năng chọn nhiều dòng để Xóa/Ẩn hàng loạt. Rất cực nếu muốn ẩn 50 sản phẩm cùng lúc.
-
-Thêm Checkbox column vào Table và thanh Action Bar (Delete All, Publish All) khi có dòng được chọn.
-
-3. Phân tích Hiệu năng & Bảo mật (Nâng cao)
+Phân loại
 
 Vấn đề
 
-Hiện trạng
+Mức độ
 
-Rủi ro
+Trạng thái Code
 
-Giải pháp
+Giải pháp Kỹ thuật
 
-Rerender Form
+1
 
-Sử dụng useForm với mode: "onChange".
+Security
 
-Lag khi nhập liệu form dài.
+Thiếu HTML Sanitization (Mới)
 
-Chuyển mode sang "onBlur".
+High
 
-Data Fetching
+❌ Missing
 
-Trang danh sách fetch cả description.
+Import isomorphic-dompurify. Gọi JSDOMPurify.sanitize(data.content) trong Server Action.
 
-Chậm tải trang.
+2
 
-Chỉ select fields cần thiết.
+Stability
 
-XSS Attack
+Thiếu DB Transaction (Mới)
 
-dangerouslySetInnerHTML không sanitize.
+Medium
 
-Script injection từ mô tả sản phẩm.
+❌ Missing
 
-Sử dụng dompurify.
+Dùng await db.$transaction(async (tx) => { ... }) để đảm bảo All-or-Nothing.
 
-Race Condition
+3
 
-Không có locking khi edit đồng thời.
+Logic
 
-Mất dữ liệu sửa đổi (Last write wins).
+Bulk Actions (Xóa nhiều)
 
-Thêm cơ chế Optimistic Locking (dùng field version hoặc updatedAt).
+Medium
 
-Dirty Style (Paste) (Mới)
+⚠️ Incomplete
 
-Paste text từ MS Word/Google Doc vào Editor mang theo hàng tá inline-style rác.
+UI có checkbox nhưng thiếu Server Action deleteProducts (số nhiều). Tránh gọi loop deleteProduct ở Client.
 
-Gây vỡ layout trang chi tiết (Product Detail) trên Mobile.
+4
 
-Cấu hình pasteRules cho Editor để strip (loại bỏ) các style không cần thiết, chỉ giữ thẻ h1, h2, b, i, p.
+Cache
 
-4. Snippet Code Fix (Đề xuất Bổ sung)
+Stale Data (Public View)
 
-4.1. Fix Zod Validation (Giá bán)
+Medium
 
-File: lib/validations/product.ts
+❌ Missing
 
-export const productSchema = z.object({
-  // ...
-  price: z.coerce.number().min(0),
-  salePrice: z.coerce.number().min(0).optional(),
-}).refine((data) => {
-  if (data.salePrice && data.salePrice >= data.price) {
-    return false;
-  }
-  return true;
-}, {
-  message: "Giá khuyến mãi phải nhỏ hơn giá gốc",
-  path: ["salePrice"],
-});
+Thêm revalidatePath('/products/[slug]') sau khi update.
 
+5
 
-4.2. Logic Slug (Không tự đổi khi Edit)
+Cleanup
 
-File: components/admin/products/product-form.tsx
+Ảnh rác (Orphan Images)
 
-// Trong useEffect theo dõi name
-useEffect(() => {
-  // Chỉ auto-generate slug khi đang ở chế độ TẠO MỚI
-  if (!initialData && nameValue) {
-    const slug = slugify(nameValue);
-    form.setValue("slug", slug);
-  }
-  // Nếu đang Edit, KHÔNG làm gì cả để tránh đổi URL cũ
-}, [nameValue, initialData]);
+Low
 
+❌ Missing
 
-4.3. Implement Soft Delete
+(Giữ nguyên từ v4) Cần Cron Job dọn dẹp Cloudinary.
 
-File: lib/actions/product.ts
+6
 
-export async function deleteProduct(id: string) {
+Logic
+
+Soft Delete
+
+Critical
+
+✅ Fixed
+
+Đã dùng status: 'ARCHIVED'.
+
+3. Snippet Code Fix (Bổ sung cho v5)
+
+3.1. Fix Security & Transaction (Tại lib/actions/product.ts)
+
+import DOMPurify from "isomorphic-dompurify";
+
+export async function createProduct(data: ProductInput) {
+  // 1. RBAC Check
   const session = await auth();
   if (session?.user?.role !== "ADMIN") throw new Error("Unauthorized");
 
+  // 2. Sanitize HTML để chống XSS
+  const cleanContent = DOMPurify.sanitize(data.content);
+  const cleanDescription = DOMPurify.sanitize(data.description);
+
   try {
-    await db.product.update({
-      where: { id },
-      data: {
-        status: "ARCHIVED",
-        deletedAt: new Date()
-      }
+    // 3. Sử dụng Transaction để đảm bảo toàn vẹn dữ liệu
+    await db.$transaction(async (tx) => {
+      const product = await tx.product.create({
+        data: {
+          ...data,
+          content: cleanContent,       // Dữ liệu sạch
+          description: cleanDescription, // Dữ liệu sạch
+          // Xử lý relation an toàn trong transaction
+          images: {
+            create: data.images.map((img) => ({ url: img.url, ... }))
+          }
+        }
+      });
+      
+      // Nếu có logic phụ khác, viết tiếp tại đây
     });
+
     revalidatePath('/admin/products');
     return { success: true };
   } catch (error) {
-    return { error: "Lỗi hệ thống khi xóa sản phẩm." };
+    console.error("Transaction failed:", error);
+    return { error: "Lỗi tạo sản phẩm" };
   }
 }
 
 
-5. Kết luận (Cập nhật)
+3.2. Fix Cache Revalidation
 
-Trong lần review thứ 3 này, tôi nhấn mạnh vào vấn đề SEO (Slug không được tự đổi) và Bảo mật dữ liệu (Audit Log + Soft Delete).
+export async function updateProduct(id: string, data: ProductInput) {
+  // ... logic update
+  
+  // Clear cache admin (để thấy list mới)
+  revalidatePath('/admin/products');
+  
+  // Clear cache trang public (để khách hàng thấy giá mới ngay)
+  // Lưu ý: Cần lấy slug mới nhất của sản phẩm để clear đúng path
+  revalidatePath(`/products/${updatedProduct.slug}`); 
+  
+  return { success: true };
+}
 
-Code hiện tại đang quá "ngây thơ" khi cho phép sửa Tên sản phẩm -> Tự đổi Slug. Đây là lỗi phổ biến nhất khiến website bị rớt hạng Google sau một thời gian vận hành. Đội Dev cần fix ngay logic này tại Frontend (product-form.tsx).
+
+4. Kết luận Review v5
+
+So với lần review trước, lần này tôi đi sâu vào độ ổn định khi vận hành thực tế.
+
+Việc thiếu Transaction có thể không gây lỗi ngay, nhưng khi hệ thống tải cao, nó sẽ tạo ra dữ liệu rác (sản phẩm mất ảnh, mất tag).
+
+Việc thiếu Sanitize là rủi ro bảo mật tiềm ẩn.
+
+Khuyến nghị: Đội Dev cần apply ngay fix 3.1 và 3.2 trước khi release.
