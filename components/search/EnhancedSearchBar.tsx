@@ -137,7 +137,7 @@ export function EnhancedSearchBar({ onSearch, autoFocus = false }: EnhancedSearc
           <Input
             ref={inputRef}
             type="search"
-            placeholder="Tìm kiếm sản phẩm..."
+            placeholder="Bạn đang tìm gấu Teddy, gấu hoạt hình..."
             value={searchQuery}
             onChange={(e) => handleInputChange(e.target.value)}
             onFocus={handleInputFocus}

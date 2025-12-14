@@ -207,6 +207,23 @@ async function setupIndexes() {
     await collections.media.createIndex({ url: 1 }, { unique: true, sparse: true }); // Unique URL
     console.log('   ✅ Media indexes created');
 
+    // Global Attributes System indexes
+    console.log('📦 Setting up product_attributes indexes...');
+    await collections.productAttributes.createIndex({ slug: 1 }, { unique: true }); // Unique slug
+    await collections.productAttributes.createIndex({ name: 1 }); // Search by name
+    await collections.productAttributes.createIndex({ type: 1 }); // Filter by type
+    await collections.productAttributes.createIndex({ createdAt: -1 }); // Sort newest
+    console.log('   ✅ Product attributes indexes created');
+
+    // Product Attribute Terms indexes
+    console.log('📦 Setting up product_attribute_terms indexes...');
+    await collections.productAttributeTerms.createIndex({ attributeId: 1 }); // Filter by attribute
+    await collections.productAttributeTerms.createIndex({ slug: 1 }); // Search by slug
+    await collections.productAttributeTerms.createIndex({ attributeId: 1, slug: 1 }, { unique: true }); // Unique slug per attribute
+    await collections.productAttributeTerms.createIndex({ attributeId: 1, sortOrder: 1 }); // Sort terms by attribute
+    await collections.productAttributeTerms.createIndex({ createdAt: -1 }); // Sort newest
+    console.log('   ✅ Product attribute terms indexes created');
+
     console.log('\n🎉 All indexes created successfully!\n');
 
     // List all indexes
@@ -232,6 +249,8 @@ async function setupIndexes() {
       { name: 'menus', collection: collections.menus },
       { name: 'menu_items', collection: collections.menuItems },
       { name: 'media', collection: collections.media },
+      { name: 'product_attributes', collection: collections.productAttributes },
+      { name: 'product_attribute_terms', collection: collections.productAttributeTerms },
       { name: 'admin_users', collection: collections.adminUsers },
       { name: 'admin_activity_logs', collection: collections.adminActivityLogs },
       { name: 'rate_limits', collection: collections.rateLimits },

@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { buttonVariants } from '@/lib/utils/button-variants';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils/cn';
+import { TopBar } from './TopBar';
+import { topBarConfig } from '@/lib/constants/menuData';
 
 // Dynamic imports for heavy components
 const CartDrawer = lazy(() => import('@/components/cart/CartDrawer').then(mod => ({ default: mod.CartDrawer })));
@@ -39,8 +41,14 @@ export function Header() {
 
   return (
     <>
+      {/* Top Bar (Tầng 1) */}
+      <TopBar 
+        leftText={topBarConfig.left}
+        rightItems={topBarConfig.right}
+      />
+
       <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 overflow-visible">
-        <div className="container-mobile flex h-16 items-center justify-between gap-4 relative overflow-visible">
+        <div className="container-mobile flex h-16 md:h-20 items-center justify-between gap-4 relative overflow-visible">
           {/* Logo - Handwriting font for soft, friendly feel */}
           <Link href="/" className="flex items-center space-x-2 flex-shrink-0">
             <span className="font-logo text-xl font-semibold text-primary">

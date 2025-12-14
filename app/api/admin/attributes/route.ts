@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { generateSlug } from '@/lib/utils/slug';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,17 +27,10 @@ const attributeSchema = z.object({
  * List all attributes
  */
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { productAttributes, productAttributeTerms } = await getCollections();
-    const searchParams = request.nextUrl.searchParams;
+      const { productAttributes, productAttributeTerms } = await getCollections();
+    const searchParams = req.nextUrl.searchParams;
     const page = parseInt(searchParams.get('page') || '1', 10);
     const perPage = parseInt(searchParams.get('per_page') || '20', 10);
     const search = searchParams.get('search');
@@ -106,7 +100,8 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  });
 }
 
 /**
@@ -114,88 +109,82 @@ export async function GET(request: NextRequest) {
  * Create new attribute
  */
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+      const { productAttributes } = await getCollections();
+      const body = await req.json();
 
-    const { productAttributes } = await getCollections();
-    const body = await request.json();
+      // Validate input
+      const validatedData = attributeSchema.parse(body);
 
-    // Validate input
-    const validatedData = attributeSchema.parse(body);
+      // Auto-generate slug if not provided
+      let slug = validatedData.slug || generateSlug(validatedData.name);
 
-    // Auto-generate slug if not provided
-    let slug = validatedData.slug || generateSlug(validatedData.name);
-
-    // Check if slug already exists
-    const existingAttribute = await productAttributes.findOne({ slug });
-    if (existingAttribute) {
-      // Append number to make it unique
-      let counter = 1;
-      let uniqueSlug = `${slug}-${counter}`;
-      while (await productAttributes.findOne({ slug: uniqueSlug })) {
-        counter++;
-        uniqueSlug = `${slug}-${counter}`;
+      // Check if slug already exists
+      const existingAttribute = await productAttributes.findOne({ slug });
+      if (existingAttribute) {
+        // Append number to make it unique
+        let counter = 1;
+        let uniqueSlug = `${slug}-${counter}`;
+        while (await productAttributes.findOne({ slug: uniqueSlug })) {
+          counter++;
+          uniqueSlug = `${slug}-${counter}`;
+        }
+        slug = uniqueSlug;
       }
-      slug = uniqueSlug;
-    }
 
-    // Create attribute document
-    const attributeDoc = {
-      ...validatedData,
-      slug,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
+      // Create attribute document
+      const attributeDoc = {
+        ...validatedData,
+        slug,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
 
-    const result = await productAttributes.insertOne(attributeDoc);
+      const result = await productAttributes.insertOne(attributeDoc);
 
-    // Fetch created attribute
-    const createdAttribute = await productAttributes.findOne({
-      _id: result.insertedId,
-    });
+      // Fetch created attribute
+      const createdAttribute = await productAttributes.findOne({
+        _id: result.insertedId,
+      });
 
-    if (!createdAttribute) {
+      if (!createdAttribute) {
+        return NextResponse.json(
+          { error: 'Failed to create attribute' },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json(
-        { error: 'Failed to create attribute' },
+        {
+          attribute: {
+            ...createdAttribute,
+            id: createdAttribute._id.toString(),
+          },
+        },
+        { status: 201 }
+      );
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          {
+            error: 'Validation error',
+            details: error.errors,
+          },
+          { status: 400 }
+        );
+      }
+
+      console.error('[Admin Attributes API] Error:', error);
+      return NextResponse.json(
+        {
+          error: error.message || 'Failed to create attribute',
+          details: process.env.NODE_ENV === 'development'
+            ? { stack: error.stack }
+            : undefined,
+        },
         { status: 500 }
       );
     }
-
-    return NextResponse.json(
-      {
-        attribute: {
-          ...createdAttribute,
-          id: createdAttribute._id.toString(),
-        },
-      },
-      { status: 201 }
-    );
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
-      return NextResponse.json(
-        {
-          error: 'Validation error',
-          details: error.errors,
-        },
-        { status: 400 }
-      );
-    }
-
-    console.error('[Admin Attributes API] Error:', error);
-    return NextResponse.json(
-      {
-        error: error.message || 'Failed to create attribute',
-        details: process.env.NODE_ENV === 'development'
-          ? { stack: error.stack }
-          : undefined,
-      },
-      { status: 500 }
-    );
-  }
+  }, 'product:update'); // Require product:update permission
 }

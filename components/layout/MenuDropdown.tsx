@@ -5,12 +5,14 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { cn } from '@/lib/utils/cn';
 import { buttonVariants } from '@/lib/utils/button-variants';
+import { badgeConfig } from '@/lib/constants/menuData';
+import type { BadgeType } from '@/types/menu';
 
 export interface MenuDropdownItem {
   id: string;
   label: string;
   href: string;
-  badge?: 'new' | 'hot' | 'sale';
+  badge?: BadgeType;
   icon?: string;
 }
 
@@ -230,21 +232,21 @@ export function MenuDropdown({
                 {item.icon && <span className="flex-shrink-0">{item.icon}</span>}
                 <span className="truncate">{item.label}</span>
               </span>
-              {item.badge && (
-                <span
-                  className={cn(
-                    'text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium',
-                    'whitespace-nowrap',
-                    item.badge === 'new' && 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
-                    item.badge === 'hot' && 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
-                    item.badge === 'sale' && 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                  )}
-                >
-                  {item.badge === 'new' && 'Mới'}
-                  {item.badge === 'hot' && 'Hot'}
-                  {item.badge === 'sale' && 'Sale'}
-                </span>
-              )}
+              {item.badge && (() => {
+                const badge = badgeConfig[item.badge];
+                if (!badge) return null;
+                return (
+                  <span
+                    className="text-xs px-2 py-0.5 rounded-full flex-shrink-0 font-medium whitespace-nowrap"
+                    style={{
+                      backgroundColor: badge.bgColor,
+                      color: badge.textColor,
+                    }}
+                  >
+                    {badge.label}
+                  </span>
+                );
+              })()}
             </Link>
           ))}
         </div>,

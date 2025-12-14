@@ -4,6 +4,7 @@ import { usePathname } from 'next/navigation';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { QuickCheckoutModal } from '@/components/checkout/QuickCheckoutModal';
+import { MobileHotlineButton } from '@/components/layout/MobileHotlineButton';
 
 /**
  * Layout Wrapper
@@ -24,10 +25,11 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Header />
-      <main className="flex-1 relative z-0">
+      <main className="flex-1 relative z-0 pb-16 md:pb-0">
         {children}
       </main>
       <Footer />
+      <MobileHotlineButton />
       <QuickCheckoutModal />
     </>
   );
