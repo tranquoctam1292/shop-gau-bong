@@ -623,15 +623,54 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         
         // Handle optimistic locking conflict
         if (response.status === 409 && errorData.code === 'VERSION_MISMATCH') {
+          const currentVersion = errorData.currentVersion || 'unknown';
           showToast(
-            'Sản phẩm đã được chỉnh sửa bởi người khác. Vui lòng làm mới trang và thử lại.',
+            `Sản phẩm đã được chỉnh sửa bởi người khác (version: ${currentVersion}). Đang tải lại dữ liệu mới nhất...`,
             'error'
           );
-          // Optionally refresh the product data
+          
+          // Reload product data instead of full page reload (preserves unsaved changes warning)
           if (currentProductId) {
-            setTimeout(() => {
-              window.location.reload();
-            }, 2000); // Give user time to read the message
+            try {
+              // Fetch latest product data
+              const refreshResponse = await fetch(`/api/admin/products/${currentProductId}`);
+              if (refreshResponse.ok) {
+                const refreshData = await refreshResponse.json();
+                const refreshedProduct = refreshData.product;
+                
+                // Update form data with latest version
+                if (refreshedProduct && formData) {
+                  // Update version in formData
+                  setFormData((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      version: refreshedProduct.version || 0,
+                    };
+                  });
+                  
+                  // Update initialFormData to reflect new version
+                  setInitialFormData((prev) => {
+                    if (!prev) return prev;
+                    return {
+                      ...prev,
+                      version: refreshedProduct.version || 0,
+                    };
+                  });
+                  
+                  showToast(
+                    'Đã tải lại dữ liệu mới nhất. Vui lòng kiểm tra các thay đổi trước khi lưu lại.',
+                    'info'
+                  );
+                }
+              }
+            } catch (refreshError) {
+              console.error('Error refreshing product data:', refreshError);
+              // Fallback to full page reload if refresh fails
+              setTimeout(() => {
+                window.location.reload();
+              }, 3000);
+            }
           }
           setIsSubmitting(false);
           setLoading(false);

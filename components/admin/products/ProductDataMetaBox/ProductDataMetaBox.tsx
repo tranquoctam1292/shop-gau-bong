@@ -253,7 +253,14 @@ export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMet
         productType={state.productType}
         isVirtual={state.isVirtual}
         isDownloadable={state.isDownloadable}
-        onProductTypeChange={(type) => updateState({ productType: type })}
+        onProductTypeChange={(type) => {
+          // Clear regularPrice when switching to variable product
+          if (type === 'variable') {
+            updateState({ productType: type, regularPrice: undefined });
+          } else {
+            updateState({ productType: type });
+          }
+        }}
         onVirtualChange={(isVirtual) => {
           updateState({ isVirtual });
           // If virtual, switch away from shipping tab

@@ -1,16 +1,869 @@
-﻿# PRODUCT FRONTEND SOURCE CODE (ProductCard & Public Pages)
+﻿# PRODUCT FRONTEND MODULE - SOURCE CODE
 
-Generated: 2025-12-14 15:41:09
+# Generated: 2025-12-14 16:19:14
 
-Scope: Frontend product display components (not admin)
+# Total Files: 29
 
 
 ================================================================================
 
 
 
+--- FILE: components\product\AddToCartButton.tsx ---
 
---- FILE: components/product/ProductCard.tsx ---
+Lines: 56
+
+
+'use client';
+
+import { Button } from '@/components/ui/button';
+import { useCartSync } from '@/lib/hooks/useCartSync';
+import { type CartItem } from '@/lib/store/cartStore';
+import { useState } from 'react';
+import { Loader2 } from 'lucide-react';
+import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
+
+interface AddToCartButtonProps {
+  product: Omit<CartItem, 'quantity'>;
+  disabled?: boolean;
+}
+
+export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
+  const { addToCart } = useCartSync();
+  const [isAdding, setIsAdding] = useState(false);
+
+  const handleAddToCart = async () => {
+    if (disabled) return;
+
+    setIsAdding(true);
+    try {
+      await addToCart(product);
+      // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá»
+      useQuickCheckoutStore.getState().onOpen();
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+    } finally {
+      // Show feedback
+      setTimeout(() => {
+        setIsAdding(false);
+      }, 500);
+    }
+  };
+
+  // Button text - Hiá»ƒn thá»‹ loading state vá»›i spinner
+  const getButtonContent = () => {
+    if (isAdding) {
+      return (
+        <>
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          Äang thÃªm...
+        </>
+      );
+    }
+    if (disabled) {
+      return 'Háº¿t hÃ ng';
+    }
+    return 'ThÃªm vÃ o giá» hÃ ng';
+  };
+
+  return (
+    <Button
+      className="w-full relative"
+      size="lg"
+      disabled={disabled || isAdding}
+      onClick={handleAddToCart}
+    >
+      {getButtonContent()}
+    </Button>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\AdvancedFilters.tsx ---
+
+Lines: 416
+
+
+'use client';
+
+import { useState, useMemo, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Select } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { useProductFilters, type ProductFilters as ProductFiltersType } from '@/lib/hooks/useProductFilters';
+import { useCategoriesREST } from '@/lib/hooks/useCategoriesREST';
+import { useProductAttributes } from '@/lib/hooks/useProductAttributes';
+import { X } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import { formatPrice } from '@/lib/utils/format';
+
+interface AdvancedFiltersProps {
+  className?: string;
+}
+
+export function AdvancedFilters({ className }: AdvancedFiltersProps) {
+  const { filters, updateFilter, clearFilters } = useProductFilters();
+  const { categories, loading: categoriesLoading } = useCategoriesREST();
+  const { getSizeOptions, getMaterialOptions, isLoading: attributesLoading } = useProductAttributes();
+  const [isOpen, setIsOpen] = useState(false);
+  // Parse categories tá»« URL (comma-separated string)
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(
+    filters.category ? filters.category.split(',').filter(Boolean) : []
+  );
+
+  // Sync selectedCategories vá»›i filters khi filters thay Ä‘á»•i tá»« bÃªn ngoÃ i
+  useEffect(() => {
+    if (filters.category) {
+      const categoriesFromUrl = filters.category.split(',').filter(Boolean);
+      setSelectedCategories(categoriesFromUrl);
+    } else {
+      setSelectedCategories([]);
+    }
+  }, [filters.category]);
+  // Price range constants
+  const MIN_PRICE = 0;
+  const MAX_PRICE = 1000000;
+  
+  const minPrice = filters.minPrice ?? filters.priceMin ?? null;
+  const maxPrice = filters.maxPrice ?? filters.priceMax ?? null;
+  
+  const [priceRange, setPriceRange] = useState<[number, number]>([
+    minPrice || MIN_PRICE,
+    maxPrice || MAX_PRICE,
+  ]);
+
+  // Sync priceRange vá»›i filters khi filters thay Ä‘á»•i tá»« bÃªn ngoÃ i (URL params)
+  useEffect(() => {
+    setPriceRange([
+      minPrice || MIN_PRICE,
+      maxPrice || MAX_PRICE,
+    ]);
+  }, [minPrice, maxPrice]);
+
+  const hasActiveFilters = 
+    (filters.category && filters.category.split(',').length > 0) ||
+    minPrice || 
+    maxPrice || 
+    filters.material || 
+    filters.size ||
+    filters.sortBy;
+
+  const handleCategoryToggle = (categorySlug: string) => {
+    const newCategories = selectedCategories.includes(categorySlug)
+      ? selectedCategories.filter((c) => c !== categorySlug)
+      : [...selectedCategories, categorySlug];
+
+    setSelectedCategories(newCategories);
+    
+    // Update filter vá»›i táº¥t cáº£ categories (comma-separated)
+    updateFilter('category', newCategories.length > 0 ? newCategories.join(',') : null);
+  };
+
+  const handlePriceRangeChange = (values: number[]) => {
+    const [min, max] = values;
+    setPriceRange([min, max]);
+    
+    updateFilter('priceMin', min > MIN_PRICE ? min : null);
+    updateFilter('priceMax', max < MAX_PRICE ? max : null);
+    updateFilter('minPrice', min > MIN_PRICE ? min : null);
+    updateFilter('maxPrice', max < MAX_PRICE ? max : null);
+  };
+
+  // Material vÃ  Size options Ä‘Æ°á»£c láº¥y Ä‘á»™ng tá»« WooCommerce attributes
+  const materialOptions = getMaterialOptions().map(material => ({
+    value: material,
+    label: material,
+  }));
+
+  const sizeOptions = getSizeOptions().map(size => ({
+    value: size,
+    label: size,
+  }));
+
+  // Active filters for display as badges
+  const activeFilters = useMemo(() => {
+    const active: Array<{ key: string; label: string; value: string }> = [];
+    
+    if (filters.category) {
+      const categorySlugs = filters.category.split(',').filter(Boolean);
+      const categoryNames = categorySlugs
+        .map(slug => {
+          const category = categories.find(c => 
+            c.slug === slug || c.databaseId?.toString() === slug
+          );
+          return category?.name;
+        })
+        .filter(Boolean);
+      
+      if (categoryNames.length > 0) {
+        active.push({ 
+          key: 'category', 
+          label: categoryNames.length === 1 ? 'Danh má»¥c' : 'Danh má»¥c', 
+          value: categoryNames.join(', ') 
+        });
+      }
+    }
+    
+    if (minPrice) {
+      active.push({ 
+        key: 'minPrice', 
+        label: 'GiÃ¡ tá»«', 
+        value: formatPrice(minPrice) 
+      });
+    }
+    
+    if (maxPrice && maxPrice < MAX_PRICE) {
+      active.push({ 
+        key: 'maxPrice', 
+        label: 'GiÃ¡ Ä‘áº¿n', 
+        value: formatPrice(maxPrice) 
+      });
+    }
+    
+    if (filters.material) {
+      active.push({ key: 'material', label: 'Cháº¥t liá»‡u', value: filters.material });
+    }
+    
+    if (filters.size) {
+      active.push({ key: 'size', label: 'KÃ­ch thÆ°á»›c', value: filters.size });
+    }
+    
+    if (filters.sortBy) {
+      const sortLabels: Record<string, string> = {
+        price_asc: 'GiÃ¡: Tháº¥p Ä‘áº¿n cao',
+        price_desc: 'GiÃ¡: Cao Ä‘áº¿n tháº¥p',
+        name_asc: 'TÃªn: A-Z',
+        name_desc: 'TÃªn: Z-A',
+        newest: 'Má»›i nháº¥t',
+      };
+      active.push({ 
+        key: 'sortBy', 
+        label: 'Sáº¯p xáº¿p', 
+        value: sortLabels[filters.sortBy] || filters.sortBy 
+      });
+    }
+    
+    return active;
+  }, [filters, categories]);
+
+  const handleClearAll = () => {
+    setSelectedCategories([]);
+    setPriceRange([MIN_PRICE, MAX_PRICE]);
+    clearFilters();
+  };
+
+  const handleRemoveFilter = (key: string) => {
+    switch (key) {
+      case 'category':
+        setSelectedCategories([]);
+        updateFilter('category', null);
+        break;
+      case 'minPrice':
+        updateFilter('priceMin', null);
+        updateFilter('minPrice', null);
+        setPriceRange([MIN_PRICE, priceRange[1]]);
+        break;
+      case 'maxPrice':
+        updateFilter('priceMax', null);
+        updateFilter('maxPrice', null);
+        setPriceRange([priceRange[0], MAX_PRICE]);
+        break;
+      case 'material':
+        updateFilter('material', null);
+        break;
+      case 'size':
+        updateFilter('size', null);
+        break;
+      case 'sortBy':
+        updateFilter('sortBy', null);
+        break;
+    }
+  };
+
+  return (
+    <div className={`w-full ${className || ''}`}>
+      {/* Mobile: Collapsible Filter Button */}
+      <div className="md:hidden mb-4">
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          {isOpen ? 'ÄÃ³ng bá»™ lá»c' : 'Bá»™ lá»c nÃ¢ng cao'}
+          {hasActiveFilters && (
+            <span className="ml-2 bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs">
+              !
+            </span>
+          )}
+        </Button>
+      </div>
+
+      {/* Filter Panel */}
+      <div
+        className={`${
+          isOpen ? 'block' : 'hidden'
+        } md:block space-y-4`}
+      >
+        <Card className="p-4 md:p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-heading text-lg font-semibold">
+              Bá»™ lá»c nÃ¢ng cao
+            </h3>
+            {hasActiveFilters && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleClearAll}
+                className="text-sm"
+              >
+                <X className="h-4 w-4 mr-1" />
+                XÃ³a táº¥t cáº£
+              </Button>
+            )}
+          </div>
+
+          <div className="space-y-6">
+            {/* Active Filters - Badges */}
+            {activeFilters.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium text-text-main mb-2">
+                  Bá»™ lá»c Ä‘ang Ã¡p dá»¥ng
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {activeFilters.map((filter) => (
+                    <div
+                      key={filter.key}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-pink-50 border border-pink-200 rounded-full text-sm"
+                    >
+                      <span className="text-text-main">
+                        <span className="font-medium">{filter.label}:</span>{' '}
+                        {filter.value}
+                      </span>
+                      <button
+                        onClick={() => handleRemoveFilter(filter.key)}
+                        className="ml-1 hover:bg-pink-100 rounded-full p-0.5 transition-colors"
+                        aria-label={`XÃ³a bá»™ lá»c ${filter.label}`}
+                      >
+                        <X className="w-3.5 h-3.5 text-text-muted hover:text-destructive" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Multiple Categories Filter */}
+            <div>
+              <label className="block text-sm font-medium text-text-main mb-3">
+                Danh má»¥c (cÃ³ thá»ƒ chá»n nhiá»u)
+              </label>
+              <div className="space-y-2 max-h-48 overflow-y-auto">
+                {categoriesLoading ? (
+                  <div className="text-sm text-text-muted">Äang táº£i...</div>
+                ) : (
+                  categories.map((category) => {
+                    const isSelected = selectedCategories.includes(
+                      category.slug || category.databaseId?.toString() || ''
+                    );
+                    return (
+                      <label
+                        key={category.id}
+                        className="flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-muted transition-colors"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() =>
+                            handleCategoryToggle(
+                              category.slug || category.databaseId?.toString() || ''
+                            )
+                          }
+                          className="w-4 h-4 rounded border-text-muted"
+                        />
+                        <span className="text-sm flex-1">
+                          {category.name}
+                          {category.count !== undefined && (
+                            <span className="text-text-muted ml-1">
+                              ({category.count})
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            {/* Price Range Slider */}
+            <div>
+              <label className="block text-sm font-medium text-text-main mb-3">
+                Khoáº£ng giÃ¡
+              </label>
+              <div className="space-y-4">
+                <Slider
+                  value={priceRange}
+                  onValueChange={handlePriceRangeChange}
+                  min={MIN_PRICE}
+                  max={MAX_PRICE}
+                  step={10000}
+                  className="w-full"
+                />
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-text-muted">
+                    {formatPrice(priceRange[0])}
+                  </span>
+                  <span className="font-medium text-primary px-3 py-1 bg-pink-50 rounded-full">
+                    {priceRange[0] > MIN_PRICE || priceRange[1] < MAX_PRICE
+                      ? `${formatPrice(priceRange[0])} - ${formatPrice(priceRange[1])}`
+                      : 'Táº¥t cáº£ má»©c giÃ¡'}
+                  </span>
+                  <span className="text-text-muted">
+                    {formatPrice(priceRange[1])}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Material Filter - Button Chips */}
+            <div>
+              <label className="block text-sm font-medium text-text-main mb-3">
+                Cháº¥t liá»‡u
+              </label>
+              {attributesLoading ? (
+                <div className="text-sm text-text-muted py-2">Äang táº£i...</div>
+              ) : materialOptions.length === 0 ? (
+                <div className="text-sm text-text-muted py-2">KhÃ´ng cÃ³ tÃ¹y chá»n</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {materialOptions.map((option) => {
+                  const isSelected = filters.material === option.value;
+                  return (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        updateFilter('material', isSelected ? null : option.value)
+                      }
+                      className={cn(
+                        'min-h-[44px]',
+                        isSelected && 'bg-primary text-primary-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </Button>
+                  );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Size Filter - Button Chips */}
+            <div>
+              <label className="block text-sm font-medium text-text-main mb-3">
+                KÃ­ch thÆ°á»›c
+              </label>
+              {attributesLoading ? (
+                <div className="text-sm text-text-muted py-2">Äang táº£i...</div>
+              ) : sizeOptions.length === 0 ? (
+                <div className="text-sm text-text-muted py-2">KhÃ´ng cÃ³ tÃ¹y chá»n</div>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {sizeOptions.map((option) => {
+                  const isSelected = filters.size === option.value;
+                  return (
+                    <Button
+                      key={option.value}
+                      type="button"
+                      variant={isSelected ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() =>
+                        updateFilter('size', isSelected ? null : option.value)
+                      }
+                      className={cn(
+                        'min-h-[44px]',
+                        isSelected && 'bg-primary text-primary-foreground'
+                      )}
+                    >
+                      {option.label}
+                    </Button>
+                  );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Sort */}
+            <div>
+              <label className="block text-sm font-medium text-text-main mb-2">
+                Sáº¯p xáº¿p
+              </label>
+              <select
+                value={filters.sortBy || ''}
+                onChange={(e) =>
+                  updateFilter('sortBy', (e.target.value as ProductFiltersType['sortBy']) || null)
+                }
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="">Máº·c Ä‘á»‹nh</option>
+                <option value="price_asc">GiÃ¡: Tháº¥p Ä‘áº¿n cao</option>
+                <option value="price_desc">GiÃ¡: Cao Ä‘áº¿n tháº¥p</option>
+                <option value="name_asc">TÃªn: A-Z</option>
+                <option value="name_desc">TÃªn: Z-A</option>
+                <option value="newest">Má»›i nháº¥t</option>
+              </select>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\FilterForm.tsx ---
+
+Lines: 241
+
+
+'use client';
+
+import { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
+// Using native HTML select for FilterForm
+import { Input } from '@/components/ui/input';
+import { useProductFilters, type ProductFilters as ProductFiltersType } from '@/lib/hooks/useProductFilters';
+import { useCategoriesREST } from '@/lib/hooks/useCategoriesREST';
+import { useProductAttributes } from '@/lib/hooks/useProductAttributes';
+import { cn } from '@/lib/utils/cn';
+
+interface FilterFormProps {
+  className?: string;
+  /**
+   * Mode: 'auto' = apply ngay khi thay Ä‘á»•i (Desktop), 'manual' = chá»‰ apply khi nháº¥n nÃºt (Mobile Sheet)
+   */
+  mode?: 'auto' | 'manual';
+}
+
+export interface FilterFormRef {
+  getFilters: () => {
+    category?: string;
+    minPrice?: number;
+    maxPrice?: number;
+    material?: string;
+    sortBy?: ProductFiltersType['sortBy'];
+  };
+}
+
+/**
+ * FilterForm - Sub-component chá»©a form lá»c sáº£n pháº©m
+ * TÃ¡i sá»­ dá»¥ng cho cáº£ Mobile (trong Sheet) vÃ  Desktop (trong Sidebar)
+ */
+export const FilterForm = forwardRef<FilterFormRef, FilterFormProps>(
+  ({ className, mode = 'auto' }, ref) => {
+  const { filters, updateFilter } = useProductFilters();
+  const { categories, loading: categoriesLoading } = useCategoriesREST();
+  const { getMaterialOptions, isLoading: attributesLoading } = useProductAttributes();
+  
+  // Local state cho táº¥t cáº£ filters (dÃ¹ng khi mode='manual')
+  const [localCategory, setLocalCategory] = useState<string>(filters.category || '');
+  const [localMinPrice, setLocalMinPrice] = useState<string>(filters.minPrice?.toString() || '');
+  const [localMaxPrice, setLocalMaxPrice] = useState<string>(filters.maxPrice?.toString() || '');
+  const [localMaterial, setLocalMaterial] = useState<string>(filters.material || '');
+  const [localSortBy, setLocalSortBy] = useState<string>(filters.sortBy || '');
+  
+  // Validation state cho price range
+  const [priceError, setPriceError] = useState<string>('');
+
+  // Láº¥y material options Ä‘á»™ng tá»« WooCommerce
+  const materialOptions = getMaterialOptions();
+
+  // Sync local state vá»›i filters tá»« URL khi filters thay Ä‘á»•i (tá»« bÃªn ngoÃ i)
+  useEffect(() => {
+    setLocalCategory(filters.category || '');
+    setLocalMinPrice(filters.minPrice?.toString() || '');
+    setLocalMaxPrice(filters.maxPrice?.toString() || '');
+    setLocalMaterial(filters.material || '');
+    setLocalSortBy(filters.sortBy || '');
+  }, [filters.category, filters.minPrice, filters.maxPrice, filters.material, filters.sortBy]);
+
+  // Expose getFilters function qua ref Ä‘á»ƒ parent component cÃ³ thá»ƒ láº¥y current filter values
+  useImperativeHandle(ref, () => ({
+    getFilters: () => {
+      // Validate price range trÆ°á»›c khi return
+      const min = localMinPrice ? Number(localMinPrice) : undefined;
+      const max = localMaxPrice ? Number(localMaxPrice) : undefined;
+      
+      if (min !== undefined && max !== undefined && min > max) {
+        // Return vá»›i error flag Ä‘á»ƒ parent component cÃ³ thá»ƒ xá»­ lÃ½
+        throw new Error('GiÃ¡ tá»‘i thiá»ƒu khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n giÃ¡ tá»‘i Ä‘a');
+      }
+      
+      return {
+        category: localCategory || undefined,
+        minPrice: min,
+        maxPrice: max,
+        material: localMaterial || undefined,
+        sortBy: (localSortBy as ProductFiltersType['sortBy']) || undefined,
+      };
+    },
+  }), [localCategory, localMinPrice, localMaxPrice, localMaterial, localSortBy]);
+
+  return (
+    <div className={`space-y-4 ${className || ''}`}>
+      {/* Category Filter */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Danh má»¥c
+        </label>
+        <select
+          value={mode === 'manual' ? localCategory : (filters.category || '')}
+          onChange={(e) => {
+            if (mode === 'auto') {
+              updateFilter('category', e.target.value || null);
+            } else {
+              setLocalCategory(e.target.value);
+            }
+          }}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          <option value="">Táº¥t cáº£ danh má»¥c</option>
+          {categoriesLoading ? (
+            <option disabled>Äang táº£i...</option>
+          ) : (
+            categories.map((category) => (
+              <option key={category.id} value={category.slug || category.databaseId?.toString()}>
+                {category.name} ({category.count || 0})
+              </option>
+            ))
+          )}
+        </select>
+      </div>
+
+      {/* Price Range */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Khoáº£ng giÃ¡
+        </label>
+        <div className="flex gap-2">
+          <Input
+            type="number"
+            placeholder="Tá»«"
+            value={localMinPrice}
+            onChange={(e) => {
+              setLocalMinPrice(e.target.value);
+              // Validate khi nháº­p
+              const min = e.target.value ? Number(e.target.value) : undefined;
+              const max = localMaxPrice ? Number(localMaxPrice) : undefined;
+              if (min !== undefined && max !== undefined && min > max) {
+                setPriceError('GiÃ¡ tá»‘i thiá»ƒu khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n giÃ¡ tá»‘i Ä‘a');
+              } else {
+                setPriceError('');
+              }
+            }}
+            onBlur={(e) => {
+              // Validate trÆ°á»›c khi apply
+              const min = e.target.value ? Number(e.target.value) : undefined;
+              const max = localMaxPrice ? Number(localMaxPrice) : undefined;
+              
+              if (min !== undefined && max !== undefined && min > max) {
+                setPriceError('GiÃ¡ tá»‘i thiá»ƒu khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n giÃ¡ tá»‘i Ä‘a');
+                return; // KhÃ´ng apply náº¿u validation fail
+              }
+              
+              setPriceError('');
+              // Chá»‰ update URL khi blur náº¿u mode='auto' vÃ  validation pass
+              if (mode === 'auto') {
+                updateFilter('priceMin', min ?? null);
+                updateFilter('minPrice', min ?? null);
+              }
+            }}
+            className={cn("flex-1", priceError && "border-destructive")}
+          />
+          <Input
+            type="number"
+            placeholder="Äáº¿n"
+            value={localMaxPrice}
+            onChange={(e) => {
+              setLocalMaxPrice(e.target.value);
+              // Validate khi nháº­p
+              const min = localMinPrice ? Number(localMinPrice) : undefined;
+              const max = e.target.value ? Number(e.target.value) : undefined;
+              if (min !== undefined && max !== undefined && min > max) {
+                setPriceError('GiÃ¡ tá»‘i thiá»ƒu khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n giÃ¡ tá»‘i Ä‘a');
+              } else {
+                setPriceError('');
+              }
+            }}
+            onBlur={(e) => {
+              // Validate trÆ°á»›c khi apply
+              const min = localMinPrice ? Number(localMinPrice) : undefined;
+              const max = e.target.value ? Number(e.target.value) : undefined;
+              
+              if (min !== undefined && max !== undefined && min > max) {
+                setPriceError('GiÃ¡ tá»‘i thiá»ƒu khÃ´ng Ä‘Æ°á»£c lá»›n hÆ¡n giÃ¡ tá»‘i Ä‘a');
+                return; // KhÃ´ng apply náº¿u validation fail
+              }
+              
+              setPriceError('');
+              // Chá»‰ update URL khi blur náº¿u mode='auto' vÃ  validation pass
+              if (mode === 'auto') {
+                updateFilter('priceMax', max ?? null);
+                updateFilter('maxPrice', max ?? null);
+              }
+            }}
+            className={cn("flex-1", priceError && "border-destructive")}
+          />
+        </div>
+        {priceError && (
+          <p className="text-xs text-destructive mt-1">{priceError}</p>
+        )}
+      </div>
+
+      {/* Material Filter */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Cháº¥t liá»‡u
+        </label>
+        <select
+          value={mode === 'manual' ? localMaterial : (filters.material || '')}
+          onChange={(e) => {
+            if (mode === 'auto') {
+              updateFilter('material', e.target.value || null);
+            } else {
+              setLocalMaterial(e.target.value);
+            }
+          }}
+          disabled={attributesLoading}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <option value="">Táº¥t cáº£</option>
+          {attributesLoading ? (
+            <option disabled>Äang táº£i...</option>
+          ) : (
+            materialOptions.map((material) => (
+              <option key={material} value={material}>
+                {material}
+              </option>
+            ))
+          )}
+        </select>
+      </div>
+
+      {/* Sort */}
+      <div>
+        <label className="block text-sm font-medium text-text-main mb-2">
+          Sáº¯p xáº¿p
+        </label>
+        <select
+          value={mode === 'manual' ? localSortBy : (filters.sortBy || '')}
+          onChange={(e) => {
+            if (mode === 'auto') {
+              updateFilter('sortBy', (e.target.value as ProductFiltersType['sortBy']) || null);
+            } else {
+              setLocalSortBy(e.target.value);
+            }
+          }}
+          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+        >
+          <option value="">Máº·c Ä‘á»‹nh</option>
+          <option value="price_asc">GiÃ¡: Tháº¥p Ä‘áº¿n cao</option>
+          <option value="price_desc">GiÃ¡: Cao Ä‘áº¿n tháº¥p</option>
+          <option value="name_asc">TÃªn: A-Z</option>
+          <option value="name_desc">TÃªn: Z-A</option>
+          <option value="newest">Má»›i nháº¥t</option>
+        </select>
+      </div>
+    </div>
+  );
+  }
+);
+
+FilterForm.displayName = 'FilterForm';
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\ProductBadges.tsx ---
+
+Lines: 47
+
+
+'use client';
+
+interface ProductBadgesProps {
+  onSale?: boolean | null;
+  featured?: boolean | null;
+  isNew?: boolean | null;
+}
+
+export function ProductBadges({ onSale, featured, isNew }: ProductBadgesProps) {
+  const badges = [];
+
+  if (onSale) {
+    badges.push(
+      <span
+        key="sale"
+        className="bg-accent text-accent-foreground text-xs font-semibold px-2 py-1 rounded-full"
+      >
+        Giáº£m giÃ¡
+      </span>
+    );
+  }
+
+  if (featured) {
+    badges.push(
+      <span
+        key="featured"
+        className="bg-primary text-primary-foreground text-xs font-semibold px-2 py-1 rounded-full"
+      >
+        Ná»•i báº­t
+      </span>
+    );
+  }
+
+  if (isNew) {
+    badges.push(
+      <span
+        key="new"
+        className="bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full"
+      >
+        Má»›i
+      </span>
+    );
+  }
+
+  if (badges.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="absolute top-2 left-2 flex flex-wrap gap-2 z-10">
+      {badges}
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\ProductCard.tsx ---
+
+Lines: 375
 
 
 'use client';
@@ -18,13 +871,17 @@ Scope: Frontend product display components (not admin)
 import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { formatPrice } from '@/lib/utils/format';
 import { useCartSync } from '@/lib/hooks/useCartSync';
 import { useProductVariations } from '@/lib/hooks/useProductVariations';
+import { useVariationMatcher } from '@/lib/hooks/useVariationMatcher';
+import { useProductPrice } from '@/lib/hooks/useProductPrice';
+import { isAttributeSize, isAttributeColor } from '@/lib/constants/attributes';
 import { cn } from '@/lib/utils/cn';
 import type { MappedProduct } from '@/lib/utils/productMapper';
-import { ShoppingCart, Check } from 'lucide-react';
+import { ShoppingCart, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getColorHex } from '@/lib/utils/colorMapping';
 import { generateSlug } from '@/lib/utils/slug';
@@ -35,10 +892,13 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter();
   const { addToCart } = useCartSync();
   // State cho viá»‡c chá»n Size/MÃ u
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  // State cho loading feedback
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   
   // ============================================
   // LAZY LOADING: Chá»‰ fetch variations khi cáº§n
@@ -79,107 +939,41 @@ export function ProductCard({ product }: ProductCardProps) {
   // Láº¥y áº£nh hiá»ƒn thá»‹ (Æ°u tiÃªn áº£nh biáº¿n thá»ƒ náº¿u cÃ³ logic chá»n mÃ u, hiá»‡n táº¡i dÃ¹ng áº£nh chÃ­nh)
   const imageUrl = product?.image?.sourceUrl || '/images/teddy-placeholder.png';
   
-  // TÃ¬m variation tÆ°Æ¡ng á»©ng vá»›i selectedSize
-  const selectedVariation = useMemo(() => {
-    if (!product) return null;
-    if (!selectedSize || variations.length === 0) return null;
-    
-    // MongoVariant structure: { id, size, color, price, stock, ... }
-    // Match variation by size directly (not through attributes array)
-    const matchedVariation = variations.find((variation) => {
-      // Check if variation.size matches selectedSize
-      if (variation.size && variation.size === selectedSize) {
-        // If color is also selected, check if it matches
-        // But if variation doesn't have color (null/undefined), still match by size
-        if (selectedColor) {
-          // Only require color match if variation has a color value
-          // If variation.color is null/undefined, it means this variation doesn't have color attribute
-          // So we should still match it by size only
-          return !variation.color || variation.color === selectedColor;
-        }
-        return true;
-      }
-      return false;
-    });
-    
-    return matchedVariation || null;
-  }, [selectedSize, selectedColor, variations, product]);
+  // Use custom hook to find matching variation (replaces duplicate logic)
+  const selectedVariation = useVariationMatcher(variations, selectedSize, selectedColor);
   
-  // Logic hiá»ƒn thá»‹ giÃ¡: Æ¯u tiÃªn variation price, sau Ä‘Ã³ má»›i Ä‘áº¿n product price
-  // Náº¿u khÃ´ng cÃ³ giÃ¡ bÃ¡n thÆ°á»ng, láº¥y giÃ¡ tháº¥p nháº¥t tá»« variations
-  // MongoVariant structure: { id, size, color, price, stock, ... }
-  const displayPrice = useMemo(() => {
-    if (!product) return '0';
+  // Use custom hook for pricing logic (replaces ~60 lines of duplicate code)
+  const { displayPrice, displayRegularPrice, isOnSale } = useProductPrice(product, selectedVariation);
+  
+  // Fallback logic for products without regular price (keep existing behavior)
+  const finalDisplayPrice = useMemo(() => {
+    const numDisplayPrice = parseFloat(displayPrice || '0');
     
-    // Náº¿u cÃ³ variation Ä‘Æ°á»£c chá»n, dÃ¹ng giÃ¡ cá»§a variation
-    if (selectedVariation) {
-      const price = String(selectedVariation.price || 0);
-      return price;
-    }
-    
-    // Fallback vá» giÃ¡ product gá»‘c
-    const fallbackPrice = product.onSale ? product.salePrice : product.price;
-    const numFallbackPrice = parseFloat(fallbackPrice || '0');
-    
-    // Náº¿u product khÃ´ng cÃ³ giÃ¡ bÃ¡n thÆ°á»ng (hoáº·c giÃ¡ = 0), nhÆ°ng cÃ³ variations
-    // â†’ Láº¥y giÃ¡ tháº¥p nháº¥t tá»« variations
-    if (numFallbackPrice <= 0 && variations.length > 0) {
+    // If displayPrice is 0 and we have variations, try to get min price
+    if (numDisplayPrice <= 0 && variations.length > 0) {
       const prices = variations
-        .map(v => v.price || 0)
-        .filter(p => p > 0);
+        .map((v: { price?: number }) => v.price || 0)
+        .filter((p: number) => p > 0);
       
       if (prices.length > 0) {
-        const minPrice = Math.min(...prices);
-        return String(minPrice);
+        return String(Math.min(...prices));
       }
     }
     
-    // Náº¿u cÃ³ minPrice tá»« product (Ä‘Ã£ Ä‘Æ°á»£c map tá»« MongoDB)
-    if (numFallbackPrice <= 0 && product.minPrice && product.minPrice > 0) {
+    // If still 0 and product has minPrice, use it
+    if (numDisplayPrice <= 0 && product?.minPrice && product.minPrice > 0) {
       return String(product.minPrice);
     }
     
-    return fallbackPrice;
-  }, [selectedVariation, product, variations]);
+    return displayPrice;
+  }, [displayPrice, variations, product]);
   
-  // Regular price Ä‘á»ƒ hiá»ƒn thá»‹ line-through khi cÃ³ sale
-  const displayRegularPrice = useMemo(() => {
-    if (!product) return null;
-    if (selectedVariation) {
-      // MongoVariant khÃ´ng cÃ³ regular_price, chá»‰ cÃ³ price
-      // Return null Ä‘á»ƒ khÃ´ng hiá»ƒn thá»‹ line-through
-      return null;
-    }
-    return product.regularPrice;
-  }, [selectedVariation, product]);
+  const finalRegularPrice = displayRegularPrice;
   
-  // Kiá»ƒm tra cÃ³ Ä‘ang sale khÃ´ng
-  const isOnSale = useMemo(() => {
-    if (!product) return false;
-    if (selectedVariation) {
-      // MongoVariant khÃ´ng cÃ³ on_sale field
-      // Check if variation price is different from product regular price
-      const variationPrice = selectedVariation.price || 0;
-      const productRegularPrice = parseFloat(product.regularPrice) || 0;
-      return variationPrice < productRegularPrice && variationPrice > 0;
-    }
-    return product.onSale || false;
-  }, [selectedVariation, product]);
-  
-  // Extract Size and Color attributes from product (trÆ°á»›c early return Ä‘á»ƒ dÃ¹ng trong useMemo)
-  // Fallback to mock data if attributes not available
-  const sizeAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('size') || 
-               attr.name.toLowerCase().includes('kÃ­ch thÆ°á»›c') ||
-               attr.name.toLowerCase().includes('kich thuoc') ||
-               attr.name === 'pa_size'
-  );
-  const colorAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('color') || 
-               attr.name.toLowerCase().includes('mÃ u') ||
-               attr.name.toLowerCase().includes('mau') ||
-               attr.name === 'pa_color'
-  );
+  // Extract Size and Color attributes from product using centralized constants
+  // This replaces hardcoded string matching with reusable helper functions
+  const sizeAttribute = product?.attributes?.find((attr) => isAttributeSize(attr.name));
+  const colorAttribute = product?.attributes?.find((attr) => isAttributeColor(attr.name));
   
   // Use real attributes if available, otherwise fallback to mock data
   const availableSizes = sizeAttribute?.options || ['60cm', '80cm', '1m', '1m2'];
@@ -235,37 +1029,65 @@ export function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
     
-    // Sá»­ dá»¥ng giÃ¡ cá»§a variation náº¿u cÃ³, náº¿u khÃ´ng thÃ¬ dÃ¹ng giÃ¡ product
-    // MongoVariant structure: { id, size, color, price (number), stock, ... }
-    let priceToUse: string;
-    if (selectedVariation) {
-      // MongoVariant chá»‰ cÃ³ price (number), khÃ´ng cÃ³ on_sale/sale_price/regular_price
-      priceToUse = String(selectedVariation.price || 0);
-    } else {
-      // Use product price (string)
-      priceToUse = product.onSale ? product.salePrice : product.price;
+    // FIX: Prevent quick add for variable products without variations data
+    // This prevents wrong pricing when variations haven't loaded yet (race condition)
+    if (product.type === 'variable') {
+      // Check if variations are still loading or not available
+      if (isLoadingVariations || variations.length === 0) {
+        // Redirect to product detail page to select variation properly
+        router.push(productUrl);
+        return;
+      }
+      
+      // If variations loaded but no variation is selected, redirect to detail page
+      if (!selectedVariation) {
+        router.push(productUrl);
+        return;
+      }
     }
     
-    await addToCart({
-      productId: product.databaseId,
-      productName: `${product.name} ${selectedSize ? `(${selectedSize})` : ''}`,
-      price: priceToUse || '0',
-      image: product.image?.sourceUrl,
-      quantity: 1,
-      variationId: selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined,
-      length: product.length || undefined,
-      width: product.width || undefined,
-      height: product.height || undefined,
-      weight: product.weight ? parseFloat(product.weight) : undefined,
-      volumetricWeight: product.volumetricWeight || undefined,
-    });
-
-    // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá»
+    // Set loading state
+    setIsAddingToCart(true);
+    
     try {
-      useQuickCheckoutStore.getState().onOpen();
-      console.log('[ProductCard] QuickCheckoutModal opened');
+      // Sá»­ dá»¥ng giÃ¡ cá»§a variation náº¿u cÃ³, náº¿u khÃ´ng thÃ¬ dÃ¹ng giÃ¡ product
+      // MongoVariant structure: { id, size, color, price (number), stock, ... }
+      let priceToUse: string;
+      if (selectedVariation) {
+        // MongoVariant chá»‰ cÃ³ price (number), khÃ´ng cÃ³ on_sale/sale_price/regular_price
+        priceToUse = String(selectedVariation.price || 0);
+      } else {
+        // Use product price (string) for simple products
+        priceToUse = product.onSale ? product.salePrice : product.price;
+      }
+      
+      await addToCart({
+        productId: product.databaseId,
+        productName: `${product.name} ${selectedSize ? `(${selectedSize})` : ''}`,
+        price: priceToUse || '0',
+        image: product.image?.sourceUrl,
+        quantity: 1,
+        variationId: selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined,
+        length: product.length || undefined,
+        width: product.width || undefined,
+        height: product.height || undefined,
+        weight: product.weight ? parseFloat(product.weight) : undefined,
+        volumetricWeight: product.volumetricWeight || undefined,
+      });
+
+      // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá»
+      try {
+        useQuickCheckoutStore.getState().onOpen();
+      } catch (error) {
+        console.error('[ProductCard] Error opening QuickCheckoutModal:', error);
+      }
     } catch (error) {
-      console.error('[ProductCard] Error opening QuickCheckoutModal:', error);
+      console.error('[ProductCard] Error adding to cart:', error);
+    } finally {
+      // Reset loading state after a short delay for better UX
+      setTimeout(() => {
+        setIsAddingToCart(false);
+      }, 500);
     }
   };
 
@@ -303,11 +1125,19 @@ export function ProductCard({ product }: ProductCardProps) {
         <Button
           onClick={handleQuickAdd}
           size="icon"
-          className="absolute bottom-2 right-2 h-10 w-10 md:h-12 md:w-12 rounded-full shadow-md translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300"
-          title="ThÃªm nhanh vÃ o giá»"
-          aria-label="ThÃªm nhanh vÃ o giá»"
+          disabled={isAddingToCart || isOutOfStock}
+          className={cn(
+            "absolute bottom-2 right-2 h-10 w-10 md:h-12 md:w-12 rounded-full shadow-md translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300",
+            isAddingToCart && "cursor-not-allowed opacity-50"
+          )}
+          title={isAddingToCart ? "Äang thÃªm..." : "ThÃªm nhanh vÃ o giá»"}
+          aria-label={isAddingToCart ? "Äang thÃªm vÃ o giá»" : "ThÃªm nhanh vÃ o giá»"}
         >
-          <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
+          {isAddingToCart ? (
+            <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+          ) : (
+            <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
+          )}
         </Button>
       </Link>
 
@@ -320,19 +1150,25 @@ export function ProductCard({ product }: ProductCardProps) {
           </h3>
         </Link>
 
-        {/* GiÃ¡ tiá»n - Style giá»‘ng áº£nh máº«u (MÃ u há»“ng Ä‘áº­m/Ä‘á») */}
-        <div className="flex items-center gap-2">
-          <span className="text-base md:text-lg font-extrabold text-[#D6336C]">
-            {isLoadingVariations ? (
-              <span className="text-gray-400">Äang táº£i...</span>
-            ) : (
-              formatPrice(displayPrice)
-            )}
-          </span>
-          {isOnSale && displayRegularPrice && displayRegularPrice !== displayPrice && (
-            <span className="text-xs text-gray-400 line-through">
-              {formatPrice(displayRegularPrice)}
-            </span>
+        {/* GiÃ¡ tiá»n - Style giá»‘ng áº£nh máº«u (MÃ u há»“ng Ä‘áº­m/Ä‘á») vá»›i Skeleton Loading */}
+        <div className="flex items-center gap-2 min-h-[28px]">
+          {isLoadingVariations ? (
+            // Skeleton loading: animate pulse effect cho vÃ¹ng giÃ¡
+            <div className="flex items-center gap-2 animate-pulse">
+              <div className="h-5 md:h-6 bg-gray-200 rounded w-20"></div>
+              <div className="h-4 bg-gray-200 rounded w-16"></div>
+            </div>
+          ) : (
+            <>
+              <span className="text-base md:text-lg font-extrabold text-[#D6336C]">
+                {formatPrice(finalDisplayPrice)}
+              </span>
+              {isOnSale && finalRegularPrice && finalRegularPrice !== finalDisplayPrice && (
+                <span className="text-xs text-gray-400 line-through">
+                  {formatPrice(finalRegularPrice)}
+                </span>
+              )}
+            </>
           )}
         </div>
 
@@ -419,491 +1255,122 @@ export function ProductCard({ product }: ProductCardProps) {
 }
 
 
+--------------------------------------------------------------------------------
 
---- FILE: components/product/ProductInfo.tsx ---
+
+--- FILE: components\product\ProductDescription.tsx ---
+
+Lines: 91
 
 
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
-import { Button } from '@/components/ui/button';
-import { formatPrice } from '@/lib/utils/format';
-import { useCartSync } from '@/lib/hooks/useCartSync';
-import { useProductVariations } from '@/lib/hooks/useProductVariations';
-import { useMultipleGlobalAttributeTerms } from '@/lib/hooks/useGlobalAttributes';
-import { QuantitySelector } from '@/components/product/QuantitySelector';
-import { VisualAttributeSelector } from '@/components/product/VisualAttributeSelector';
-import { getColorHex } from '@/lib/utils/colorMapping';
-import { generateSlug } from '@/lib/utils/slug';
+import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils/cn';
-import type { MappedProduct } from '@/lib/utils/productMapper';
-import { Gift, ShoppingCart, Check, Loader2 } from 'lucide-react';
-import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
+import { Button } from '@/components/ui/button';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { sanitizeHtml } from '@/lib/utils/sanitizeHtml';
 
-interface ProductInfoProps {
-  product: MappedProduct;
-  onAddToCart?: (variationId?: number, isGift?: boolean) => void;
-  onGiftOrder?: () => void;
+interface ProductDescriptionProps {
+  content: string;
+  className?: string;
+  maxHeight?: number; // Max height in pixels when collapsed (default: 300)
 }
 
-export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoProps) {
-  const { addToCart } = useCartSync();
-  const searchParams = useSearchParams();
-  const [selectedSize, setSelectedSize] = useState<string | null>(null);
-  const [selectedColor, setSelectedColor] = useState<string | null>(null);
-  const [quantity, setQuantity] = useState(1);
-  const [isAdding, setIsAdding] = useState(false);
-  const [addingType, setAddingType] = useState<'gift' | 'buy' | 'quick' | null>(null);
+export function ProductDescription({ 
+  content, 
+  className,
+  maxHeight = 300 
+}: ProductDescriptionProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [needsExpandButton, setNeedsExpandButton] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  // Fetch variations if product is variable type
-  // Always call useProductVariations with consistent signature to avoid hooks violation
-  const productId = product?.databaseId ?? null;
-  const shouldFetchVariations = product?.type === 'variable' && (product?.variations?.length || 0) > 0;
-  const { variations, isLoading: isLoadingVariations } = useProductVariations(
-    productId,
-    { enabled: shouldFetchVariations && !!productId }
-  );
-
-  // Find selected variation based on selectedSize
-  // MongoVariant structure: { id, size, color, price, stock, ... }
-  // Match variation by size directly (not through attributes array)
-  const selectedVariation = useMemo(() => {
-    if (!product || !selectedSize || variations.length === 0) return null;
-    
-    // Match variation by size directly (MongoDB variant structure)
-    const matchedVariation = variations.find((variation) => {
-      // Check if variation.size matches selectedSize
-      if (variation.size && variation.size === selectedSize) {
-        // If color is also selected, check if it matches
-        // But if variation doesn't have color (null/undefined), still match by size
-        if (selectedColor) {
-          // Only require color match if variation has a color value
-          // If variation.color is null/undefined, it means this variation doesn't have color attribute
-          // So we should still match it by size only
-          return !variation.color || variation.color === selectedColor;
-        }
-        return true;
-      }
-      return false;
-    });
-    
-    return matchedVariation || null;
-  }, [selectedSize, selectedColor, variations, product]);
-
-  // Dynamic pricing
-  // MongoVariant structure: { id, size, color, price, stock, ... }
-  // MongoVariant khÃ´ng cÃ³ on_sale, sale_price, regular_price fields
-  const displayPrice = useMemo(() => {
-    if (!product) return '0';
-    if (selectedVariation) {
-      // MongoVariant chá»‰ cÃ³ price field
-      const price = String(selectedVariation.price || 0);
-      return price;
-    }
-    return product.onSale ? product.salePrice : product.price;
-  }, [selectedVariation, product]);
-
-  const displayRegularPrice = useMemo(() => {
-    if (!product) return null;
-    if (selectedVariation) {
-      // MongoVariant khÃ´ng cÃ³ regular_price field
-      // Return null Ä‘á»ƒ khÃ´ng hiá»ƒn thá»‹ line-through
-      return null;
-    }
-    return product.regularPrice;
-  }, [selectedVariation, product]);
-
-  const isOnSale = useMemo(() => {
-    if (!product) return false;
-    if (selectedVariation) {
-      // MongoVariant khÃ´ng cÃ³ on_sale field
-      // Check if variation price is different from product regular price
-      const variationPrice = selectedVariation.price || 0;
-      const productRegularPrice = parseFloat(product.regularPrice) || 0;
-      return variationPrice < productRegularPrice && variationPrice > 0;
-    }
-    return product.onSale || false;
-  }, [selectedVariation, product]);
-
-  // Extract Size and Color attributes (trÆ°á»›c early return Ä‘á»ƒ dÃ¹ng trong useEffect)
-  const sizeAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('size') || 
-               attr.name.toLowerCase().includes('kÃ­ch thÆ°á»›c') ||
-               attr.name.toLowerCase().includes('kich thuoc')
-  );
-  const colorAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('color') || 
-               attr.name.toLowerCase().includes('mÃ u') ||
-               attr.name.toLowerCase().includes('mau')
-  );
-
-  const availableSizes = sizeAttribute?.options || [];
-  const availableColors = colorAttribute?.options || [];
-
-  const displaySizes = availableSizes.slice(0, 4);
-  const displayColors = availableColors.slice(0, 4);
-
-  // Fetch global attribute terms if globalAttributeId is available
-  // Note: This requires product.attributes to include globalAttributeId (to be added in mapMongoProduct)
-  const globalAttributeIds = useMemo(() => {
-    const ids: string[] = [];
-    product?.attributes?.forEach((attr: any) => {
-      if (attr.globalAttributeId) {
-        ids.push(attr.globalAttributeId);
-      }
-    });
-    return ids;
-  }, [product?.attributes]);
-
-  const { 
-    data: globalAttributeTermsData, 
-    isLoading: isLoadingGlobalTerms,
-    error: globalTermsError 
-  } = useMultipleGlobalAttributeTerms(globalAttributeIds);
-
-  // Handle error gracefully - log but don't crash
+  // Check if content exceeds maxHeight
   useEffect(() => {
-    if (globalTermsError) {
-      console.error('[ProductInfo] Error loading global attribute terms:', globalTermsError);
-      // Fallback to old color mapping will be used automatically
+    if (contentRef.current && !isExpanded) {
+      const height = contentRef.current.scrollHeight;
+      setNeedsExpandButton(height > maxHeight);
     }
-  }, [globalTermsError]);
+  }, [content, maxHeight, isExpanded]);
 
-  // Create a map of globalAttributeId -> terms
-  const globalTermsMap = useMemo(() => {
-    // If there's an error, return empty map (fallback to old behavior)
-    if (globalTermsError || !globalAttributeTermsData || globalAttributeTermsData.length === 0) {
-      return new Map<string, any>();
-    }
-    
-    const map = new Map<string, any>();
-    globalAttributeTermsData.forEach((data) => {
-      if (data?.attribute?.id) {
-        map.set(data.attribute.id, data);
-      }
-    });
-    return map;
-  }, [globalAttributeTermsData, globalTermsError]);
-
-  // Get global attribute type for an attribute
-  const getGlobalAttributeType = (attr: any): 'text' | 'color' | 'image' | 'button' | null => {
-    if (!attr.globalAttributeId) return null;
-    const termsData = globalTermsMap.get(attr.globalAttributeId);
-    return termsData?.attribute.type || null;
-  };
-
-  // Get global terms for an attribute
-  const getGlobalTerms = (attr: any) => {
-    if (!attr.globalAttributeId) return [];
-    const termsData = globalTermsMap.get(attr.globalAttributeId);
-    return termsData?.terms || [];
-  };
-
-  // Äá»c query params tá»« URL vÃ  tá»± Ä‘á»™ng chá»n size/color
-  useEffect(() => {
-    if (!product || !product.attributes) return;
-
-    // Helper function Ä‘á»ƒ táº¡o slug tá»« attribute name
-    const createAttributeSlug = (name: string): string => {
-      return generateSlug(name);
-    };
-
-    // TÃ¬m size attribute vÃ  Ä‘á»c tá»« URL
-    if (sizeAttribute) {
-      const sizeAttrSlug = createAttributeSlug(sizeAttribute.name);
-      const attrKey = `attribute_pa_${sizeAttrSlug}`;
-      const sizeFromUrl = searchParams.get(attrKey);
-      
-      if (sizeFromUrl && availableSizes.includes(sizeFromUrl)) {
-        setSelectedSize(sizeFromUrl);
-      }
-    }
-
-    // TÃ¬m color attribute vÃ  Ä‘á»c tá»« URL
-    if (colorAttribute) {
-      const colorAttrSlug = createAttributeSlug(colorAttribute.name);
-      const attrKey = `attribute_pa_${colorAttrSlug}`;
-      const colorFromUrl = searchParams.get(attrKey);
-      
-      if (colorFromUrl) {
-        // TÃ¬m mÃ u khá»›p (cÃ³ thá»ƒ lÃ  slug hoáº·c tÃªn Ä‘áº§y Ä‘á»§)
-        const matchedColor = availableColors.find((color) => {
-          const colorSlug = createAttributeSlug(color);
-          return colorSlug === colorFromUrl || color.toLowerCase() === colorFromUrl.toLowerCase();
-        });
-        
-        if (matchedColor) {
-          setSelectedColor(matchedColor);
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, product, sizeAttribute, colorAttribute]);
-
-  if (!product || !product.name) return null;
-
-  const isOutOfStock = product.stockStatus === 'outofstock';
-
-  const handleAddToCartClick = async (isGift: boolean = false, isQuickCheckout: boolean = false) => {
-    // Validation: Náº¿u product cÃ³ variations nhÆ°ng chÆ°a chá»n size
-    // Tá»± Ä‘á»™ng chá»n size Ä‘áº§u tiÃªn vÃ  tiáº¿p tá»¥c thÃªm vÃ o giá» (khÃ´ng return)
-    if (product.type === 'variable' && availableSizes.length > 0 && !selectedSize) {
-      if (availableSizes.length > 0) {
-        setSelectedSize(availableSizes[0]);
-        // KHÃ”NG return - Ä‘á»ƒ code tiáº¿p tá»¥c cháº¡y vÃ  thÃªm vÃ o giá» ngay trong láº§n báº¥m Ä‘áº§u tiÃªn
-      }
-    }
-
-    setIsAdding(true);
-    setAddingType(isGift ? 'gift' : isQuickCheckout ? 'quick' : 'buy');
-
-    try {
-      // MongoVariant structure: { id, size, color, price, stock, ... }
-      // MongoVariant chá»‰ cÃ³ price field, khÃ´ng cÃ³ on_sale, sale_price, regular_price
-      const priceToUse = selectedVariation 
-        ? String(selectedVariation.price || 0)
-        : (product.onSale ? product.salePrice : product.price);
-
-      for (let i = 0; i < quantity; i++) {
-        await addToCart({
-          productId: product.databaseId,
-          productName: `${product.name} ${selectedSize ? `(${selectedSize})` : ''}`,
-          price: priceToUse || '0',
-          image: product.image?.sourceUrl,
-          quantity: 1,
-          variationId: selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined,
-          isGift: isGift,
-          length: product.length || undefined,
-          width: product.width || undefined,
-          height: product.height || undefined,
-          weight: product.weight ? parseFloat(product.weight) : undefined,
-          volumetricWeight: product.volumetricWeight || undefined,
-        });
-      }
-
-      if (onAddToCart) {
-        onAddToCart(selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined, isGift);
-      }
-
-      // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá» (cho cáº£ "ThÃªm giá» hÃ ng" vÃ  "Mua ngay")
-      try {
-        useQuickCheckoutStore.getState().onOpen();
-        console.log('[ProductInfo] QuickCheckoutModal opened');
-      } catch (error) {
-        console.error('[ProductInfo] Error opening QuickCheckoutModal:', error);
-      }
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    } finally {
-      // Reset loading state after a short delay for better UX
-      setTimeout(() => {
-        setIsAdding(false);
-        setAddingType(null);
-      }, 500);
-    }
-  };
+  if (!content || !content.trim()) {
+    return null;
+  }
 
   return (
-    <div className="space-y-6">
-      {/* Product Name */}
-      <div>
-        <h1 className="font-heading text-2xl md:text-3xl font-bold mb-2">
-          {product.name}
-        </h1>
-        {product.sku && (
-          <p className="text-sm text-text-muted">
-            SKU: {product.sku}
-          </p>
-        )}
-      </div>
-
-      {/* Price */}
-      <div className="flex items-center gap-4">
-        <p className="text-3xl font-bold text-primary">
-          {isLoadingVariations ? (
-            <span className="text-gray-400">Äang táº£i...</span>
-          ) : (
-            formatPrice(displayPrice)
+    <div className={cn('bg-white rounded-2xl p-4 md:p-6', className)}>
+      <h3 className="font-heading text-lg font-semibold mb-4 text-text-main">
+        MÃ´ táº£ sáº£n pháº©m
+      </h3>
+      
+      <div className="relative">
+        {/* Content Container */}
+        <div
+          ref={contentRef}
+          className={cn(
+            'overflow-hidden transition-all duration-300 ease-in-out',
+            !isExpanded && needsExpandButton ? `max-h-[${maxHeight}px]` : 'max-h-none'
           )}
-        </p>
-        {isOnSale && displayRegularPrice && displayRegularPrice !== displayPrice && (
-          <p className="text-lg text-text-muted line-through">
-            {formatPrice(displayRegularPrice)}
-          </p>
+          style={{
+            maxHeight: !isExpanded && needsExpandButton ? `${maxHeight}px` : 'none',
+          }}
+        >
+          {/* HTML Content with Typography Plugin */}
+          {/* Sanitized to prevent XSS attacks */}
+          <div
+            className="prose prose-sm md:prose-base max-w-none prose-headings:font-heading prose-headings:text-text-main prose-p:text-text-main prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-text-main prose-strong:font-semibold prose-ul:text-text-main prose-ol:text-text-main prose-li:text-text-main prose-img:rounded-lg prose-img:max-w-full prose-img:h-auto prose-img:my-4 prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg"
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
+          />
+        </div>
+
+        {/* Gradient Fade Effect (only when collapsed and needs expand) */}
+        {!isExpanded && needsExpandButton && (
+          <div 
+            className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
+            style={{
+              background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1))',
+            }}
+          />
         )}
       </div>
 
-      {/* Size Selector - Use VisualAttributeSelector if global attribute, otherwise fallback */}
-      {displaySizes.length > 0 && sizeAttribute && (
-        (() => {
-          const globalType = getGlobalAttributeType(sizeAttribute as any);
-          const globalTerms = getGlobalTerms(sizeAttribute as any);
-          
-          // Use VisualAttributeSelector if it's a global attribute with type
-          if (globalType) {
-            return (
-              <VisualAttributeSelector
-                label="KÃ­ch thÆ°á»›c"
-                type={globalType}
-                options={displaySizes}
-                terms={globalTerms}
-                selectedValue={selectedSize}
-                onSelect={setSelectedSize}
-              />
-            );
-          }
-          
-          // Fallback to button style for non-global or text attributes
-          return (
-            <VisualAttributeSelector
-              label="KÃ­ch thÆ°á»›c"
-              type="button"
-              options={displaySizes}
-              selectedValue={selectedSize}
-              onSelect={setSelectedSize}
-            />
-          );
-        })()
-      )}
-
-      {/* Color Selector - Use VisualAttributeSelector if global attribute, otherwise fallback */}
-      {displayColors.length > 0 && colorAttribute && (
-        (() => {
-          const globalType = getGlobalAttributeType(colorAttribute as any);
-          const globalTerms = getGlobalTerms(colorAttribute as any);
-          
-          // Use VisualAttributeSelector if it's a global attribute with type
-          if (globalType) {
-            return (
-              <VisualAttributeSelector
-                label="MÃ u sáº¯c"
-                type={globalType}
-                options={displayColors}
-                terms={globalTerms}
-                selectedValue={selectedColor}
-                onSelect={setSelectedColor}
-              />
-            );
-          }
-          
-          // Fallback to color swatches using getColorHex (backward compatibility)
-          return (
-            <div>
-              <label className="block text-sm font-medium text-text-main mb-2">
-                MÃ u sáº¯c{selectedColor ? `: ${selectedColor}` : ''}
-              </label>
-              <div className="flex gap-3 items-center">
-                {displayColors.map((colorName, idx) => {
-                  const bgColor = getColorHex(colorName) || (colorName.startsWith('#') ? colorName : '#E5E7EB');
-                  const isSelected = selectedColor === colorName;
-                  
-                  const lightColors = ['#FFFFFF', '#FDFBF7', '#F5F5DC', '#E5E7EB', '#FFF9FA', '#FEF3C7'];
-                  const bgColorUpper = bgColor.toUpperCase();
-                  const isLightColor = lightColors.includes(bgColorUpper) || 
-                                       colorName.toLowerCase().includes('tráº¯ng') || 
-                                       colorName.toLowerCase().includes('kem') ||
-                                       colorName.toLowerCase().includes('trang');
-                  
-                  return (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedColor(colorName)}
-                      className={cn(
-                        "w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-200",
-                        "border-2",
-                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
-                        isSelected 
-                          ? "border-pink-600 ring-2 ring-pink-500 ring-offset-2 scale-110" 
-                          : isLightColor
-                            ? "border-gray-400 hover:scale-105 hover:border-pink-300"
-                            : "border-gray-300 hover:scale-105 hover:border-pink-300"
-                      )}
-                      style={{ backgroundColor: bgColor }}
-                      title={`MÃ u: ${colorName}`}
-                      aria-label={`Chá»n mÃ u ${colorName}`}
-                      aria-pressed={isSelected}
-                    >
-                      {isSelected && (
-                        <Check 
-                          className={cn(
-                            "w-4 h-4 md:w-5 md:h-5", 
-                            isLightColor ? "text-gray-900" : "text-white"
-                          )} 
-                          strokeWidth={3}
-                        />
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })()
-      )}
-
-      {/* Actions (Horizontal Layout) */}
-      <div className="space-y-4">
-        {/* Row of Actions */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 1. Quantity Capsule */}
-          <QuantitySelector 
-            value={quantity} 
-            onChange={setQuantity} 
-            min={1}
-            max={product.stockQuantity || 99}
-            disabled={isOutOfStock}
-          />
-
-          {/* 2. Add to Cart Button */}
-          <Button 
-            className="rounded-full bg-blue-500 hover:bg-blue-600 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-blue-200 font-bold !flex items-center justify-center"
-            disabled={isOutOfStock || isAdding}
-            onClick={() => handleAddToCartClick(false)}
-            aria-label="ThÃªm vÃ o giá» hÃ ng"
+      {/* Expand/Collapse Button */}
+      {needsExpandButton && (
+        <div className="flex justify-center mt-4">
+          <Button
+            variant="outline"
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="border-pink-200 text-primary hover:bg-pink-50 hover:border-pink-300 min-h-[44px] px-6"
+            aria-expanded={isExpanded}
+            aria-label={isExpanded ? 'Thu gá»n mÃ´ táº£' : 'Xem thÃªm mÃ´ táº£'}
           >
-            {isAdding && addingType === 'buy' ? (
+            {isExpanded ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Äang thÃªm...</span>
+                <ChevronUp className="w-4 h-4 mr-2" />
+                Thu gá»n
               </>
             ) : (
               <>
-                <ShoppingCart className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
-                <span className="whitespace-nowrap">ThÃªm giá» hÃ ng</span>
-              </>
-            )}
-          </Button>
-
-          {/* 3. Gift Button */}
-          <Button 
-            className="rounded-full bg-pink-400 hover:bg-pink-500 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-pink-200 font-bold !flex items-center justify-center"
-            disabled={isOutOfStock || isAdding}
-            onClick={() => handleAddToCartClick(true)}
-            aria-label="Gá»­i táº·ng sáº£n pháº©m"
-          >
-            {isAdding && addingType === 'gift' ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                <span className="whitespace-nowrap">Äang thÃªm...</span>
-              </>
-            ) : (
-              <>
-                <Gift className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
-                <span className="whitespace-nowrap">Gá»¬I Táº¶NG</span>
+                <ChevronDown className="w-4 h-4 mr-2" />
+                Xem thÃªm
               </>
             )}
           </Button>
         </div>
-      </div>
+      )}
     </div>
   );
 }
 
 
 
+--------------------------------------------------------------------------------
 
---- FILE: components/product/ProductFilters.tsx ---
+
+--- FILE: components\product\ProductFilters.tsx ---
+
+Lines: 1191
 
 
 'use client';
@@ -2126,114 +2593,12 @@ export function ProductFilters() {
 }
 
 
-
---- FILE: components/product/ProductDescription.tsx ---
-
-
-'use client';
-
-import { useState, useRef, useEffect } from 'react';
-import { cn } from '@/lib/utils/cn';
-import { Button } from '@/components/ui/button';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { sanitizeHtml } from '@/lib/utils/sanitizeHtml';
-
-interface ProductDescriptionProps {
-  content: string;
-  className?: string;
-  maxHeight?: number; // Max height in pixels when collapsed (default: 300)
-}
-
-export function ProductDescription({ 
-  content, 
-  className,
-  maxHeight = 300 
-}: ProductDescriptionProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const [needsExpandButton, setNeedsExpandButton] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  // Check if content exceeds maxHeight
-  useEffect(() => {
-    if (contentRef.current && !isExpanded) {
-      const height = contentRef.current.scrollHeight;
-      setNeedsExpandButton(height > maxHeight);
-    }
-  }, [content, maxHeight, isExpanded]);
-
-  if (!content || !content.trim()) {
-    return null;
-  }
-
-  return (
-    <div className={cn('bg-white rounded-2xl p-4 md:p-6', className)}>
-      <h3 className="font-heading text-lg font-semibold mb-4 text-text-main">
-        MÃ´ táº£ sáº£n pháº©m
-      </h3>
-      
-      <div className="relative">
-        {/* Content Container */}
-        <div
-          ref={contentRef}
-          className={cn(
-            'overflow-hidden transition-all duration-300 ease-in-out',
-            !isExpanded && needsExpandButton ? `max-h-[${maxHeight}px]` : 'max-h-none'
-          )}
-          style={{
-            maxHeight: !isExpanded && needsExpandButton ? `${maxHeight}px` : 'none',
-          }}
-        >
-          {/* HTML Content with Typography Plugin */}
-          {/* Sanitized to prevent XSS attacks */}
-          <div
-            className="prose prose-sm md:prose-base max-w-none prose-headings:font-heading prose-headings:text-text-main prose-p:text-text-main prose-p:leading-relaxed prose-a:text-primary prose-a:no-underline hover:prose-a:underline prose-strong:text-text-main prose-strong:font-semibold prose-ul:text-text-main prose-ol:text-text-main prose-li:text-text-main prose-img:rounded-lg prose-img:max-w-full prose-img:h-auto prose-img:my-4 prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg"
-            dangerouslySetInnerHTML={{ __html: sanitizeHtml(content) }}
-          />
-        </div>
-
-        {/* Gradient Fade Effect (only when collapsed and needs expand) */}
-        {!isExpanded && needsExpandButton && (
-          <div 
-            className="absolute bottom-0 left-0 right-0 h-20 pointer-events-none"
-            style={{
-              background: 'linear-gradient(to bottom, rgba(255, 255, 255, 0), rgba(255, 255, 255, 1))',
-            }}
-          />
-        )}
-      </div>
-
-      {/* Expand/Collapse Button */}
-      {needsExpandButton && (
-        <div className="flex justify-center mt-4">
-          <Button
-            variant="outline"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="border-pink-200 text-primary hover:bg-pink-50 hover:border-pink-300 min-h-[44px] px-6"
-            aria-expanded={isExpanded}
-            aria-label={isExpanded ? 'Thu gá»n mÃ´ táº£' : 'Xem thÃªm mÃ´ táº£'}
-          >
-            {isExpanded ? (
-              <>
-                <ChevronUp className="w-4 h-4 mr-2" />
-                Thu gá»n
-              </>
-            ) : (
-              <>
-                <ChevronDown className="w-4 h-4 mr-2" />
-                Xem thÃªm
-              </>
-            )}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
+--------------------------------------------------------------------------------
 
 
+--- FILE: components\product\ProductGallery.tsx ---
 
-
---- FILE: components/product/ProductGallery.tsx ---
+Lines: 110
 
 
 'use client';
@@ -2360,8 +2725,1411 @@ export function ProductGallery({ images, productName }: ProductGalleryProps) {
 
 
 
+--------------------------------------------------------------------------------
 
---- FILE: components/product/VisualAttributeSelector.tsx ---
+
+--- FILE: components\product\ProductHighlights.tsx ---
+
+Lines: 150
+
+
+'use client';
+
+import { formatPrice } from '@/lib/utils/format';
+import type { WooCommerceVariation } from '@/types/woocommerce';
+import type { MongoVariant } from '@/types/mongodb';
+
+/**
+ * Variation type that supports both WooCommerce and MongoDB formats
+ */
+type Variation = WooCommerceVariation | MongoVariant | {
+  size?: string;
+  color?: string;
+  price: string | number;
+  regular_price?: string | number;
+  sale_price?: string | number;
+  on_sale?: boolean;
+  attributes?: Array<{
+    name: string;
+    option: string;
+  }>;
+};
+
+interface ProductHighlightsProps {
+  description?: string;
+  attributes?: Array<{
+    name: string;
+    options: string[];
+  }>;
+  material?: string;
+  origin?: string;
+  variations?: Variation[];
+}
+
+export function ProductHighlights({
+  description,
+  attributes,
+  material,
+  origin,
+  variations,
+}: ProductHighlightsProps) {
+
+  // Extract highlights from description or attributes
+  const highlights: string[] = [];
+  
+  if (description && typeof window !== 'undefined') {
+    // Simple extraction: Look for list items or bullet points (client-side only)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = description;
+    const listItems = tempDiv.querySelectorAll('li, ul li');
+    listItems.forEach((li) => {
+      const text = li.textContent?.trim();
+      if (text && text.length > 0) {
+        highlights.push(text);
+      }
+    });
+  } else if (description) {
+    // Fallback: Simple text extraction (server-side)
+    const lines = description.split(/<[^>]+>/).filter(line => line.trim().length > 0);
+    highlights.push(...lines.slice(0, 5)); // Limit to 5 highlights
+  }
+
+  // Add material and origin if available
+  if (material) highlights.push(`Cháº¥t liá»‡u: ${material}`);
+  if (origin) highlights.push(`Xuáº¥t xá»©: ${origin}`);
+
+  // Price Table from variations
+  // Support both WooCommerce format (with attributes) and MongoDB format (direct size/color fields)
+  const priceTable = variations
+    ?.filter((v) => {
+      const price = typeof v.price === 'number' ? v.price : parseFloat(String(v.price || '0'));
+      const regularPrice = typeof (v as any).regular_price === 'number' 
+        ? (v as any).regular_price 
+        : parseFloat(String((v as any).regular_price || '0'));
+      return price > 0 || regularPrice > 0;
+    })
+    .map((v) => {
+      // Try MongoDB format first (direct size field)
+      let size = 'N/A';
+      if ('size' in v && v.size) {
+        size = String(v.size);
+      } else if ('attributes' in v && Array.isArray(v.attributes)) {
+        // Fallback to WooCommerce format (attributes array)
+        const sizeAttr = v.attributes.find((attr: any) =>
+          attr.name?.toLowerCase().includes('size') ||
+          attr.name?.toLowerCase().includes('kÃ­ch thÆ°á»›c') ||
+          attr.name?.toLowerCase().includes('kich thuoc')
+      );
+        size = sizeAttr?.option || 'N/A';
+      }
+      
+      // Get price (support both formats)
+      // MongoDB variants don't have on_sale, only price
+      const hasOnSale = 'on_sale' in v && (v as any).on_sale;
+      const salePrice = (v as any).sale_price;
+      const price = (hasOnSale && salePrice) 
+        ? salePrice 
+        : (v.price || (v as any).regular_price || '0');
+      
+      return {
+        size,
+        price: typeof price === 'number' ? price.toString() : String(price),
+      };
+    })
+    .sort((a, b) => {
+      // Sort by size (try to parse as number)
+      const aNum = parseFloat(a.size.replace(/[^\d.]/g, ''));
+      const bNum = parseFloat(b.size.replace(/[^\d.]/g, ''));
+      if (!isNaN(aNum) && !isNaN(bNum)) return aNum - bNum;
+      return a.size.localeCompare(b.size);
+    });
+
+  return (
+    <div className="space-y-6">
+      {/* Highlights List */}
+      {highlights.length > 0 && (
+        <div>
+          <h3 className="font-heading text-lg font-semibold mb-4">
+            Äáº·c Ä‘iá»ƒm ná»•i báº­t
+          </h3>
+          <ul className="list-disc list-inside space-y-2 marker:text-primary text-text-main">
+            {highlights.map((highlight, index) => (
+              <li key={index} className="text-sm">
+                {highlight}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {/* Price Table */}
+      {priceTable && priceTable.length > 0 && (
+        <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
+          <h3 className="font-heading text-lg font-semibold mb-3">
+            KÃ­ch thÆ°á»›c & GiÃ¡
+          </h3>
+          <div className="space-y-2">
+            {priceTable.map((item, index) => (
+              <div
+                key={index}
+                className="flex justify-between items-center py-2 border-b border-pink-200 last:border-0"
+              >
+                <span className="text-sm font-medium text-text-main">
+                  Size {index + 1}: {item.size}
+                </span>
+                <span className="text-sm font-bold text-primary">
+                  {formatPrice(item.price)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Note */}
+      <p className="text-xs text-text-muted italic">
+        Táº¥t cáº£ hÃ¬nh áº£nh SP Ä‘á»u lÃ  HÃ¬nh Tháº­t Shop tá»± chá»¥p.
+      </p>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\ProductInfo.tsx ---
+
+Lines: 395
+
+
+'use client';
+
+import { useState, useMemo, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { formatPrice } from '@/lib/utils/format';
+import { useCartSync } from '@/lib/hooks/useCartSync';
+import { useProductVariations } from '@/lib/hooks/useProductVariations';
+import { useVariationMatcher } from '@/lib/hooks/useVariationMatcher';
+import { useProductPrice } from '@/lib/hooks/useProductPrice';
+import { useMultipleGlobalAttributeTerms } from '@/lib/hooks/useGlobalAttributes';
+import { isAttributeSize, isAttributeColor } from '@/lib/constants/attributes';
+import { QuantitySelector } from '@/components/product/QuantitySelector';
+import { VisualAttributeSelector } from '@/components/product/VisualAttributeSelector';
+import { getColorHex } from '@/lib/utils/colorMapping';
+import { generateSlug } from '@/lib/utils/slug';
+import { cn } from '@/lib/utils/cn';
+import type { MappedProduct } from '@/lib/utils/productMapper';
+import { Gift, ShoppingCart, Check, Loader2 } from 'lucide-react';
+import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
+
+interface ProductInfoProps {
+  product: MappedProduct;
+  onAddToCart?: (variationId?: number, isGift?: boolean) => void;
+  onGiftOrder?: () => void;
+}
+
+export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoProps) {
+  const { addToCart } = useCartSync();
+  const searchParams = useSearchParams();
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [quantity, setQuantity] = useState(1);
+  const [isAdding, setIsAdding] = useState(false);
+  const [addingType, setAddingType] = useState<'gift' | 'buy' | 'quick' | null>(null);
+
+  // Fetch variations if product is variable type
+  // Always call useProductVariations with consistent signature to avoid hooks violation
+  const productId = product?.databaseId ?? null;
+  const shouldFetchVariations = product?.type === 'variable' && (product?.variations?.length || 0) > 0;
+  const { variations, isLoading: isLoadingVariations } = useProductVariations(
+    productId,
+    { enabled: shouldFetchVariations && !!productId }
+  );
+
+  // Use custom hook to find matching variation (replaces ~25 lines of duplicate logic)
+  const selectedVariation = useVariationMatcher(variations, selectedSize, selectedColor);
+
+  // Use custom hook for pricing logic (replaces ~35 lines of duplicate code)
+  const { displayPrice, displayRegularPrice, isOnSale } = useProductPrice(product, selectedVariation);
+
+  // Extract Size and Color attributes using centralized constants
+  // This replaces hardcoded string matching with reusable helper functions
+  const sizeAttribute = product?.attributes?.find((attr) => isAttributeSize(attr.name));
+  const colorAttribute = product?.attributes?.find((attr) => isAttributeColor(attr.name));
+
+  const availableSizes = sizeAttribute?.options || [];
+  const availableColors = colorAttribute?.options || [];
+
+  const displaySizes = availableSizes.slice(0, 4);
+  const displayColors = availableColors.slice(0, 4);
+
+  // Fetch global attribute terms if globalAttributeId is available
+  // Note: This requires product.attributes to include globalAttributeId (to be added in mapMongoProduct)
+  const globalAttributeIds = useMemo(() => {
+    const ids: string[] = [];
+    product?.attributes?.forEach((attr: any) => {
+      if (attr.globalAttributeId) {
+        ids.push(attr.globalAttributeId);
+      }
+    });
+    return ids;
+  }, [product?.attributes]);
+
+  const { 
+    data: globalAttributeTermsData, 
+    isLoading: isLoadingGlobalTerms,
+    error: globalTermsError 
+  } = useMultipleGlobalAttributeTerms(globalAttributeIds);
+
+  // Handle error gracefully - log but don't crash
+  useEffect(() => {
+    if (globalTermsError) {
+      console.error('[ProductInfo] Error loading global attribute terms:', globalTermsError);
+      // Fallback to old color mapping will be used automatically
+    }
+  }, [globalTermsError]);
+
+  // Create a map of globalAttributeId -> terms
+  const globalTermsMap = useMemo(() => {
+    // If there's an error, return empty map (fallback to old behavior)
+    if (globalTermsError || !globalAttributeTermsData || globalAttributeTermsData.length === 0) {
+      return new Map<string, any>();
+    }
+    
+    const map = new Map<string, any>();
+    globalAttributeTermsData.forEach((data) => {
+      if (data?.attribute?.id) {
+        map.set(data.attribute.id, data);
+      }
+    });
+    return map;
+  }, [globalAttributeTermsData, globalTermsError]);
+
+  // Get global attribute type for an attribute
+  const getGlobalAttributeType = (attr: any): 'text' | 'color' | 'image' | 'button' | null => {
+    if (!attr.globalAttributeId) return null;
+    const termsData = globalTermsMap.get(attr.globalAttributeId);
+    return termsData?.attribute.type || null;
+  };
+
+  // Get global terms for an attribute
+  const getGlobalTerms = (attr: any) => {
+    if (!attr.globalAttributeId) return [];
+    const termsData = globalTermsMap.get(attr.globalAttributeId);
+    return termsData?.terms || [];
+  };
+
+  // Äá»c query params tá»« URL vÃ  tá»± Ä‘á»™ng chá»n size/color
+  useEffect(() => {
+    if (!product || !product.attributes) return;
+
+    // Helper function Ä‘á»ƒ táº¡o slug tá»« attribute name
+    const createAttributeSlug = (name: string): string => {
+      return generateSlug(name);
+    };
+
+    // TÃ¬m size attribute vÃ  Ä‘á»c tá»« URL
+    if (sizeAttribute) {
+      const sizeAttrSlug = createAttributeSlug(sizeAttribute.name);
+      const attrKey = `attribute_pa_${sizeAttrSlug}`;
+      const sizeFromUrl = searchParams.get(attrKey);
+      
+      if (sizeFromUrl && availableSizes.includes(sizeFromUrl)) {
+        setSelectedSize(sizeFromUrl);
+      }
+    }
+
+    // TÃ¬m color attribute vÃ  Ä‘á»c tá»« URL
+    if (colorAttribute) {
+      const colorAttrSlug = createAttributeSlug(colorAttribute.name);
+      const attrKey = `attribute_pa_${colorAttrSlug}`;
+      const colorFromUrl = searchParams.get(attrKey);
+      
+      if (colorFromUrl) {
+        // TÃ¬m mÃ u khá»›p (cÃ³ thá»ƒ lÃ  slug hoáº·c tÃªn Ä‘áº§y Ä‘á»§)
+        const matchedColor = availableColors.find((color) => {
+          const colorSlug = createAttributeSlug(color);
+          return colorSlug === colorFromUrl || color.toLowerCase() === colorFromUrl.toLowerCase();
+        });
+        
+        if (matchedColor) {
+          setSelectedColor(matchedColor);
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, product, sizeAttribute, colorAttribute]);
+
+  if (!product || !product.name) return null;
+
+  const isOutOfStock = product.stockStatus === 'outofstock';
+
+  const handleAddToCartClick = async (isGift: boolean = false, isQuickCheckout: boolean = false) => {
+    // FIX: Use local variables to avoid async state update issues
+    // If product has variations but no size selected, auto-select first size
+    let sizeToUse = selectedSize;
+    let colorToUse = selectedColor;
+    
+    if (product.type === 'variable' && availableSizes.length > 0 && !selectedSize) {
+      sizeToUse = availableSizes[0];
+      // Update UI state (async) but use local variable for immediate logic
+      setSelectedSize(sizeToUse);
+    }
+
+    setIsAdding(true);
+    setAddingType(isGift ? 'gift' : isQuickCheckout ? 'quick' : 'buy');
+
+    try {
+      // Find variation using local variables (not state) to ensure accuracy
+      // MongoVariant structure: { id, size, color, price, stock, ... }
+      const variationToUse = variations.find((variation) => {
+        if (variation.size && variation.size === sizeToUse) {
+          if (colorToUse) {
+            return !variation.color || variation.color === colorToUse;
+          }
+          return true;
+        }
+        return false;
+      });
+
+      // Calculate price using the found variation
+      // MongoVariant chá»‰ cÃ³ price field, khÃ´ng cÃ³ on_sale, sale_price, regular_price
+      const priceToUse = variationToUse 
+        ? String(variationToUse.price || 0)
+        : (product.onSale ? product.salePrice : product.price);
+
+      for (let i = 0; i < quantity; i++) {
+        await addToCart({
+          productId: product.databaseId,
+          productName: `${product.name} ${sizeToUse ? `(${sizeToUse})` : ''}`,
+          price: priceToUse || '0',
+          image: product.image?.sourceUrl,
+          quantity: 1,
+          variationId: variationToUse?.id ? (typeof variationToUse.id === 'number' ? variationToUse.id : parseInt(variationToUse.id, 10) || undefined) : undefined,
+          isGift: isGift,
+          length: product.length || undefined,
+          width: product.width || undefined,
+          height: product.height || undefined,
+          weight: product.weight ? parseFloat(product.weight) : undefined,
+          volumetricWeight: product.volumetricWeight || undefined,
+        });
+      }
+
+      if (onAddToCart) {
+        onAddToCart(variationToUse?.id ? (typeof variationToUse.id === 'number' ? variationToUse.id : parseInt(variationToUse.id, 10) || undefined) : undefined, isGift);
+      }
+
+      // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá»
+      try {
+        useQuickCheckoutStore.getState().onOpen();
+      } catch (error) {
+        console.error('[ProductInfo] Error opening QuickCheckoutModal:', error);
+      }
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+    } finally {
+      // Reset loading state after a short delay for better UX
+      setTimeout(() => {
+        setIsAdding(false);
+        setAddingType(null);
+      }, 500);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Product Name */}
+      <div>
+        <h1 className="font-heading text-2xl md:text-3xl font-bold mb-2">
+          {product.name}
+        </h1>
+        {product.sku && (
+          <p className="text-sm text-text-muted">
+            SKU: {product.sku}
+          </p>
+        )}
+      </div>
+
+      {/* Price */}
+      <div className="flex items-center gap-4">
+        <p className="text-3xl font-bold text-primary">
+          {isLoadingVariations ? (
+            <span className="text-gray-400">Äang táº£i...</span>
+          ) : (
+            formatPrice(displayPrice)
+          )}
+        </p>
+        {isOnSale && displayRegularPrice && displayRegularPrice !== displayPrice && (
+          <p className="text-lg text-text-muted line-through">
+            {formatPrice(displayRegularPrice)}
+          </p>
+        )}
+      </div>
+
+      {/* Size Selector - Use VisualAttributeSelector if global attribute, otherwise fallback */}
+      {displaySizes.length > 0 && sizeAttribute && (
+        (() => {
+          const globalType = getGlobalAttributeType(sizeAttribute as any);
+          const globalTerms = getGlobalTerms(sizeAttribute as any);
+          
+          // Use VisualAttributeSelector if it's a global attribute with type
+          if (globalType) {
+            return (
+              <VisualAttributeSelector
+                label="KÃ­ch thÆ°á»›c"
+                type={globalType}
+                options={displaySizes}
+                terms={globalTerms}
+                selectedValue={selectedSize}
+                onSelect={setSelectedSize}
+              />
+            );
+          }
+          
+          // Fallback to button style for non-global or text attributes
+          return (
+            <VisualAttributeSelector
+              label="KÃ­ch thÆ°á»›c"
+              type="button"
+              options={displaySizes}
+              selectedValue={selectedSize}
+              onSelect={setSelectedSize}
+            />
+          );
+        })()
+      )}
+
+      {/* Color Selector - Use VisualAttributeSelector if global attribute, otherwise fallback */}
+      {displayColors.length > 0 && colorAttribute && (
+        (() => {
+          const globalType = getGlobalAttributeType(colorAttribute as any);
+          const globalTerms = getGlobalTerms(colorAttribute as any);
+          
+          // Use VisualAttributeSelector if it's a global attribute with type
+          if (globalType) {
+            return (
+              <VisualAttributeSelector
+                label="MÃ u sáº¯c"
+                type={globalType}
+                options={displayColors}
+                terms={globalTerms}
+                selectedValue={selectedColor}
+                onSelect={setSelectedColor}
+              />
+            );
+          }
+          
+          // Fallback to color swatches using getColorHex (backward compatibility)
+          return (
+            <div>
+              <label className="block text-sm font-medium text-text-main mb-2">
+                MÃ u sáº¯c{selectedColor ? `: ${selectedColor}` : ''}
+              </label>
+              <div className="flex gap-3 items-center">
+                {displayColors.map((colorName, idx) => {
+                  const bgColor = getColorHex(colorName) || (colorName.startsWith('#') ? colorName : '#E5E7EB');
+                  const isSelected = selectedColor === colorName;
+                  
+                  const lightColors = ['#FFFFFF', '#FDFBF7', '#F5F5DC', '#E5E7EB', '#FFF9FA', '#FEF3C7'];
+                  const bgColorUpper = bgColor.toUpperCase();
+                  const isLightColor = lightColors.includes(bgColorUpper) || 
+                                       colorName.toLowerCase().includes('tráº¯ng') || 
+                                       colorName.toLowerCase().includes('kem') ||
+                                       colorName.toLowerCase().includes('trang');
+                  
+                  return (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedColor(colorName)}
+                      className={cn(
+                        "w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center transition-all duration-200",
+                        "border-2",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
+                        isSelected 
+                          ? "border-pink-600 ring-2 ring-pink-500 ring-offset-2 scale-110" 
+                          : isLightColor
+                            ? "border-gray-400 hover:scale-105 hover:border-pink-300"
+                            : "border-gray-300 hover:scale-105 hover:border-pink-300"
+                      )}
+                      style={{ backgroundColor: bgColor }}
+                      title={`MÃ u: ${colorName}`}
+                      aria-label={`Chá»n mÃ u ${colorName}`}
+                      aria-pressed={isSelected}
+                    >
+                      {isSelected && (
+                        <Check 
+                          className={cn(
+                            "w-4 h-4 md:w-5 md:h-5", 
+                            isLightColor ? "text-gray-900" : "text-white"
+                          )} 
+                          strokeWidth={3}
+                        />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()
+      )}
+
+      {/* Actions (Horizontal Layout) */}
+      <div className="space-y-4">
+        {/* Row of Actions */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* 1. Quantity Capsule */}
+          <QuantitySelector 
+            value={quantity} 
+            onChange={setQuantity} 
+            min={1}
+            max={product.stockQuantity || 99}
+            disabled={isOutOfStock}
+          />
+
+          {/* 2. Add to Cart Button */}
+          <Button 
+            className="rounded-full bg-blue-500 hover:bg-blue-600 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-blue-200 font-bold !flex items-center justify-center"
+            disabled={isOutOfStock || isAdding}
+            onClick={() => handleAddToCartClick(false)}
+            aria-label="ThÃªm vÃ o giá» hÃ ng"
+          >
+            {isAdding && addingType === 'buy' ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <span>Äang thÃªm...</span>
+              </>
+            ) : (
+              <>
+                <ShoppingCart className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
+                <span className="whitespace-nowrap">ThÃªm giá» hÃ ng</span>
+              </>
+            )}
+          </Button>
+
+          {/* 3. Gift Button */}
+          <Button 
+            className="rounded-full bg-pink-400 hover:bg-pink-500 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-pink-200 font-bold !flex items-center justify-center"
+            disabled={isOutOfStock || isAdding}
+            onClick={() => handleAddToCartClick(true)}
+            aria-label="Gá»­i táº·ng sáº£n pháº©m"
+          >
+            {isAdding && addingType === 'gift' ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                <span className="whitespace-nowrap">Äang thÃªm...</span>
+              </>
+            ) : (
+              <>
+                <Gift className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
+                <span className="whitespace-nowrap">Gá»¬I Táº¶NG</span>
+              </>
+            )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\ProductList.tsx ---
+
+Lines: 141
+
+
+'use client';
+
+import { useState } from 'react';
+import Image from 'next/image';
+import { useProductsREST } from '@/lib/hooks/useProductsREST';
+import { ProductCard } from './ProductCard';
+import { ViewToggle } from './ViewToggle';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { formatPrice } from '@/lib/utils/format';
+import { useCartSync } from '@/lib/hooks/useCartSync';
+import { ProductListSkeleton } from '@/components/ui/skeleton';
+import { NoProductsFoundState } from '@/components/ui/empty-state';
+import { ErrorState } from '@/components/ui/error-state';
+
+interface ProductListProps {
+  initialCount?: number;
+}
+
+export function ProductList({ initialCount = 12 }: ProductListProps) {
+  const { products, loading, error, hasNextPage, loadMore, totalCount } = useProductsREST(initialCount);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const { addToCart } = useCartSync();
+
+  // Hiá»ƒn thá»‹ skeleton khi Ä‘ang loading (cáº£ láº§n Ä‘áº§u vÃ  khi filter thay Ä‘á»•i)
+  if (loading && products.length === 0) {
+    return (
+      <div className="w-full">
+        <ProductListSkeleton count={8} />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="w-full">
+        <ErrorState
+          title="KhÃ´ng thá»ƒ táº£i sáº£n pháº©m"
+          message={error.message || 'CÃ³ lá»—i xáº£y ra khi táº£i sáº£n pháº©m. Vui lÃ²ng thá»­ láº¡i sau.'}
+          action={{
+            label: 'Thá»­ láº¡i',
+            onClick: () => window.location.reload(),
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (products.length === 0 && !loading) {
+    return (
+      <div className="w-full">
+        <NoProductsFoundState />
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full relative">
+      {/* Loading overlay khi Ä‘ang filter (cÃ³ products nhÆ°ng Ä‘ang loading) */}
+      {loading && products.length > 0 && (
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm text-text-muted">Äang táº£i...</p>
+          </div>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between mb-6">
+        {totalCount > 0 && (
+          <p className="text-sm text-text-muted">
+            TÃ¬m tháº¥y {totalCount} sáº£n pháº©m
+          </p>
+        )}
+        <ViewToggle view={viewMode} onViewChange={setViewMode} />
+      </div>
+
+      {viewMode === 'grid' ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
+          {products.map((product) => {
+            if (!product || !product.name) {
+              return null;
+            }
+            return <ProductCard key={product.id || product.databaseId} product={product} />;
+          })}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {products.map((product) => {
+            if (!product || !product.name) {
+              return null;
+            }
+            const isOutOfStock = product.stockStatus === 'outofstock' || product.stockStatus === 'OUT_OF_STOCK';
+            return (
+              <Card key={product.id || product.databaseId} className="p-4">
+                <div className="flex gap-4">
+                  <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-50">
+                    <Image
+                      src={product.image?.sourceUrl || '/images/teddy-placeholder.png'}
+                      alt={product.image?.altText || product.name || 'Gáº¥u bÃ´ng'}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 96px, 128px"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-heading text-lg font-semibold text-text-main mb-2">
+                      {product.name}
+                    </h3>
+                    <p className="text-primary font-bold text-xl mb-2">
+                      {formatPrice(product.price)}
+                    </p>
+                    <Button
+                      className="w-full md:w-auto"
+                      disabled={isOutOfStock}
+                      onClick={async () => {
+                        if (!isOutOfStock) {
+                          await addToCart({
+                            productId: product.databaseId,
+                            productName: product.name,
+                            price: product.price || '0',
+                            image: product.image?.sourceUrl,
+                            length: product.length || undefined,
+                            width: product.width || undefined,
+                            height: product.height || undefined,
+                            weight: product.weight ? parseFloat(product.weight) : undefined,
+                            volumetricWeight: product.volumetricWeight || undefined,
+                          });
+                        }
+                      }}
+                    >
+                      {isOutOfStock ? 'Háº¿t hÃ ng' : 'ThÃªm vÃ o giá»'}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {hasNextPage && (
+        <div className="mt-8 text-center">
+          <Button onClick={loadMore} variant="outline">
+            Xem thÃªm sáº£n pháº©m
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\ProductPromotions.tsx ---
+
+Lines: 69
+
+
+'use client';
+
+import { Gift, Package, Truck, Shield, Star } from 'lucide-react';
+
+interface ProductPromotionsProps {
+  promotions?: {
+    freeGift?: boolean;
+    freeCard?: boolean;
+    freeShip?: boolean;
+    warranty?: boolean;
+    rewardPoints?: boolean;
+  };
+}
+
+export function ProductPromotions({ promotions }: ProductPromotionsProps) {
+  // Default promotions (hardcoded - cÃ³ thá»ƒ láº¥y tá»« ACF fields sau)
+  const defaultPromotions = {
+    freeGift: true,
+    freeCard: true,
+    freeShip: true,
+    warranty: true,
+    rewardPoints: true,
+  };
+
+  const activePromotions = promotions || defaultPromotions;
+
+  // Check if any promotion is active
+  const hasActivePromotions =
+    activePromotions.freeGift ||
+    activePromotions.freeCard ||
+    activePromotions.freeShip ||
+    activePromotions.warranty ||
+    activePromotions.rewardPoints;
+
+  if (!hasActivePromotions) return null;
+
+  return (
+    <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
+      <h3 className="font-heading text-lg font-semibold mb-3">
+        Æ¯u Ä‘Ã£i Ä‘áº·c biá»‡t
+      </h3>
+      <ul className="space-y-2">
+        {activePromotions.freeGift && (
+          <li className="flex items-center gap-2 text-sm text-text-main">
+            <Gift className="w-4 h-4 text-primary" />
+            <span>Miá»…n phÃ­ GÃ³i QuÃ  (TÃºi trong suá»‘t + NÆ¡)</span>
+          </li>
+        )}
+        {activePromotions.freeCard && (
+          <li className="flex items-center gap-2 text-sm text-text-main">
+            <Package className="w-4 h-4 text-primary" />
+            <span>Miá»…n phÃ­ Táº·ng kÃ¨m thiá»‡p Ã½ nghÄ©a (Sinh nháº­t, TÃ¬nh yÃªu, Cáº£m Æ¡n, Lá»… táº¿t)</span>
+          </li>
+        )}
+        {activePromotions.freeShip && (
+          <li className="flex items-center gap-2 text-sm text-text-main">
+            <Truck className="w-4 h-4 text-primary" />
+            <span>Há»a Tá»‘c: Giao hÃ ng trong 45-60 phÃºt táº¡i HCM</span>
+          </li>
+        )}
+        {activePromotions.warranty && (
+          <li className="flex items-center gap-2 text-sm text-text-main">
+            <Shield className="w-4 h-4 text-primary" />
+            <span>Báº£o HÃ nh: Báº£o hÃ nh trá»n Ä‘á»i Ä‘Æ°á»ng may táº¡i cá»­a hÃ ng</span>
+          </li>
+        )}
+        {activePromotions.rewardPoints && (
+          <li className="flex items-center gap-2 text-sm text-text-main">
+            <Star className="w-4 h-4 text-primary" />
+            <span>TÃ­ch Äiá»ƒm: TÃ­ch 3% giÃ¡ trá»‹ Ä‘Æ¡n hÃ ng</span>
+          </li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\QuantitySelector.tsx ---
+
+Lines: 149
+
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { cn } from '@/lib/utils/cn';
+
+interface QuantitySelectorProps {
+  value: number;
+  onChange: (value: number) => void;
+  min?: number;
+  max?: number;
+  disabled?: boolean;
+}
+
+export function QuantitySelector({
+  value,
+  onChange,
+  min = 1,
+  max = 99,
+  disabled = false,
+}: QuantitySelectorProps) {
+  // Local state Ä‘á»ƒ cho phÃ©p input trá»‘ng táº¡m thá»i khi ngÆ°á»i dÃ¹ng Ä‘ang nháº­p
+  const [inputValue, setInputValue] = useState<string>(value.toString());
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Sync local state vá»›i prop value khi khÃ´ng focus
+  useEffect(() => {
+    if (!isFocused) {
+      setInputValue(value.toString());
+    }
+  }, [value, isFocused]);
+
+  const handleDecrease = () => {
+    if (value > min && !disabled) {
+      onChange(value - 1);
+    }
+  };
+
+  const handleIncrease = () => {
+    if (value < max && !disabled) {
+      onChange(value + 1);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawValue = e.target.value;
+    
+    // Cho phÃ©p input trá»‘ng táº¡m thá»i (Ä‘á»ƒ ngÆ°á»i dÃ¹ng cÃ³ thá»ƒ xÃ³a vÃ  nháº­p láº¡i)
+    if (rawValue === '') {
+      setInputValue('');
+      return;
+    }
+
+    // Chá»‰ parse vÃ  validate khi cÃ³ giÃ¡ trá»‹
+    const numValue = parseInt(rawValue, 10);
+    
+    // Náº¿u khÃ´ng pháº£i sá»‘ há»£p lá»‡, giá»¯ nguyÃªn giÃ¡ trá»‹ hiá»‡n táº¡i
+    if (isNaN(numValue)) {
+      return;
+    }
+
+    // Cáº­p nháº­t local state Ä‘á»ƒ hiá»ƒn thá»‹
+    setInputValue(rawValue);
+
+    // Validate vÃ  update parent chá»‰ khi giÃ¡ trá»‹ há»£p lá»‡
+    if (numValue >= min && numValue <= max) {
+      onChange(numValue);
+    }
+    // Náº¿u vÆ°á»£t quÃ¡ max, váº«n cho phÃ©p hiá»ƒn thá»‹ nhÆ°ng khÃ´ng update parent
+    // (sáº½ Ä‘Æ°á»£c validate láº¡i khi blur)
+  };
+
+  const handleBlur = () => {
+    setIsFocused(false);
+    const numValue = parseInt(inputValue, 10);
+    
+    // Náº¿u input trá»‘ng hoáº·c khÃ´ng há»£p lá»‡, set vá» giÃ¡ trá»‹ hiá»‡n táº¡i
+    if (isNaN(numValue) || inputValue === '') {
+      setInputValue(value.toString());
+      return;
+    }
+
+    // Validate vÃ  clamp giÃ¡ trá»‹
+    let finalValue = numValue;
+    if (numValue < min) {
+      finalValue = min;
+    } else if (numValue > max) {
+      finalValue = max;
+    }
+
+    // Update parent vÃ  local state
+    onChange(finalValue);
+    setInputValue(finalValue.toString());
+  };
+
+  const handleFocus = () => {
+    setIsFocused(true);
+  };
+
+  const isDecreaseDisabled = disabled || value <= min;
+  const isIncreaseDisabled = disabled || value >= max;
+
+  return (
+    <div className="flex items-center justify-between w-[110px] md:w-[120px] h-8 md:h-9 min-h-[44px] border-2 border-pink-300 rounded-full bg-white px-1 box-border">
+      {/* Decrease Button */}
+      <button
+        type="button"
+        onClick={handleDecrease}
+        disabled={isDecreaseDisabled}
+        className={cn(
+          "flex items-center justify-center w-6 h-6 rounded-full",
+          "text-pink-500 font-bold text-lg transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2",
+          "hover:bg-pink-50 active:bg-pink-100",
+          "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent",
+          "pb-0.5" // CÄƒn chá»‰nh dáº¥u - cho cÃ¢n giá»¯a
+        )}
+        aria-label="Giáº£m sá»‘ lÆ°á»£ng"
+        aria-disabled={isDecreaseDisabled}
+      >
+        âˆ’
+      </button>
+
+      {/* Input */}
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={inputValue}
+        onChange={handleInputChange}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        disabled={disabled}
+        role="spinbutton"
+        className={cn(
+          "w-10 md:w-12 h-full border-none bg-transparent text-center",
+          "text-sm md:text-base font-bold text-gray-800",
+          "focus-visible:outline-none",
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        )}
+        aria-label="Sá»‘ lÆ°á»£ng"
+        aria-valuemin={min}
+        aria-valuemax={max}
+        aria-valuenow={value}
+      />
+
+      {/* Increase Button */}
+      <button
+        type="button"
+        onClick={handleIncrease}
+        disabled={isIncreaseDisabled}
+        className={cn(
+          "flex items-center justify-center w-6 h-6 rounded-full",
+          "text-pink-500 font-bold text-lg transition-colors",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2",
+          "hover:bg-pink-50 active:bg-pink-100",
+          "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent",
+          "pb-0.5" // CÄƒn chá»‰nh dáº¥u + cho cÃ¢n giá»¯a
+        )}
+        aria-label="TÄƒng sá»‘ lÆ°á»£ng"
+        aria-disabled={isIncreaseDisabled}
+      >
+        +
+      </button>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\QuickOrderBox.tsx ---
+
+Lines: 125
+
+
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Loader2, Send, Zap } from 'lucide-react';
+
+interface QuickOrderBoxProps {
+  productId?: number;
+  productName?: string;
+  quantity?: number;
+  variationId?: number;
+  onQuickOrder?: (phone: string) => Promise<void>;
+}
+
+export function QuickOrderBox({ 
+  productId, 
+  productName, 
+  quantity = 1,
+  variationId,
+  onQuickOrder 
+}: QuickOrderBoxProps) {
+  const [phone, setPhone] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  const validatePhone = (phoneNumber: string): boolean => {
+    // Vietnamese phone: 10-11 digits, may start with 0 or +84
+    const cleaned = phoneNumber.replace(/[\s-]/g, '');
+    const regex = /^(\+84|0)?[1-9][0-9]{8,9}$/;
+    return regex.test(cleaned);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (!phone.trim()) {
+      setError('Vui lÃ²ng nháº­p sá»‘ Ä‘iá»‡n thoáº¡i');
+      return;
+    }
+
+    if (!validatePhone(phone)) {
+      setError('Sá»‘ Ä‘iá»‡n thoáº¡i khÃ´ng há»£p lá»‡. Vui lÃ²ng nháº­p 10-11 chá»¯ sá»‘');
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      if (onQuickOrder) {
+        await onQuickOrder(phone);
+      } else {
+        // Default: Zalo Notification (Option 1)
+        const adminPhone = '0924923399'; // TODO: Move to env variable
+        const message = encodeURIComponent(
+          `Äáº·t hÃ ng nhanh\n` +
+          `SÄT: ${phone}\n` +
+          `Sáº£n pháº©m: ${productName || 'N/A'}\n` +
+          `Sá»‘ lÆ°á»£ng: ${quantity}`
+        );
+        const zaloLink = `https://zalo.me/${adminPhone}?text=${message}`;
+        window.open(zaloLink, '_blank');
+      }
+
+      setSuccess(true);
+      setPhone(''); // Clear input after success
+      
+      // Reset success message after 3 seconds
+      setTimeout(() => setSuccess(false), 3000);
+    } catch (err) {
+      setError('CÃ³ lá»—i xáº£y ra. Vui lÃ²ng thá»­ láº¡i sau.');
+      console.error('Quick order error:', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
+      {/* Title with Icon */}
+      <div className="flex items-center gap-1.5 mb-2">
+        <Zap className="w-4 h-4 text-orange-500 fill-orange-500" />
+        <h3 className="font-bold text-text-main text-sm">
+          Äáº·t hÃ ng nhanh
+        </h3>
+      </div>
+      
+      {/* Horizontal Inline Form */}
+      <form onSubmit={handleSubmit} className="flex items-start gap-2">
+        <div className="flex-1">
+          <Input
+            type="tel"
+            placeholder="Nháº­p SÄT..."
+            value={phone}
+            onChange={(e) => {
+              setPhone(e.target.value);
+              setError(null);
+            }}
+            className="h-9 text-sm border-2 border-pink-200 focus:border-pink-400 rounded-lg"
+            disabled={isSubmitting}
+            aria-label="Sá»‘ Ä‘iá»‡n thoáº¡i Ä‘áº·t hÃ ng nhanh"
+            aria-required="true"
+            aria-invalid={error ? 'true' : 'false'}
+            aria-describedby={error ? 'phone-error' : undefined}
+          />
+        </div>
+
+        <Button
+          type="submit"
+          className="h-9 w-auto px-3 bg-[#D6336C] hover:bg-[#BE185D] text-white flex-shrink-0"
+          disabled={isSubmitting || !phone.trim()}
+          aria-label="Gá»­i yÃªu cáº§u Ä‘áº·t hÃ ng nhanh"
+        >
+          {isSubmitting ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Send className="w-4 h-4" />
+          )}
+        </Button>
+      </form>
+
+      {/* Error and Success Messages */}
+      {error && (
+        <p id="phone-error" className="text-xs text-destructive mt-1.5" role="alert">
+          {error}
+        </p>
+      )}
+      {success && (
+        <p className="text-xs text-green-600 mt-1.5" role="status">
+          âœ“ ÄÃ£ gá»­i thÃ´ng tin. ChÃºng tÃ´i sáº½ liÃªn há»‡ vá»›i báº¡n sá»›m nháº¥t!
+        </p>
+      )}
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\RelatedProducts.tsx ---
+
+Lines: 54
+
+
+'use client';
+
+import { useProductsREST } from '@/lib/hooks/useProductsREST';
+import { ProductCard } from './ProductCard';
+
+interface RelatedProductsProps {
+  productId: number;
+  excludeId?: number;
+}
+
+export function RelatedProducts({
+  productId,
+  excludeId,
+}: RelatedProductsProps) {
+  // Get related products (simply get latest products, exclude current)
+  const { products, loading } = useProductsREST(8);
+
+  // Filter out current product
+  const filteredProducts = products?.filter(
+    (product) => Number(product.id) !== (excludeId || productId)
+  ).slice(0, 4) || [];
+
+  if (loading) {
+    return (
+      <div className="container-mobile py-8">
+        <h2 className="font-heading text-2xl font-semibold mb-6">
+          Sáº£n pháº©m liÃªn quan
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="animate-pulse">
+              <div className="aspect-square bg-muted rounded-2xl mb-4" />
+              <div className="h-4 bg-muted rounded mb-2" />
+              <div className="h-6 bg-muted rounded w-2/3" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (filteredProducts.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="container-mobile py-8">
+      <h2 className="font-heading text-2xl font-semibold mb-6">
+        Sáº£n pháº©m liÃªn quan
+      </h2>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {filteredProducts.map((product) => (
+          <ProductCard
+            key={product.id}
+            product={product}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\TrustBadges.tsx ---
+
+Lines: 75
+
+
+'use client';
+
+import { RefreshCcw, Truck, Phone, MapPin } from 'lucide-react';
+import Link from 'next/link';
+
+interface TrustBadgesProps {
+  className?: string;
+}
+
+export function TrustBadges({ className }: TrustBadgesProps) {
+  const badges = [
+    {
+      icon: RefreshCcw,
+      title: 'Äá»•i hÃ ng trong 3 ngÃ y',
+      description: 'Qua sá»‘ Ä‘iá»‡n thoáº¡i',
+      color: 'text-pink-500',
+      href: '/policies/return',
+    },
+    {
+      icon: Truck,
+      title: 'HCM Há»a Tá»‘c 60p',
+      description: 'Ship Tá»‰nh 2-4 ngÃ y',
+      color: 'text-orange-500',
+      href: '/policies/shipping',
+    },
+    {
+      icon: Phone,
+      title: 'Zalo/Hotline',
+      description: '092 492 3399 (8h30 - 23h)',
+      color: 'text-blue-500',
+      href: 'https://zalo.me/0924923399',
+      external: true,
+    },
+    {
+      icon: MapPin,
+      title: 'Cá»­a HÃ ng',
+      description: '340 Phan ÄÃ¬nh PhÃ¹ng, P.1, Q.PhÃº Nhuáº­n',
+      color: 'text-red-500',
+      href: '/contact',
+    },
+  ];
+
+  return (
+    <div className={className}>
+      <div className="grid grid-cols-2 gap-3 md:gap-4">
+        {badges.map((badge, index) => {
+          const Icon = badge.icon;
+          const content = (
+            <div className="flex flex-col items-center gap-2 p-3 rounded-lg hover:bg-pink-50 transition-colors cursor-pointer">
+              <Icon className={`w-6 h-6 ${badge.color}`} />
+              <div className="text-center">
+                <p className="text-xs font-medium text-text-main">{badge.title}</p>
+                <p className="text-[10px] text-text-muted mt-0.5">{badge.description}</p>
+              </div>
+            </div>
+          );
+
+          if (badge.external) {
+            return (
+              <a
+                key={index}
+                href={badge.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block"
+              >
+                {content}
+              </a>
+            );
+          }
+
+          return (
+            <Link key={index} href={badge.href} className="block">
+              {content}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\ViewToggle.tsx ---
+
+Lines: 33
+
+
+'use client';
+
+import { Button } from '@/components/ui/button';
+
+type ViewMode = 'grid' | 'list';
+
+interface ViewToggleProps {
+  view: ViewMode;
+  onViewChange: (view: ViewMode) => void;
+}
+
+export function ViewToggle({ view, onViewChange }: ViewToggleProps) {
+  return (
+    <div className="flex items-center gap-2 border rounded-full p-1">
+      <Button
+        type="button"
+        variant={view === 'grid' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => onViewChange('grid')}
+        className="h-8 w-8 p-0"
+        aria-label="Grid view"
+      >
+        âŠž
+      </Button>
+      <Button
+        type="button"
+        variant={view === 'list' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => onViewChange('list')}
+        className="h-8 w-8 p-0"
+        aria-label="List view"
+      >
+        â˜°
+      </Button>
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: components\product\VisualAttributeSelector.tsx ---
+
+Lines: 197
 
 
 'use client';
@@ -2570,812 +4338,1117 @@ export function VisualAttributeSelector({
 }
 
 
+--------------------------------------------------------------------------------
 
---- FILE: components/product/ProductList.tsx ---
+
+--- FILE: components\product\VoucherSection.tsx ---
+
+Lines: 92
 
 
 'use client';
 
 import { useState } from 'react';
-import Image from 'next/image';
-import { useProductsREST } from '@/lib/hooks/useProductsREST';
-import { ProductCard } from './ProductCard';
-import { ViewToggle } from './ViewToggle';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { formatPrice } from '@/lib/utils/format';
-import { useCartSync } from '@/lib/hooks/useCartSync';
-import { ProductListSkeleton } from '@/components/ui/skeleton';
-import { NoProductsFoundState } from '@/components/ui/empty-state';
-import { ErrorState } from '@/components/ui/error-state';
+import { Copy, Check } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 
-interface ProductListProps {
-  initialCount?: number;
+interface Voucher {
+  code: string;
+  discount: string;
+  minOrder?: string; // e.g., "500K", "1tr", "2tr"
+  description?: string;
 }
 
-export function ProductList({ initialCount = 12 }: ProductListProps) {
-  const { products, loading, error, hasNextPage, loadMore, totalCount } = useProductsREST(initialCount);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const { addToCart } = useCartSync();
+interface VoucherSectionProps {
+  vouchers?: Voucher[];
+  className?: string;
+}
 
-  // Hiá»ƒn thá»‹ skeleton khi Ä‘ang loading (cáº£ láº§n Ä‘áº§u vÃ  khi filter thay Ä‘á»•i)
-  if (loading && products.length === 0) {
-    return (
-      <div className="w-full">
-        <ProductListSkeleton count={8} />
-      </div>
-    );
-  }
+// Default vouchers (hardcoded - cÃ³ thá»ƒ fetch tá»« API sau)
+const defaultVouchers: Voucher[] = [
+  {
+    code: 'GIAM10K',
+    discount: '10.000â‚«',
+    minOrder: 'ÄÆ¡n > 500K',
+  },
+  {
+    code: 'GIAM20K',
+    discount: '20.000â‚«',
+    minOrder: 'ÄÆ¡n > 1tr',
+  },
+  {
+    code: 'GIAM40K',
+    discount: '40.000â‚«',
+    minOrder: 'ÄÆ¡n > 2tr',
+  },
+];
 
-  if (error) {
-    return (
-      <div className="w-full">
-        <ErrorState
-          title="KhÃ´ng thá»ƒ táº£i sáº£n pháº©m"
-          message={error.message || 'CÃ³ lá»—i xáº£y ra khi táº£i sáº£n pháº©m. Vui lÃ²ng thá»­ láº¡i sau.'}
-          action={{
-            label: 'Thá»­ láº¡i',
-            onClick: () => window.location.reload(),
-          }}
-        />
-      </div>
-    );
-  }
+export function VoucherSection({ vouchers = defaultVouchers, className }: VoucherSectionProps) {
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
-  if (products.length === 0 && !loading) {
-    return (
-      <div className="w-full">
-        <NoProductsFoundState />
-      </div>
-    );
-  }
+  const handleCopyCode = async (code: string) => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopiedCode(code);
+      
+      // Reset after 2 seconds
+      setTimeout(() => setCopiedCode(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   return (
-    <div className="w-full relative">
-      {/* Loading overlay khi Ä‘ang filter (cÃ³ products nhÆ°ng Ä‘ang loading) */}
-      {loading && products.length > 0 && (
-        <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex items-center justify-center rounded-lg">
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-            <p className="text-sm text-text-muted">Äang táº£i...</p>
-          </div>
+    <div className={cn('space-y-4', className)}>
+      <div>
+        <h3 className="font-bold text-sm text-text-main mb-3">
+          VOUCHER KHUYáº¾N MÃƒI:
+        </h3>
+        
+        {/* Vouchers List */}
+        <div className="flex flex-wrap gap-3">
+          {vouchers.map((voucher, index) => (
+            <button
+              key={index}
+              onClick={() => handleCopyCode(voucher.code)}
+              className={cn(
+                'relative bg-pink-500 text-white px-4 py-2 rounded-lg',
+                'hover:bg-pink-600 transition-colors',
+                'flex flex-col items-center gap-1',
+                'min-w-[120px]',
+                'border-2 border-white shadow-sm'
+              )}
+            >
+              <span className="font-bold text-sm">{voucher.code}</span>
+              {voucher.minOrder && (
+                <span className="text-xs opacity-90">{voucher.minOrder}</span>
+              )}
+              
+              {/* Copy Icon */}
+              <div className="absolute top-1 right-1">
+                {copiedCode === voucher.code ? (
+                  <Check className="w-3 h-3 text-white" />
+                ) : (
+                  <Copy className="w-3 h-3 text-white opacity-70" />
+                )}
+              </div>
+            </button>
+          ))}
         </div>
-      )}
-
-      <div className="flex items-center justify-between mb-6">
-        {totalCount > 0 && (
-          <p className="text-sm text-text-muted">
-            TÃ¬m tháº¥y {totalCount} sáº£n pháº©m
+        
+        {copiedCode && (
+          <p className="text-xs text-green-600 mt-2">
+            âœ“ ÄÃ£ copy mÃ£: {copiedCode}
           </p>
         )}
-        <ViewToggle view={viewMode} onViewChange={setViewMode} />
       </div>
-
-      {viewMode === 'grid' ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-4 lg:gap-6">
-          {products.map((product) => {
-            if (!product || !product.name) {
-              return null;
-            }
-            return <ProductCard key={product.id || product.databaseId} product={product} />;
-          })}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {products.map((product) => {
-            if (!product || !product.name) {
-              return null;
-            }
-            const isOutOfStock = product.stockStatus === 'outofstock' || product.stockStatus === 'OUT_OF_STOCK';
-            return (
-              <Card key={product.id || product.databaseId} className="p-4">
-                <div className="flex gap-4">
-                  <div className="relative w-24 h-24 md:w-32 md:h-32 flex-shrink-0 rounded-xl overflow-hidden bg-gray-50">
-                    <Image
-                      src={product.image?.sourceUrl || '/images/teddy-placeholder.png'}
-                      alt={product.image?.altText || product.name || 'Gáº¥u bÃ´ng'}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 96px, 128px"
-                    />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-heading text-lg font-semibold text-text-main mb-2">
-                      {product.name}
-                    </h3>
-                    <p className="text-primary font-bold text-xl mb-2">
-                      {formatPrice(product.price)}
-                    </p>
-                    <Button
-                      className="w-full md:w-auto"
-                      disabled={isOutOfStock}
-                      onClick={async () => {
-                        if (!isOutOfStock) {
-                          await addToCart({
-                            productId: product.databaseId,
-                            productName: product.name,
-                            price: product.price || '0',
-                            image: product.image?.sourceUrl,
-                            length: product.length || undefined,
-                            width: product.width || undefined,
-                            height: product.height || undefined,
-                            weight: product.weight ? parseFloat(product.weight) : undefined,
-                            volumetricWeight: product.volumetricWeight || undefined,
-                          });
-                        }
-                      }}
-                    >
-                      {isOutOfStock ? 'Háº¿t hÃ ng' : 'ThÃªm vÃ o giá»'}
-                    </Button>
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      {hasNextPage && (
-        <div className="mt-8 text-center">
-          <Button onClick={loadMore} variant="outline">
-            Xem thÃªm sáº£n pháº©m
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
 
 
 
+--------------------------------------------------------------------------------
 
---- FILE: components/product/AddToCartButton.tsx ---
+
+--- FILE: lib\constants\attributes.ts ---
+
+Lines: 136
+
+
+/**
+ * Product Attribute Constants
+ * 
+ * Centralized constants for product attribute detection.
+ * Used to identify size and color attributes from product data.
+ * 
+ * âš ï¸ IMPORTANT: These constants are for Product.attributes (from API),
+ * NOT for Variation matching. MongoDB Variants match directly via
+ * variation.size and variation.color fields.
+ * 
+ * @see components/product/ProductInfo.tsx
+ * @see components/product/ProductCard.tsx
+ */
+
+/**
+ * Attribute name keywords for detection
+ * Supports both English and Vietnamese terms
+ */
+export const ATTRIBUTE_NAMES = {
+  SIZE: {
+    EN: ['size', 'sizes'],
+    VI: ['kÃ­ch thÆ°á»›c', 'kich thuoc', 'size'],
+    // WooCommerce attribute slugs
+    SLUGS: ['pa_size', 'pa_kich-thuoc', 'pa_kich_thuoc'],
+  },
+  COLOR: {
+    EN: ['color', 'colour', 'colors', 'colours'],
+    VI: ['mÃ u', 'mÃ u sáº¯c', 'mau', 'mau sac'],
+    // WooCommerce attribute slugs
+    SLUGS: ['pa_color', 'pa_mau', 'pa_colour'],
+  },
+} as const;
+
+/**
+ * Check if an attribute name represents a size attribute
+ * 
+ * âš ï¸ NOTE: This is for Product.attributes detection only.
+ * For Variation matching, use variation.size directly.
+ * 
+ * @param attrName - Attribute name to check (e.g., "KÃ­ch thÆ°á»›c", "Size", "pa_size")
+ * @returns true if the attribute is a size attribute
+ * 
+ * @example
+ * isAttributeSize('KÃ­ch thÆ°á»›c') // true
+ * isAttributeSize('Size') // true
+ * isAttributeSize('pa_size') // true
+ * isAttributeSize('MÃ u sáº¯c') // false
+ */
+export function isAttributeSize(attrName: string): boolean {
+  const normalized = attrName.toLowerCase().trim();
+  
+  // Check against all size keywords
+  const allSizeKeywords = [
+    ...ATTRIBUTE_NAMES.SIZE.EN,
+    ...ATTRIBUTE_NAMES.SIZE.VI,
+    ...ATTRIBUTE_NAMES.SIZE.SLUGS,
+  ];
+  
+  return allSizeKeywords.some(keyword => 
+    normalized.includes(keyword.toLowerCase())
+  );
+}
+
+/**
+ * Check if an attribute name represents a color attribute
+ * 
+ * âš ï¸ NOTE: This is for Product.attributes detection only.
+ * For Variation matching, use variation.color directly.
+ * 
+ * @param attrName - Attribute name to check (e.g., "MÃ u sáº¯c", "Color", "pa_color")
+ * @returns true if the attribute is a color attribute
+ * 
+ * @example
+ * isAttributeColor('MÃ u sáº¯c') // true
+ * isAttributeColor('Color') // true
+ * isAttributeColor('pa_color') // true
+ * isAttributeColor('KÃ­ch thÆ°á»›c') // false
+ */
+export function isAttributeColor(attrName: string): boolean {
+  const normalized = attrName.toLowerCase().trim();
+  
+  // Check against all color keywords
+  const allColorKeywords = [
+    ...ATTRIBUTE_NAMES.COLOR.EN,
+    ...ATTRIBUTE_NAMES.COLOR.VI,
+    ...ATTRIBUTE_NAMES.COLOR.SLUGS,
+  ];
+  
+  return allColorKeywords.some(keyword => 
+    normalized.includes(keyword.toLowerCase())
+  );
+}
+
+/**
+ * Get attribute type from attribute name
+ * 
+ * @param attrName - Attribute name to check
+ * @returns 'size' | 'color' | 'other'
+ * 
+ * @example
+ * getAttributeType('KÃ­ch thÆ°á»›c') // 'size'
+ * getAttributeType('MÃ u sáº¯c') // 'color'
+ * getAttributeType('Material') // 'other'
+ */
+export function getAttributeType(attrName: string): 'size' | 'color' | 'other' {
+  if (isAttributeSize(attrName)) return 'size';
+  if (isAttributeColor(attrName)) return 'color';
+  return 'other';
+}
+
+/**
+ * Example usage in components:
+ * 
+ * ```typescript
+ * import { isAttributeSize, isAttributeColor } from '@/lib/constants/attributes';
+ * 
+ * // Find size attribute from product.attributes
+ * const sizeAttribute = product.attributes?.find(attr => isAttributeSize(attr.name));
+ * 
+ * // Find color attribute from product.attributes
+ * const colorAttribute = product.attributes?.find(attr => isAttributeColor(attr.name));
+ * 
+ * // Get available sizes
+ * const availableSizes = sizeAttribute?.options || [];
+ * 
+ * // Get available colors
+ * const availableColors = colorAttribute?.options || [];
+ * ```
+ * 
+ * âš ï¸ CRITICAL: For MongoDB Variation matching, DO NOT use attributes:
+ * 
+ * ```typescript
+ * // âœ… CORRECT - Match MongoDB Variants directly
+ * const matched = variations.find(v => v.size === selectedSize);
+ * 
+ * // âŒ WRONG - MongoDB Variants don't have attributes object
+ * const matched = variations.find(v => 
+ *   v.attributes.find(a => a.name === 'size')?.value === selectedSize
+ * );
+ * ```
+ */
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: lib\hooks\useProductAttributes.ts ---
+
+Lines: 114
 
 
 'use client';
 
-import { Button } from '@/components/ui/button';
-import { useCartSync } from '@/lib/hooks/useCartSync';
-import { type CartItem } from '@/lib/store/cartStore';
-import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
-import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
+import { useState, useEffect, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
-interface AddToCartButtonProps {
-  product: Omit<CartItem, 'quantity'>;
-  disabled?: boolean;
+/**
+ * Product Attributes tá»« WooCommerce
+ */
+export interface ProductAttribute {
+  name: string;        // e.g., 'pa_size', 'pa_color', 'pa_material'
+  slug: string;        // e.g., 'pa-size', 'pa-color', 'pa-material'
+  options: string[];   // Unique options tá»« táº¥t cáº£ products
 }
 
-export function AddToCartButton({ product, disabled }: AddToCartButtonProps) {
-  const { addToCart } = useCartSync();
-  const [isAdding, setIsAdding] = useState(false);
+/**
+ * Hook Ä‘á»ƒ fetch vÃ  cache product attributes tá»« WooCommerce
+ * 
+ * Láº¥y attributes tá»« táº¥t cáº£ products vÃ  extract unique options
+ * Cache trong React Query Ä‘á»ƒ trÃ¡nh fetch nhiá»u láº§n
+ */
+export function useProductAttributes() {
+  const { data: attributes, isLoading, error } = useQuery({
+    queryKey: ['product-attributes'],
+    queryFn: async (): Promise<ProductAttribute[]> => {
+      // Fetch má»™t sá»‘ lÆ°á»£ng lá»›n products Ä‘á»ƒ láº¥y Ä‘á»§ attributes
+      // CMS API cÃ³ limit per_page = 100
+      const response = await fetch('/api/cms/products?per_page=100&page=1');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch products for attributes');
+      }
 
-  const handleAddToCart = async () => {
-    if (disabled) return;
+      const data = await response.json();
+      // CMS API tráº£ vá» { products: [...], pagination: {...} }
+      const products = data.products || [];
 
-    setIsAdding(true);
-    try {
-      await addToCart(product);
-      // Má»Ÿ QuickCheckoutModal sau khi thÃªm vÃ o giá»
-      useQuickCheckoutStore.getState().onOpen();
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-    } finally {
-      // Show feedback
-      setTimeout(() => {
-        setIsAdding(false);
-      }, 500);
-    }
+      // Extract unique attributes tá»« táº¥t cáº£ products
+      const attributesMap = new Map<string, Set<string>>();
+
+      products.forEach((product: any) => {
+        // Láº¥y attributes tá»« product.attributes (Ä‘Ã£ Ä‘Æ°á»£c map tá»« variants)
+        if (product.attributes && Array.isArray(product.attributes)) {
+          product.attributes.forEach((attr: any) => {
+            if (attr.name && attr.options && Array.isArray(attr.options)) {
+              const attrName = attr.name.toLowerCase();
+              
+              // Chá»‰ láº¥y attributes quan trá»ng nhÆ° 'pa_size', 'pa_color', 'pa_material'
+              if (attrName.startsWith('pa_') || 
+                  attrName === 'size' || 
+                  attrName === 'color' || 
+                  attrName === 'material') {
+                
+                if (!attributesMap.has(attrName)) {
+                  attributesMap.set(attrName, new Set<string>());
+                }
+                
+                // Add all options
+                attr.options.forEach((option: string) => {
+                  if (option && option.trim()) {
+                    attributesMap.get(attrName)!.add(option.trim());
+                  }
+                });
+              }
+            }
+          });
+        }
+
+        // Náº¿u product cÃ³ material field trá»±c tiáº¿p (tá»« MongoDB)
+        if (product.material) {
+          const attrName = 'pa_material';
+          if (!attributesMap.has(attrName)) {
+            attributesMap.set(attrName, new Set<string>());
+          }
+          attributesMap.get(attrName)!.add(String(product.material).trim());
+        }
+      });
+
+      // Convert Map to Array
+      const attributesArray: ProductAttribute[] = [];
+      attributesMap.forEach((options, name) => {
+        attributesArray.push({
+          name,
+          slug: name.replace(/^pa_/, '').replace(/_/g, '-'),
+          options: Array.from(options).sort(), // Sort alphabetically
+        });
+      });
+
+      return attributesArray;
+    },
+    staleTime: 10 * 60 * 1000, // Cache 10 phÃºt
+    gcTime: 30 * 60 * 1000, // Keep in cache 30 phÃºt
+  });
+
+  // Helper functions Ä‘á»ƒ láº¥y attributes theo tÃªn
+  const getAttributeByName = (name: string): ProductAttribute | undefined => {
+    return attributes?.find(attr => 
+      attr.name === name || 
+      attr.name === `pa_${name}` ||
+      attr.slug === name ||
+      attr.slug === name.replace(/_/g, '-')
+    );
   };
 
-  // Button text - Hiá»ƒn thá»‹ loading state vá»›i spinner
-  const getButtonContent = () => {
-    if (isAdding) {
-      return (
-        <>
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          Äang thÃªm...
-        </>
-      );
-    }
-    if (disabled) {
-      return 'Háº¿t hÃ ng';
-    }
-    return 'ThÃªm vÃ o giá» hÃ ng';
+  const getSizeOptions = (): string[] => {
+    const sizeAttr = getAttributeByName('size') || getAttributeByName('pa_size');
+    return sizeAttr?.options || [];
   };
 
-  return (
-    <Button
-      className="w-full relative"
-      size="lg"
-      disabled={disabled || isAdding}
-      onClick={handleAddToCart}
-    >
-      {getButtonContent()}
-    </Button>
-  );
+  const getColorOptions = (): string[] => {
+    const colorAttr = getAttributeByName('color') || getAttributeByName('pa_color');
+    return colorAttr?.options || [];
+  };
+
+  const getMaterialOptions = (): string[] => {
+    const materialAttr = getAttributeByName('material') || getAttributeByName('pa_material');
+    return materialAttr?.options || [];
+  };
+
+  return {
+    attributes: attributes || [],
+    isLoading,
+    error,
+    getAttributeByName,
+    getSizeOptions,
+    getColorOptions,
+    getMaterialOptions,
+  };
 }
 
 
 
+--------------------------------------------------------------------------------
 
---- FILE: components/product/QuantitySelector.tsx ---
+
+--- FILE: lib\hooks\useProductFilters.ts ---
+
+Lines: 115
+
+
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
+
+export interface ProductFilters {
+  category?: string | null;
+  brand?: string | null;
+  priceMin?: number | null;
+  priceMax?: number | null;
+  minPrice?: number | null; // Alias for priceMin
+  maxPrice?: number | null; // Alias for priceMax
+  stockStatus?: 'instock' | 'outofstock' | 'onbackorder' | null;
+  search?: string;
+  material?: string | null;
+  size?: string | null;
+  sortBy?: string | null;
+  color?: string | null;
+}
+
+interface UseProductFiltersOptions {
+  onFiltersChange?: (filters: ProductFilters) => void;
+}
+
+export function useProductFilters(options: UseProductFiltersOptions = {}) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { onFiltersChange } = options;
+
+  // Initialize filters from URL params
+  const getInitialFilters = useCallback((): ProductFilters => {
+    return {
+      category: searchParams.get('category') || null,
+      brand: searchParams.get('brand') || null,
+      priceMin: searchParams.get('price_min') ? parseFloat(searchParams.get('price_min')!) : null,
+      priceMax: searchParams.get('price_max') ? parseFloat(searchParams.get('price_max')!) : null,
+      stockStatus: (searchParams.get('stock_status') as ProductFilters['stockStatus']) || null,
+      search: searchParams.get('search') || undefined,
+    };
+  }, [searchParams]);
+
+  const [filters, setFilters] = useState<ProductFilters>(getInitialFilters);
+
+  // Sync with URL params
+  useEffect(() => {
+    setFilters(getInitialFilters());
+  }, [getInitialFilters]);
+
+  // Update URL when filters change
+  const updateURL = useCallback((newFilters: ProductFilters) => {
+    const params = new URLSearchParams(searchParams.toString());
+    
+    // Remove page param when filters change
+    params.delete('page');
+
+    // Update or remove filter params
+    if (newFilters.category) {
+      params.set('category', newFilters.category);
+    } else {
+      params.delete('category');
+    }
+
+    if (newFilters.brand) {
+      params.set('brand', newFilters.brand);
+    } else {
+      params.delete('brand');
+    }
+
+    if (newFilters.priceMin !== null && newFilters.priceMin !== undefined) {
+      params.set('price_min', newFilters.priceMin.toString());
+    } else {
+      params.delete('price_min');
+    }
+
+    if (newFilters.priceMax !== null && newFilters.priceMax !== undefined) {
+      params.set('price_max', newFilters.priceMax.toString());
+    } else {
+      params.delete('price_max');
+    }
+
+    if (newFilters.stockStatus) {
+      params.set('stock_status', newFilters.stockStatus);
+    } else {
+      params.delete('stock_status');
+    }
+
+    if (newFilters.search) {
+      params.set('search', newFilters.search);
+    } else {
+      params.delete('search');
+    }
+
+    router.push(`/admin/products?${params.toString()}`);
+  }, [router, searchParams]);
+
+  const updateFilter = useCallback((key: keyof ProductFilters, value: any) => {
+    const newFilters = { ...filters, [key]: value };
+    setFilters(newFilters);
+    updateURL(newFilters);
+    onFiltersChange?.(newFilters);
+  }, [filters, updateURL, onFiltersChange]);
+
+  const clearFilters = useCallback(() => {
+    const emptyFilters: ProductFilters = {
+      category: null,
+      brand: null,
+      priceMin: null,
+      priceMax: null,
+      stockStatus: null,
+      search: undefined,
+    };
+    setFilters(emptyFilters);
+    updateURL(emptyFilters);
+    onFiltersChange?.(emptyFilters);
+  }, [updateURL, onFiltersChange]);
+
+  const hasActiveFilters = useCallback(() => {
+    return !!(
+      filters.category ||
+      filters.brand ||
+      filters.priceMin !== null ||
+      filters.priceMax !== null ||
+      filters.stockStatus ||
+      filters.search
+    );
+  }, [filters]);
+
+  return {
+    filters,
+    updateFilter,
+    clearFilters,
+    hasActiveFilters: hasActiveFilters(),
+  };
+}
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: lib\hooks\useProductPrice.ts ---
+
+Lines: 178
+
+
+import { useMemo } from 'react';
+import type { MappedProduct } from '@/lib/utils/productMapper';
+import type { MongoVariant } from '@/lib/hooks/useProductVariations';
+
+/**
+ * Result type for useProductPrice hook
+ */
+export interface UseProductPriceResult {
+  /** Price to display (string format for consistency with existing code) */
+  displayPrice: string;
+  /** Regular price (before any discounts) */
+  regularPrice: string;
+  /** Regular price for display (alias for components using displayRegularPrice) */
+  displayRegularPrice: string | null;
+  /** Sale price (if on sale) */
+  salePrice: string;
+  /** Whether product is on sale */
+  isOnSale: boolean;
+  /** Discount percentage (0-100) */
+  discountPercentage: number;
+  /** Price range for variable products (min-max) */
+  priceRange?: { min: number; max: number };
+}
+
+/**
+ * Custom hook to calculate product pricing
+ * 
+ * Handles price calculation for both simple and variable products.
+ * MongoDB Variants only have `price` field (number), not sale_price/regular_price.
+ * 
+ * @param product - Product data from API
+ * @param selectedVariation - Selected variation (if any)
+ * @returns Pricing information (displayPrice, isOnSale, discountPercentage, etc.)
+ * 
+ * @example
+ * ```typescript
+ * const { displayPrice, isOnSale, discountPercentage } = useProductPrice(
+ *   product,
+ *   selectedVariation
+ * );
+ * ```
+ * 
+ * âš ï¸ IMPORTANT: MongoDB Variants structure:
+ * - Variants only have `price` field (number)
+ * - NO `on_sale`, `sale_price`, `regular_price` fields in variants
+ * - Product level has salePrice and regularPrice
+ */
+export function useProductPrice(
+  product: MappedProduct | null,
+  selectedVariation?: MongoVariant | null
+): UseProductPriceResult {
+  // Calculate display price
+  const displayPrice = useMemo(() => {
+    if (!product) return '0';
+    
+    // If variation is selected, use variation price
+    if (selectedVariation) {
+      // MongoVariant only has price field (number)
+      return String(selectedVariation.price || 0);
+    }
+    
+    // Otherwise, use product price
+    // Product can have salePrice if on sale, or regular price
+    return product.onSale ? product.salePrice : product.price;
+  }, [product, selectedVariation]);
+
+  // Calculate regular price
+  const regularPrice = useMemo(() => {
+    if (!product) return '0';
+    
+    // For variations, MongoDB variants don't have regular_price
+    // Use product regular price as reference
+    if (selectedVariation) {
+      return product.regularPrice;
+    }
+    
+    // For product, use regularPrice field
+    return product.regularPrice;
+  }, [product, selectedVariation]);
+
+  // Calculate sale price
+  const salePrice = useMemo(() => {
+    if (!product) return '';
+    
+    // Variations don't have sale_price field
+    // Check if variation price is lower than product regular price
+    if (selectedVariation) {
+      const variationPrice = selectedVariation.price || 0;
+      const productRegularPrice = parseFloat(product.regularPrice) || 0;
+      
+      if (variationPrice < productRegularPrice && variationPrice > 0) {
+        return String(variationPrice);
+      }
+      return '';
+    }
+    
+    // For product, use salePrice field
+    return product.salePrice || '';
+  }, [product, selectedVariation]);
+
+  // Calculate if on sale
+  const isOnSale = useMemo(() => {
+    if (!product) return false;
+    
+    // For variations
+    if (selectedVariation) {
+      const variationPrice = selectedVariation.price || 0;
+      const productRegularPrice = parseFloat(product.regularPrice) || 0;
+      
+      // Consider on sale if variation price is lower than product regular price
+      return variationPrice < productRegularPrice && variationPrice > 0;
+    }
+    
+    // For product, use onSale field
+    return product.onSale || false;
+  }, [product, selectedVariation]);
+
+  // Calculate discount percentage
+  const discountPercentage = useMemo(() => {
+    if (!isOnSale) return 0;
+    
+    const regular = parseFloat(regularPrice) || 0;
+    const display = parseFloat(displayPrice) || 0;
+    
+    if (regular <= 0 || display <= 0) return 0;
+    if (display >= regular) return 0;
+    
+    return Math.round(((regular - display) / regular) * 100);
+  }, [isOnSale, regularPrice, displayPrice]);
+
+  // Calculate price range for variable products
+  const priceRange = useMemo(() => {
+    if (!product) return undefined;
+    
+    // Only calculate for products with minPrice/maxPrice
+    if (product.minPrice !== undefined && product.maxPrice !== undefined) {
+      return {
+        min: product.minPrice,
+        max: product.maxPrice,
+      };
+    }
+    
+    return undefined;
+  }, [product]);
+
+  return {
+    displayPrice,
+    regularPrice,
+    displayRegularPrice: regularPrice, // Alias for backward compatibility
+    salePrice,
+    isOnSale,
+    discountPercentage,
+    priceRange,
+  };
+}
+
+/**
+ * Example usage in components:
+ * 
+ * ```typescript
+ * import { useProductPrice } from '@/lib/hooks/useProductPrice';
+ * import { formatPrice } from '@/lib/utils/format';
+ * 
+ * function ProductCard({ product }) {
+ *   const [selectedSize, setSelectedSize] = useState(null);
+ *   const { variations } = useProductVariations(product.databaseId);
+ *   const selectedVariation = variations.find(v => v.size === selectedSize);
+ *   
+ *   // Use hook to get pricing
+ *   const { displayPrice, isOnSale, discountPercentage } = useProductPrice(
+ *     product,
+ *     selectedVariation
+ *   );
+ *   
+ *   return (
+ *     <div>
+ *       <p className="text-2xl font-bold">
+ *         {formatPrice(displayPrice)}
+ *       </p>
+ *       {isOnSale && (
+ *         <span className="badge">-{discountPercentage}%</span>
+ *       )}
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: lib\hooks\useProductREST.ts ---
+
+Lines: 48
 
 
 'use client';
 
 import { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils/cn';
+import { type MappedProduct } from '@/lib/utils/productMapper';
 
-interface QuantitySelectorProps {
-  value: number;
-  onChange: (value: number) => void;
-  min?: number;
-  max?: number;
-  disabled?: boolean;
-}
+/**
+ * Hook Ä‘á»ƒ fetch single product tá»« CMS API
+ * 
+ * @param id - Product ID (MongoDB ObjectId string) hoáº·c slug (string)
+ * @param idType - 'id' hoáº·c 'slug' (default: 'id')
+ * @returns Product, loading, error
+ */
+export function useProductREST(id: string | number | null | undefined, idType: 'id' | 'slug' = 'id') {
+  const [product, setProduct] = useState<MappedProduct | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
-export function QuantitySelector({
-  value,
-  onChange,
-  min = 1,
-  max = 99,
-  disabled = false,
-}: QuantitySelectorProps) {
-  // Local state Ä‘á»ƒ cho phÃ©p input trá»‘ng táº¡m thá»i khi ngÆ°á»i dÃ¹ng Ä‘ang nháº­p
-  const [inputValue, setInputValue] = useState<string>(value.toString());
-  const [isFocused, setIsFocused] = useState(false);
-
-  // Sync local state vá»›i prop value khi khÃ´ng focus
   useEffect(() => {
-    if (!isFocused) {
-      setInputValue(value.toString());
-    }
-  }, [value, isFocused]);
-
-  const handleDecrease = () => {
-    if (value > min && !disabled) {
-      onChange(value - 1);
-    }
-  };
-
-  const handleIncrease = () => {
-    if (value < max && !disabled) {
-      onChange(value + 1);
-    }
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const rawValue = e.target.value;
-    
-    // Cho phÃ©p input trá»‘ng táº¡m thá»i (Ä‘á»ƒ ngÆ°á»i dÃ¹ng cÃ³ thá»ƒ xÃ³a vÃ  nháº­p láº¡i)
-    if (rawValue === '') {
-      setInputValue('');
-      return;
-    }
-
-    // Chá»‰ parse vÃ  validate khi cÃ³ giÃ¡ trá»‹
-    const numValue = parseInt(rawValue, 10);
-    
-    // Náº¿u khÃ´ng pháº£i sá»‘ há»£p lá»‡, giá»¯ nguyÃªn giÃ¡ trá»‹ hiá»‡n táº¡i
-    if (isNaN(numValue)) {
-      return;
-    }
-
-    // Cáº­p nháº­t local state Ä‘á»ƒ hiá»ƒn thá»‹
-    setInputValue(rawValue);
-
-    // Validate vÃ  update parent chá»‰ khi giÃ¡ trá»‹ há»£p lá»‡
-    if (numValue >= min && numValue <= max) {
-      onChange(numValue);
-    }
-    // Náº¿u vÆ°á»£t quÃ¡ max, váº«n cho phÃ©p hiá»ƒn thá»‹ nhÆ°ng khÃ´ng update parent
-    // (sáº½ Ä‘Æ°á»£c validate láº¡i khi blur)
-  };
-
-  const handleBlur = () => {
-    setIsFocused(false);
-    const numValue = parseInt(inputValue, 10);
-    
-    // Náº¿u input trá»‘ng hoáº·c khÃ´ng há»£p lá»‡, set vá» giÃ¡ trá»‹ hiá»‡n táº¡i
-    if (isNaN(numValue) || inputValue === '') {
-      setInputValue(value.toString());
-      return;
-    }
-
-    // Validate vÃ  clamp giÃ¡ trá»‹
-    let finalValue = numValue;
-    if (numValue < min) {
-      finalValue = min;
-    } else if (numValue > max) {
-      finalValue = max;
-    }
-
-    // Update parent vÃ  local state
-    onChange(finalValue);
-    setInputValue(finalValue.toString());
-  };
-
-  const handleFocus = () => {
-    setIsFocused(true);
-  };
-
-  const isDecreaseDisabled = disabled || value <= min;
-  const isIncreaseDisabled = disabled || value >= max;
-
-  return (
-    <div className="flex items-center justify-between w-[110px] md:w-[120px] h-8 md:h-9 min-h-[44px] border-2 border-pink-300 rounded-full bg-white px-1 box-border">
-      {/* Decrease Button */}
-      <button
-        type="button"
-        onClick={handleDecrease}
-        disabled={isDecreaseDisabled}
-        className={cn(
-          "flex items-center justify-center w-6 h-6 rounded-full",
-          "text-pink-500 font-bold text-lg transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2",
-          "hover:bg-pink-50 active:bg-pink-100",
-          "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent",
-          "pb-0.5" // CÄƒn chá»‰nh dáº¥u - cho cÃ¢n giá»¯a
-        )}
-        aria-label="Giáº£m sá»‘ lÆ°á»£ng"
-        aria-disabled={isDecreaseDisabled}
-      >
-        âˆ’
-      </button>
-
-      {/* Input */}
-      <input
-        type="text"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        value={inputValue}
-        onChange={handleInputChange}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        disabled={disabled}
-        role="spinbutton"
-        className={cn(
-          "w-10 md:w-12 h-full border-none bg-transparent text-center",
-          "text-sm md:text-base font-bold text-gray-800",
-          "focus-visible:outline-none",
-          "disabled:cursor-not-allowed disabled:opacity-50",
-          "[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-        )}
-        aria-label="Sá»‘ lÆ°á»£ng"
-        aria-valuemin={min}
-        aria-valuemax={max}
-        aria-valuenow={value}
-      />
-
-      {/* Increase Button */}
-      <button
-        type="button"
-        onClick={handleIncrease}
-        disabled={isIncreaseDisabled}
-        className={cn(
-          "flex items-center justify-center w-6 h-6 rounded-full",
-          "text-pink-500 font-bold text-lg transition-colors",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2",
-          "hover:bg-pink-50 active:bg-pink-100",
-          "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent",
-          "pb-0.5" // CÄƒn chá»‰nh dáº¥u + cho cÃ¢n giá»¯a
-        )}
-        aria-label="TÄƒng sá»‘ lÆ°á»£ng"
-        aria-disabled={isIncreaseDisabled}
-      >
-        +
-      </button>
-    </div>
-  );
-}
-
-
-
-
---- FILE: components/product/ProductBadges.tsx ---
-
-
-'use client';
-
-interface ProductBadgesProps {
-  onSale?: boolean | null;
-  featured?: boolean | null;
-  isNew?: boolean | null;
-}
-
-export function ProductBadges({ onSale, featured, isNew }: ProductBadgesProps) {
-  const badges = [];
-
-  if (onSale) {
-    badges.push(
-      <span
-        key="sale"
-        className="bg-accent text-accent-foreground text-xs font-semibold px-2 py-1 rounded-full"
-      >
-        Giáº£m giÃ¡
-      </span>
-    );
-  }
-
-  if (featured) {
-    badges.push(
-      <span
-        key="featured"
-        className="bg-primary text-primary-foreground text-xs font-semibold px-2 py-1 rounded-full"
-      >
-        Ná»•i báº­t
-      </span>
-    );
-  }
-
-  if (isNew) {
-    badges.push(
-      <span
-        key="new"
-        className="bg-green-500 text-white text-xs font-semibold px-2 py-1 rounded-full"
-      >
-        Má»›i
-      </span>
-    );
-  }
-
-  if (badges.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="absolute top-2 left-2 flex flex-wrap gap-2 z-10">
-      {badges}
-    </div>
-  );
-}
-
-
-
-
---- FILE: components/product/ProductPromotions.tsx ---
-
-
-'use client';
-
-import { Gift, Package, Truck, Shield, Star } from 'lucide-react';
-
-interface ProductPromotionsProps {
-  promotions?: {
-    freeGift?: boolean;
-    freeCard?: boolean;
-    freeShip?: boolean;
-    warranty?: boolean;
-    rewardPoints?: boolean;
-  };
-}
-
-export function ProductPromotions({ promotions }: ProductPromotionsProps) {
-  // Default promotions (hardcoded - cÃ³ thá»ƒ láº¥y tá»« ACF fields sau)
-  const defaultPromotions = {
-    freeGift: true,
-    freeCard: true,
-    freeShip: true,
-    warranty: true,
-    rewardPoints: true,
-  };
-
-  const activePromotions = promotions || defaultPromotions;
-
-  // Check if any promotion is active
-  const hasActivePromotions =
-    activePromotions.freeGift ||
-    activePromotions.freeCard ||
-    activePromotions.freeShip ||
-    activePromotions.warranty ||
-    activePromotions.rewardPoints;
-
-  if (!hasActivePromotions) return null;
-
-  return (
-    <div className="bg-pink-50 border border-pink-200 rounded-xl p-4">
-      <h3 className="font-heading text-lg font-semibold mb-3">
-        Æ¯u Ä‘Ã£i Ä‘áº·c biá»‡t
-      </h3>
-      <ul className="space-y-2">
-        {activePromotions.freeGift && (
-          <li className="flex items-center gap-2 text-sm text-text-main">
-            <Gift className="w-4 h-4 text-primary" />
-            <span>Miá»…n phÃ­ GÃ³i QuÃ  (TÃºi trong suá»‘t + NÆ¡)</span>
-          </li>
-        )}
-        {activePromotions.freeCard && (
-          <li className="flex items-center gap-2 text-sm text-text-main">
-            <Package className="w-4 h-4 text-primary" />
-            <span>Miá»…n phÃ­ Táº·ng kÃ¨m thiá»‡p Ã½ nghÄ©a (Sinh nháº­t, TÃ¬nh yÃªu, Cáº£m Æ¡n, Lá»… táº¿t)</span>
-          </li>
-        )}
-        {activePromotions.freeShip && (
-          <li className="flex items-center gap-2 text-sm text-text-main">
-            <Truck className="w-4 h-4 text-primary" />
-            <span>Há»a Tá»‘c: Giao hÃ ng trong 45-60 phÃºt táº¡i HCM</span>
-          </li>
-        )}
-        {activePromotions.warranty && (
-          <li className="flex items-center gap-2 text-sm text-text-main">
-            <Shield className="w-4 h-4 text-primary" />
-            <span>Báº£o HÃ nh: Báº£o hÃ nh trá»n Ä‘á»i Ä‘Æ°á»ng may táº¡i cá»­a hÃ ng</span>
-          </li>
-        )}
-        {activePromotions.rewardPoints && (
-          <li className="flex items-center gap-2 text-sm text-text-main">
-            <Star className="w-4 h-4 text-primary" />
-            <span>TÃ­ch Äiá»ƒm: TÃ­ch 3% giÃ¡ trá»‹ Ä‘Æ¡n hÃ ng</span>
-          </li>
-        )}
-      </ul>
-    </div>
-  );
-}
-
-
-
-
---- FILE: components/product/QuickOrderBox.tsx ---
-
-
-'use client';
-
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Loader2, Send, Zap } from 'lucide-react';
-
-interface QuickOrderBoxProps {
-  productId?: number;
-  productName?: string;
-  quantity?: number;
-  variationId?: number;
-  onQuickOrder?: (phone: string) => Promise<void>;
-}
-
-export function QuickOrderBox({ 
-  productId, 
-  productName, 
-  quantity = 1,
-  variationId,
-  onQuickOrder 
-}: QuickOrderBoxProps) {
-  const [phone, setPhone] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
-
-  const validatePhone = (phoneNumber: string): boolean => {
-    // Vietnamese phone: 10-11 digits, may start with 0 or +84
-    const cleaned = phoneNumber.replace(/[\s-]/g, '');
-    const regex = /^(\+84|0)?[1-9][0-9]{8,9}$/;
-    return regex.test(cleaned);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(false);
-
-    if (!phone.trim()) {
-      setError('Vui lÃ²ng nháº­p sá»‘ Ä‘iá»‡n thoáº¡i');
-      return;
-    }
-
-    if (!validatePhone(phone)) {
-      setError('Sá»‘ Ä‘iá»‡n thoáº¡i khÃ´ng há»£p lá»‡. Vui lÃ²ng nháº­p 10-11 chá»¯ sá»‘');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      if (onQuickOrder) {
-        await onQuickOrder(phone);
-      } else {
-        // Default: Zalo Notification (Option 1)
-        const adminPhone = '0924923399'; // TODO: Move to env variable
-        const message = encodeURIComponent(
-          `Äáº·t hÃ ng nhanh\n` +
-          `SÄT: ${phone}\n` +
-          `Sáº£n pháº©m: ${productName || 'N/A'}\n` +
-          `Sá»‘ lÆ°á»£ng: ${quantity}`
-        );
-        const zaloLink = `https://zalo.me/${adminPhone}?text=${message}`;
-        window.open(zaloLink, '_blank');
+    async function fetchProduct() {
+      if (!id) {
+        setLoading(false);
+        return;
       }
 
-      setSuccess(true);
-      setPhone(''); // Clear input after success
-      
-      // Reset success message after 3 seconds
-      setTimeout(() => setSuccess(false), 3000);
-    } catch (err) {
-      setError('CÃ³ lá»—i xáº£y ra. Vui lÃ²ng thá»­ láº¡i sau.');
-      console.error('Quick order error:', err);
-    } finally {
-      setIsSubmitting(false);
+      try {
+        setLoading(true);
+        setError(null);
+
+        // CMS API supports both ID (ObjectId) and slug
+        const response = await fetch(`/api/cms/products/${encodeURIComponent(String(id))}`);
+        if (!response.ok) {
+          throw new Error('Product not found');
+        }
+        
+        const data = await response.json();
+        // CMS API Ä‘Ã£ map product rá»“i, khÃ´ng cáº§n map láº¡i
+        const mappedProduct: MappedProduct = data.product;
+        setProduct(mappedProduct);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch product'));
+        setProduct(null);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProduct();
+  }, [id, idType]);
+
+  return {
+    product,
+    loading,
+    error,
+  };
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: lib\hooks\useProductsForHome.ts ---
+
+Lines: 71
+
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { type MappedProduct } from '@/lib/utils/productMapper';
+
+interface UseProductsForHomeOptions {
+  featured?: boolean;
+  orderby?: 'date' | 'popularity' | 'price' | 'title';
+  order?: 'asc' | 'desc';
+  per_page?: number;
+  // Custom filters (server-side filtering)
+  min_length?: number; // Minimum length in cm (for bigsize products)
+  max_length?: number; // Maximum length in cm
+  material?: string; // Material filter
+}
+
+/**
+ * Hook Ä‘á»ƒ fetch products cho homepage sections tá»« CMS API
+ * ÄÆ¡n giáº£n hÆ¡n useProductsREST, khÃ´ng dÃ¹ng filters tá»« URL
+ */
+export function useProductsForHome(options: UseProductsForHomeOptions = {}) {
+  const { featured, orderby = 'date', order = 'desc', per_page = 8 } = options;
+  const [products, setProducts] = useState<MappedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Build API params
+        const params: Record<string, string> = {
+          per_page: per_page.toString(),
+          page: '1', // Always fetch first page for homepage
+        };
+
+        // Featured filter (CMS API)
+        if (featured) {
+          params.featured = 'true';
+        }
+
+        // Custom filters (server-side filtering)
+        if (options.min_length !== undefined) {
+          params.min_length = options.min_length.toString();
+        }
+        if (options.max_length !== undefined) {
+          params.max_length = options.max_length.toString();
+        }
+        if (options.material) {
+          params.material = options.material;
+        }
+
+        const queryString = new URLSearchParams(params).toString();
+        const response = await fetch(`/api/cms/products?${queryString}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch products: ${response.status}`);
+        }
+
+        const data = await response.json();
+        // CMS API Ä‘Ã£ map products rá»“i, khÃ´ng cáº§n map láº¡i
+        const mappedProducts: MappedProduct[] = data.products || [];
+        setProducts(mappedProducts);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch products'));
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProducts();
+  }, [featured, orderby, order, per_page, options.min_length, options.max_length, options.material]);
+
+  return {
+    products,
+    loading,
+    error,
+  };
+}
+
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: lib\hooks\useProductsREST.ts ---
+
+Lines: 177
+
+
+'use client';
+
+import { useState, useEffect, useMemo, useRef } from 'react';
+import { type MappedProduct } from '@/lib/utils/productMapper';
+import { useProductFilters } from './useProductFilters';
+
+/**
+ * Hook Ä‘á»ƒ fetch products tá»« CMS API vá»›i filters
+ * 
+ * @param perPage - Sá»‘ products má»—i page (default: 12)
+ * @returns Products, loading, error, pagination info
+ */
+export function useProductsREST(perPage: number = 12) {
+  const { filters } = useProductFilters();
+  const [products, setProducts] = useState<MappedProduct[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalProducts, setTotalProducts] = useState(0);
+  
+  // Track previous filters to detect changes
+  const prevFiltersRef = useRef<string>('');
+
+  // Build REST API params tá»« filters
+  const apiParams = useMemo(() => {
+    const params: Record<string, any> = {
+      per_page: perPage,
+      page: currentPage,
+      status: 'publish', // Chá»‰ láº¥y published products
+    };
+
+    // Category filter - há»— trá»£ nhiá»u categories (comma-separated)
+    // WooCommerce REST API há»— trá»£ nhiá»u categories qua comma-separated IDs/slugs
+    if (filters.category) {
+      // filters.category cÃ³ thá»ƒ lÃ  comma-separated string: "slug1,slug2,slug3"
+      params.category = filters.category;
+    }
+
+    // Search
+    if (filters.search) {
+      params.search = filters.search;
+    }
+
+    // Custom filters - gá»­i lÃªn API route Ä‘á»ƒ filter server-side
+    if (filters.minPrice !== undefined) {
+      params.min_price = filters.minPrice;
+    }
+    if (filters.maxPrice !== undefined) {
+      params.max_price = filters.maxPrice;
+    }
+    if (filters.material) {
+      params.material = filters.material;
+    }
+    if (filters.size) {
+      params.size = filters.size;
+    }
+    if (filters.color) {
+      params.color = filters.color;
+    }
+
+    // Order by
+    if (filters.sortBy) {
+      switch (filters.sortBy) {
+        case 'price_asc':
+          params.orderby = 'price';
+          params.order = 'asc';
+          break;
+        case 'price_desc':
+          params.orderby = 'price';
+          params.order = 'desc';
+          break;
+        case 'name_asc':
+          params.orderby = 'title';
+          params.order = 'asc';
+          break;
+        case 'name_desc':
+          params.orderby = 'title';
+          params.order = 'desc';
+          break;
+        case 'newest':
+          params.orderby = 'date';
+          params.order = 'desc';
+          break;
+        default:
+          params.orderby = 'date';
+          params.order = 'desc';
+      }
+    } else {
+      params.orderby = 'date';
+      params.order = 'desc';
+    }
+
+    return params;
+  }, [filters, perPage, currentPage]);
+
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        setLoading(true);
+        setError(null);
+
+        // Check if filters changed (excluding page number)
+        const currentFiltersKey = JSON.stringify({
+          ...apiParams,
+          page: undefined, // Exclude page from filter comparison
+        });
+        const filtersChanged = prevFiltersRef.current !== currentFiltersKey;
+        
+        // If filters changed, reset to page 1
+        if (filtersChanged && currentPage !== 1) {
+          setCurrentPage(1);
+          prevFiltersRef.current = currentFiltersKey;
+          return; // Will trigger another fetch with page 1
+        }
+        
+        prevFiltersRef.current = currentFiltersKey;
+
+        // Fetch products tá»« CMS API
+        const queryString = new URLSearchParams(
+          Object.entries(apiParams).reduce((acc, [key, value]) => {
+            if (value !== undefined && value !== null && value !== '') {
+              acc[key] = String(value);
+            }
+            return acc;
+          }, {} as Record<string, string>)
+        ).toString();
+
+        const response = await fetch(`/api/cms/products?${queryString}`);
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch products: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        // CMS API Ä‘Ã£ map products rá»“i, khÃ´ng cáº§n map láº¡i
+        const mappedProducts: MappedProduct[] = data.products || [];
+        const paginationInfo = data.pagination || {};
+        
+        // Use pagination info from API (accurate) instead of estimating
+        if (paginationInfo.total !== undefined) {
+          setTotalProducts(paginationInfo.total);
+        } else {
+          // Fallback: estimate based on current page results
+          setTotalProducts(mappedProducts.length);
+        }
+        
+        if (paginationInfo.totalPages !== undefined) {
+          setTotalPages(paginationInfo.totalPages);
+        } else {
+          // Fallback: estimate based on current page results
+          setTotalPages(mappedProducts.length < perPage ? currentPage : currentPage + 1);
+        }
+        
+        // If this is page 1 or filters changed, replace products; otherwise append (for load more)
+        // Note: When using custom filters, API handles pagination correctly, so we replace on page 1
+        if (currentPage === 1 || filtersChanged) {
+          setProducts(mappedProducts);
+        } else {
+          // Append new products for "load more" functionality
+          setProducts(prev => [...prev, ...mappedProducts]);
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch products'));
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchProducts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [JSON.stringify(apiParams), currentPage, perPage]);
+
+  // No need for client-side filtering anymore - API route handles all filtering
+  // Products returned from API are already filtered
+
+  const loadMore = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(prev => prev + 1);
     }
   };
 
-  return (
-    <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
-      {/* Title with Icon */}
-      <div className="flex items-center gap-1.5 mb-2">
-        <Zap className="w-4 h-4 text-orange-500 fill-orange-500" />
-        <h3 className="font-bold text-text-main text-sm">
-          Äáº·t hÃ ng nhanh
-        </h3>
-      </div>
-      
-      {/* Horizontal Inline Form */}
-      <form onSubmit={handleSubmit} className="flex items-start gap-2">
-        <div className="flex-1">
-          <Input
-            type="tel"
-            placeholder="Nháº­p SÄT..."
-            value={phone}
-            onChange={(e) => {
-              setPhone(e.target.value);
-              setError(null);
-            }}
-            className="h-9 text-sm border-2 border-pink-200 focus:border-pink-400 rounded-lg"
-            disabled={isSubmitting}
-            aria-label="Sá»‘ Ä‘iá»‡n thoáº¡i Ä‘áº·t hÃ ng nhanh"
-            aria-required="true"
-            aria-invalid={error ? 'true' : 'false'}
-            aria-describedby={error ? 'phone-error' : undefined}
-          />
-        </div>
-
-        <Button
-          type="submit"
-          className="h-9 w-auto px-3 bg-[#D6336C] hover:bg-[#BE185D] text-white flex-shrink-0"
-          disabled={isSubmitting || !phone.trim()}
-          aria-label="Gá»­i yÃªu cáº§u Ä‘áº·t hÃ ng nhanh"
-        >
-          {isSubmitting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
-          ) : (
-            <Send className="w-4 h-4" />
-          )}
-        </Button>
-      </form>
-
-      {/* Error and Success Messages */}
-      {error && (
-        <p id="phone-error" className="text-xs text-destructive mt-1.5" role="alert">
-          {error}
-        </p>
-      )}
-      {success && (
-        <p className="text-xs text-green-600 mt-1.5" role="status">
-          âœ“ ÄÃ£ gá»­i thÃ´ng tin. ChÃºng tÃ´i sáº½ liÃªn há»‡ vá»›i báº¡n sá»›m nháº¥t!
-        </p>
-      )}
-    </div>
-  );
+  return {
+    products,
+    loading,
+    error,
+    hasNextPage: currentPage < totalPages,
+    loadMore,
+    totalCount: totalProducts,
+    currentPage,
+    totalPages,
+  };
 }
 
 
 
-
---- FILE: components/product/RelatedProducts.tsx ---
-
-
-'use client';
-
-import { useProductsREST } from '@/lib/hooks/useProductsREST';
-import { ProductCard } from './ProductCard';
-
-interface RelatedProductsProps {
-  productId: number;
-  excludeId?: number;
-}
-
-export function RelatedProducts({
-  productId,
-  excludeId,
-}: RelatedProductsProps) {
-  // Get related products (simply get latest products, exclude current)
-  const { products, loading } = useProductsREST(8);
-
-  // Filter out current product
-  const filteredProducts = products?.filter(
-    (product) => Number(product.id) !== (excludeId || productId)
-  ).slice(0, 4) || [];
-
-  if (loading) {
-    return (
-      <div className="container-mobile py-8">
-        <h2 className="font-heading text-2xl font-semibold mb-6">
-          Sáº£n pháº©m liÃªn quan
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="animate-pulse">
-              <div className="aspect-square bg-muted rounded-2xl mb-4" />
-              <div className="h-4 bg-muted rounded mb-2" />
-              <div className="h-6 bg-muted rounded w-2/3" />
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (filteredProducts.length === 0) {
-    return null;
-  }
-
-  return (
-    <div className="container-mobile py-8">
-      <h2 className="font-heading text-2xl font-semibold mb-6">
-        Sáº£n pháº©m liÃªn quan
-      </h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {filteredProducts.map((product) => (
-          <ProductCard
-            key={product.id}
-            product={product}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
+--------------------------------------------------------------------------------
 
 
+--- FILE: lib\hooks\useProductVariations.ts ---
 
---- FILE: app/(shop)/products/page.tsx ---
-
-
-'use client';
-
-import { Suspense } from 'react';
-import { ProductList } from '@/components/product/ProductList';
-import { ProductFilters } from '@/components/product/ProductFilters';
-
-function ProductsContent() {
-  return (
-    <div className="min-h-screen">
-      {/* Content Section - Vertical Stack */}
-      <div className="container-mobile py-6 md:py-8">
-        {/* Product Filters - Full Width, Horizontal Layout */}
-        <div className="mb-6 md:mb-8">
-          <ProductFilters />
-        </div>
-
-        {/* Product List */}
-        <ProductList />
-      </div>
-    </div>
-  );
-}
-
-export default function ProductsPage() {
-  return (
-    <Suspense fallback={
-      <div className="min-h-screen">
-        <div className="container-mobile py-6 md:py-8">
-          <div className="animate-pulse">
-            <div className="h-8 bg-muted rounded w-64 mb-4" />
-            <div className="h-4 bg-muted rounded w-96" />
-          </div>
-        </div>
-      </div>
-    }>
-      <ProductsContent />
-    </Suspense>
-  );
-}
-
-
-
-
---- FILE: lib/hooks/useProductVariations.ts ---
+Lines: 90
 
 
 'use client';
@@ -3479,8 +5552,251 @@ export function useProductVariations(
 
 
 
+--------------------------------------------------------------------------------
 
---- FILE: lib/utils/productMapper.ts ---
+
+--- FILE: lib\hooks\useVariationMatcher.ts ---
+
+Lines: 208
+
+
+import { useMemo } from 'react';
+import type { MongoVariant } from '@/lib/hooks/useProductVariations';
+
+/**
+ * Custom hook to find matching variation based on selected attributes
+ * 
+ * âš ï¸ CRITICAL: MongoDB Variants structure
+ * - Variants have direct fields: size, color (NOT an attributes object)
+ * - Match by variation.size === selectedSize (NOT through variation.attributes)
+ * - Color is optional (some variations may not have color)
+ * 
+ * @param variations - Array of product variations from useProductVariations
+ * @param selectedSize - Currently selected size (e.g., "60cm", "80cm")
+ * @param selectedColor - Currently selected color (optional)
+ * @returns Matched variation or null
+ * 
+ * @example
+ * ```typescript
+ * const { variations } = useProductVariations(productId);
+ * const matchedVariation = useVariationMatcher(
+ *   variations,
+ *   selectedSize,
+ *   selectedColor
+ * );
+ * 
+ * if (matchedVariation) {
+ *   console.log('Price:', matchedVariation.price);
+ *   console.log('Stock:', matchedVariation.stock);
+ * }
+ * ```
+ */
+export function useVariationMatcher(
+  variations: MongoVariant[],
+  selectedSize: string | null,
+  selectedColor?: string | null
+): MongoVariant | null {
+  return useMemo(() => {
+    // Early return if no size selected or no variations
+    if (!selectedSize || variations.length === 0) {
+      return null;
+    }
+
+    // Normalize selected size for comparison (trim and lowercase)
+    const normalizedSelectedSize = selectedSize.trim().toLowerCase();
+    const normalizedSelectedColor = selectedColor?.trim().toLowerCase();
+
+    // Find variation that matches selected size and color
+    const matchedVariation = variations.find((variation) => {
+      // Variation must have a size field
+      if (!variation.size) return false;
+
+      // Normalize variation size for comparison
+      const normalizedVariationSize = variation.size.trim().toLowerCase();
+
+      // Check if size matches
+      if (normalizedVariationSize !== normalizedSelectedSize) {
+        return false;
+      }
+
+      // If color is selected, check color match
+      if (normalizedSelectedColor) {
+        // If variation doesn't have color (null/undefined), 
+        // it means this variation doesn't support color attribute
+        // In this case, we still match by size only
+        if (!variation.color) {
+          return true;
+        }
+
+        // If variation has color, it must match selected color
+        const normalizedVariationColor = variation.color.trim().toLowerCase();
+        return normalizedVariationColor === normalizedSelectedColor;
+      }
+
+      // Size matches and no color requirement
+      return true;
+    });
+
+    return matchedVariation || null;
+  }, [variations, selectedSize, selectedColor]);
+}
+
+/**
+ * Alternative version without normalization (exact match)
+ * Use this if your data is already normalized in the database
+ * 
+ * @param variations - Array of product variations
+ * @param selectedSize - Selected size (exact match)
+ * @param selectedColor - Selected color (exact match, optional)
+ * @returns Matched variation or null
+ */
+export function useVariationMatcherExact(
+  variations: MongoVariant[],
+  selectedSize: string | null,
+  selectedColor?: string | null
+): MongoVariant | null {
+  return useMemo(() => {
+    if (!selectedSize || variations.length === 0) {
+      return null;
+    }
+
+    const matchedVariation = variations.find((variation) => {
+      if (!variation.size || variation.size !== selectedSize) {
+        return false;
+      }
+
+      if (selectedColor) {
+        return !variation.color || variation.color === selectedColor;
+      }
+
+      return true;
+    });
+
+    return matchedVariation || null;
+  }, [variations, selectedSize, selectedColor]);
+}
+
+/**
+ * Hook to get all unique sizes from variations
+ * Useful for displaying size selector
+ * 
+ * @param variations - Array of product variations
+ * @returns Array of unique size values
+ * 
+ * @example
+ * ```typescript
+ * const { variations } = useProductVariations(productId);
+ * const availableSizes = useAvailableSizes(variations);
+ * // Returns: ["60cm", "80cm", "1m", "1m2"]
+ * ```
+ */
+export function useAvailableSizes(variations: MongoVariant[]): string[] {
+  return useMemo(() => {
+    if (variations.length === 0) return [];
+
+    // Extract unique sizes, filter out empty/null values
+    const sizes = variations
+      .map((v) => v.size)
+      .filter((size): size is string => Boolean(size && String(size).trim().length > 0))
+      .map((size) => String(size).trim());
+
+    // Remove duplicates using Set
+    return [...new Set(sizes)];
+  }, [variations]);
+}
+
+/**
+ * Hook to get all unique colors from variations
+ * Useful for displaying color selector
+ * 
+ * @param variations - Array of product variations
+ * @returns Array of unique color values
+ * 
+ * @example
+ * ```typescript
+ * const { variations } = useProductVariations(productId);
+ * const availableColors = useAvailableColors(variations);
+ * // Returns: ["Äá»", "Xanh", "Tráº¯ng"]
+ * ```
+ */
+export function useAvailableColors(variations: MongoVariant[]): string[] {
+  return useMemo(() => {
+    if (variations.length === 0) return [];
+
+    // Extract unique colors, filter out empty/null values
+    const colors = variations
+      .map((v) => v.color)
+      .filter((color): color is string => Boolean(color && String(color).trim().length > 0))
+      .map((color) => String(color).trim());
+
+    // Remove duplicates using Set
+    return [...new Set(colors)];
+  }, [variations]);
+}
+
+/**
+ * Example usage in ProductCard or ProductInfo:
+ * 
+ * ```typescript
+ * import { useProductVariations } from '@/lib/hooks/useProductVariations';
+ * import { useVariationMatcher, useAvailableSizes, useAvailableColors } from '@/lib/hooks/useVariationMatcher';
+ * 
+ * function ProductInfo({ product }) {
+ *   const [selectedSize, setSelectedSize] = useState<string | null>(null);
+ *   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+ *   
+ *   // Fetch variations
+ *   const { variations, isLoading } = useProductVariations(product.databaseId);
+ *   
+ *   // Get available options
+ *   const availableSizes = useAvailableSizes(variations);
+ *   const availableColors = useAvailableColors(variations);
+ *   
+ *   // Find matched variation
+ *   const selectedVariation = useVariationMatcher(
+ *     variations,
+ *     selectedSize,
+ *     selectedColor
+ *   );
+ *   
+ *   return (
+ *     <div>
+ *       {availableSizes.map(size => (
+ *         <button
+ *           key={size}
+ *           onClick={() => setSelectedSize(size)}
+ *           className={selectedSize === size ? 'active' : ''}
+ *         >
+ *           {size}
+ *         </button>
+ *       ))}
+ *       
+ *       {availableColors.map(color => (
+ *         <button
+ *           key={color}
+ *           onClick={() => setSelectedColor(color)}
+ *           className={selectedColor === color ? 'active' : ''}
+ *         >
+ *           {color}
+ *         </button>
+ *       ))}
+ *       
+ *       {selectedVariation && (
+ *         <p>Price: {selectedVariation.price}</p>
+ *       )}
+ *     </div>
+ *   );
+ * }
+ * ```
+ */
+
+
+--------------------------------------------------------------------------------
+
+
+--- FILE: lib\utils\productMapper.ts ---
+
+Lines: 638
 
 
 /**
@@ -4140,3 +6456,5 @@ export function mapMongoCategories(mongoCategories: MongoCategory[]): MappedCate
 }
 
 
+
+--------------------------------------------------------------------------------

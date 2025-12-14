@@ -104,15 +104,25 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
         <Label htmlFor="regular-price" className="text-sm font-medium flex items-center gap-2">
           <DollarSign className="h-4 w-4 text-muted-foreground" />
           Giá bán thường
-          <span className="text-red-500">*</span>
+          {state.productType === 'variable' ? (
+            <span className="text-xs text-muted-foreground font-normal">(Không áp dụng cho sản phẩm có biến thể)</span>
+          ) : (
+            <span className="text-red-500">*</span>
+          )}
         </Label>
         <PriceInput
           id="regular-price"
           placeholder="0"
-          required
+          required={state.productType !== 'variable'}
           value={state.regularPrice}
           onChange={(value) => onUpdate({ regularPrice: value })}
+          disabled={state.productType === 'variable'}
         />
+        {state.productType === 'variable' && (
+          <p className="text-xs text-muted-foreground">
+            Với sản phẩm có biến thể, giá được quản lý tại tab "Biến thể". Trường này sẽ bị vô hiệu hóa.
+          </p>
+        )}
         {/* Real-time Profit Calculation */}
         {profit && state.costPrice && (
           <div className="flex items-center gap-2 text-sm">

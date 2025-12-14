@@ -1,15 +1,19 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { formatPrice } from '@/lib/utils/format';
 import { useCartSync } from '@/lib/hooks/useCartSync';
 import { useProductVariations } from '@/lib/hooks/useProductVariations';
+import { useVariationMatcher, useSmallestSizeByPrice } from '@/lib/hooks/useVariationMatcher';
+import { useProductPrice } from '@/lib/hooks/useProductPrice';
+import { isAttributeSize, isAttributeColor } from '@/lib/constants/attributes';
 import { cn } from '@/lib/utils/cn';
 import type { MappedProduct } from '@/lib/utils/productMapper';
-import { ShoppingCart, Check } from 'lucide-react';
+import { ShoppingCart, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getColorHex } from '@/lib/utils/colorMapping';
 import { generateSlug } from '@/lib/utils/slug';
@@ -20,10 +24,13 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product }: ProductCardProps) {
+  const router = useRouter();
   const { addToCart } = useCartSync();
   // State cho việc chọn Size/Màu
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  // State cho loading feedback
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
   
   // ============================================
   // LAZY LOADING: Chỉ fetch variations khi cần
@@ -64,111 +71,81 @@ export function ProductCard({ product }: ProductCardProps) {
   // Lấy ảnh hiển thị (ưu tiên ảnh biến thể nếu có logic chọn màu, hiện tại dùng ảnh chính)
   const imageUrl = product?.image?.sourceUrl || '/images/teddy-placeholder.png';
   
-  // Tìm variation tương ứng với selectedSize
-  const selectedVariation = useMemo(() => {
-    if (!product) return null;
-    if (!selectedSize || variations.length === 0) return null;
-    
-    // MongoVariant structure: { id, size, color, price, stock, ... }
-    // Match variation by size directly (not through attributes array)
-    const matchedVariation = variations.find((variation) => {
-      // Check if variation.size matches selectedSize
-      if (variation.size && variation.size === selectedSize) {
-        // If color is also selected, check if it matches
-        // But if variation doesn't have color (null/undefined), still match by size
-        if (selectedColor) {
-          // Only require color match if variation has a color value
-          // If variation.color is null/undefined, it means this variation doesn't have color attribute
-          // So we should still match it by size only
-          return !variation.color || variation.color === selectedColor;
-        }
-        return true;
-      }
-      return false;
-    });
-    
-    return matchedVariation || null;
-  }, [selectedSize, selectedColor, variations, product]);
+  // Auto-select smallest size (lowest price) when variations load
+  const smallestSize = useSmallestSizeByPrice(variations);
   
-  // Logic hiển thị giá: Ưu tiên variation price, sau đó mới đến product price
-  // Nếu không có giá bán thường, lấy giá thấp nhất từ variations
-  // MongoVariant structure: { id, size, color, price, stock, ... }
-  const displayPrice = useMemo(() => {
-    if (!product) return '0';
-    
-    // Nếu có variation được chọn, dùng giá của variation
-    if (selectedVariation) {
-      const price = String(selectedVariation.price || 0);
-      return price;
+  // Auto-select smallest size when variations load and no size is selected
+  useEffect(() => {
+    if (product?.type === 'variable' && smallestSize && !selectedSize && !isLoadingVariations && variations.length > 0) {
+      setSelectedSize(smallestSize);
     }
-    
-    // Fallback về giá product gốc
-    const fallbackPrice = product.onSale ? product.salePrice : product.price;
-    const numFallbackPrice = parseFloat(fallbackPrice || '0');
-    
-    // Nếu product không có giá bán thường (hoặc giá = 0), nhưng có variations
-    // → Lấy giá thấp nhất từ variations
-    if (numFallbackPrice <= 0 && variations.length > 0) {
+  }, [product?.type, smallestSize, selectedSize, isLoadingVariations, variations.length]);
+  
+  // Use custom hook to find matching variation (replaces duplicate logic)
+  const selectedVariation = useVariationMatcher(variations, selectedSize, selectedColor);
+  
+  // Use custom hook for pricing logic (replaces ~60 lines of duplicate code)
+  const { displayPrice, displayRegularPrice, isOnSale, priceRange } = useProductPrice(product, selectedVariation);
+  
+  // Calculate price range for variable products
+  const variablePriceRange = useMemo(() => {
+    if (product?.type === 'variable' && variations.length > 0 && !selectedVariation) {
       const prices = variations
-        .map(v => v.price || 0)
-        .filter(p => p > 0);
+        .map((v: { price?: number }) => v.price || 0)
+        .filter((p: number) => p > 0);
       
       if (prices.length > 0) {
         const minPrice = Math.min(...prices);
-        return String(minPrice);
+        const maxPrice = Math.max(...prices);
+        return { min: minPrice, max: maxPrice };
+      }
+    }
+    return null;
+  }, [product, variations, selectedVariation]);
+  
+  // Fallback logic for products without regular price (keep existing behavior)
+  const finalDisplayPrice = useMemo(() => {
+    // For variable products without selected variation, show price range
+    if (product?.type === 'variable' && !selectedVariation && variablePriceRange) {
+      if (variablePriceRange.min === variablePriceRange.max) {
+        return String(variablePriceRange.min);
+      }
+      // Will show "Từ X đ" format in UI
+      return String(variablePriceRange.min);
+    }
+    
+    const numDisplayPrice = parseFloat(displayPrice || '0');
+    
+    // If displayPrice is 0 and we have variations, try to get min price
+    if (numDisplayPrice <= 0 && variations.length > 0) {
+      const prices = variations
+        .map((v: { price?: number }) => v.price || 0)
+        .filter((p: number) => p > 0);
+      
+      if (prices.length > 0) {
+        return String(Math.min(...prices));
       }
     }
     
-    // Nếu có minPrice từ product (đã được map từ MongoDB)
-    if (numFallbackPrice <= 0 && product.minPrice && product.minPrice > 0) {
+    // If still 0 and product has minPrice, use it
+    if (numDisplayPrice <= 0 && product?.minPrice && product.minPrice > 0) {
       return String(product.minPrice);
     }
     
-    return fallbackPrice;
-  }, [selectedVariation, product, variations]);
+    return displayPrice;
+  }, [displayPrice, variations, product, selectedVariation, variablePriceRange]);
   
-  // Regular price để hiển thị line-through khi có sale
-  const displayRegularPrice = useMemo(() => {
-    if (!product) return null;
-    if (selectedVariation) {
-      // MongoVariant không có regular_price, chỉ có price
-      // Return null để không hiển thị line-through
-      return null;
-    }
-    return product.regularPrice;
-  }, [selectedVariation, product]);
+  const finalRegularPrice = displayRegularPrice;
   
-  // Kiểm tra có đang sale không
-  const isOnSale = useMemo(() => {
-    if (!product) return false;
-    if (selectedVariation) {
-      // MongoVariant không có on_sale field
-      // Check if variation price is different from product regular price
-      const variationPrice = selectedVariation.price || 0;
-      const productRegularPrice = parseFloat(product.regularPrice) || 0;
-      return variationPrice < productRegularPrice && variationPrice > 0;
-    }
-    return product.onSale || false;
-  }, [selectedVariation, product]);
+  // Extract Size and Color attributes from product using centralized constants
+  // This replaces hardcoded string matching with reusable helper functions
+  const sizeAttribute = product?.attributes?.find((attr) => isAttributeSize(attr.name));
+  const colorAttribute = product?.attributes?.find((attr) => isAttributeColor(attr.name));
   
-  // Extract Size and Color attributes from product (trước early return để dùng trong useMemo)
-  // Fallback to mock data if attributes not available
-  const sizeAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('size') || 
-               attr.name.toLowerCase().includes('kích thước') ||
-               attr.name.toLowerCase().includes('kich thuoc') ||
-               attr.name === 'pa_size'
-  );
-  const colorAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('color') || 
-               attr.name.toLowerCase().includes('màu') ||
-               attr.name.toLowerCase().includes('mau') ||
-               attr.name === 'pa_color'
-  );
-  
-  // Use real attributes if available, otherwise fallback to mock data
-  const availableSizes = sizeAttribute?.options || ['60cm', '80cm', '1m', '1m2'];
-  const availableColors = colorAttribute?.options || ['#EF4444', '#3B82F6', '#FFFFFF', '#FCD34D'];
+  // Use real attributes from CMS only (no fallback mock data)
+  // If product doesn't have these attributes in CMS, don't show them
+  const availableSizes = sizeAttribute?.options || [];
+  const availableColors = colorAttribute?.options || [];
   
   // Limit display to 4 sizes and 4 colors (Cập nhật hiển thị tối đa 4)
   const displaySizes = availableSizes.slice(0, 4);
@@ -220,6 +197,27 @@ export function ProductCard({ product }: ProductCardProps) {
     e.preventDefault();
     e.stopPropagation();
     
+    // FIX: Prevent quick add for variable products without variations data
+    // This prevents wrong pricing when variations haven't loaded yet (race condition)
+    if (product.type === 'variable') {
+      // Check if variations are still loading or not available
+      if (isLoadingVariations || variations.length === 0) {
+        // Redirect to product detail page to select variation properly
+        router.push(productUrl);
+        return;
+      }
+      
+      // If variations loaded but no variation is selected, redirect to detail page
+      if (!selectedVariation) {
+        router.push(productUrl);
+        return;
+      }
+    }
+    
+    // Set loading state
+    setIsAddingToCart(true);
+    
+    try {
     // Sử dụng giá của variation nếu có, nếu không thì dùng giá product
     // MongoVariant structure: { id, size, color, price (number), stock, ... }
     let priceToUse: string;
@@ -227,7 +225,7 @@ export function ProductCard({ product }: ProductCardProps) {
       // MongoVariant chỉ có price (number), không có on_sale/sale_price/regular_price
       priceToUse = String(selectedVariation.price || 0);
     } else {
-      // Use product price (string)
+        // Use product price (string) for simple products
       priceToUse = product.onSale ? product.salePrice : product.price;
     }
     
@@ -248,9 +246,16 @@ export function ProductCard({ product }: ProductCardProps) {
     // Mở QuickCheckoutModal sau khi thêm vào giỏ
     try {
       useQuickCheckoutStore.getState().onOpen();
-      console.log('[ProductCard] QuickCheckoutModal opened');
+      } catch (error) {
+        console.error('[ProductCard] Error opening QuickCheckoutModal:', error);
+      }
     } catch (error) {
-      console.error('[ProductCard] Error opening QuickCheckoutModal:', error);
+      console.error('[ProductCard] Error adding to cart:', error);
+    } finally {
+      // Reset loading state after a short delay for better UX
+      setTimeout(() => {
+        setIsAddingToCart(false);
+      }, 500);
     }
   };
 
@@ -288,11 +293,19 @@ export function ProductCard({ product }: ProductCardProps) {
         <Button
           onClick={handleQuickAdd}
           size="icon"
-          className="absolute bottom-2 right-2 h-10 w-10 md:h-12 md:w-12 rounded-full shadow-md translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300"
-          title="Thêm nhanh vào giỏ"
-          aria-label="Thêm nhanh vào giỏ"
+          disabled={isAddingToCart || isOutOfStock}
+          className={cn(
+            "absolute bottom-2 right-2 h-10 w-10 md:h-12 md:w-12 rounded-full shadow-md translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300",
+            isAddingToCart && "cursor-not-allowed opacity-50"
+          )}
+          title={isAddingToCart ? "Đang thêm..." : "Thêm nhanh vào giỏ"}
+          aria-label={isAddingToCart ? "Đang thêm vào giỏ" : "Thêm nhanh vào giỏ"}
         >
+          {isAddingToCart ? (
+            <Loader2 className="w-4 h-4 md:w-5 md:h-5 animate-spin" />
+          ) : (
           <ShoppingCart className="w-4 h-4 md:w-5 md:h-5" />
+          )}
         </Button>
       </Link>
 
@@ -305,19 +318,34 @@ export function ProductCard({ product }: ProductCardProps) {
           </h3>
         </Link>
 
-        {/* Giá tiền - Style giống ảnh mẫu (Màu hồng đậm/đỏ) */}
-        <div className="flex items-center gap-2">
-          <span className="text-base md:text-lg font-extrabold text-[#D6336C]">
+        {/* Giá tiền - Style giống ảnh mẫu (Màu hồng đậm/đỏ) với Skeleton Loading */}
+        <div className="flex items-center gap-2 min-h-[28px]">
             {isLoadingVariations ? (
-              <span className="text-gray-400">Đang tải...</span>
-            ) : (
-              formatPrice(displayPrice)
-            )}
-          </span>
-          {isOnSale && displayRegularPrice && displayRegularPrice !== displayPrice && (
-            <span className="text-xs text-gray-400 line-through">
-              {formatPrice(displayRegularPrice)}
-            </span>
+            // Skeleton loading: animate pulse effect cho vùng giá
+            <div className="flex items-center gap-2 animate-pulse">
+              <div className="h-5 md:h-6 bg-gray-200 rounded w-20"></div>
+              <div className="h-4 bg-gray-200 rounded w-16"></div>
+            </div>
+          ) : (
+            <>
+              {product?.type === 'variable' && !selectedVariation && variablePriceRange && variablePriceRange.min !== variablePriceRange.max ? (
+                // Show price range for variable products without selection
+                <span className="text-base md:text-lg font-extrabold text-[#D6336C]">
+                  Từ {formatPrice(String(variablePriceRange.min))}
+                </span>
+              ) : (
+                <>
+                  <span className="text-base md:text-lg font-extrabold text-[#D6336C]">
+                    {formatPrice(finalDisplayPrice)}
+                  </span>
+                  {isOnSale && finalRegularPrice && finalRegularPrice !== finalDisplayPrice && (
+                    <span className="text-xs text-gray-400 line-through">
+                      {formatPrice(finalRegularPrice)}
+                    </span>
+                  )}
+                </>
+              )}
+            </>
           )}
         </div>
 

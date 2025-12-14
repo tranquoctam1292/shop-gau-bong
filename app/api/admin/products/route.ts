@@ -235,8 +235,41 @@ const productSchema = z.object({
     menuOrder: z.number().optional(),
     enableReviews: z.boolean().optional(),
   }).passthrough().optional(),
-}).passthrough().refine((data) => {
+}).passthrough()
+  // Validate: regularPrice is required for simple products
+  .refine((data) => {
+    const productType = data.productDataMetaBox?.productType || 'simple';
+    const isSimpleProduct = productType === 'simple';
+    const hasVariations = data.productDataMetaBox?.variations && data.productDataMetaBox.variations.length > 0;
+    
+    // Simple products must have regularPrice (unless they have variations with prices)
+    if (isSimpleProduct && !hasVariations) {
+      if (data.productDataMetaBox?.regularPrice === undefined || data.productDataMetaBox.regularPrice === null) {
+        return false;
+      }
+      if (data.productDataMetaBox.regularPrice <= 0) {
+        return false;
+      }
+    }
+    return true;
+  }, {
+    message: "Giá bán thường là bắt buộc cho sản phẩm đơn giản",
+    path: ["productDataMetaBox", "regularPrice"],
+  })
+  // Validate: If salePrice exists, regularPrice must exist
+  .refine((data) => {
+    if (data.productDataMetaBox?.salePrice !== undefined && data.productDataMetaBox.salePrice > 0) {
+      if (data.productDataMetaBox?.regularPrice === undefined || data.productDataMetaBox.regularPrice === null) {
+        return false;
+      }
+    }
+    return true;
+  }, {
+    message: "Phải có giá bán thường khi đặt giá khuyến mãi",
+    path: ["productDataMetaBox", "salePrice"],
+  })
   // Validate: salePrice must be less than regularPrice if both exist
+  .refine((data) => {
   if (data.productDataMetaBox?.salePrice !== undefined && 
       data.productDataMetaBox?.regularPrice !== undefined) {
     if (data.productDataMetaBox.salePrice >= data.productDataMetaBox.regularPrice) {
@@ -245,12 +278,20 @@ const productSchema = z.object({
   }
   return true;
 }, {
-  message: "Giá khuyến mãi phải nhỏ hơn giá gốc",
+    message: "Giá khuyến mãi phải nhỏ hơn giá bán thường",
   path: ["productDataMetaBox", "salePrice"],
-}).refine((data) => {
+  })
   // Validate: variations salePrice must be less than regularPrice
+  .refine((data) => {
   if (data.productDataMetaBox?.variations) {
     for (const variation of data.productDataMetaBox.variations) {
+        // If variation has salePrice, it must have regularPrice
+        if (variation.salePrice !== undefined && variation.salePrice > 0) {
+          if (variation.regularPrice === undefined || variation.regularPrice === null) {
+            return false;
+          }
+        }
+        // Validate salePrice < regularPrice
       if (variation.salePrice !== undefined && variation.regularPrice !== undefined) {
         if (variation.salePrice >= variation.regularPrice) {
           return false;
@@ -260,7 +301,7 @@ const productSchema = z.object({
   }
   return true;
 }, {
-  message: "Giá khuyến mãi của biến thể phải nhỏ hơn giá gốc",
+    message: "Giá khuyến mãi của biến thể phải nhỏ hơn giá bán thường",
   path: ["productDataMetaBox", "variations"],
 });
 

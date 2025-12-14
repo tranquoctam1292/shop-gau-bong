@@ -6,7 +6,10 @@ import { Button } from '@/components/ui/button';
 import { formatPrice } from '@/lib/utils/format';
 import { useCartSync } from '@/lib/hooks/useCartSync';
 import { useProductVariations } from '@/lib/hooks/useProductVariations';
+import { useVariationMatcher, useSmallestSizeByPrice } from '@/lib/hooks/useVariationMatcher';
+import { useProductPrice } from '@/lib/hooks/useProductPrice';
 import { useMultipleGlobalAttributeTerms } from '@/lib/hooks/useGlobalAttributes';
+import { isAttributeSize, isAttributeColor } from '@/lib/constants/attributes';
 import { QuantitySelector } from '@/components/product/QuantitySelector';
 import { VisualAttributeSelector } from '@/components/product/VisualAttributeSelector';
 import { getColorHex } from '@/lib/utils/colorMapping';
@@ -40,78 +43,19 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
     { enabled: shouldFetchVariations && !!productId }
   );
 
-  // Find selected variation based on selectedSize
-  // MongoVariant structure: { id, size, color, price, stock, ... }
-  // Match variation by size directly (not through attributes array)
-  const selectedVariation = useMemo(() => {
-    if (!product || !selectedSize || variations.length === 0) return null;
-    
-    // Match variation by size directly (MongoDB variant structure)
-    const matchedVariation = variations.find((variation) => {
-      // Check if variation.size matches selectedSize
-      if (variation.size && variation.size === selectedSize) {
-        // If color is also selected, check if it matches
-        // But if variation doesn't have color (null/undefined), still match by size
-        if (selectedColor) {
-          // Only require color match if variation has a color value
-          // If variation.color is null/undefined, it means this variation doesn't have color attribute
-          // So we should still match it by size only
-          return !variation.color || variation.color === selectedColor;
-        }
-        return true;
-      }
-      return false;
-    });
-    
-    return matchedVariation || null;
-  }, [selectedSize, selectedColor, variations, product]);
+  // Extract Size and Color attributes using centralized constants
+  // This replaces hardcoded string matching with reusable helper functions
+  const sizeAttribute = product?.attributes?.find((attr) => isAttributeSize(attr.name));
+  const colorAttribute = product?.attributes?.find((attr) => isAttributeColor(attr.name));
 
-  // Dynamic pricing
-  // MongoVariant structure: { id, size, color, price, stock, ... }
-  // MongoVariant không có on_sale, sale_price, regular_price fields
-  const displayPrice = useMemo(() => {
-    if (!product) return '0';
-    if (selectedVariation) {
-      // MongoVariant chỉ có price field
-      const price = String(selectedVariation.price || 0);
-      return price;
-    }
-    return product.onSale ? product.salePrice : product.price;
-  }, [selectedVariation, product]);
+  // Auto-select smallest size (lowest price) when variations load
+  const smallestSize = useSmallestSizeByPrice(variations);
+  
+  // Use custom hook to find matching variation (replaces ~25 lines of duplicate logic)
+  const selectedVariation = useVariationMatcher(variations, selectedSize, selectedColor);
 
-  const displayRegularPrice = useMemo(() => {
-    if (!product) return null;
-    if (selectedVariation) {
-      // MongoVariant không có regular_price field
-      // Return null để không hiển thị line-through
-      return null;
-    }
-    return product.regularPrice;
-  }, [selectedVariation, product]);
-
-  const isOnSale = useMemo(() => {
-    if (!product) return false;
-    if (selectedVariation) {
-      // MongoVariant không có on_sale field
-      // Check if variation price is different from product regular price
-      const variationPrice = selectedVariation.price || 0;
-      const productRegularPrice = parseFloat(product.regularPrice) || 0;
-      return variationPrice < productRegularPrice && variationPrice > 0;
-    }
-    return product.onSale || false;
-  }, [selectedVariation, product]);
-
-  // Extract Size and Color attributes (trước early return để dùng trong useEffect)
-  const sizeAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('size') || 
-               attr.name.toLowerCase().includes('kích thước') ||
-               attr.name.toLowerCase().includes('kich thuoc')
-  );
-  const colorAttribute = product?.attributes?.find(
-    (attr) => attr.name.toLowerCase().includes('color') || 
-               attr.name.toLowerCase().includes('màu') ||
-               attr.name.toLowerCase().includes('mau')
-  );
+  // Use custom hook for pricing logic (replaces ~35 lines of duplicate code)
+  const { displayPrice, displayRegularPrice, isOnSale } = useProductPrice(product, selectedVariation);
 
   const availableSizes = sizeAttribute?.options || [];
   const availableColors = colorAttribute?.options || [];
@@ -176,6 +120,7 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   };
 
   // Đọc query params từ URL và tự động chọn size/color
+  // Priority: URL params > Auto-select smallest size
   useEffect(() => {
     if (!product || !product.attributes) return;
 
@@ -184,15 +129,23 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
       return generateSlug(name);
     };
 
+    let sizeFromUrl: string | null = null;
+    
     // Tìm size attribute và đọc từ URL
     if (sizeAttribute) {
       const sizeAttrSlug = createAttributeSlug(sizeAttribute.name);
       const attrKey = `attribute_pa_${sizeAttrSlug}`;
-      const sizeFromUrl = searchParams.get(attrKey);
+      sizeFromUrl = searchParams.get(attrKey);
       
       if (sizeFromUrl && availableSizes.includes(sizeFromUrl)) {
         setSelectedSize(sizeFromUrl);
+        return; // URL param takes priority, don't auto-select
       }
+    }
+    
+    // If no size from URL and variations loaded, auto-select smallest size
+    if (!sizeFromUrl && product.type === 'variable' && smallestSize && !selectedSize && !isLoadingVariations && variations.length > 0) {
+      setSelectedSize(smallestSize);
     }
 
     // Tìm color attribute và đọc từ URL
@@ -221,33 +174,47 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   const isOutOfStock = product.stockStatus === 'outofstock';
 
   const handleAddToCartClick = async (isGift: boolean = false, isQuickCheckout: boolean = false) => {
-    // Validation: Nếu product có variations nhưng chưa chọn size
-    // Tự động chọn size đầu tiên và tiếp tục thêm vào giỏ (không return)
+    // FIX: Use local variables to avoid async state update issues
+    // If product has variations but no size selected, auto-select first size
+    let sizeToUse = selectedSize;
+    let colorToUse = selectedColor;
+    
     if (product.type === 'variable' && availableSizes.length > 0 && !selectedSize) {
-      if (availableSizes.length > 0) {
-        setSelectedSize(availableSizes[0]);
-        // KHÔNG return - để code tiếp tục chạy và thêm vào giỏ ngay trong lần bấm đầu tiên
-      }
+      sizeToUse = availableSizes[0];
+      // Update UI state (async) but use local variable for immediate logic
+      setSelectedSize(sizeToUse);
     }
 
     setIsAdding(true);
     setAddingType(isGift ? 'gift' : isQuickCheckout ? 'quick' : 'buy');
 
     try {
+      // Find variation using local variables (not state) to ensure accuracy
       // MongoVariant structure: { id, size, color, price, stock, ... }
+      const variationToUse = variations.find((variation) => {
+        if (variation.size && variation.size === sizeToUse) {
+          if (colorToUse) {
+            return !variation.color || variation.color === colorToUse;
+          }
+          return true;
+        }
+        return false;
+      });
+
+      // Calculate price using the found variation
       // MongoVariant chỉ có price field, không có on_sale, sale_price, regular_price
-      const priceToUse = selectedVariation 
-        ? String(selectedVariation.price || 0)
+      const priceToUse = variationToUse 
+        ? String(variationToUse.price || 0)
         : (product.onSale ? product.salePrice : product.price);
 
       for (let i = 0; i < quantity; i++) {
         await addToCart({
           productId: product.databaseId,
-          productName: `${product.name} ${selectedSize ? `(${selectedSize})` : ''}`,
+          productName: `${product.name} ${sizeToUse ? `(${sizeToUse})` : ''}`,
           price: priceToUse || '0',
           image: product.image?.sourceUrl,
           quantity: 1,
-          variationId: selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined,
+          variationId: variationToUse?.id ? (typeof variationToUse.id === 'number' ? variationToUse.id : parseInt(variationToUse.id, 10) || undefined) : undefined,
           isGift: isGift,
           length: product.length || undefined,
           width: product.width || undefined,
@@ -258,13 +225,12 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
       }
 
       if (onAddToCart) {
-        onAddToCart(selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined, isGift);
+        onAddToCart(variationToUse?.id ? (typeof variationToUse.id === 'number' ? variationToUse.id : parseInt(variationToUse.id, 10) || undefined) : undefined, isGift);
       }
 
-      // Mở QuickCheckoutModal sau khi thêm vào giỏ (cho cả "Thêm giỏ hàng" và "Mua ngay")
+      // Mở QuickCheckoutModal sau khi thêm vào giỏ
       try {
         useQuickCheckoutStore.getState().onOpen();
-        console.log('[ProductInfo] QuickCheckoutModal opened');
       } catch (error) {
         console.error('[ProductInfo] Error opening QuickCheckoutModal:', error);
       }

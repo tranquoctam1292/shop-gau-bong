@@ -88,6 +88,8 @@ export interface MappedProduct {
   status?: 'draft' | 'publish' | 'trash';
   // isActive field (for backward compatibility)
   isActive?: boolean;
+  // Optimistic locking version field
+  version?: number;
 }
 
 /**
@@ -294,11 +296,18 @@ type MongoDocument = MongoProduct & { _id: any };
 export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any): MappedProduct {
   const productId = mongoProduct._id.toString();
   
+  // Determine product type first
+  const hasVariants = (mongoProduct.variants && mongoProduct.variants.length > 0) ||
+                      (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0);
+  const isVariableProduct = mongoProduct.productDataMetaBox?.productType === 'variable' || hasVariants;
+  
   // Priority 1: Use productDataMetaBox prices if available
-  // Priority 2: Calculate from variants
-  // Priority 3: Use minPrice/maxPrice
+  // Priority 2: For variable products, DO NOT auto-calculate from variants (let frontend handle price range)
+  // Priority 3: For simple products, calculate from variants or use minPrice/maxPrice
   const regularPrice = mongoProduct.productDataMetaBox?.regularPrice !== undefined
     ? String(mongoProduct.productDataMetaBox.regularPrice)
+    : isVariableProduct
+    ? '0' // Variable products should not have regularPrice auto-filled from variations
     : mongoProduct.variants && mongoProduct.variants.length > 0
     ? String(Math.max(...mongoProduct.variants.map((v: any) => v.price || v.regularPrice || 0)))
     : String(mongoProduct.maxPrice || mongoProduct.minPrice || 0);
@@ -406,10 +415,8 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     }
   }
   
-  // Determine product type
-  const hasVariants = (mongoProduct.variants && mongoProduct.variants.length > 0) ||
-                      (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0);
-  const type: 'simple' | 'variable' = hasVariants ? 'variable' : 'simple';
+  // Determine product type (use already calculated isVariableProduct)
+  const type: 'simple' | 'variable' = isVariableProduct ? 'variable' : 'simple';
   
   // Stock calculation logic:
   // For variable products: Always calculate from variants (ignore productDataMetaBox.stockQuantity)
@@ -574,6 +581,8 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
                  mongoProduct.productDataMetaBox?.variations?.map((_: any, idx: number) => idx + 1) || []),
     status: mongoProduct.status || 'draft',
     isActive: mongoProduct.isActive !== undefined ? mongoProduct.isActive : (mongoProduct.status === 'publish'),
+    // Include version for optimistic locking
+    version: mongoProduct.version || 0,
   };
   
   return mappedResult;

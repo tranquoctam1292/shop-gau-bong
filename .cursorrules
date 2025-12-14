@@ -254,6 +254,14 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Explain Safety:** Briefly explain: "I added `?.` here to prevent crash if database returns null".
 - **Mobile Check:** explicitly state: "Optimized for mobile with `touch-action` and stacked layout."
 - **Pre-Deploy Reminder:** When user asks to push code, remind them to run `npm run pre-deploy` first if not already done.
+- **Documentation Hygiene (STRICT):**
+  - **Minimize File Creation:** Do NOT generate new Markdown/Report files (`.md`) for every small task or bug fix.
+  - **Prefer Chat:** Use the chat interface for explanations, summaries, plans, and Q&A.
+  - **Update Existing:** If documentation is needed, prefer updating existing files in `docs/` rather than creating new root-level files.
+  - **Exceptions:** Only create new `.md` files if:
+    1. Explicitly requested by the user.
+    2. It represents a major project milestone (e.g., `PHASE_COMPLETION.md`).
+    3. It is a complex technical audit/migration log that needs to be preserved in Git.
 
 # FULL CODE CONTEXT FILE UPDATE
 - **When user requests to update `full_code_context.txt`:** Automatically run the PowerShell command to regenerate the file.
