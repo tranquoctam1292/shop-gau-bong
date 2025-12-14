@@ -233,6 +233,14 @@ Before implementing any feature, you MUST reference the following sources based 
   - **Optimistic Locking:** Products have `version` field. Check version on update to prevent concurrent edit conflicts
   - **Image Alt Text:** All product images should have alt text for SEO (stored in `mediaExtended.imageAltTexts`)
 
+# ENCODING & VIETNAMESE LANGUAGE STANDARDS
+- **Global Encoding:** ALWAYS enforce **UTF-8** encoding for all file reads and writes.
+- **No Mojibake:** Actively scan for and correct "mojibake" or garbled text patterns (e.g., "Ä á»", "Ã¢", "áº") into proper Vietnamese characters immediately.
+- **String Literals:**
+  - Write Vietnamese text directly in string literals (e.g., `title: "Gấu Bông"`) instead of using Unicode escape sequences (like `\u0047...`) or HTML entities, unless strictly required by the file format (e.g., JSON).
+  - Ideally, keep text content in `constants` or translation files, but if hardcoded, it MUST be readable.
+- **Metadata Files:** specifically for `metadata.ts` or `layout.tsx`, verify that `title` and `description` fields are readable human text, not garbled codes.
+
 # PRE-DEPLOYMENT & GIT WORKFLOW RULES (CRITICAL)
 - **MANDATORY Pre-Deploy Check:** ALWAYS run `npm run pre-deploy` before pushing to GitHub.
   - This checks: TypeScript errors, build errors, cron jobs limit, required files

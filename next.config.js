@@ -32,9 +32,10 @@ const nextConfig = {
   poweredByHeader: false,
   
   // Experimental features for better performance
-  experimental: {
-    optimizePackageImports: ['lucide-react'],
-  },
+  // Note: optimizePackageImports removed due to compatibility issues with Next.js 14.2.35
+  // experimental: {
+  //   optimizePackageImports: ['lucide-react'],
+  // },
   
   // Webpack optimizations
   webpack: (config, { isServer }) => {
