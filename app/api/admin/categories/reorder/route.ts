@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,16 +22,10 @@ const reorderSchema = z.object({
 });
 
 export async function PUT(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const body = await request.json();
+      // Permission: category:manage or product:update (checked by middleware)
+      const body = await req.json();
     
     // Validate input
     const validatedData = reorderSchema.parse(body);
@@ -141,6 +136,7 @@ export async function PUT(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'category:manage');
 }
 

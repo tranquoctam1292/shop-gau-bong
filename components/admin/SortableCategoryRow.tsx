@@ -94,6 +94,7 @@ export function SortableCategoryRow({
               alt={category.name}
               fill
               className="object-cover"
+              sizes="48px"
             />
           </div>
         ) : (

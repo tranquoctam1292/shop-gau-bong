@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
 import { buttonVariants } from '@/lib/utils/button-variants';
 import { badgeConfig } from '@/lib/constants/menuData';
@@ -41,12 +42,17 @@ export function MenuDropdown({
   icon,
   highlight = false,
 }: MenuDropdownProps) {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const dropdownRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLAnchorElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [mounted, setMounted] = useState(false);
+  
+  // Check if current pathname matches href or any child item
+  const isActive = pathname === href || (href && href !== '/' && pathname?.startsWith(href)) ||
+    items.some(item => pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href)));
 
   // Mount check for portal
   useEffect(() => {
@@ -169,7 +175,7 @@ export function MenuDropdown({
                 isOpen && 'bg-[#FFE0E8] border-[#F99BB8]' // Darker when open
               )
             : cn(
-                'text-text-main hover:text-primary',
+                isActive ? 'text-primary font-semibold' : 'text-text-main hover:text-primary',
                 isOpen && 'text-primary'
               ),
           className

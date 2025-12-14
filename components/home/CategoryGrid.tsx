@@ -5,7 +5,7 @@ import { CategoryCard } from './CategoryCard';
 
 /**
  * CategoryGrid component - Hiển thị grid danh mục sản phẩm
- * Layout: 2 cols mobile, 4 cols desktop, 2 rows (8 categories)
+ * Layout: 2 cols mobile, 4 cols desktop, tối đa 4 danh mục nổi bật (featured = true)
  * Mobile-first design với touch-friendly cards
  */
 export function CategoryGrid() {
@@ -19,7 +19,7 @@ export function CategoryGrid() {
           Danh mục sản phẩm
         </h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-          {Array.from({ length: 8 }).map((_, i) => (
+          {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="aspect-square rounded-2xl bg-muted animate-pulse" />
           ))}
         </div>
@@ -55,8 +55,19 @@ export function CategoryGrid() {
     );
   }
 
-  // Limit to 8 categories (4 cols x 2 rows on desktop)
-  const displayCategories = categories.slice(0, 8);
+  // Filter và limit: chỉ hiển thị tối đa 4 danh mục nổi bật (featured = true)
+  const featuredCategories = categories
+    .filter((cat) => cat.featured === true)
+    .slice(0, 4); // Tối đa 4 danh mục
+  
+  const displayCategories = featuredCategories;
+  
+  // Debug: Log để kiểm tra
+  if (process.env.NODE_ENV === 'development') {
+    console.log('[CategoryGrid] Total categories:', categories.length);
+    console.log('[CategoryGrid] Featured categories:', featuredCategories.length);
+    console.log('[CategoryGrid] Featured categories data:', featuredCategories.map(c => ({ name: c.name, featured: c.featured })));
+  }
 
   return (
     <section className="container-mobile py-8 md:py-16">
@@ -67,7 +78,7 @@ export function CategoryGrid() {
         Khám phá bộ sưu tập gấu bông đáng yêu của chúng tôi
       </p>
       
-      {/* Grid: 2 cols mobile, 4 cols desktop, 2 rows */}
+      {/* Grid: 2 cols mobile, 4 cols desktop, tối đa 4 danh mục nổi bật */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
         {displayCategories.map((category) => {
           // Type guard để đảm bảo category có đủ fields

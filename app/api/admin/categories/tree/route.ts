@@ -9,20 +9,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollections } from '@/lib/db';
 import { mapMongoCategory } from '@/lib/utils/productMapper';
 import { buildCategoryTree } from '@/lib/utils/categoryHelpers';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const searchParams = request.nextUrl.searchParams;
+      // Permission: category:read or product:read (checked by middleware)
+      const searchParams = req.nextUrl.searchParams;
     const status = searchParams.get('status') || 'active'; // 'active', 'inactive', or 'all'
     
     const { categories } = await getCollections();
@@ -74,6 +69,7 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'category:read');
 }
 

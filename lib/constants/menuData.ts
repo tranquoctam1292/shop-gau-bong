@@ -51,7 +51,7 @@ export const menuDataConfig: MenuDataConfig = {
                   id: "teddy",
                   label: "Gấu Teddy",
                   href: "/products?category=teddy",
-                  image: "/images/categories/teddy.jpg",
+                  image: undefined, // Will use emoji fallback
                   count: 0,
                   badge: undefined
                 },
@@ -59,7 +59,7 @@ export const menuDataConfig: MenuDataConfig = {
                   id: "cartoon",
                   label: "Thú bông hoạt hình",
                   href: "/products?category=cartoon",
-                  image: "/images/categories/cartoon.jpg",
+                  image: undefined, // Will use emoji fallback
                   count: 0,
                   badge: "hot" as BadgeType
                 },
@@ -67,7 +67,7 @@ export const menuDataConfig: MenuDataConfig = {
                   id: "pillow",
                   label: "Gối ôm",
                   href: "/products?category=pillow",
-                  image: "/images/categories/pillow.jpg",
+                  image: undefined, // Will use emoji fallback
                   count: 0,
                   badge: undefined
                 }
@@ -81,7 +81,7 @@ export const menuDataConfig: MenuDataConfig = {
                   id: "giant",
                   label: "Khổng lồ (>1m)",
                   href: "/products?size=giant",
-                  image: "/images/sizes/giant.jpg",
+                  image: undefined, // Will use emoji fallback
                   count: 0,
                   badge: "hot" as BadgeType
                 },
@@ -89,7 +89,7 @@ export const menuDataConfig: MenuDataConfig = {
                   id: "medium",
                   label: "Vừa (50-80cm)",
                   href: "/products?size=medium",
-                  image: "/images/sizes/medium.jpg",
+                  image: undefined, // Will use emoji fallback
                   count: 0,
                   badge: undefined
                 },
@@ -97,7 +97,7 @@ export const menuDataConfig: MenuDataConfig = {
                   id: "small",
                   label: "Nhỏ (Móc khóa)",
                   href: "/products?size=small",
-                  image: "/images/sizes/small.jpg",
+                  image: undefined, // Will use emoji fallback
                   count: 0,
                   badge: undefined
                 }
@@ -111,7 +111,7 @@ export const menuDataConfig: MenuDataConfig = {
                   id: "banner-1",
                   label: "Sản phẩm nổi bật",
                   href: "/products?featured=true",
-                  image: "/images/banners/featured-products.jpg",
+                  image: undefined, // Will use gradient background only
                   badge: "new" as BadgeType
                 }
               ]

@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import Image from 'next/image';
+import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils/cn';
 import type { MenuItem, BadgeType } from '@/types/menu';
 import { badgeConfig } from '@/lib/constants/menuData';
@@ -32,12 +32,22 @@ export function ProductsMegaMenu({
   menuItem,
   className 
 }: ProductsMegaMenuProps) {
+  const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0, width: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLAnchorElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [failedImages, setFailedImages] = useState<Set<string>>(new Set());
+  
+  // Check if current pathname matches href
+  const isActive = pathname === href || (href && href !== '/' && pathname?.startsWith(href));
+  
+  // Handle image error
+  const handleImageError = (imagePath: string) => {
+    setFailedImages(prev => new Set(prev).add(imagePath));
+  };
 
   // Mount check for portal
   useEffect(() => {
@@ -136,10 +146,12 @@ export function ProductsMegaMenu({
         ref={triggerRef}
         href={href || '/products'}
         className={cn(
-          'text-sm font-medium text-text-main hover:text-primary transition-colors',
+          'text-sm font-medium transition-colors',
           'min-h-[44px] flex items-center px-3 gap-1',
           'relative z-50',
-          isOpen && 'text-primary',
+          isActive || isOpen 
+            ? 'text-primary font-semibold' 
+            : 'text-text-main hover:text-primary',
           className
         )}
       >
@@ -201,26 +213,14 @@ export function ProductsMegaMenu({
                         )}
                       >
                         {/* Item Image/Icon */}
-                        {item.image ? (
-                          <div className="relative w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-muted shadow-sm">
-                            <Image
-                              src={item.image}
-                              alt={item.label}
-                              fill
-                              className="object-cover transition-transform group-hover:scale-105"
-                              sizes="40px"
-                              onError={(e) => {
-                                // Fallback to emoji if image fails
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '<span class="text-xl">🧸</span>';
-                                  parent.className = 'w-10 h-10 flex-shrink-0 rounded-lg bg-muted flex items-center justify-center shadow-sm';
-                                }
-                              }}
-                            />
-                          </div>
+                        {item.image && !failedImages.has(item.image) ? (
+                          <SafeImage
+                            src={item.image}
+                            alt={item.label}
+                            className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-muted shadow-sm"
+                            fallback={<div className="w-10 h-10 flex-shrink-0 rounded-lg bg-muted flex items-center justify-center shadow-sm"><span className="text-xl">🧸</span></div>}
+                            onError={() => handleImageError(item.image!)}
+                          />
                         ) : (
                           <div className="w-10 h-10 flex-shrink-0 rounded-lg bg-muted flex items-center justify-center shadow-sm">
                             <span className="text-xl">🧸</span>
@@ -281,25 +281,14 @@ export function ProductsMegaMenu({
                         )}
                       >
                         {/* Item Image/Icon */}
-                        {item.image ? (
-                          <div className="relative w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-muted shadow-sm">
-                            <Image
-                              src={item.image}
-                              alt={item.label}
-                              fill
-                              className="object-cover transition-transform group-hover:scale-105"
-                              sizes="40px"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '<span class="text-xl">📏</span>';
-                                  parent.className = 'w-10 h-10 flex-shrink-0 rounded-lg bg-muted flex items-center justify-center shadow-sm';
-                                }
-                              }}
-                            />
-                          </div>
+                        {item.image && !failedImages.has(item.image) ? (
+                          <SafeImage
+                            src={item.image}
+                            alt={item.label}
+                            className="w-10 h-10 flex-shrink-0 rounded-lg overflow-hidden bg-muted shadow-sm"
+                            fallback={<div className="w-10 h-10 flex-shrink-0 rounded-lg bg-muted flex items-center justify-center shadow-sm"><span className="text-xl">📏</span></div>}
+                            onError={() => handleImageError(item.image!)}
+                          />
                         ) : (
                           <div className="w-10 h-10 flex-shrink-0 rounded-lg bg-muted flex items-center justify-center shadow-sm">
                             <span className="text-xl">📏</span>
@@ -355,20 +344,15 @@ export function ProductsMegaMenu({
                     className="block group"
                   >
                     <div className="relative w-full h-48 rounded-xl overflow-hidden bg-gradient-to-br from-primary/20 to-primary/10 shadow-md">
-                      {item.image ? (
-                        <Image
+                      {item.image && !failedImages.has(item.image) && (
+                        <SafeImage
                           src={item.image}
                           alt={item.label}
-                          fill
-                          className="object-cover transition-transform group-hover:scale-105"
-                          sizes="(max-width: 768px) 100vw, 300px"
-                          onError={(e) => {
-                            // Hide image on error, keep gradient background
-                            const target = e.target as HTMLImageElement;
-                            target.style.display = 'none';
-                          }}
+                          className="absolute inset-0 w-full h-full"
+                          fallback={null}
+                          onError={() => handleImageError(item.image!)}
                         />
-                      ) : null}
+                      )}
                       
                       {/* Overlay */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
@@ -401,6 +385,44 @@ export function ProductsMegaMenu({
         </div>,
         document.body
       )}
+    </div>
+  );
+}
+
+/**
+ * Safe Image Component - Handles image loading errors
+ * Uses native img tag for better error handling
+ */
+function SafeImage({ 
+  src, 
+  alt, 
+  className, 
+  fallback,
+  onError 
+}: { 
+  src: string; 
+  alt: string; 
+  className?: string;
+  fallback: React.ReactNode;
+  onError?: () => void;
+}) {
+  const [hasError, setHasError] = useState(false);
+
+  if (hasError || !src) {
+    return <>{fallback}</>;
+  }
+
+  return (
+    <div className={cn("relative overflow-hidden", className)}>
+      <img
+        src={src}
+        alt={alt}
+        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+        onError={() => {
+          setHasError(true);
+          onError?.();
+        }}
+      />
     </div>
   );
 }

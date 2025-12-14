@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useMenu, type MenuItem } from '@/lib/hooks/useMenu';
 import { MenuDropdown, type MenuDropdownItem } from './MenuDropdown';
 import { ProductsMegaMenu } from './ProductsMegaMenu';
@@ -64,7 +65,9 @@ export function DynamicNavigationMenu({
  * Render individual menu item (recursive for nested items)
  */
 function MenuItemRenderer({ item }: { item: MenuItem }) {
+  const pathname = usePathname();
   const hasChildren = item.children && item.children.length > 0;
+  const isActive = pathname === item.url || (item.url !== '/' && pathname?.startsWith(item.url));
 
   // If item has children, render as dropdown
   if (hasChildren) {
@@ -74,14 +77,28 @@ function MenuItemRenderer({ item }: { item: MenuItem }) {
       href: child.url,
     }));
 
-    // Check if this is a shop/mega menu (by checking if it contains product categories)
-    // For now, we'll use a simple heuristic: if label contains "Cửa Hàng" or "Shop"
-    const isShopMenu = item.title.toLowerCase().includes('cửa hàng') ||
-      item.title.toLowerCase().includes('shop') ||
-      item.cssClass?.includes('shop') ||
+    // Check if this is a products mega menu
+    // If label contains "Sản phẩm" or "Products", use ProductsMegaMenu with config from menuData
+    const isProductsMenu = item.title.toLowerCase().includes('sản phẩm') ||
+      item.title.toLowerCase().includes('products') ||
+      item.cssClass?.includes('products') ||
       item.cssClass?.includes('mega-menu');
 
-    if (isShopMenu) {
+    if (isProductsMenu) {
+      // Find products menu item from config to get megaMenu structure
+      const productsMenuItem = mainNavigation.find(mi => mi.id === 'products' && mi.type === 'mega');
+      if (productsMenuItem && productsMenuItem.megaMenu) {
+        return (
+          <ProductsMegaMenu
+            key={item.id}
+            label={item.title}
+            href={item.url}
+            menuItem={productsMenuItem}
+            className={item.cssClass || undefined}
+          />
+        );
+      }
+      // Fallback to ShopMegaMenu if config not found
       return (
         <ShopMegaMenu
           key={item.id}
@@ -112,8 +129,11 @@ function MenuItemRenderer({ item }: { item: MenuItem }) {
       href={item.url}
       target={item.target}
       className={cn(
-        'text-sm font-medium text-text-main hover:text-primary transition-colors',
+        'text-sm font-medium transition-colors',
         'min-h-[44px] flex items-center px-3',
+        isActive 
+          ? 'text-primary font-semibold' 
+          : 'text-text-main hover:text-primary',
         item.cssClass
       )}
     >
@@ -143,6 +163,9 @@ function HardcodedNavigationMenu() {
  * Render menu item from config
  */
 function ConfigMenuItemRenderer({ item }: { item: ConfigMenuItem }) {
+  const pathname = usePathname();
+  const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
+  
   // Link item
   if (item.type === 'link') {
     const hasSubItems = item.subItems && item.subItems.length > 0;
@@ -175,10 +198,11 @@ function ConfigMenuItemRenderer({ item }: { item: ConfigMenuItem }) {
         className={cn(
           'text-sm font-medium transition-colors',
           'min-h-[44px] flex items-center px-3',
-          item.highlight && 'font-bold',
-          item.badge === 'sale' && 'text-red-600 hover:text-red-700'
+          isActive && 'text-primary font-semibold',
+          !isActive && item.highlight && 'font-bold',
+          !isActive && item.badge === 'sale' && 'text-red-600 hover:text-red-700'
         )}
-        style={item.color ? { color: itemColor } : undefined}
+        style={item.color && !isActive ? { color: itemColor } : undefined}
       >
         {item.label}
         {item.badge && (
@@ -229,8 +253,11 @@ function ConfigMenuItemRenderer({ item }: { item: ConfigMenuItem }) {
       key={item.id}
       href={item.href}
       className={cn(
-        'text-sm font-medium text-text-main hover:text-primary transition-colors',
-        'min-h-[44px] flex items-center px-3'
+        'text-sm font-medium transition-colors',
+        'min-h-[44px] flex items-center px-3',
+        isActive 
+          ? 'text-primary font-semibold' 
+          : 'text-text-main hover:text-primary'
       )}
     >
       {item.label}

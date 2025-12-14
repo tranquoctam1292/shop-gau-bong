@@ -25,6 +25,7 @@ const categorySchema = z.object({
   imageUrl: z.string().optional(),
   position: z.number().default(0),
   status: z.enum(['active', 'inactive']).default('active'),
+  featured: z.boolean().default(false), // Featured category for homepage (max 4)
   metaTitle: z.string().max(255).optional(),
   metaDesc: z.string().max(500).optional(),
 });
@@ -147,11 +148,27 @@ export async function POST(request: NextRequest) {
       }
     }
     
+    // Validate featured count (max 4 featured categories)
+    if (validatedData.featured === true) {
+      const featuredCount = await categories.countDocuments({
+        featured: true,
+        deletedAt: null,
+      });
+      
+      if (featuredCount >= 4) {
+        return NextResponse.json(
+          { error: 'Chỉ có thể chọn tối đa 4 danh mục nổi bật. Vui lòng bỏ chọn một danh mục khác trước.' },
+          { status: 400 }
+        );
+      }
+    }
+    
     // Create category document
     const categoryDoc = {
       ...validatedData,
       slug,
       status: validatedData.status || 'active',
+      featured: validatedData.featured || false,
       deletedAt: null, // Not deleted
       count: 0, // Will be updated when products are assigned
       createdAt: new Date(),

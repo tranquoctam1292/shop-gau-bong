@@ -23,6 +23,7 @@ interface CategoryFormData {
   imageUrl?: string;
   position: number;
   status: 'active' | 'inactive';
+  featured?: boolean; // Featured category for homepage (max 4)
   metaTitle?: string;
   metaDesc?: string;
 }
@@ -48,6 +49,7 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
     imageUrl: '',
     position: 0,
     status: 'active',
+    featured: false,
     metaTitle: '',
     metaDesc: '',
     ...initialData,
@@ -98,6 +100,7 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
               imageUrl: category.image?.sourceUrl || '',
               position: 0, // TODO: Add position field
               status: category.status || 'active',
+              featured: category.featured || false,
               metaTitle: category.metaTitle || '',
               metaDesc: category.metaDesc || '',
             });
@@ -366,6 +369,25 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
                 <span>Không hoạt động</span>
               </label>
             </div>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={formData.featured || false}
+                onChange={(e) => setFormData((prev) => ({ ...prev, featured: e.target.checked }))}
+                className="w-4 h-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <div>
+                <Label htmlFor="featured" className="cursor-pointer font-medium">
+                  Danh mục nổi bật (hiển thị trên trang chủ)
+                </Label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Chỉ có thể chọn tối đa 4 danh mục nổi bật. Danh mục này sẽ hiển thị trong phần "Danh mục sản phẩm" trên trang chủ.
+                </p>
+              </div>
+            </label>
           </div>
 
           <div>

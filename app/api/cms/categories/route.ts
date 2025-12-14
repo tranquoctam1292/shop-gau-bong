@@ -18,7 +18,10 @@ export async function GET(request: NextRequest) {
     const { categories } = await getCollections();
     
     // Build query
-    const query: any = {};
+    const query: any = {
+      deletedAt: null, // Only non-deleted categories
+      status: 'active', // Only active categories for public API
+    };
     const parentId = searchParams.get('parent');
     if (parentId === '0' || parentId === null) {
       query.parentId = null; // Top-level categories

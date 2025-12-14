@@ -182,6 +182,7 @@ export interface MappedCategory {
   metaDesc?: string; // NEW
   deletedAt?: Date | null; // NEW
   position?: number; // NEW - for sorting
+  featured?: boolean; // NEW - for homepage display (max 4)
   children?: MappedCategory[]; // NEW - for tree structure
   level?: number; // NEW - for tree indentation
 }
@@ -613,6 +614,7 @@ export interface MongoCategory {
   status?: 'active' | 'inactive'; // NEW: Default 'active'
   metaTitle?: string; // NEW: SEO title
   metaDesc?: string; // NEW: SEO description (max 500 chars)
+  featured?: boolean; // NEW: Featured category for homepage (max 4)
   deletedAt?: Date | null; // NEW: Soft delete (null = not deleted)
   createdAt: Date;
   updatedAt: Date;
@@ -649,6 +651,7 @@ export function mapMongoCategory(mongoCategory: MongoCategory | any): MappedCate
     status: mongoCategory.status || 'active', // Default to 'active'
     metaTitle: mongoCategory.metaTitle,
     metaDesc: mongoCategory.metaDesc,
+    featured: mongoCategory.featured || false, // Default to false
     deletedAt: mongoCategory.deletedAt || null,
   };
 }

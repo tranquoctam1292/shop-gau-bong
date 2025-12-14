@@ -2,19 +2,19 @@
 
 import { useState, FormEvent, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useSearchHistory } from '@/lib/hooks/useSearchHistory';
 import { useSearchSuggestions } from '@/lib/hooks/useSearchSuggestions';
 import { X, Clock, Search as SearchIcon } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
 
 interface EnhancedSearchBarProps {
   onSearch?: (query: string) => void; // Optional callback when search is submitted
   autoFocus?: boolean; // Auto-focus input on mount (useful for modals)
+  className?: string; // Additional className for wrapper
 }
 
-export function EnhancedSearchBar({ onSearch, autoFocus = false }: EnhancedSearchBarProps) {
+export function EnhancedSearchBar({ onSearch, autoFocus = false, className }: EnhancedSearchBarProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -131,32 +131,34 @@ export function EnhancedSearchBar({ onSearch, autoFocus = false }: EnhancedSearc
   };
 
   return (
-    <div ref={searchRef} className="relative w-full max-w-md">
-      <form onSubmit={handleSubmit} className="flex gap-2 w-full">
-        <div className="relative flex-1">
-          <Input
-            ref={inputRef}
-            type="search"
-            placeholder="Bạn đang tìm gấu Teddy, gấu hoạt hình..."
-            value={searchQuery}
-            onChange={(e) => handleInputChange(e.target.value)}
-            onFocus={handleInputFocus}
-            className="w-full pr-10 rounded-full border-2 border-border focus:border-primary transition-colors"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              onClick={handleClearInput}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main"
-              aria-label="Xóa"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
-        <Button type="submit" size="default" className="min-w-[44px]">
-          <SearchIcon className="h-5 w-5" />
-        </Button>
+    <div ref={searchRef} className={cn("relative w-full group", className)}>
+      <form onSubmit={handleSubmit} className="relative w-full">
+        <input 
+          ref={inputRef}
+          type="text" 
+          placeholder="Bạn đang tìm gấu Teddy, gấu hoạt hình..." 
+          value={searchQuery}
+          onChange={(e) => handleInputChange(e.target.value)}
+          onFocus={handleInputFocus}
+          className="w-full h-11 pl-6 pr-14 rounded-full border-2 border-primary/20 bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-gray-400 text-sm"
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            onClick={handleClearInput}
+            className="absolute right-12 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main transition-colors"
+            aria-label="Xóa"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
+        <button 
+          type="submit" 
+          className="absolute right-1 top-1 bottom-1 w-9 h-9 bg-primary hover:bg-primary/90 text-white rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition-all"
+          aria-label="Tìm kiếm"
+        >
+          <SearchIcon className="w-4 h-4" />
+        </button>
       </form>
 
       {/* Suggestions Dropdown */}

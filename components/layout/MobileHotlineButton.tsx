@@ -29,6 +29,7 @@ export function MobileHotlineButton() {
         'px-6 py-4 shadow-lg',
         'font-semibold text-base',
         'min-h-[56px]', // Touch-friendly height
+        'pb-[calc(1rem+env(safe-area-inset-bottom))]', // Safe area padding for iPhone
         'transition-transform active:scale-95',
         'border-t border-primary/20'
       )}

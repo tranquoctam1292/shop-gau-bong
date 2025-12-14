@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { mapWooCommerceCategories, type MappedCategory } from '@/lib/utils/productMapper';
+import type { MappedCategory } from '@/lib/utils/productMapper';
 
 interface CategoriesContextType {
   categories: MappedCategory[];
@@ -67,9 +67,9 @@ export function CategoriesProvider({ children, params }: CategoriesProviderProps
       const data = await response.json();
       const categoriesData = data.categories || [];
 
-      // Map categories sang frontend format
-      const mappedCategories = mapWooCommerceCategories(categoriesData);
-      setCategories(mappedCategories);
+      // API đã map rồi, không cần map lại
+      // Chỉ cần đảm bảo format đúng
+      setCategories(categoriesData);
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch categories'));
       setCategories([]);

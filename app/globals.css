@@ -184,6 +184,18 @@
       transform: translateX(0);
     }
   }
+  
+  /* Slide Down animation for dropdowns and mega menus */
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
 }
 
 /* Button Primary - Candy-like gradient effect for teddy bear shop */

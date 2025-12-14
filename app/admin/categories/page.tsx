@@ -699,6 +699,7 @@ export default function AdminCategoriesPage() {
                                 alt={category.name}
                                 fill
                                 className="object-cover"
+                                sizes="48px"
                               />
                             </div>
                           ) : (
