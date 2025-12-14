@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { MappedProduct } from '@/lib/utils/productMapper';
+import { stripHtmlTags } from '@/lib/utils/sanitizeHtml';
 
 interface ProductCellProps {
   product: MappedProduct;
@@ -10,13 +11,17 @@ interface ProductCellProps {
 
 export function ProductCell({ product }: ProductCellProps) {
   const imageUrl = product.image?.sourceUrl || '/images/teddy-placeholder.png';
-  const imageAlt = product.image?.altText || product.name;
   
-  // Truncate description to 3 lines
-  const shortDescription = product.shortDescription || product.description || '';
-  const truncatedDescription = shortDescription.length > 150
-    ? shortDescription.substring(0, 150) + '...'
-    : shortDescription;
+  // Strip HTML tags from product name (in case it contains HTML)
+  const productName = stripHtmlTags(product.name || '');
+  const imageAlt = product.image?.altText || productName;
+  
+  // Truncate description to 3 lines and strip HTML tags
+  const rawDescription = product.shortDescription || product.description || '';
+  const plainTextDescription = stripHtmlTags(rawDescription);
+  const truncatedDescription = plainTextDescription.length > 150
+    ? plainTextDescription.substring(0, 150) + '...'
+    : plainTextDescription;
 
   return (
     <div className="flex items-start gap-3 min-w-[300px]">
@@ -37,7 +42,7 @@ export function ProductCell({ product }: ProductCellProps) {
           href={`/admin/products/${product.id}/edit`}
           className="font-medium text-gray-900 hover:text-blue-600 transition-colors line-clamp-1"
         >
-          {product.name}
+          {productName}
         </Link>
         {truncatedDescription && (
           <p className="text-sm text-gray-500 mt-1 line-clamp-3">

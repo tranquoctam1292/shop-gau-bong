@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save, FileText, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface ProductTemplate {
   _id: string;
@@ -24,6 +25,7 @@ interface TemplateSelectorProps {
 }
 
 export function TemplateSelector({ onLoadTemplate, onSaveTemplate, currentFormData }: TemplateSelectorProps) {
+  const { showToast } = useToastContext();
   const [templates, setTemplates] = useState<ProductTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [showSaveDialog, setShowSaveDialog] = useState(false);
@@ -54,34 +56,38 @@ export function TemplateSelector({ onLoadTemplate, onSaveTemplate, currentFormDa
       const data = await response.json();
       if (data.template) {
         onLoadTemplate(data.template.templateData);
+        showToast('Đã tải template thành công', 'success');
+      } else {
+        showToast('Không tìm thấy template', 'error');
       }
     } catch (error) {
       console.error('Error loading template:', error);
-      alert('Có lỗi xảy ra khi tải template');
+      showToast('Có lỗi xảy ra khi tải template', 'error');
     }
   };
 
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) {
-      alert('Vui lòng nhập tên template');
+      showToast('Vui lòng nhập tên template', 'error');
       return;
     }
 
     if (!onSaveTemplate || !currentFormData) {
-      alert('Không thể lưu template');
+      showToast('Không thể lưu template', 'error');
       return;
     }
 
     try {
       onSaveTemplate(templateName, templateDescription, templateCategory, currentFormData);
+      showToast('Đã lưu template thành công', 'success');
       setShowSaveDialog(false);
       setTemplateName('');
       setTemplateDescription('');
       setTemplateCategory('');
       fetchTemplates();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving template:', error);
-      alert('Có lỗi xảy ra khi lưu template');
+      showToast(error?.message || 'Có lỗi xảy ra khi lưu template', 'error');
     }
   };
 
@@ -96,11 +102,15 @@ export function TemplateSelector({ onLoadTemplate, onSaveTemplate, currentFormDa
       });
 
       if (response.ok) {
+        showToast('Đã xóa template thành công', 'success');
         fetchTemplates();
+      } else {
+        const error = await response.json();
+        showToast(error?.error || 'Có lỗi xảy ra khi xóa template', 'error');
       }
     } catch (error) {
       console.error('Error deleting template:', error);
-      alert('Có lỗi xảy ra khi xóa template');
+      showToast('Có lỗi xảy ra khi xóa template', 'error');
     }
   };
 

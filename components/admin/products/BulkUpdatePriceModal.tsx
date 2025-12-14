@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface BulkUpdatePriceModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export function BulkUpdatePriceModal({
   onConfirm,
   selectedCount,
 }: BulkUpdatePriceModalProps) {
+  const { showToast } = useToastContext();
   const [price, setPrice] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,10 +48,12 @@ export function BulkUpdatePriceModal({
     setLoading(true);
     try {
       await onConfirm(numPrice);
+      showToast(`Đã cập nhật giá cho ${selectedCount} sản phẩm thành công`, 'success');
       setPrice('');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error bulk updating price:', error);
+      showToast(error?.message || 'Có lỗi xảy ra khi cập nhật giá', 'error');
     } finally {
       setLoading(false);
     }

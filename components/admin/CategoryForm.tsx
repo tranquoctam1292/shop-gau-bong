@@ -13,6 +13,7 @@ import { SearchableCategorySelect } from './SearchableCategorySelect';
 import { MediaPicker } from '@/components/admin/media/MediaPicker';
 import type { MediaPickerValue } from '@/components/admin/media/MediaPicker';
 import type { MappedCategory } from '@/lib/utils/productMapper';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface CategoryFormData {
   name: string;
@@ -34,6 +35,7 @@ interface CategoryFormProps {
 
 export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFormProps) {
   const router = useRouter();
+  const { showToast } = useToastContext();
   const [loading, setLoading] = useState(false);
   const [categories, setCategories] = useState<MappedCategory[]>([]);
   const [slugError, setSlugError] = useState<string>('');
@@ -160,6 +162,7 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
     if (formData.name) {
       const slug = generateSlug(formData.name);
       setFormData((prev) => ({ ...prev, slug }));
+      showToast('Đã tạo lại slug từ tên', 'success');
     }
   };
 
@@ -194,9 +197,14 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi lưu danh mục', 'error');
         return;
       }
+
+      showToast(
+        categoryId ? 'Đã cập nhật danh mục thành công' : 'Đã tạo danh mục thành công',
+        'success'
+      );
 
       if (onSuccess) {
         onSuccess();
@@ -206,7 +214,7 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
       }
     } catch (error) {
       console.error('Error saving category:', error);
-      alert('Có lỗi xảy ra khi lưu danh mục');
+      showToast('Có lỗi xảy ra khi lưu danh mục', 'error');
     } finally {
       setLoading(false);
     }

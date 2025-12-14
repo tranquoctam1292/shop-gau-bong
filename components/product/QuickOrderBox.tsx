@@ -88,9 +88,9 @@ export function QuickOrderBox({
         </h3>
       </div>
       
-      {/* Horizontal Inline Form */}
-      <form onSubmit={handleSubmit} className="flex items-start gap-2">
-        <div className="flex-1">
+      {/* Horizontal Inline Form - Responsive flex with no wrap */}
+      <form onSubmit={handleSubmit} className="flex items-start gap-2 flex-nowrap overflow-hidden">
+        <div className="flex-1 min-w-0">
           <Input
             type="tel"
             placeholder="Nhập SĐT..."
@@ -99,7 +99,7 @@ export function QuickOrderBox({
               setPhone(e.target.value);
               setError(null);
             }}
-            className="h-9 text-sm border-2 border-pink-200 focus:border-pink-400 rounded-lg"
+            className="h-9 text-sm border-2 border-pink-200 focus:border-pink-400 rounded-lg w-full"
             disabled={isSubmitting}
             aria-label="Số điện thoại đặt hàng nhanh"
             aria-required="true"
@@ -110,7 +110,7 @@ export function QuickOrderBox({
 
         <Button
           type="submit"
-          className="h-9 w-auto px-3 bg-[#D6336C] hover:bg-[#BE185D] text-white flex-shrink-0"
+          className="h-9 w-auto min-w-[44px] px-2 sm:px-3 bg-[#D6336C] hover:bg-[#BE185D] text-white flex-shrink-0"
           disabled={isSubmitting || !phone.trim()}
           aria-label="Gửi yêu cầu đặt hàng nhanh"
         >

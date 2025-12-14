@@ -385,40 +385,42 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
 
       {/* Actions (Horizontal Layout) */}
       <div className="space-y-4">
-        {/* Row of Actions */}
-        <div className="flex flex-wrap items-center gap-3">
-          {/* 1. Quantity Capsule */}
-          <QuantitySelector 
-            value={quantity} 
-            onChange={setQuantity} 
-            min={1}
-            max={product.stockQuantity || 99}
-            disabled={isOutOfStock}
-          />
+        {/* Row of Actions - Responsive flex with shrink */}
+        <div className="flex items-center gap-2 sm:gap-3 flex-nowrap overflow-hidden">
+          {/* 1. Quantity Capsule - Fixed width, no shrink */}
+          <div className="flex-shrink-0">
+            <QuantitySelector 
+              value={quantity} 
+              onChange={setQuantity} 
+              min={1}
+              max={product.stockQuantity || 99}
+              disabled={isOutOfStock}
+            />
+          </div>
 
-          {/* 2. Add to Cart Button */}
+          {/* 2. Add to Cart Button - Flexible, can shrink */}
           <Button 
-            className="rounded-full bg-blue-500 hover:bg-blue-600 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-blue-200 font-bold !flex items-center justify-center"
+            className="rounded-full bg-blue-500 hover:bg-blue-600 text-white border-none px-2 sm:px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-xs sm:text-sm gap-1 sm:gap-2 shadow-sm shadow-blue-200 font-bold !flex items-center justify-center flex-1 min-w-0"
             disabled={isOutOfStock || isAdding}
             onClick={() => handleAddToCartClick(false)}
             aria-label="Thêm vào giỏ hàng"
           >
             {isAdding && addingType === 'buy' ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Đang thêm...</span>
+                <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
+                <span className="truncate">Đang thêm...</span>
               </>
             ) : (
               <>
                 <ShoppingCart className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
-                <span className="whitespace-nowrap">Thêm giỏ hàng</span>
+                <span className="truncate">Thêm giỏ hàng</span>
               </>
             )}
           </Button>
 
-          {/* 3. Gift Button */}
+          {/* 3. Gift Button - Flexible, can shrink */}
           <Button 
-            className="rounded-full bg-pink-400 hover:bg-pink-500 text-white border-none px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-sm gap-2 shadow-sm shadow-pink-200 font-bold !flex items-center justify-center"
+            className="rounded-full bg-pink-400 hover:bg-pink-500 text-white border-none px-2 sm:px-4 md:px-6 h-8 md:h-9 min-h-[44px] text-xs sm:text-sm gap-1 sm:gap-2 shadow-sm shadow-pink-200 font-bold !flex items-center justify-center flex-1 min-w-0"
             disabled={isOutOfStock || isAdding}
             onClick={() => handleAddToCartClick(true)}
             aria-label="Gửi tặng sản phẩm"
@@ -426,12 +428,12 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
             {isAdding && addingType === 'gift' ? (
               <>
                 <Loader2 className="w-3.5 h-3.5 animate-spin flex-shrink-0" />
-                <span className="whitespace-nowrap">Đang thêm...</span>
+                <span className="truncate">Đang thêm...</span>
               </>
             ) : (
               <>
                 <Gift className="w-3.5 h-3.5 md:w-4 md:h-4 flex-shrink-0" />
-                <span className="whitespace-nowrap">GỬI TẶNG</span>
+                <span className="truncate">GỬI TẶNG</span>
               </>
             )}
           </Button>

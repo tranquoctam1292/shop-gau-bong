@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface BulkUpdateStockModalProps {
   isOpen: boolean;
@@ -27,6 +28,7 @@ export function BulkUpdateStockModal({
   onConfirm,
   selectedCount,
 }: BulkUpdateStockModalProps) {
+  const { showToast } = useToastContext();
   const [operation, setOperation] = useState<'set' | 'add' | 'subtract'>('set');
   const [value, setValue] = useState('');
   const [loading, setLoading] = useState(false);
@@ -48,11 +50,21 @@ export function BulkUpdateStockModal({
     setLoading(true);
     try {
       await onConfirm(numValue, operation);
+      const operationLabels = {
+        set: 'Đặt thành',
+        add: 'Thêm vào',
+        subtract: 'Trừ đi',
+      };
+      showToast(
+        `Đã cập nhật kho cho ${selectedCount} sản phẩm: ${operationLabels[operation]} ${numValue}`,
+        'success'
+      );
       setValue('');
       setOperation('set');
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error bulk updating stock:', error);
+      showToast(error?.message || 'Có lỗi xảy ra khi cập nhật kho', 'error');
     } finally {
       setLoading(false);
     }

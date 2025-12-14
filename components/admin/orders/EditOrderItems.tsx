@@ -19,6 +19,7 @@ import { Plus, Trash2, Loader2 } from 'lucide-react';
 import { ProductSelectorModal } from './ProductSelectorModal';
 import { canEditOrder, type OrderStatus } from '@/lib/utils/orderStateMachine';
 import { Label } from '@/components/ui/label';
+import { useToastContext } from '@/components/providers/ToastProvider';
 import {
   Dialog,
   DialogContent,
@@ -67,6 +68,7 @@ export function EditOrderItems({
   items,
   onItemsChange,
 }: EditOrderItemsProps) {
+  const { showToast } = useToastContext();
   const [showProductModal, setShowProductModal] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [updatingQuantities, setUpdatingQuantities] = useState<Record<string, number | undefined>>({});
@@ -76,7 +78,7 @@ export function EditOrderItems({
 
   const handleAddProduct = async (product: Product, variantId?: string, quantity: number = 1) => {
     if (!canEdit) {
-      alert('Đơn hàng không thể chỉnh sửa ở trạng thái này');
+      showToast('Đơn hàng không thể chỉnh sửa ở trạng thái này', 'error');
       return;
     }
 
@@ -90,8 +92,9 @@ export function EditOrderItems({
         if (stockResponse.ok) {
           const stockData = await stockResponse.json();
           if (!stockData.stock.canFulfill) {
-            alert(
-              `Không đủ hàng trong kho. Còn lại: ${stockData.stock.available}, Yêu cầu: ${quantity}`
+            showToast(
+              `Không đủ hàng trong kho. Còn lại: ${stockData.stock.available}, Yêu cầu: ${quantity}`,
+              'error'
             );
             return;
           }
@@ -125,14 +128,15 @@ export function EditOrderItems({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.message || error.error || 'Có lỗi xảy ra');
+        showToast(error.message || error.error || 'Có lỗi xảy ra khi thêm sản phẩm', 'error');
         return;
       }
 
+      showToast('Đã thêm sản phẩm vào đơn hàng', 'success');
       onItemsChange();
     } catch (error) {
       console.error('Error adding product:', error);
-      alert('Có lỗi xảy ra khi thêm sản phẩm');
+      showToast('Có lỗi xảy ra khi thêm sản phẩm', 'error');
     } finally {
       setLoading(null);
     }
@@ -140,7 +144,7 @@ export function EditOrderItems({
 
   const handleRemoveItem = async (itemId: string) => {
     if (!canEdit) {
-      alert('Đơn hàng không thể chỉnh sửa ở trạng thái này');
+      showToast('Đơn hàng không thể chỉnh sửa ở trạng thái này', 'error');
       return;
     }
 
@@ -157,15 +161,16 @@ export function EditOrderItems({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi xóa sản phẩm', 'error');
         return;
       }
 
+      showToast('Đã xóa sản phẩm khỏi đơn hàng', 'success');
       onItemsChange();
       setShowDeleteConfirm(null);
     } catch (error) {
       console.error('Error removing item:', error);
-      alert('Có lỗi xảy ra khi xóa sản phẩm');
+      showToast('Có lỗi xảy ra khi xóa sản phẩm', 'error');
     } finally {
       setLoading(null);
     }
@@ -191,7 +196,7 @@ export function EditOrderItems({
     }
 
     if (!canEdit) {
-      alert('Đơn hàng không thể chỉnh sửa ở trạng thái này');
+      showToast('Đơn hàng không thể chỉnh sửa ở trạng thái này', 'error');
       setUpdatingQuantities({ ...updatingQuantities, [itemId]: undefined });
       return;
     }
@@ -210,16 +215,17 @@ export function EditOrderItems({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi cập nhật số lượng', 'error');
         setUpdatingQuantities({ ...updatingQuantities, [itemId]: undefined });
         return;
       }
 
+      showToast('Đã cập nhật số lượng sản phẩm', 'success');
       onItemsChange();
       setUpdatingQuantities({ ...updatingQuantities, [itemId]: undefined });
     } catch (error) {
       console.error('Error updating quantity:', error);
-      alert('Có lỗi xảy ra khi cập nhật số lượng');
+      showToast('Có lỗi xảy ra khi cập nhật số lượng', 'error');
       setUpdatingQuantities({ ...updatingQuantities, [itemId]: undefined });
     } finally {
       setLoading(null);

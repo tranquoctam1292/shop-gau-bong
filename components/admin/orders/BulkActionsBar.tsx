@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CheckCircle2, FileDown, Printer, RefreshCw, Loader2 } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface BulkActionsBarProps {
   selectedOrders: string[];
@@ -21,6 +22,7 @@ interface BulkActionsBarProps {
 }
 
 export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActionsBarProps) {
+  const { showToast } = useToastContext();
   const [loading, setLoading] = useState<string | null>(null);
   const [newStatus, setNewStatus] = useState<string>('__none__');
 
@@ -37,15 +39,15 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi xác nhận đơn hàng', 'error');
         return;
       }
 
-      alert(`Đã xác nhận ${selectedOrders.length} đơn hàng thành công!`);
+      showToast(`Đã xác nhận ${selectedOrders.length} đơn hàng thành công`, 'success');
       onActionComplete();
     } catch (error) {
       console.error('Error bulk approving orders:', error);
-      alert('Có lỗi xảy ra khi xác nhận đơn hàng');
+      showToast('Có lỗi xảy ra khi xác nhận đơn hàng', 'error');
     } finally {
       setLoading(null);
     }
@@ -53,7 +55,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
 
   const handleBulkUpdateStatus = async () => {
     if (selectedOrders.length === 0 || newStatus === '__none__' || !newStatus) {
-      alert('Vui lòng chọn trạng thái mới');
+      showToast('Vui lòng chọn trạng thái mới', 'error');
       return;
     }
 
@@ -70,16 +72,16 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi cập nhật trạng thái', 'error');
         return;
       }
 
-      alert(`Đã cập nhật trạng thái ${selectedOrders.length} đơn hàng thành công!`);
+      showToast(`Đã cập nhật trạng thái ${selectedOrders.length} đơn hàng thành công`, 'success');
       setNewStatus('__none__');
       onActionComplete();
     } catch (error) {
       console.error('Error bulk updating status:', error);
-      alert('Có lỗi xảy ra khi cập nhật trạng thái');
+      showToast('Có lỗi xảy ra khi cập nhật trạng thái', 'error');
     } finally {
       setLoading(null);
     }
@@ -91,7 +93,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
     // Open print window for shipping labels
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.');
+      showToast('Không thể mở cửa sổ in. Vui lòng kiểm tra popup blocker.', 'error');
       return;
     }
 
@@ -105,7 +107,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi in nhãn vận chuyển', 'error');
         return;
       }
 
@@ -113,9 +115,10 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
       printWindow.document.write(html);
       printWindow.document.close();
       printWindow.print();
+      showToast('Đã mở cửa sổ in', 'success');
     } catch (error) {
       console.error('Error printing labels:', error);
-      alert('Có lỗi xảy ra khi in nhãn vận chuyển');
+      showToast('Có lỗi xảy ra khi in nhãn vận chuyển', 'error');
     } finally {
       setLoading(null);
     }
@@ -133,7 +136,7 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
       const response = await fetch(`/api/admin/orders/export?${params}`);
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi xuất đơn hàng', 'error');
         return;
       }
 
@@ -146,9 +149,10 @@ export function BulkActionsBar({ selectedOrders, onActionComplete }: BulkActions
       a.click();
       document.body.removeChild(a);
       window.URL.revokeObjectURL(url);
+      showToast('Đã xuất CSV thành công', 'success');
     } catch (error) {
       console.error('Error exporting orders:', error);
-      alert('Có lỗi xảy ra khi xuất đơn hàng');
+      showToast('Có lỗi xảy ra khi xuất đơn hàng', 'error');
     } finally {
       setLoading(null);
     }

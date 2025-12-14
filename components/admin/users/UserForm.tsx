@@ -25,6 +25,7 @@ import { AdminRole, Permission, AdminUserPublic } from '@/types/admin';
 import { ROLE_DISPLAY_NAMES, getRolePermissions } from '@/lib/constants/adminRoles';
 import { getAllPermissions } from '@/lib/constants/adminRoles';
 import { useCreateAdminUser, useUpdateAdminUser } from '@/lib/hooks/useAdminUsers';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 const userFormSchema = z.object({
   username: z.string().min(3, 'Tên đăng nhập phải có ít nhất 3 ký tự').max(50),
@@ -47,6 +48,7 @@ interface UserFormProps {
 
 export function UserForm({ userId, initialData, onSuccess, onCancel }: UserFormProps) {
   const isEditMode = !!userId;
+  const { showToast } = useToastContext();
   const createMutation = useCreateAdminUser();
   const updateMutation = useUpdateAdminUser();
 
@@ -99,7 +101,7 @@ export function UserForm({ userId, initialData, onSuccess, onCancel }: UserFormP
       } else {
         // Create user (password required)
         if (!data.password || data.password.length < 8) {
-          alert('Mật khẩu phải có ít nhất 8 ký tự');
+          showToast('Mật khẩu phải có ít nhất 8 ký tự', 'error');
           return;
         }
 
@@ -114,9 +116,14 @@ export function UserForm({ userId, initialData, onSuccess, onCancel }: UserFormP
         });
       }
 
+      showToast(
+        isEditMode ? 'Đã cập nhật người dùng thành công' : 'Đã tạo người dùng thành công',
+        'success'
+      );
+
       onSuccess?.();
     } catch (error: any) {
-      alert(error.message || 'Đã xảy ra lỗi');
+      showToast(error.message || 'Đã xảy ra lỗi khi lưu người dùng', 'error');
     }
   };
 

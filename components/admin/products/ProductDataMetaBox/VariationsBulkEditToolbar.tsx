@@ -15,6 +15,7 @@ import {
 import { DollarSign, TrendingUp, TrendingDown, Package, Loader2 } from 'lucide-react';
 import type { Variation } from './VariationTable';
 import type { Attribute } from './AttributeItem';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface VariationsBulkEditToolbarProps {
   variations: Variation[];
@@ -35,6 +36,7 @@ export function VariationsBulkEditToolbar({
   onBulkUpdate,
   onVariationsChange,
 }: VariationsBulkEditToolbarProps) {
+  const { showToast } = useToastContext();
   const [filter, setFilter] = useState<FilterOptions>({ applyToAll: true });
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [showPercentModal, setShowPercentModal] = useState(false);
@@ -73,13 +75,13 @@ export function VariationsBulkEditToolbar({
 
   const handleSetPrice = async () => {
     if (!priceValue || isNaN(parseFloat(priceValue))) {
-      alert('Vui lòng nhập giá hợp lệ');
+      showToast('Vui lòng nhập giá hợp lệ', 'error');
       return;
     }
 
     const price = parseFloat(priceValue);
     if (!isFinite(price) || price < 0) {
-      alert('Giá phải là số hợp lệ và không âm');
+      showToast('Giá phải là số hợp lệ và không âm', 'error');
       return;
     }
 
@@ -105,8 +107,12 @@ export function VariationsBulkEditToolbar({
         onBulkUpdate({ regularPrice: price }, filter);
       }
       
+      showToast(`Đã thiết lập giá cho ${filteredCount} biến thể`, 'success');
       setShowPriceModal(false);
       setPriceValue('');
+    } catch (error: any) {
+      console.error('Error setting price:', error);
+      showToast('Có lỗi xảy ra khi thiết lập giá', 'error');
     } finally {
       setIsApplying(false);
     }
@@ -114,13 +120,13 @@ export function VariationsBulkEditToolbar({
 
   const handleAdjustPrice = async () => {
     if (!percentValue || isNaN(parseFloat(percentValue))) {
-      alert('Vui lòng nhập phần trăm hợp lệ');
+      showToast('Vui lòng nhập phần trăm hợp lệ', 'error');
       return;
     }
 
     const percent = parseFloat(percentValue);
     if (percent === 0 || !isFinite(percent)) {
-      alert('Phần trăm phải khác 0 và là số hợp lệ');
+      showToast('Phần trăm phải khác 0 và là số hợp lệ', 'error');
       return;
     }
 
@@ -172,8 +178,13 @@ export function VariationsBulkEditToolbar({
         });
       }
 
+      const percentLabel = percent > 0 ? `tăng ${percent}%` : `giảm ${Math.abs(percent)}%`;
+      showToast(`Đã ${percentLabel} giá cho ${filteredCount} biến thể`, 'success');
       setShowPercentModal(false);
       setPercentValue('');
+    } catch (error: any) {
+      console.error('Error adjusting price:', error);
+      showToast('Có lỗi xảy ra khi điều chỉnh giá', 'error');
     } finally {
       setIsApplying(false);
     }
@@ -203,7 +214,12 @@ export function VariationsBulkEditToolbar({
         onBulkUpdate({ stockQuantity: stockQty }, filter);
       }
       
+      const statusLabel = stockStatus === 'instock' ? 'Còn hàng' : 'Hết hàng';
+      showToast(`Đã đặt trạng thái kho "${statusLabel}" cho ${filteredCount} biến thể`, 'success');
       setShowStockModal(false);
+    } catch (error: any) {
+      console.error('Error setting stock status:', error);
+      showToast('Có lỗi xảy ra khi cập nhật trạng thái kho', 'error');
     } finally {
       setIsApplying(false);
     }

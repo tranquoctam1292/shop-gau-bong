@@ -30,6 +30,7 @@ import {
 } from '@/lib/utils/orderStateMachine';
 import { CancelOrderModal } from './CancelOrderModal';
 import { RefundOrderModal } from './RefundOrderModal';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface OrderActionBarProps {
   orderId: string;
@@ -50,6 +51,7 @@ export function OrderActionBar({
   onStatusChange,
   onCreateShipment,
 }: OrderActionBarProps) {
+  const { showToast } = useToastContext();
   const [loading, setLoading] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -70,15 +72,26 @@ export function OrderActionBar({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi cập nhật trạng thái đơn hàng', 'error');
         return;
       }
+
+      const statusLabels: Record<OrderStatus, string> = {
+        pending: 'Đã xác nhận đơn hàng',
+        confirmed: 'Đã chuyển sang xử lý',
+        processing: 'Đã tạo vận đơn',
+        shipping: 'Đã hoàn thành đơn hàng',
+        completed: 'Đã hoàn thành đơn hàng',
+        cancelled: 'Đã hủy đơn hàng',
+      };
+
+      showToast(statusLabels[newStatus] || 'Đã cập nhật trạng thái đơn hàng', 'success');
 
       // Refresh order data
       onStatusChange();
     } catch (error) {
       console.error('Error updating order status:', error);
-      alert('Có lỗi xảy ra khi cập nhật trạng thái đơn hàng');
+      showToast('Có lỗi xảy ra khi cập nhật trạng thái đơn hàng', 'error');
     } finally {
       setLoading(null);
     }
@@ -119,16 +132,18 @@ export function OrderActionBar({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || error.message || 'Có lỗi xảy ra khi hoàn tiền');
+        showToast(error.error || error.message || 'Có lỗi xảy ra khi hoàn tiền', 'error');
         return;
       }
+
+      showToast(`Đã hoàn tiền ${amount.toLocaleString('vi-VN')} đ thành công`, 'success');
 
       // Refresh order data
       onStatusChange();
       setShowRefundModal(false);
     } catch (error) {
       console.error('Error processing refund:', error);
-      alert('Có lỗi xảy ra khi hoàn tiền');
+      showToast('Có lỗi xảy ra khi hoàn tiền', 'error');
     } finally {
       setLoading(null);
     }

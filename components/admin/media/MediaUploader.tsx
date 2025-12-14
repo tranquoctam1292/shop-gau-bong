@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Upload, X, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 export interface UploadFile {
   file: File;
@@ -48,6 +49,7 @@ export function MediaUploader({
   folder,
   className,
 }: MediaUploaderProps) {
+  const { showToast } = useToastContext();
   const [uploadFiles, setUploadFiles] = useState<UploadFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
@@ -157,6 +159,18 @@ export function MediaUploader({
     }
 
     setIsUploading(false);
+
+    // Show summary toast
+    const successCount = results.filter((f) => f.status === 'success').length;
+    const errorCount = results.filter((f) => f.status === 'error').length;
+    
+    if (successCount > 0 && errorCount === 0) {
+      showToast(`Đã upload ${successCount} file thành công`, 'success');
+    } else if (successCount > 0 && errorCount > 0) {
+      showToast(`Đã upload ${successCount} file thành công, ${errorCount} file lỗi`, 'warning');
+    } else if (errorCount > 0) {
+      showToast(`Có lỗi xảy ra khi upload ${errorCount} file`, 'error');
+    }
 
     if (onUploadComplete) {
       onUploadComplete(results);

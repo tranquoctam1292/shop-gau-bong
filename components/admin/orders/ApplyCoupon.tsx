@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Loader2, X, Tag } from 'lucide-react';
 import { canEditOrder, type OrderStatus } from '@/lib/utils/orderStateMachine';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface ApplyCouponProps {
   orderId: string;
@@ -33,6 +34,7 @@ export function ApplyCoupon({
   couponCode,
   onCouponChange,
 }: ApplyCouponProps) {
+  const { showToast } = useToastContext();
   const [couponInput, setCouponInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +48,7 @@ export function ApplyCoupon({
     }
 
     if (!canEdit) {
-      alert('Đơn hàng không thể chỉnh sửa ở trạng thái này');
+      showToast('Đơn hàng không thể chỉnh sửa ở trạng thái này', 'error');
       return;
     }
 
@@ -64,15 +66,20 @@ export function ApplyCoupon({
 
       if (!response.ok) {
         const errorData = await response.json();
-        setError(errorData.error || 'Mã giảm giá không hợp lệ');
+        const errorMessage = errorData.error || 'Mã giảm giá không hợp lệ';
+        setError(errorMessage);
+        showToast(errorMessage, 'error');
         return;
       }
 
+      showToast('Đã áp dụng mã giảm giá thành công', 'success');
       onCouponChange();
       setCouponInput('');
     } catch (error) {
       console.error('Error applying coupon:', error);
-      setError('Có lỗi xảy ra khi áp dụng mã giảm giá');
+      const errorMessage = 'Có lỗi xảy ra khi áp dụng mã giảm giá';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
@@ -80,7 +87,7 @@ export function ApplyCoupon({
 
   const handleRemoveCoupon = async () => {
     if (!canEdit) {
-      alert('Đơn hàng không thể chỉnh sửa ở trạng thái này');
+      showToast('Đơn hàng không thể chỉnh sửa ở trạng thái này', 'error');
       return;
     }
 
@@ -97,14 +104,19 @@ export function ApplyCoupon({
 
       if (!response.ok) {
         const errorData = await response.json();
-        setError(errorData.error || 'Có lỗi xảy ra');
+        const errorMessage = errorData.error || 'Có lỗi xảy ra khi xóa mã giảm giá';
+        setError(errorMessage);
+        showToast(errorMessage, 'error');
         return;
       }
 
+      showToast('Đã xóa mã giảm giá', 'success');
       onCouponChange();
     } catch (error) {
       console.error('Error removing coupon:', error);
-      setError('Có lỗi xảy ra khi xóa mã giảm giá');
+      const errorMessage = 'Có lỗi xảy ra khi xóa mã giảm giá';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }

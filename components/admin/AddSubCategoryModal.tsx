@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Save } from 'lucide-react';
 import { generateSlug } from '@/lib/utils/slug';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface AddSubCategoryModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export function AddSubCategoryModal({
   parentName,
   onSuccess,
 }: AddSubCategoryModalProps) {
+  const { showToast } = useToastContext();
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(false);
@@ -39,7 +41,7 @@ export function AddSubCategoryModal({
     e.preventDefault();
     
     if (!name.trim() || !slug.trim()) {
-      alert('Vui lòng nhập tên danh mục');
+      showToast('Vui lòng nhập tên danh mục', 'error');
       return;
     }
 
@@ -59,9 +61,11 @@ export function AddSubCategoryModal({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra khi tạo danh mục');
+        showToast(error.error || 'Có lỗi xảy ra khi tạo danh mục', 'error');
         return;
       }
+
+      showToast('Đã tạo danh mục con thành công', 'success');
 
       // Reset form
       setName('');
@@ -70,7 +74,7 @@ export function AddSubCategoryModal({
       onSuccess();
     } catch (error) {
       console.error('Error creating category:', error);
-      alert('Có lỗi xảy ra khi tạo danh mục');
+      showToast('Có lỗi xảy ra khi tạo danh mục', 'error');
     } finally {
       setLoading(false);
     }

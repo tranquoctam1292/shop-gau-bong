@@ -176,7 +176,7 @@ export function VisualAttributeSelector({
           </button>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2 flex-nowrap overflow-x-auto scrollbar-hide">
         {options.map((optionName, idx) => {
           const isSelected = selectedValue === optionName;
           
@@ -185,7 +185,8 @@ export function VisualAttributeSelector({
               key={idx}
               onClick={() => onSelect(optionName)}
               className={cn(
-                "text-sm font-medium px-4 py-2 rounded-md border-2 transition-all min-h-[44px]",
+                "text-xs sm:text-sm font-medium px-3 sm:px-4 py-2 rounded-md border-2 transition-all min-h-[44px]",
+                "flex-shrink-0 whitespace-nowrap",
                 "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                 isSelected
                   ? "border-[#D6336C] bg-pink-50 text-[#D6336C]"

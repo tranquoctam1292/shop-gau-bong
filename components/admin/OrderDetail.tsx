@@ -21,6 +21,7 @@ import { RefundHistory } from '@/components/admin/orders/RefundHistory';
 import { PrintShippingLabel } from '@/components/admin/orders/PrintShippingLabel';
 import { PrintInvoice } from '@/components/admin/orders/PrintInvoice';
 import { getStatusLabel, getStatusColor, type OrderStatus } from '@/lib/utils/orderStateMachine';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface OrderItem {
   _id: string;
@@ -93,6 +94,7 @@ interface OrderDetailProps {
 
 export function OrderDetail({ orderId }: OrderDetailProps) {
   const router = useRouter();
+  const { showToast } = useToastContext();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -137,17 +139,17 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi cập nhật đơn hàng', 'error');
         return;
       }
 
       const data = await response.json();
       setOrder(data.order);
       await refreshOrder(); // Refresh to get latest data
-      alert('Cập nhật đơn hàng thành công');
+      showToast('Đã cập nhật đơn hàng thành công', 'success');
     } catch (error) {
       console.error('Error updating order:', error);
-      alert('Có lỗi xảy ra khi cập nhật đơn hàng');
+      showToast('Có lỗi xảy ra khi cập nhật đơn hàng', 'error');
     } finally {
       setSaving(false);
     }

@@ -717,6 +717,25 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       }));
       setInitialFormData(savedFormData);
       
+      // Show success toast based on action type
+      if (saveStatus === 'publish') {
+        showToast(
+          effectiveProductId ? 'Đã cập nhật và xuất bản sản phẩm thành công' : 'Đã tạo và xuất bản sản phẩm thành công',
+          'success'
+        );
+      } else if (saveStatus === 'draft') {
+        showToast(
+          effectiveProductId ? 'Đã lưu nháp sản phẩm thành công' : 'Đã tạo sản phẩm nháp thành công',
+          'success'
+        );
+      } else {
+        // saveStatus === 'keep' - "Lưu thay đổi"
+        showToast(
+          effectiveProductId ? 'Đã lưu thay đổi sản phẩm thành công' : 'Đã tạo sản phẩm thành công',
+          'success'
+        );
+      }
+      
       // If creating new product, update productId immediately to prevent duplicate autosave
       if (!effectiveProductId && result.product?._id) {
         const newProductId = result.product._id;

@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Search, X, Plus } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface Product {
   _id: string;
@@ -28,6 +29,7 @@ export function RelatedProductsSelector({
   onChange,
   placeholder = 'Tìm kiếm sản phẩm...',
 }: RelatedProductsSelectorProps) {
+  const { showToast } = useToastContext();
   const [search, setSearch] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<Product[]>([]);
@@ -77,11 +79,18 @@ export function RelatedProductsSelector({
       onChange([...selectedProductIds, product._id]);
       setSearch('');
       setProducts([]);
+      showToast(`Đã thêm "${product.name}"`, 'success');
+    } else {
+      showToast('Sản phẩm đã được thêm rồi', 'info');
     }
   };
 
   const removeProduct = (productId: string) => {
+    const product = selectedProducts.find((p) => p._id === productId);
     onChange(selectedProductIds.filter((id) => id !== productId));
+    if (product) {
+      showToast(`Đã xóa "${product.name}"`, 'success');
+    }
   };
 
   return (

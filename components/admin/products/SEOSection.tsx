@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, X } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface SEOData {
   seoTitle?: string;
@@ -25,6 +26,7 @@ interface SEOSectionProps {
 }
 
 export function SEOSection({ data, onChange, productName, productSlug }: SEOSectionProps) {
+  const { showToast } = useToastContext();
   const [keywordInput, setKeywordInput] = useState('');
 
   const updateField = (field: keyof SEOData, value: string | string[]) => {
@@ -32,14 +34,22 @@ export function SEOSection({ data, onChange, productName, productSlug }: SEOSect
   };
 
   const addKeyword = () => {
-    if (keywordInput.trim() && !data.seoKeywords?.includes(keywordInput.trim())) {
-      updateField('seoKeywords', [...(data.seoKeywords || []), keywordInput.trim()]);
-      setKeywordInput('');
+    if (!keywordInput.trim()) {
+      showToast('Vui lòng nhập keyword', 'error');
+      return;
     }
+    if (data.seoKeywords?.includes(keywordInput.trim())) {
+      showToast('Keyword đã tồn tại', 'info');
+      return;
+    }
+    updateField('seoKeywords', [...(data.seoKeywords || []), keywordInput.trim()]);
+    showToast(`Đã thêm keyword "${keywordInput.trim()}"`, 'success');
+    setKeywordInput('');
   };
 
   const removeKeyword = (keyword: string) => {
     updateField('seoKeywords', data.seoKeywords?.filter((k) => k !== keyword) || []);
+    showToast(`Đã xóa keyword "${keyword}"`, 'success');
   };
 
   // Auto-suggest SEO title từ product name

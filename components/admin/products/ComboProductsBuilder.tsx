@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2, Search, X } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface BundleProduct {
   productId: string;
@@ -20,6 +21,7 @@ interface ComboProductsBuilderProps {
 }
 
 export function ComboProductsBuilder({ bundleProducts, onChange }: ComboProductsBuilderProps) {
+  const { showToast } = useToastContext();
   const [search, setSearch] = useState('');
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -56,12 +58,19 @@ export function ComboProductsBuilder({ bundleProducts, onChange }: ComboProducts
       setSearch('');
       setSearchResults([]);
       setSelectedProductId('');
+      showToast(`Đã thêm "${product.name}" vào combo`, 'success');
+    } else {
+      showToast('Sản phẩm đã có trong combo', 'info');
     }
   };
 
   // Remove product from bundle
   const removeProduct = (productId: string) => {
+    const product = bundleProducts.find((p) => p.productId === productId);
     onChange(bundleProducts.filter((p) => p.productId !== productId));
+    if (product?.productName) {
+      showToast(`Đã xóa "${product.productName}" khỏi combo`, 'success');
+    }
   };
 
   // Update product in bundle

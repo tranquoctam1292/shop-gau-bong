@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AttributeForm } from '@/components/admin/attributes/AttributeForm';
 import { AttributeListTable } from '@/components/admin/attributes/AttributeListTable';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 export interface Attribute {
   id: string;
@@ -19,6 +20,7 @@ export interface Attribute {
 
 export default function AdminAttributesPage() {
   const router = useRouter();
+  const { showToast } = useToastContext();
   const [attributes, setAttributes] = useState<Attribute[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingAttribute, setEditingAttribute] = useState<Attribute | null>(null);
@@ -56,6 +58,7 @@ export default function AdminAttributesPage() {
       if (response.ok) {
         const data = await response.json();
         setAttributes([...attributes, data.attribute]);
+        showToast('Đã tạo thuộc tính thành công', 'success');
         return { success: true };
       } else {
         const error = await response.json();
@@ -78,6 +81,7 @@ export default function AdminAttributesPage() {
         const data = await response.json();
         setAttributes(attributes.map(attr => attr.id === id ? data.attribute : attr));
         setEditingAttribute(null);
+        showToast('Đã cập nhật thuộc tính thành công', 'success');
         return { success: true };
       } else {
         const error = await response.json();
@@ -103,13 +107,14 @@ export default function AdminAttributesPage() {
         if (editingAttribute?.id === id) {
           setEditingAttribute(null);
         }
+        showToast('Đã xóa thuộc tính thành công', 'success');
       } else {
         const error = await response.json();
-        alert(error.error || 'Không thể xóa thuộc tính. ' + (error.details?.message || ''));
+        showToast(error.error || 'Không thể xóa thuộc tính', 'error');
       }
     } catch (error) {
       console.error('Error deleting attribute:', error);
-      alert('Có lỗi xảy ra khi xóa thuộc tính');
+      showToast('Có lỗi xảy ra khi xóa thuộc tính', 'error');
     }
   };
 

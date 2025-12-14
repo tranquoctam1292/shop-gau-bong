@@ -24,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, Package, Truck } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface CreateShipmentModalProps {
   isOpen: boolean;
@@ -57,6 +58,7 @@ export function CreateShipmentModal({
   orderItems,
   shippingAddress,
 }: CreateShipmentModalProps) {
+  const { showToast } = useToastContext();
   const [carrier, setCarrier] = useState<'ghtk' | 'ghn' | 'custom'>('ghtk');
   const [weight, setWeight] = useState<string>('');
   const [carrierService, setCarrierService] = useState<string>('Standard');
@@ -96,12 +98,15 @@ export function CreateShipmentModal({
 
       if (!response.ok) {
         const errorData = await response.json();
-        setError(errorData.message || errorData.error || 'Có lỗi xảy ra');
+        const errorMessage = errorData.message || errorData.error || 'Có lỗi xảy ra khi tạo vận đơn';
+        setError(errorMessage);
+        showToast(errorMessage, 'error');
         return;
       }
 
       const data = await response.json();
       setTrackingNumber(data.shipment.trackingNumber);
+      showToast(`Đã tạo vận đơn thành công. Mã vận đơn: ${data.shipment.trackingNumber}`, 'success');
       
       // Wait a bit before closing to show tracking number
       setTimeout(() => {
@@ -110,7 +115,9 @@ export function CreateShipmentModal({
       }, 2000);
     } catch (error) {
       console.error('Error creating shipment:', error);
-      setError('Có lỗi xảy ra khi tạo vận đơn');
+      const errorMessage = 'Có lỗi xảy ra khi tạo vận đơn';
+      setError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }

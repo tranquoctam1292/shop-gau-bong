@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Plus, X, Upload, File } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 export interface DownloadableFile {
   id: string;
@@ -31,6 +32,7 @@ export function DownloadableFilesSection({
   files,
   onFilesChange,
 }: DownloadableFilesSectionProps) {
+  const { showToast } = useToastContext();
 
   const handleAddFile = () => {
     const newFile: DownloadableFile = {
@@ -72,9 +74,10 @@ export function DownloadableFilesSection({
       if (!files.find((f) => f.id === id)?.name) {
         handleFileChange(id, 'name', file.name);
       }
+      showToast('Đã tải file thành công', 'success');
     } catch (error) {
       console.error('Error uploading file:', error);
-      alert('Không thể đọc file. Vui lòng thử lại.');
+      showToast('Không thể đọc file. Vui lòng thử lại.', 'error');
     }
   };
 

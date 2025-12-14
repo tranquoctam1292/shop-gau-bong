@@ -13,8 +13,10 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Save, Eye, Bold, Italic, List, Link as LinkIcon, Image as ImageIcon } from 'lucide-react';
 import { generateSlug } from '@/lib/utils/slug';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface PostFormData {
   title: string;
@@ -37,10 +39,15 @@ interface PostEditorProps {
 
 export function PostEditor({ postId, initialData }: PostEditorProps) {
   const router = useRouter();
+  const { showToast } = useToastContext();
   const [loading, setLoading] = useState(false);
   const [authors, setAuthors] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
+  const [showImageDialog, setShowImageDialog] = useState(false);
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [linkUrl, setLinkUrl] = useState('');
   const [formData, setFormData] = useState<PostFormData>({
     title: '',
     slug: '',
@@ -167,32 +174,75 @@ export function PostEditor({ postId, initialData }: PostEditorProps) {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi lưu bài viết', 'error');
         return;
       }
+
+      showToast(
+        postId ? 'Đã cập nhật bài viết thành công' : 'Đã tạo bài viết thành công',
+        'success'
+      );
 
       router.push('/admin/posts');
       router.refresh();
     } catch (error) {
       console.error('Error saving post:', error);
-      alert('Có lỗi xảy ra khi lưu bài viết');
+      showToast('Có lỗi xảy ra khi lưu bài viết', 'error');
     } finally {
       setLoading(false);
     }
   };
 
-  const addImage = () => {
-    const url = window.prompt('Nhập URL hình ảnh:');
-    if (url && editor) {
-      editor.chain().focus().setImage({ src: url }).run();
+  const handleAddImage = () => {
+    if (!imageUrl.trim()) {
+      showToast('Vui lòng nhập URL hình ảnh', 'error');
+      return;
+    }
+
+    // Validate URL format
+    try {
+      new URL(imageUrl);
+    } catch {
+      showToast('URL không hợp lệ. Vui lòng nhập URL đầy đủ (ví dụ: https://example.com/image.jpg)', 'error');
+      return;
+    }
+
+    if (editor) {
+      editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+      showToast('Đã thêm hình ảnh vào bài viết', 'success');
+      setImageUrl('');
+      setShowImageDialog(false);
     }
   };
 
-  const addLink = () => {
-    const url = window.prompt('Nhập URL:');
-    if (url && editor) {
-      editor.chain().focus().setLink({ href: url }).run();
+  const handleAddLink = () => {
+    if (!linkUrl.trim()) {
+      showToast('Vui lòng nhập URL', 'error');
+      return;
     }
+
+    // Validate URL format
+    try {
+      new URL(linkUrl);
+    } catch {
+      showToast('URL không hợp lệ. Vui lòng nhập URL đầy đủ (ví dụ: https://example.com)', 'error');
+      return;
+    }
+
+    if (editor) {
+      editor.chain().focus().setLink({ href: linkUrl.trim() }).run();
+      showToast('Đã thêm liên kết vào bài viết', 'success');
+      setLinkUrl('');
+      setShowLinkDialog(false);
+    }
+  };
+
+  const addImage = () => {
+    setShowImageDialog(true);
+  };
+
+  const addLink = () => {
+    setShowLinkDialog(true);
   };
 
   if (!editor) {
@@ -395,6 +445,96 @@ export function PostEditor({ postId, initialData }: PostEditorProps) {
           {loading ? 'Đang lưu...' : postId ? 'Cập nhật' : 'Tạo mới'}
         </Button>
       </div>
+
+      {/* Add Image Dialog */}
+      <Dialog open={showImageDialog} onOpenChange={setShowImageDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Thêm hình ảnh</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="imageUrl">URL hình ảnh</Label>
+              <Input
+                id="imageUrl"
+                type="url"
+                value={imageUrl}
+                onChange={(e) => setImageUrl(e.target.value)}
+                placeholder="https://example.com/image.jpg"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddImage();
+                  }
+                }}
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Nhập URL đầy đủ của hình ảnh
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowImageDialog(false);
+                setImageUrl('');
+              }}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleAddImage} className="min-h-[44px]">
+              Thêm hình ảnh
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Link Dialog */}
+      <Dialog open={showLinkDialog} onOpenChange={setShowLinkDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Thêm liên kết</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="linkUrl">URL liên kết</Label>
+              <Input
+                id="linkUrl"
+                type="url"
+                value={linkUrl}
+                onChange={(e) => setLinkUrl(e.target.value)}
+                placeholder="https://example.com"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleAddLink();
+                  }
+                }}
+                autoFocus
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Nhập URL đầy đủ của liên kết
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowLinkDialog(false);
+                setLinkUrl('');
+              }}
+            >
+              Hủy
+            </Button>
+            <Button onClick={handleAddLink} className="min-h-[44px]">
+              Thêm liên kết
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }

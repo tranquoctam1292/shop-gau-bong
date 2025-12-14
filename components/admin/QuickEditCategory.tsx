@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Save, X } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface QuickEditCategoryProps {
   categoryId: string;
@@ -20,6 +21,7 @@ export function QuickEditCategory({
   onSave,
   onCancel,
 }: QuickEditCategoryProps) {
+  const { showToast } = useToastContext();
   const [name, setName] = useState(initialName);
   const [slug, setSlug] = useState(initialSlug);
   const [saving, setSaving] = useState(false);
@@ -31,16 +33,17 @@ export function QuickEditCategory({
 
   const handleSave = async () => {
     if (!name.trim() || !slug.trim()) {
-      alert('Tên và slug không được để trống');
+      showToast('Tên và slug không được để trống', 'error');
       return;
     }
 
     setSaving(true);
     try {
       await onSave(name.trim(), slug.trim());
+      showToast('Đã cập nhật danh mục thành công', 'success');
     } catch (error) {
       console.error('Error saving:', error);
-      alert('Có lỗi xảy ra khi lưu');
+      showToast('Có lỗi xảy ra khi lưu', 'error');
     } finally {
       setSaving(false);
     }

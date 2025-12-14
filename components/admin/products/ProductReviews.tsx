@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { useToastContext } from '@/components/providers/ToastProvider';
 import { Star, Check, X, Trash2, ThumbsUp } from 'lucide-react';
 
 interface Review {
@@ -24,6 +25,7 @@ interface ProductReviewsProps {
 }
 
 export function ProductReviews({ productId }: ProductReviewsProps) {
+  const { showToast } = useToastContext();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>('');
@@ -65,13 +67,17 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
       });
 
       if (response.ok) {
+        showToast(
+          newStatus === 'approved' ? 'Đã duyệt đánh giá' : 'Đã từ chối đánh giá',
+          'success'
+        );
         fetchReviews();
       } else {
-        alert('Có lỗi xảy ra khi cập nhật trạng thái');
+        showToast('Có lỗi xảy ra khi cập nhật trạng thái', 'error');
       }
     } catch (error) {
       console.error('Error updating review status:', error);
-      alert('Có lỗi xảy ra khi cập nhật trạng thái');
+      showToast('Có lỗi xảy ra khi cập nhật trạng thái', 'error');
     }
   };
 
@@ -86,13 +92,14 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
       });
 
       if (response.ok) {
+        showToast('Đã xóa đánh giá thành công', 'success');
         fetchReviews();
       } else {
-        alert('Có lỗi xảy ra khi xóa đánh giá');
+        showToast('Có lỗi xảy ra khi xóa đánh giá', 'error');
       }
     } catch (error) {
       console.error('Error deleting review:', error);
-      alert('Có lỗi xảy ra khi xóa đánh giá');
+      showToast('Có lỗi xảy ra khi xóa đánh giá', 'error');
     }
   };
 

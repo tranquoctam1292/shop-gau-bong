@@ -12,8 +12,10 @@ import { MediaDetailSidebar } from '@/components/admin/media/MediaDetailSidebar'
 import { useMediaList, useUpdateMedia, useDeleteMedia } from '@/lib/hooks/useMedia';
 import { Trash2, Grid3x3, List } from 'lucide-react';
 import type { MediaType, MediaSort } from '@/types/media';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 export default function MediaLibraryPage() {
+  const { showToast } = useToastContext();
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filters, setFilters] = useState<MediaFilters>({
     sort: 'newest',
@@ -61,8 +63,10 @@ export default function MediaLibraryPage() {
       if (selectedItem?._id === id) {
         setSelectedItem(result.data);
       }
+      showToast('Đã cập nhật thông tin media thành công', 'success');
     } catch (error) {
       console.error('Error updating media:', error);
+      showToast('Có lỗi xảy ra khi cập nhật thông tin media', 'error');
       throw error;
     }
   };
@@ -74,8 +78,10 @@ export default function MediaLibraryPage() {
         setSelectedItem(null);
       }
       setSelectedIds((prev) => prev.filter((item) => item !== id));
+      showToast('Đã xóa media thành công', 'success');
     } catch (error) {
       console.error('Error deleting media:', error);
+      showToast('Có lỗi xảy ra khi xóa media', 'error');
       throw error;
     }
   };
@@ -90,15 +96,21 @@ export default function MediaLibraryPage() {
     if (!confirmed) return;
 
     try {
-      await Promise.all(selectedIds.map((id) => handleDelete(id)));
+      await Promise.all(selectedIds.map((id) => deleteMediaMutation.mutateAsync(id)));
       setSelectedIds([]);
+      if (selectedItem && selectedIds.includes(selectedItem._id)) {
+        setSelectedItem(null);
+      }
+      showToast(`Đã xóa ${selectedIds.length} media thành công`, 'success');
     } catch (error) {
       console.error('Error bulk deleting media:', error);
+      showToast('Có lỗi xảy ra khi xóa media', 'error');
     }
   };
 
   const handleUploadComplete = () => {
     refetch();
+    // Toast đã được hiển thị trong MediaUploader component
   };
 
   return (

@@ -9,6 +9,7 @@ import { ArrowLeft } from 'lucide-react';
 import { TermForm } from '@/components/admin/attributes/TermForm';
 import { TermListTable } from '@/components/admin/attributes/TermListTable';
 import type { Attribute } from '@/app/admin/attributes/page';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 export interface Term {
   id: string;
@@ -29,6 +30,7 @@ export interface Term {
 export default function AdminAttributeTermsPage() {
   const params = useParams();
   const router = useRouter();
+  const { showToast } = useToastContext();
   const attributeId = params.id as string;
   
   const [attribute, setAttribute] = useState<Attribute | null>(null);
@@ -87,6 +89,7 @@ export default function AdminAttributeTermsPage() {
       if (response.ok) {
         const data = await response.json();
         setTerms([...terms, data.term]);
+        showToast('Đã tạo giá trị thành công', 'success');
         return { success: true };
       } else {
         const error = await response.json();
@@ -109,6 +112,7 @@ export default function AdminAttributeTermsPage() {
         const data = await response.json();
         setTerms(terms.map(term => term.id === termId ? data.term : term));
         setEditingTerm(null);
+        showToast('Đã cập nhật giá trị thành công', 'success');
         return { success: true };
       } else {
         const error = await response.json();
@@ -134,13 +138,14 @@ export default function AdminAttributeTermsPage() {
         if (editingTerm?.id === termId) {
           setEditingTerm(null);
         }
+        showToast('Đã xóa giá trị thành công', 'success');
       } else {
         const error = await response.json();
-        alert(error.error || 'Không thể xóa giá trị');
+        showToast(error.error || 'Không thể xóa giá trị', 'error');
       }
     } catch (error) {
       console.error('Error deleting term:', error);
-      alert('Có lỗi xảy ra khi xóa giá trị');
+      showToast('Có lỗi xảy ra khi xóa giá trị', 'error');
     }
   };
 

@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Plus, X } from 'lucide-react';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface GiftFeaturesData {
   giftWrapping: boolean;
@@ -26,6 +27,7 @@ interface GiftFeaturesSectionProps {
 }
 
 export function GiftFeaturesSection({ data, onChange }: GiftFeaturesSectionProps) {
+  const { showToast } = useToastContext();
   const [giftCategoryInput, setGiftCategoryInput] = useState('');
   const [giftSuggestionInput, setGiftSuggestionInput] = useState('');
 
@@ -34,25 +36,41 @@ export function GiftFeaturesSection({ data, onChange }: GiftFeaturesSectionProps
   };
 
   const addGiftCategory = () => {
-    if (giftCategoryInput.trim() && !data.giftCategories?.includes(giftCategoryInput.trim())) {
-      updateField('giftCategories', [...(data.giftCategories || []), giftCategoryInput.trim()]);
-      setGiftCategoryInput('');
+    if (!giftCategoryInput.trim()) {
+      showToast('Vui lòng nhập danh mục quà tặng', 'error');
+      return;
     }
+    if (data.giftCategories?.includes(giftCategoryInput.trim())) {
+      showToast('Danh mục đã tồn tại', 'info');
+      return;
+    }
+    updateField('giftCategories', [...(data.giftCategories || []), giftCategoryInput.trim()]);
+    showToast(`Đã thêm danh mục "${giftCategoryInput.trim()}"`, 'success');
+    setGiftCategoryInput('');
   };
 
   const removeGiftCategory = (category: string) => {
     updateField('giftCategories', data.giftCategories?.filter((c) => c !== category) || []);
+    showToast(`Đã xóa danh mục "${category}"`, 'success');
   };
 
   const addGiftSuggestion = () => {
-    if (giftSuggestionInput.trim() && !data.giftSuggestions?.includes(giftSuggestionInput.trim())) {
-      updateField('giftSuggestions', [...(data.giftSuggestions || []), giftSuggestionInput.trim()]);
-      setGiftSuggestionInput('');
+    if (!giftSuggestionInput.trim()) {
+      showToast('Vui lòng nhập gợi ý tin nhắn', 'error');
+      return;
     }
+    if (data.giftSuggestions?.includes(giftSuggestionInput.trim())) {
+      showToast('Gợi ý đã tồn tại', 'info');
+      return;
+    }
+    updateField('giftSuggestions', [...(data.giftSuggestions || []), giftSuggestionInput.trim()]);
+    showToast('Đã thêm gợi ý tin nhắn', 'success');
+    setGiftSuggestionInput('');
   };
 
   const removeGiftSuggestion = (suggestion: string) => {
     updateField('giftSuggestions', data.giftSuggestions?.filter((s) => s !== suggestion) || []);
+    showToast('Đã xóa gợi ý tin nhắn', 'success');
   };
 
   const giftCardTypeOptions = [

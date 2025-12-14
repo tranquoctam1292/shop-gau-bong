@@ -62,3 +62,26 @@ export function sanitizeHtmlServer(html: string | null | undefined): string {
   // Now uses the same implementation as sanitizeHtml (isomorphic-dompurify)
   return sanitizeHtml(html);
 }
+
+/**
+ * Strip all HTML tags from text content, returning plain text
+ * 
+ * Useful for displaying HTML content as plain text (e.g., in lists, tables)
+ * 
+ * @param html - HTML string to strip tags from
+ * @returns Plain text without HTML tags
+ * 
+ * @example
+ * ```tsx
+ * const plainText = stripHtmlTags(product.description);
+ * <p>{plainText}</p>
+ * ```
+ */
+export function stripHtmlTags(html: string | null | undefined): string {
+  if (!html || typeof html !== 'string') {
+    return '';
+  }
+  
+  // Remove HTML tags using regex
+  return html.replace(/<[^>]*>/g, '').trim();
+}

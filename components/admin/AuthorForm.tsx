@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Save } from 'lucide-react';
 import { generateSlug } from '@/lib/utils/slug';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface AuthorFormData {
   name: string;
@@ -31,6 +32,7 @@ interface AuthorFormProps {
 
 export function AuthorForm({ authorId, initialData }: AuthorFormProps) {
   const router = useRouter();
+  const { showToast } = useToastContext();
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<AuthorFormData>({
     name: '',
@@ -93,15 +95,20 @@ export function AuthorForm({ authorId, initialData }: AuthorFormProps) {
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi lưu tác giả', 'error');
         return;
       }
+
+      showToast(
+        authorId ? 'Đã cập nhật tác giả thành công' : 'Đã tạo tác giả thành công',
+        'success'
+      );
 
       router.push('/admin/authors');
       router.refresh();
     } catch (error) {
       console.error('Error saving author:', error);
-      alert('Có lỗi xảy ra khi lưu tác giả');
+      showToast('Có lỗi xảy ra khi lưu tác giả', 'error');
     } finally {
       setLoading(false);
     }

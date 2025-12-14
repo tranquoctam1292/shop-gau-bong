@@ -8,6 +8,7 @@ import { RelatedProductsSelector } from './RelatedProductsSelector';
 import { ComboProductsBuilder } from './ComboProductsBuilder';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface CollectionComboData {
   collections?: string[]; // Collection IDs/names
@@ -28,6 +29,7 @@ interface CollectionComboSectionProps {
 }
 
 export function CollectionComboSection({ data, onChange }: CollectionComboSectionProps) {
+  const { showToast } = useToastContext();
   const [collectionInput, setCollectionInput] = useState('');
 
   const updateField = (field: keyof CollectionComboData, value: any) => {
@@ -35,14 +37,22 @@ export function CollectionComboSection({ data, onChange }: CollectionComboSectio
   };
 
   const addCollection = () => {
-    if (collectionInput.trim() && !data.collections?.includes(collectionInput.trim())) {
-      updateField('collections', [...(data.collections || []), collectionInput.trim()]);
-      setCollectionInput('');
+    if (!collectionInput.trim()) {
+      showToast('Vui lòng nhập tên bộ sưu tập', 'error');
+      return;
     }
+    if (data.collections?.includes(collectionInput.trim())) {
+      showToast('Bộ sưu tập đã tồn tại', 'info');
+      return;
+    }
+    updateField('collections', [...(data.collections || []), collectionInput.trim()]);
+    showToast(`Đã thêm bộ sưu tập "${collectionInput.trim()}"`, 'success');
+    setCollectionInput('');
   };
 
   const removeCollection = (collection: string) => {
     updateField('collections', data.collections?.filter((c) => c !== collection) || []);
+    showToast(`Đã xóa bộ sưu tập "${collection}"`, 'success');
   };
 
   return (

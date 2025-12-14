@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { Loader2, Edit2 } from 'lucide-react';
 import { canEditOrder, type OrderStatus } from '@/lib/utils/orderStateMachine';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface ShippingAddress {
   firstName?: string;
@@ -45,6 +46,7 @@ export function EditShippingAddress({
   shippingAddress,
   onAddressChange,
 }: EditShippingAddressProps) {
+  const { showToast } = useToastContext();
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<ShippingAddress>(shippingAddress);
@@ -53,7 +55,7 @@ export function EditShippingAddress({
 
   const handleSave = async () => {
     if (!canEdit) {
-      alert('Đơn hàng không thể chỉnh sửa ở trạng thái này');
+      showToast('Đơn hàng không thể chỉnh sửa ở trạng thái này', 'error');
       return;
     }
 
@@ -67,15 +69,16 @@ export function EditShippingAddress({
 
       if (!response.ok) {
         const error = await response.json();
-        alert(error.error || 'Có lỗi xảy ra');
+        showToast(error.error || 'Có lỗi xảy ra khi cập nhật địa chỉ', 'error');
         return;
       }
 
+      showToast('Đã cập nhật địa chỉ giao hàng thành công', 'success');
       onAddressChange();
       setIsEditing(false);
     } catch (error) {
       console.error('Error updating shipping address:', error);
-      alert('Có lỗi xảy ra khi cập nhật địa chỉ');
+      showToast('Có lỗi xảy ra khi cập nhật địa chỉ', 'error');
     } finally {
       setLoading(false);
     }
