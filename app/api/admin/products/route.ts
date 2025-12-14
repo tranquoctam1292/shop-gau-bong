@@ -415,7 +415,7 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
     }
-  }, 'product:create');
+  }, 'product:read');
 }
 
 export async function POST(request: NextRequest) {
