@@ -122,10 +122,10 @@ export function ProductFilters() {
         label: 'Giá',
         value: priceLabel,
         onRemove: () => {
+          // Clear tất cả price filters
+          // Gọi updateFilter cho priceMin sẽ trigger clear cả minPrice, priceMax, maxPrice trong logic
           updateFilter('priceMin', null);
-          updateFilter('minPrice', null);
           updateFilter('priceMax', null);
-          updateFilter('maxPrice', null);
           setLocalMinPrice('');
           setLocalMaxPrice('');
         },

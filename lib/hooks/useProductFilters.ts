@@ -147,11 +147,33 @@ export function useProductFilters(options: UseProductFiltersOptions = {}) {
   }, [router, searchParams, basePath]);
 
   const updateFilter = useCallback((key: keyof ProductFilters, value: any) => {
-    const newFilters = { ...filters, [key]: value };
+    // Khi update filter, luôn đọc từ URL params hiện tại để đảm bảo sync
+    // Tránh trường hợp state bị stale
+    const currentFilters = getInitialFilters();
+    const newFilters = { ...currentFilters, [key]: value };
+    
+    // Nếu xóa price filter, đảm bảo clear cả priceMin/priceMax và minPrice/maxPrice
+    if (key === 'priceMin' && value === null) {
+      newFilters.priceMin = null;
+      newFilters.minPrice = null;
+    }
+    if (key === 'priceMax' && value === null) {
+      newFilters.priceMax = null;
+      newFilters.maxPrice = null;
+    }
+    if (key === 'minPrice' && value === null) {
+      newFilters.minPrice = null;
+      newFilters.priceMin = null;
+    }
+    if (key === 'maxPrice' && value === null) {
+      newFilters.maxPrice = null;
+      newFilters.priceMax = null;
+    }
+    
     setFilters(newFilters);
     updateURL(newFilters);
     onFiltersChange?.(newFilters);
-  }, [filters, updateURL, onFiltersChange]);
+  }, [getInitialFilters, updateURL, onFiltersChange]);
 
   const clearFilters = useCallback(() => {
     const emptyFilters: ProductFilters = {
