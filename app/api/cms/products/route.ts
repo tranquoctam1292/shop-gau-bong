@@ -35,7 +35,8 @@ export async function GET(request: NextRequest) {
     
     // Build MongoDB query
     // Only show published, active products that are not deleted
-    const query: any = {
+    // Base conditions: status, isActive, deletedAt
+    const baseConditions: any = {
       status: 'publish',
       isActive: true,
       $or: [
@@ -44,18 +45,18 @@ export async function GET(request: NextRequest) {
       ],
     };
     
+    // Additional conditions (search, category, price, etc.)
+    const additionalConditions: any[] = [];
+    
     // Search filter
     if (search) {
-      query.$and = [
-        ...(query.$and || []),
-        {
-          $or: [
-            { name: { $regex: search, $options: 'i' } },
-            { description: { $regex: search, $options: 'i' } },
-            { sku: { $regex: search, $options: 'i' } },
-          ]
-        }
-      ];
+      additionalConditions.push({
+        $or: [
+          { name: { $regex: search, $options: 'i' } },
+          { description: { $regex: search, $options: 'i' } },
+          { sku: { $regex: search, $options: 'i' } },
+        ]
+      });
     }
     
     // Category filter - hỗ trợ nhiều categories (comma-separated)
@@ -82,17 +83,9 @@ export async function GET(request: NextRequest) {
             ];
           }
           
-          if (!query.$and) {
-            query.$and = [];
-          }
-          query.$and.push(categoryCondition);
+          additionalConditions.push(categoryCondition);
         }
       }
-    }
-    
-    // Featured filter
-    if (featured) {
-      query.isHot = true;
     }
     
     // Price range filter
@@ -150,41 +143,219 @@ export async function GET(request: NextRequest) {
       
       // Combine all price conditions with $or
       if (priceConditions.length > 0) {
-        if (!query.$and) {
-          query.$and = [];
-        }
-        query.$and.push({ $or: priceConditions });
+        additionalConditions.push({ $or: priceConditions });
       }
     }
     
-    // Length filter (for size filtering)
-    if (minLength !== undefined || maxLength !== undefined) {
-      query.length = {};
-      if (minLength !== undefined) query.length.$gte = minLength;
-      if (maxLength !== undefined) query.length.$lte = maxLength;
-    }
-    
-    // Material filter
-    if (material) {
-      query.material = { $regex: material, $options: 'i' };
-    }
-    
-    // Size and Color filter (from variants) - dùng $elemMatch để match variant
+    // Size and Color filter
+    // Products có thể lưu color/size trong:
+    // 1. variants[].size và variants[].color (direct fields)
+    // 2. productDataMetaBox.variations[].attributes (legacy format)
+    // 3. productDataMetaBox.attributes[].values (global attributes)
+    // 
+    // QUAN TRỌNG: Nếu có cả size VÀ color, phải match CẢ HAI (AND logic)
+    // Nếu chỉ có size HOẶC chỉ có color, chỉ cần match điều kiện đó
     if (size || color) {
-      const variantMatch: any = {};
+      const sizeColorConditions: any[] = [];
       
-      if (size) {
-        variantMatch.size = { $regex: size, $options: 'i' };
+      // Condition 1: Filter by variants array (direct size/color fields)
+      // Nếu có cả size và color, variantMatch phải có CẢ HAI
+      if (size || color) {
+        const variantMatch: any = {};
+        
+        if (size) {
+          variantMatch.size = { $regex: size, $options: 'i' };
+        }
+        
+        if (color) {
+          variantMatch.color = { $regex: color, $options: 'i' };
+        }
+        
+        // Chỉ push nếu có ít nhất một điều kiện
+        if (Object.keys(variantMatch).length > 0) {
+          sizeColorConditions.push({
+            variants: {
+              $elemMatch: variantMatch
+            }
+          });
+        }
       }
+      
+      // Condition 2: Filter by productDataMetaBox.variations[].attributes
+      // (for products that haven't been converted to variants array yet)
+      // QUAN TRỌNG: Nếu có cả size VÀ color, phải match CẢ HAI trong CÙNG MỘT variation
+      // Dùng $elemMatch để đảm bảo cả size và color nằm trong cùng một variation object
+      if (size || color) {
+        const variationAttributesMatch: any = {};
+        
+        if (size) {
+          // Match size trong variations attributes
+          variationAttributesMatch.$or = [
+            { 'productDataMetaBox.variations.attributes.Kích thước': { $regex: size, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.kích thước': { $regex: size, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.pa_size': { $regex: size, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.size': { $regex: size, $options: 'i' } },
+          ];
+        }
+        
+        if (color) {
+          // Match color trong variations attributes
+          const colorConditions = [
+            { 'productDataMetaBox.variations.attributes.Màu sắc': { $regex: color, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.màu sắc': { $regex: color, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.Màu': { $regex: color, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.màu': { $regex: color, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.pa_color': { $regex: color, $options: 'i' } },
+            { 'productDataMetaBox.variations.attributes.color': { $regex: color, $options: 'i' } },
+          ];
+          
+          if (variationAttributesMatch.$or) {
+            // Có cả size và color, phải match CẢ HAI trong cùng một variation
+            // Dùng $and để đảm bảo cả size và color đều match
+            variationAttributesMatch.$and = [
+              { $or: variationAttributesMatch.$or },
+              { $or: colorConditions }
+            ];
+            delete variationAttributesMatch.$or;
+          } else {
+            // Chỉ có color
+            variationAttributesMatch.$or = colorConditions;
+          }
+        }
+        
+        if (Object.keys(variationAttributesMatch).length > 0) {
+          // Wrap trong $elemMatch để đảm bảo cả size và color nằm trong cùng một variation
+          if (variationAttributesMatch.$and) {
+            // Có cả size và color, cần $elemMatch để match trong cùng một variation
+            sizeColorConditions.push({
+              'productDataMetaBox.variations': {
+                $elemMatch: {
+                  $and: [
+                    { $or: variationAttributesMatch.$and[0].$or },
+                    { $or: variationAttributesMatch.$and[1].$or }
+                  ]
+                }
+              }
+            });
+          } else {
+            // Chỉ có size hoặc chỉ có color
+            sizeColorConditions.push(variationAttributesMatch);
+          }
+        }
+      }
+      
+      // Condition 3: Filter by productDataMetaBox.attributes[].values
+      // (for products with global attributes)
+      // Structure: productDataMetaBox.attributes = [{ name: 'Màu sắc', values: ['Hồng Dâu', ...] }]
+      // QUAN TRỌNG: Nếu có cả size VÀ color, phải có CẢ HAI attributes match
+      const attributesConditions: any[] = [];
       
       if (color) {
-        variantMatch.color = { $regex: color, $options: 'i' };
+        attributesConditions.push({
+          'productDataMetaBox.attributes': {
+            $elemMatch: {
+              $and: [
+                {
+                  $or: [
+                    { name: 'Màu sắc' },
+                    { name: 'màu sắc' },
+                    { name: 'Màu' },
+                    { name: 'màu' },
+                    { name: 'pa_color' },
+                    { name: 'color' },
+                  ]
+                },
+                {
+                  values: {
+                    $elemMatch: {
+                      $regex: color,
+                      $options: 'i'
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        });
       }
       
-      query.variants = {
-        $elemMatch: variantMatch
-      };
+      if (size) {
+        attributesConditions.push({
+          'productDataMetaBox.attributes': {
+            $elemMatch: {
+              $and: [
+                {
+                  $or: [
+                    { name: 'Kích thước' },
+                    { name: 'kích thước' },
+                    { name: 'pa_size' },
+                    { name: 'size' },
+                  ]
+                },
+                {
+                  values: {
+                    $elemMatch: {
+                      $regex: size,
+                      $options: 'i'
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        });
+      }
+      
+      // Nếu có cả size và color, phải match CẢ HAI attributes
+      if (attributesConditions.length > 0) {
+        if (attributesConditions.length === 1) {
+          sizeColorConditions.push(attributesConditions[0]);
+        } else {
+          // Có cả size và color, phải match CẢ HAI attributes (AND logic)
+          sizeColorConditions.push({
+            $and: attributesConditions
+          });
+        }
+      }
+      
+      // Combine all size/color conditions with $or
+      // (product matches if ANY of these conditions is true:
+      //  - variants match, OR
+      //  - variations.attributes match, OR
+      //  - productDataMetaBox.attributes match)
+      // Nhưng trong mỗi condition, nếu có cả size VÀ color, phải match CẢ HAI
+      if (sizeColorConditions.length > 0) {
+        additionalConditions.push({ $or: sizeColorConditions });
+      }
     }
+    
+    // Add simple filters to additional conditions
+    if (featured) {
+      additionalConditions.push({ isHot: true });
+    }
+    
+    if (minLength !== undefined || maxLength !== undefined) {
+      const lengthCondition: any = {};
+      if (minLength !== undefined) lengthCondition.$gte = minLength;
+      if (maxLength !== undefined) lengthCondition.$lte = maxLength;
+      additionalConditions.push({ length: lengthCondition });
+    }
+    
+    if (material) {
+      additionalConditions.push({ material: { $regex: material, $options: 'i' } });
+    }
+    
+    // Combine all conditions
+    // If we have additional conditions, wrap everything in $and
+    // Otherwise, use base conditions directly
+    const query: any = additionalConditions.length > 0
+      ? {
+          $and: [
+            baseConditions,
+            ...additionalConditions,
+          ]
+        }
+      : baseConditions;
     
     // Build sort object
     const sortObj: any = {};

@@ -59,81 +59,91 @@ export function useProductFilters(options: UseProductFiltersOptions = {}) {
 
   // Update URL when filters change
   const updateURL = useCallback((newFilters: ProductFilters) => {
-    const params = new URLSearchParams(searchParams.toString());
-    
-    // Remove page param when filters change
-    params.delete('page');
+    try {
+      const params = new URLSearchParams(searchParams.toString());
+      
+      // Remove page param when filters change
+      params.delete('page');
 
-    // Update or remove filter params
-    if (newFilters.category) {
-      params.set('category', newFilters.category);
-    } else {
-      params.delete('category');
+      // Update or remove filter params
+      if (newFilters.category) {
+        params.set('category', newFilters.category);
+      } else {
+        params.delete('category');
+      }
+
+      if (newFilters.brand) {
+        params.set('brand', newFilters.brand);
+      } else {
+        params.delete('brand');
+      }
+
+      // Handle price filters (support both priceMin/priceMax and minPrice/maxPrice)
+      const minPrice = newFilters.priceMin ?? newFilters.minPrice;
+      const maxPrice = newFilters.priceMax ?? newFilters.maxPrice;
+      
+      if (minPrice !== null && minPrice !== undefined) {
+        params.set('price_min', minPrice.toString());
+      } else {
+        params.delete('price_min');
+      }
+
+      if (maxPrice !== null && maxPrice !== undefined) {
+        params.set('price_max', maxPrice.toString());
+      } else {
+        params.delete('price_max');
+      }
+
+      if (newFilters.stockStatus) {
+        params.set('stock_status', newFilters.stockStatus);
+      } else {
+        params.delete('stock_status');
+      }
+
+      if (newFilters.search) {
+        params.set('search', newFilters.search);
+      } else {
+        params.delete('search');
+      }
+
+      // Handle material, size, color, sortBy (for frontend)
+      if (newFilters.material) {
+        params.set('material', newFilters.material);
+      } else {
+        params.delete('material');
+      }
+
+      if (newFilters.size) {
+        params.set('size', newFilters.size);
+      } else {
+        params.delete('size');
+      }
+
+      if (newFilters.color) {
+        params.set('color', newFilters.color);
+      } else {
+        params.delete('color');
+      }
+
+      if (newFilters.sortBy) {
+        params.set('sort', newFilters.sortBy);
+      } else {
+        params.delete('sort');
+        params.delete('sortBy');
+      }
+
+      // Build URL safely
+      const queryString = params.toString();
+      const newUrl = queryString ? `${basePath}?${queryString}` : basePath;
+      
+      // Use replace instead of push để tránh thêm history entry
+      // Và redirect đến đúng path (products hoặc admin/products)
+      router.replace(newUrl);
+    } catch (error: any) {
+      console.error('[useProductFilters] Error updating URL:', error);
+      // Fallback: chỉ update state, không update URL
+      // Không throw error để tránh crash app
     }
-
-    if (newFilters.brand) {
-      params.set('brand', newFilters.brand);
-    } else {
-      params.delete('brand');
-    }
-
-    // Handle price filters (support both priceMin/priceMax and minPrice/maxPrice)
-    const minPrice = newFilters.priceMin ?? newFilters.minPrice;
-    const maxPrice = newFilters.priceMax ?? newFilters.maxPrice;
-    
-    if (minPrice !== null && minPrice !== undefined) {
-      params.set('price_min', minPrice.toString());
-    } else {
-      params.delete('price_min');
-    }
-
-    if (maxPrice !== null && maxPrice !== undefined) {
-      params.set('price_max', maxPrice.toString());
-    } else {
-      params.delete('price_max');
-    }
-
-    if (newFilters.stockStatus) {
-      params.set('stock_status', newFilters.stockStatus);
-    } else {
-      params.delete('stock_status');
-    }
-
-    if (newFilters.search) {
-      params.set('search', newFilters.search);
-    } else {
-      params.delete('search');
-    }
-
-    // Handle material, size, color, sortBy (for frontend)
-    if (newFilters.material) {
-      params.set('material', newFilters.material);
-    } else {
-      params.delete('material');
-    }
-
-    if (newFilters.size) {
-      params.set('size', newFilters.size);
-    } else {
-      params.delete('size');
-    }
-
-    if (newFilters.color) {
-      params.set('color', newFilters.color);
-    } else {
-      params.delete('color');
-    }
-
-    if (newFilters.sortBy) {
-      params.set('sort', newFilters.sortBy);
-    } else {
-      params.delete('sort');
-      params.delete('sortBy');
-    }
-
-    // Use replace instead of push để tránh thêm history entry
-    // Và redirect đến đúng path (products hoặc admin/products)
-    router.replace(`${basePath}?${params.toString()}`);
   }, [router, searchParams, basePath]);
 
   const updateFilter = useCallback((key: keyof ProductFilters, value: any) => {
