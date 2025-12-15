@@ -207,6 +207,7 @@ function AdminLayoutContent({
       submenu: [
         { href: '/admin/settings/security', label: 'Bảo mật', icon: Shield },
         { href: '/admin/settings/sku', label: 'Cài đặt SKU', icon: Hash },
+        { href: '/admin/settings/contact-widget', label: 'Nút Liên hệ Nổi', icon: MessageSquare },
       ],
     },
   ];

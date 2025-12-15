@@ -1,10 +1,21 @@
 import type { Metadata } from 'next';
 import { Inter, Nunito, Fredoka } from 'next/font/google';
+import dynamic from 'next/dynamic';
 import { ToastProvider } from '@/components/providers/ToastProvider';
 import { CategoriesProvider } from '@/lib/providers/CategoriesProvider';
 import { QueryProvider } from '@/lib/providers/QueryProvider';
 import { LayoutWrapper } from '@/components/layout/LayoutWrapper';
 import './globals.css';
+
+// CRITICAL: Client-side only rendering để không chặn LCP/CLS
+// Widget fixed position nên không cần SSR, render sau khi page interactive
+const FloatingContactWidget = dynamic(
+  () => import('@/components/layout/FloatingContactWidget').then((mod) => ({ default: mod.FloatingContactWidget })),
+  {
+    ssr: false, // Không render trên server để không chặn LCP
+    loading: () => null, // Không hiển thị loading state
+  }
+);
 
 const inter = Inter({
   subsets: ['latin', 'vietnamese'],
@@ -98,6 +109,8 @@ export default function RootLayout({
               <LayoutWrapper>
                 {children}
               </LayoutWrapper>
+              {/* Floating Contact Widget - Render sau cùng, client-side only */}
+              <FloatingContactWidget />
             </CategoriesProvider>
           </ToastProvider>
         </QueryProvider>

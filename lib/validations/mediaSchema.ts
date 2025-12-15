@@ -132,6 +132,7 @@ export const FILE_UPLOAD_CONSTRAINTS = {
     'image/png',
     'image/gif',
     'image/webp',
+    'image/svg+xml', // SVG support for custom icons
   ],
   ALLOWED_VIDEO_TYPES: [
     'video/mp4',

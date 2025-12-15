@@ -152,6 +152,8 @@ export interface Collections {
   skuAbbreviations: Collection;
   skuCounters: Collection;
   skuHistory: Collection;
+  // Contact Widget Settings
+  contactWidgetSettings: Collection;
 }
 
 /**
@@ -208,6 +210,8 @@ export async function getCollections(): Promise<Collections> {
     skuAbbreviations: db.collection('sku_abbreviations'),
     skuCounters: db.collection('sku_counters'),
     skuHistory: db.collection('sku_history'),
+    // Contact Widget Settings
+    contactWidgetSettings: db.collection('contact_widget_settings'),
   };
 }
 

@@ -146,6 +146,26 @@ export interface SkuHistory {
 }
 
 /**
+ * Contact Widget Settings Document
+ * Stores configuration for Floating Contact Widget (Hotline, Zalo, Messenger)
+ */
+export interface ContactWidgetConfig {
+  _id?: any; // ObjectId
+  enabled: boolean;
+  position: 'left' | 'right';
+  primaryColor: string; // Hex color code (e.g., "#D6336C")
+  items: Array<{
+    type: 'hotline' | 'zalo' | 'messenger';
+    active: boolean;
+    label: string; // Display label (e.g., "Gọi ngay", "Chat Zalo")
+    value: string; // Phone number (for hotline/zalo) or Page ID (for messenger)
+    iconUrl?: string; // Optional custom SVG icon URL (for Zalo/Messenger)
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
  * Frontend Order Type (Compatible with both WooCommerce and MongoDB formats)
  * 
  * This type is used by hooks and components that need to work with orders

@@ -210,27 +210,33 @@ export async function POST(request: NextRequest) {
     const arrayBuffer = await file.arrayBuffer();
     let buffer = Buffer.from(arrayBuffer);
 
-    // Process image if it's an image
+    // Process image if it's an image (but skip SVG - it's vector, don't resize)
     let width: number | undefined;
     let height: number | undefined;
     
     if (mediaType === 'image') {
-      // Validate it's a valid image
-      const isValid = await isValidImage(buffer);
-      if (!isValid) {
-        return NextResponse.json(
-          { success: false, error: 'Invalid image file' },
-          { status: 400 }
-        );
+      // SVG is vector, don't process/resize it
+      const isSvg = file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg');
+      
+      if (!isSvg) {
+        // Validate it's a valid image (skip validation for SVG)
+        const isValid = await isValidImage(buffer);
+        if (!isValid) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid image file' },
+            { status: 400 }
+          );
+        }
+
+        // Get metadata before processing
+        const metadata = await getImageMetadata(buffer);
+        width = metadata.width;
+        height = metadata.height;
+
+        // Process image (resize + optimize) - skip for SVG
+        buffer = Buffer.from(await processImage(buffer as Buffer, 2500, 2500, 85));
       }
-
-      // Get metadata before processing
-      const metadata = await getImageMetadata(buffer);
-      width = metadata.width;
-      height = metadata.height;
-
-      // Process image (resize + optimize)
-      buffer = Buffer.from(await processImage(buffer as Buffer, 2500, 2500, 85));
+      // For SVG, keep buffer as-is (no processing)
     }
 
     // Generate unique filename (auto-renaming to prevent conflicts)
