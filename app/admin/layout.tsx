@@ -56,6 +56,10 @@ function AdminLayoutContent({
   // Check if menus path
   const isMenusPath = pathname.startsWith('/admin/menus');
   
+  // Check if posts submenu should be expanded
+  const isPostsPath = pathname.startsWith('/admin/posts') || 
+                      pathname.startsWith('/admin/authors');
+  
   // Check if settings submenu should be expanded
   const isSettingsPath = pathname.startsWith('/admin/settings');
   
@@ -64,6 +68,7 @@ function AdminLayoutContent({
     new Set(
       [
         ...(isProductsPath ? ['/admin/products'] : []),
+        ...(isPostsPath ? ['/admin/posts'] : []),
         ...(isSettingsPath ? ['/admin/settings'] : []),
       ]
     )
@@ -74,10 +79,13 @@ function AdminLayoutContent({
     if (isProductsPath && !expandedMenus.has('/admin/products')) {
       setExpandedMenus((prev) => new Set(prev).add('/admin/products'));
     }
+    if (isPostsPath && !expandedMenus.has('/admin/posts')) {
+      setExpandedMenus((prev) => new Set(prev).add('/admin/posts'));
+    }
     if (isSettingsPath && !expandedMenus.has('/admin/settings')) {
       setExpandedMenus((prev) => new Set(prev).add('/admin/settings'));
     }
-  }, [pathname, isProductsPath, isSettingsPath, expandedMenus]);
+  }, [pathname, isProductsPath, isPostsPath, isSettingsPath, expandedMenus]);
 
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated
@@ -171,8 +179,16 @@ function AdminLayoutContent({
     { href: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
     { href: '/admin/media', label: 'Media', icon: Image },
     { href: '/admin/menus', label: 'Menu', icon: Menu },
-    { href: '/admin/posts', label: 'Bài viết', icon: FileText },
-    { href: '/admin/authors', label: 'Tác giả', icon: User },
+    {
+      href: '/admin/posts',
+      label: 'Bài viết',
+      icon: FileText,
+      submenu: [
+        { href: '/admin/posts', label: 'Tất cả bài viết', icon: List },
+        { href: '/admin/posts/new', label: 'Thêm mới', icon: Plus },
+        { href: '/admin/authors', label: 'Tác giả', icon: User },
+      ],
+    },
     { href: '/admin/comments', label: 'Bình luận', icon: MessageSquare },
     // Only show Users menu for SUPER_ADMIN
     ...(isSuperAdmin
