@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -422,11 +423,31 @@ export function MediaLibraryModal({
     }
   };
 
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
 
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-background rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
+
+  const modalContent = (
+    <div 
+      className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" 
+      style={{ isolation: 'isolate' }}
+      onClick={(e) => {
+        // Close on backdrop click
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div 
+        className="bg-background rounded-lg max-w-6xl w-full max-h-[90vh] overflow-hidden flex flex-col relative z-[10000]" 
+        style={{ isolation: 'isolate' }}
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b">
           <h2 className="text-lg font-semibold">Thêm Media</h2>
@@ -838,4 +859,7 @@ export function MediaLibraryModal({
       </div>
     </div>
   );
+
+  // Render modal using Portal to ensure it's always on top
+  return createPortal(modalContent, document.body);
 }

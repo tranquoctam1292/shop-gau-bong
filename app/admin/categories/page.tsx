@@ -504,7 +504,7 @@ export default function AdminCategoriesPage() {
     <div className="flex gap-6">
       {/* Left Column: Form (30%, Sticky) */}
       <div className="w-[30%] flex-shrink-0">
-        <div className="sticky top-6">
+        <div className="sticky top-6 z-0">
           <div className="mb-4">
             <h2 className="text-xl font-bold text-gray-900">Thêm danh mục mới</h2>
             <p className="text-sm text-gray-600 mt-1">Tạo danh mục sản phẩm mới</p>

@@ -2,7 +2,7 @@
 
 import { lazy, Suspense, useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { ShoppingBag, Heart, User, Search } from 'lucide-react';
+import { ShoppingBag, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { buttonVariants } from '@/lib/utils/button-variants';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -89,29 +89,6 @@ export function Header() {
             >
               <Search className="w-5 h-5" />
             </button>
-
-            {/* Desktop Actions: User Account */}
-            <Link 
-              href="/account" 
-              className="hidden md:flex flex-col items-center group text-text-main hover:text-primary transition-colors"
-            >
-              <div className="w-10 h-10 bg-white border border-border rounded-full flex items-center justify-center shadow-sm group-hover:shadow-md transition-all">
-                <User className="w-5 h-5" />
-              </div>
-            </Link>
-
-            {/* Desktop Actions: Wishlist */}
-            <Link 
-              href="/wishlist" 
-              className="hidden md:flex flex-col items-center group text-text-main hover:text-primary transition-colors relative"
-            >
-              <div className="w-10 h-10 bg-white border border-border rounded-full flex items-center justify-center shadow-sm group-hover:shadow-md transition-all">
-                <Heart className="w-5 h-5" />
-              </div>
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-primary text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-background">
-                2
-              </span>
-            </Link>
 
             {/* Cart */}
             <Suspense fallback={
