@@ -32,11 +32,14 @@ export function HeroSlide({
   className,
   index = 0,
 }: HeroSlideProps) {
+  // Fallback to placeholder if image doesn't exist
+  const imageSrc = image || '/images/teddy-placeholder.png';
+  
   return (
     <div className={cn('relative w-full h-[60vh] md:h-[80vh] overflow-hidden z-0', className)}>
       {/* Background Image - Optimized for mobile/desktop */}
       <Image
-        src={image}
+        src={imageSrc}
         alt={title}
         fill
         className="object-cover"
@@ -45,6 +48,13 @@ export function HeroSlide({
         sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1920px"
         placeholder="blur"
         blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+        onError={(e) => {
+          // Fallback to placeholder on error
+          const target = e.target as HTMLImageElement;
+          if (target.src !== '/images/teddy-placeholder.png') {
+            target.src = '/images/teddy-placeholder.png';
+          }
+        }}
       />
 
       {/* Overlay Gradient */}

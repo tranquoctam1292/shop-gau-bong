@@ -16,10 +16,11 @@ export function HeroBanners() {
   // Default fallback banners (if CMS has no banners)
   // Note: Images should be optimized (1920x800px, < 500KB, JPEG/WebP)
   // See docs/HERO_BANNER_GUIDE.md for specifications
+  // Using placeholder images if hero images don't exist
   const defaultBanners = [
     {
       id: '1',
-      image: '/images/hero-1.jpg',
+      image: '/images/teddy-placeholder.png', // Fallback to placeholder
       title: '🧸 Chào mừng đến với Shop Gấu Bông',
       subtitle: 'Nơi bạn tìm thấy những chú gấu bông đáng yêu nhất',
       ctaText: 'Mua ngay',
@@ -28,7 +29,7 @@ export function HeroBanners() {
     },
     {
       id: '2',
-      image: '/images/hero-2.jpg',
+      image: '/images/teddy-placeholder.png', // Fallback to placeholder
       title: '🐻 Gấu Bông Bigsize',
       subtitle: 'Quà tặng ý nghĩa cho mọi dịp đặc biệt',
       ctaText: 'Xem Bigsize',
@@ -37,7 +38,7 @@ export function HeroBanners() {
     },
     {
       id: '3',
-      image: '/images/hero-3.jpg',
+      image: '/images/teddy-placeholder.png', // Fallback to placeholder
       title: '💝 Gấu Bông Valentine',
       subtitle: 'Tỏ tình ngọt ngào với món quà đáng yêu',
       ctaText: 'Xem sản phẩm',
