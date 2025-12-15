@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 export interface ProductFilters {
   category?: string | null;
@@ -24,8 +24,13 @@ interface UseProductFiltersOptions {
 
 export function useProductFilters(options: UseProductFiltersOptions = {}) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { onFiltersChange } = options;
+  
+  // Detect current route để redirect đúng
+  const isAdminRoute = pathname?.startsWith('/admin');
+  const basePath = isAdminRoute ? '/admin/products' : '/products';
 
   // Initialize filters from URL params
   const getInitialFilters = useCallback((): ProductFilters => {
@@ -34,8 +39,14 @@ export function useProductFilters(options: UseProductFiltersOptions = {}) {
       brand: searchParams.get('brand') || null,
       priceMin: searchParams.get('price_min') ? parseFloat(searchParams.get('price_min')!) : null,
       priceMax: searchParams.get('price_max') ? parseFloat(searchParams.get('price_max')!) : null,
+      minPrice: searchParams.get('price_min') ? parseFloat(searchParams.get('price_min')!) : null,
+      maxPrice: searchParams.get('price_max') ? parseFloat(searchParams.get('price_max')!) : null,
       stockStatus: (searchParams.get('stock_status') as ProductFilters['stockStatus']) || null,
       search: searchParams.get('search') || undefined,
+      material: searchParams.get('material') || null,
+      size: searchParams.get('size') || null,
+      color: searchParams.get('color') || null,
+      sortBy: searchParams.get('sort') || searchParams.get('sortBy') || null,
     };
   }, [searchParams]);
 
@@ -66,14 +77,18 @@ export function useProductFilters(options: UseProductFiltersOptions = {}) {
       params.delete('brand');
     }
 
-    if (newFilters.priceMin !== null && newFilters.priceMin !== undefined) {
-      params.set('price_min', newFilters.priceMin.toString());
+    // Handle price filters (support both priceMin/priceMax and minPrice/maxPrice)
+    const minPrice = newFilters.priceMin ?? newFilters.minPrice;
+    const maxPrice = newFilters.priceMax ?? newFilters.maxPrice;
+    
+    if (minPrice !== null && minPrice !== undefined) {
+      params.set('price_min', minPrice.toString());
     } else {
       params.delete('price_min');
     }
 
-    if (newFilters.priceMax !== null && newFilters.priceMax !== undefined) {
-      params.set('price_max', newFilters.priceMax.toString());
+    if (maxPrice !== null && maxPrice !== undefined) {
+      params.set('price_max', maxPrice.toString());
     } else {
       params.delete('price_max');
     }
@@ -90,8 +105,36 @@ export function useProductFilters(options: UseProductFiltersOptions = {}) {
       params.delete('search');
     }
 
-    router.push(`/admin/products?${params.toString()}`);
-  }, [router, searchParams]);
+    // Handle material, size, color, sortBy (for frontend)
+    if (newFilters.material) {
+      params.set('material', newFilters.material);
+    } else {
+      params.delete('material');
+    }
+
+    if (newFilters.size) {
+      params.set('size', newFilters.size);
+    } else {
+      params.delete('size');
+    }
+
+    if (newFilters.color) {
+      params.set('color', newFilters.color);
+    } else {
+      params.delete('color');
+    }
+
+    if (newFilters.sortBy) {
+      params.set('sort', newFilters.sortBy);
+    } else {
+      params.delete('sort');
+      params.delete('sortBy');
+    }
+
+    // Use replace instead of push để tránh thêm history entry
+    // Và redirect đến đúng path (products hoặc admin/products)
+    router.replace(`${basePath}?${params.toString()}`);
+  }, [router, searchParams, basePath]);
 
   const updateFilter = useCallback((key: keyof ProductFilters, value: any) => {
     const newFilters = { ...filters, [key]: value };
@@ -106,8 +149,14 @@ export function useProductFilters(options: UseProductFiltersOptions = {}) {
       brand: null,
       priceMin: null,
       priceMax: null,
+      minPrice: null,
+      maxPrice: null,
       stockStatus: null,
       search: undefined,
+      material: null,
+      size: null,
+      color: null,
+      sortBy: null,
     };
     setFilters(emptyFilters);
     updateURL(emptyFilters);
@@ -120,8 +169,14 @@ export function useProductFilters(options: UseProductFiltersOptions = {}) {
       filters.brand ||
       filters.priceMin !== null ||
       filters.priceMax !== null ||
+      filters.minPrice !== null ||
+      filters.maxPrice !== null ||
       filters.stockStatus ||
-      filters.search
+      filters.search ||
+      filters.material ||
+      filters.size ||
+      filters.color ||
+      filters.sortBy
     );
   }, [filters]);
 

@@ -332,14 +332,26 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
   if (mongoProduct.variants && mongoProduct.variants.length > 0) {
     // Use variants array (new format)
     // Filter out empty/null/undefined values
-    sizeOptions = [...new Set(mongoProduct.variants
-      .map((v: any) => v.size)
+    const allSizes = mongoProduct.variants.map((v: any) => v.size).filter(Boolean);
+    const allColors = mongoProduct.variants.map((v: any) => v.color).filter(Boolean);
+    
+    sizeOptions = [...new Set(allSizes
       .filter((size: any) => size && String(size).trim().length > 0)
       .map((size: any) => String(size).trim()))] as string[];
-    colorOptions = [...new Set(mongoProduct.variants
-      .map((v: any) => v.color)
+    colorOptions = [...new Set(allColors
       .filter((color: any) => color && String(color).trim().length > 0)
       .map((color: any) => String(color).trim()))] as string[];
+    
+    // Debug logging
+    if (process.env.NODE_ENV === 'development' && (sizeOptions.length === 0 && colorOptions.length === 0)) {
+      console.log('[mapMongoProduct] No size/color extracted from variants:', {
+        productName: mongoProduct.name,
+        variantsCount: mongoProduct.variants.length,
+        firstVariant: mongoProduct.variants[0],
+        allSizes,
+        allColors,
+      });
+    }
   } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
     // Fallback: Extract from productDataMetaBox.variations (backward compatibility)
     mongoProduct.productDataMetaBox.variations.forEach((variation: any) => {
@@ -412,6 +424,19 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
         position: 1,
         visible: true,
         variation: true,
+      });
+    }
+    
+    // Debug logging nếu không có attributes được tạo
+    if (process.env.NODE_ENV === 'development' && attributes.length === 0) {
+      console.log('[mapMongoProduct] No attributes created:', {
+        productName: mongoProduct.name,
+        hasProductDataMetaBoxAttributes: !!mongoProduct.productDataMetaBox?.attributes,
+        productDataMetaBoxAttributesLength: mongoProduct.productDataMetaBox?.attributes?.length || 0,
+        sizeOptionsLength: sizeOptions.length,
+        colorOptionsLength: colorOptions.length,
+        hasVariants: !!mongoProduct.variants,
+        variantsLength: mongoProduct.variants?.length || 0,
       });
     }
   }

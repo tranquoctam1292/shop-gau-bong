@@ -28,6 +28,8 @@ export async function GET(request: NextRequest) {
     const material = searchParams.get('material');
     const size = searchParams.get('size');
     const color = searchParams.get('color');
+    const orderby = searchParams.get('orderby') || 'date';
+    const order = searchParams.get('order') || 'desc';
     
     const { products, categories } = await getCollections();
     
@@ -44,18 +46,47 @@ export async function GET(request: NextRequest) {
     
     // Search filter
     if (search) {
-      query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-        { sku: { $regex: search, $options: 'i' } },
+      query.$and = [
+        ...(query.$and || []),
+        {
+          $or: [
+            { name: { $regex: search, $options: 'i' } },
+            { description: { $regex: search, $options: 'i' } },
+            { sku: { $regex: search, $options: 'i' } },
+          ]
+        }
       ];
     }
     
-    // Category filter
+    // Category filter - hỗ trợ nhiều categories (comma-separated)
     if (category) {
-      const categoryDoc = await categories.findOne({ slug: category });
-      if (categoryDoc) {
-        query.category = categoryDoc._id.toString();
+      const categorySlugs = category.split(',').map(s => s.trim()).filter(Boolean);
+      if (categorySlugs.length > 0) {
+        const categoryDocs = await categories.find({
+          slug: { $in: categorySlugs }
+        }).toArray();
+        
+        if (categoryDocs.length > 0) {
+          const categoryIds = categoryDocs.map(cat => cat._id.toString());
+          // Hỗ trợ cả category (single) và categories (array)
+          const categoryCondition: any = {};
+          if (categoryIds.length === 1) {
+            categoryCondition.$or = [
+              { category: categoryIds[0] },
+              { categories: categoryIds[0] },
+            ];
+          } else {
+            categoryCondition.$or = [
+              { category: { $in: categoryIds } },
+              { categories: { $in: categoryIds } },
+            ];
+          }
+          
+          if (!query.$and) {
+            query.$and = [];
+          }
+          query.$and.push(categoryCondition);
+        }
       }
     }
     
@@ -65,10 +96,65 @@ export async function GET(request: NextRequest) {
     }
     
     // Price range filter
+    // Products có thể có: price (simple), minPrice/maxPrice (variable), hoặc regularPrice/salePrice
     if (minPrice !== undefined || maxPrice !== undefined) {
-      query.minPrice = {};
-      if (minPrice !== undefined) query.minPrice.$gte = minPrice;
-      if (maxPrice !== undefined) query.minPrice.$lte = maxPrice;
+      const priceConditions: any[] = [];
+      
+      // Simple products: filter by price field
+      if (minPrice !== undefined && maxPrice !== undefined) {
+        priceConditions.push({ price: { $gte: minPrice, $lte: maxPrice } });
+      } else if (minPrice !== undefined) {
+        priceConditions.push({ price: { $gte: minPrice } });
+      } else if (maxPrice !== undefined) {
+        priceConditions.push({ price: { $lte: maxPrice } });
+      }
+      
+      // Variable products: filter by minPrice/maxPrice range overlap
+      if (minPrice !== undefined && maxPrice !== undefined) {
+        // Product price range overlaps with filter range
+        priceConditions.push({
+          $and: [
+            { minPrice: { $lte: maxPrice } },
+            { maxPrice: { $gte: minPrice } },
+          ]
+        });
+      } else if (minPrice !== undefined) {
+        priceConditions.push({ maxPrice: { $gte: minPrice } });
+      } else if (maxPrice !== undefined) {
+        priceConditions.push({ minPrice: { $lte: maxPrice } });
+      }
+      
+      // Products with regularPrice/salePrice
+      if (minPrice !== undefined && maxPrice !== undefined) {
+        priceConditions.push({
+          $or: [
+            { regularPrice: { $gte: minPrice, $lte: maxPrice } },
+            { salePrice: { $gte: minPrice, $lte: maxPrice } },
+          ]
+        });
+      } else if (minPrice !== undefined) {
+        priceConditions.push({
+          $or: [
+            { regularPrice: { $gte: minPrice } },
+            { salePrice: { $gte: minPrice } },
+          ]
+        });
+      } else if (maxPrice !== undefined) {
+        priceConditions.push({
+          $or: [
+            { regularPrice: { $lte: maxPrice } },
+            { salePrice: { $lte: maxPrice } },
+          ]
+        });
+      }
+      
+      // Combine all price conditions with $or
+      if (priceConditions.length > 0) {
+        if (!query.$and) {
+          query.$and = [];
+        }
+        query.$and.push({ $or: priceConditions });
+      }
     }
     
     // Length filter (for size filtering)
@@ -83,21 +169,44 @@ export async function GET(request: NextRequest) {
       query.material = { $regex: material, $options: 'i' };
     }
     
-    // Size filter (from variants)
-    if (size) {
-      query['variants.size'] = { $regex: size, $options: 'i' };
+    // Size and Color filter (from variants) - dùng $elemMatch để match variant
+    if (size || color) {
+      const variantMatch: any = {};
+      
+      if (size) {
+        variantMatch.size = { $regex: size, $options: 'i' };
+      }
+      
+      if (color) {
+        variantMatch.color = { $regex: color, $options: 'i' };
+      }
+      
+      query.variants = {
+        $elemMatch: variantMatch
+      };
     }
     
-    // Color filter (from variants)
-    if (color) {
-      query['variants.color'] = { $regex: color, $options: 'i' };
+    // Build sort object
+    const sortObj: any = {};
+    switch (orderby) {
+      case 'price':
+        sortObj.price = order === 'asc' ? 1 : -1;
+        break;
+      case 'title':
+      case 'name':
+        sortObj.name = order === 'asc' ? 1 : -1;
+        break;
+      case 'date':
+      default:
+        sortObj.createdAt = order === 'asc' ? 1 : -1;
+        break;
     }
     
     // Fetch products with pagination
     const [productsList, total] = await Promise.all([
       products
         .find(query)
-        .sort({ createdAt: -1 })
+        .sort(sortObj)
         .skip((page - 1) * perPage)
         .limit(perPage)
         .toArray(),

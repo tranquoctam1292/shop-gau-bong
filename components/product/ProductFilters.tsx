@@ -145,10 +145,12 @@ export function ProductFilters() {
       active.push({
         key: 'category',
         label: 'Danh mục',
-        value: filters.category.split(',').length > 1 
+        value: filters.category.includes(',') && filters.category.split(',').length > 1 
           ? `${filters.category.split(',').length} danh mục`
           : filters.category,
-        onRemove: () => updateFilter('category', null),
+        onRemove: () => {
+          updateFilter('category', null);
+        },
       });
     }
     
@@ -616,7 +618,10 @@ export function ProductFilters() {
                       return (
                         <button
                           key={option.value}
-                          onClick={() => {
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             handleSizeSelect(option.value);
                             setMobileSizeOpen(false); // Đóng mobile popover
                           }}
@@ -741,7 +746,10 @@ export function ProductFilters() {
                       return (
                         <button
                           key={option.value}
-                          onClick={() => {
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             handleColorSelect(option.value);
                             setMobileColorOpen(false); // Đóng mobile popover
                           }}
@@ -795,7 +803,10 @@ export function ProductFilters() {
               return (
                 <button
                   key={option.value}
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (actualSelected) {
                       updateFilter('sortBy', null);
                     } else {
@@ -808,7 +819,6 @@ export function ProductFilters() {
                       updateFilter('sortBy', sortValue);
                     }
                   }}
-                  type="button"
                   className={cn(
                     "flex items-center gap-1 px-2.5 h-8 rounded-full border whitespace-nowrap transition-all flex-shrink-0 text-xs touch-manipulation",
                     isSelected
@@ -1103,7 +1113,12 @@ export function ProductFilters() {
                         return (
                           <button
                             key={option.value}
-                            onClick={() => handleColorSelect(option.value)}
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              handleColorSelect(option.value);
+                            }}
                             className={cn(
                               "relative w-8 h-8 rounded-full transition-all",
                               "border-2 border-transparent",
@@ -1157,7 +1172,10 @@ export function ProductFilters() {
               return (
                 <button
                   key={option.value}
-                  onClick={() => {
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
                     if (actualSelected) {
                       updateFilter('sortBy', null);
                     } else {
@@ -1202,7 +1220,12 @@ export function ProductFilters() {
                   <span className="text-text-muted">{filter.value}</span>
                 </span>
                 <button
-                  onClick={filter.onRemove}
+                  type="button"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    filter.onRemove();
+                  }}
                   className="ml-1 hover:bg-primary/10 rounded-full p-0.5 transition-colors"
                   aria-label={`Xóa bộ lọc ${filter.label}`}
                 >
