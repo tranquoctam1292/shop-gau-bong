@@ -7,6 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { Permission } from '@/types/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,16 +16,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { posts } = await getCollections();
+      const { posts } = await getCollections();
     const { id } = params;
     
     // Find post
@@ -83,6 +78,7 @@ export async function POST(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'post:update' as Permission); // Post publish requires update permission
 }
 

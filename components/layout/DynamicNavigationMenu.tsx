@@ -178,7 +178,7 @@ function ConfigMenuItemRenderer({ item }: { item: ConfigMenuItem }) {
         href: subItem.href,
       }));
 
-      return (
+  return (
         <MenuDropdown
           key={item.id}
           label={item.label}
@@ -249,19 +249,19 @@ function ConfigMenuItemRenderer({ item }: { item: ConfigMenuItem }) {
 
   // Fallback to simple link
   return (
-    <Link
+      <Link
       key={item.id}
       href={item.href}
-      className={cn(
+        className={cn(
         'text-sm font-medium transition-colors',
         'min-h-[44px] flex items-center px-3',
         isActive 
           ? 'text-primary font-semibold' 
           : 'text-text-main hover:text-primary'
-      )}
-    >
+        )}
+      >
       {item.label}
-    </Link>
+      </Link>
   );
 }
 

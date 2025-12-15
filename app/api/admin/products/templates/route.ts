@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,16 +22,9 @@ const templateSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const searchParams = request.nextUrl.searchParams;
+      const searchParams = req.nextUrl.searchParams;
     const category = searchParams.get('category');
     
     const { productTemplates } = await getCollections();
@@ -59,20 +53,14 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:read'); // Templates GET requires read permission
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const body = await request.json();
+      const body = await req.json();
     
     // Validate input
     const validatedData = templateSchema.parse(body);
@@ -130,6 +118,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:update'); // Templates POST requires update permission
 }
 

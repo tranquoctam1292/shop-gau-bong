@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,16 +30,9 @@ const bulkActionSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const body = await request.json();
+      const body = await request.json();
     
     // Validate input
     const validatedData = bulkActionSchema.parse(body);
@@ -223,6 +217,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:update'); // Bulk actions can be update or delete depending on action, using update as default
 }
 

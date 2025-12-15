@@ -23,9 +23,10 @@ interface ProductInfoProps {
   product: MappedProduct;
   onAddToCart?: (variationId?: number, isGift?: boolean) => void;
   onGiftOrder?: () => void;
+  onVariationChange?: (variationImage?: string) => void; // Callback khi variation thay đổi
 }
 
-export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoProps) {
+export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChange }: ProductInfoProps) {
   const { addToCart } = useCartSync();
   const searchParams = useSearchParams();
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
@@ -53,6 +54,13 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder }: ProductInfoPr
   
   // Use custom hook to find matching variation (replaces ~25 lines of duplicate logic)
   const selectedVariation = useVariationMatcher(variations, selectedSize, selectedColor);
+
+  // Notify parent component when variation image changes
+  useEffect(() => {
+    if (onVariationChange) {
+      onVariationChange(selectedVariation?.image);
+    }
+  }, [selectedVariation?.image, onVariationChange]);
 
   // Use custom hook for pricing logic (replaces ~35 lines of duplicate code)
   const { displayPrice, displayRegularPrice, isOnSale } = useProductPrice(product, selectedVariation);

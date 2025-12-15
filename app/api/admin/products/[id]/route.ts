@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
+import { normalizeSku } from '@/lib/utils/skuGenerator';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
@@ -640,6 +641,44 @@ export async function PUT(
       if (imagesArray.length > 0) {
         updateData.images = imagesArray;
       }
+    }
+    
+    // Normalize SKU for duplicate checking (according to SMART_SKU_IMPLEMENTATION_PLAN.md)
+    // Only normalize if SKU is actually being updated
+    // Priority: productDataMetaBox.sku > top-level sku
+    if ('sku' in updateData || (updateData.productDataMetaBox && 'sku' in updateData.productDataMetaBox)) {
+      const skuToNormalize = updateData.productDataMetaBox?.sku ?? updateData.sku;
+      if (skuToNormalize && typeof skuToNormalize === 'string' && skuToNormalize.trim()) {
+        updateData.sku_normalized = normalizeSku(skuToNormalize.trim());
+      } else if (skuToNormalize === null || skuToNormalize === '' || skuToNormalize === undefined) {
+        // If SKU is being cleared, also clear sku_normalized
+        updateData.sku_normalized = null;
+      }
+    }
+    
+    // Normalize variant SKUs if variants are being updated
+    if ('variants' in updateData && updateData.variants && Array.isArray(updateData.variants)) {
+      updateData.variants = updateData.variants.map((variant: any) => {
+        if (variant.sku && typeof variant.sku === 'string' && variant.sku.trim()) {
+          variant.sku_normalized = normalizeSku(variant.sku.trim());
+        } else if (variant.sku === null || variant.sku === '' || variant.sku === undefined) {
+          variant.sku_normalized = null;
+        }
+        return variant;
+      });
+    }
+    
+    // Also normalize SKUs in productDataMetaBox.variations if being updated
+    if (updateData.productDataMetaBox && 'variations' in updateData.productDataMetaBox && 
+        updateData.productDataMetaBox.variations && Array.isArray(updateData.productDataMetaBox.variations)) {
+      updateData.productDataMetaBox.variations = updateData.productDataMetaBox.variations.map((variation: any) => {
+        if (variation.sku && typeof variation.sku === 'string' && variation.sku.trim()) {
+          variation.sku_normalized = normalizeSku(variation.sku.trim());
+        } else if (variation.sku === null || variation.sku === '' || variation.sku === undefined) {
+          variation.sku_normalized = null;
+        }
+        return variation;
+      });
     }
     
     // Generate and update Product Schema (JSON-LD)

@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,16 +30,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string; reviewId: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { productReviews } = await getCollections();
+      const { productReviews } = await getCollections();
     const { reviewId } = params;
     
     if (!ObjectId.isValid(reviewId)) {
@@ -69,23 +63,17 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:read'); // Review GET requires read permission
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string; reviewId: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { productReviews } = await getCollections();
+      const { productReviews } = await getCollections();
     const { reviewId } = params;
     const body = await request.json();
     
@@ -152,23 +140,17 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:update'); // Review PUT requires update permission
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string; reviewId: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { productReviews } = await getCollections();
+      const { productReviews } = await getCollections();
     const { reviewId } = params;
     
     if (!ObjectId.isValid(reviewId)) {
@@ -206,6 +188,7 @@ export async function DELETE(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:delete'); // Review DELETE requires delete permission
 }
 

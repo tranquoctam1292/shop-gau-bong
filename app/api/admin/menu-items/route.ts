@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { Permission } from '@/types/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,17 +28,10 @@ const menuItemSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus, menuItems } = await getCollections();
-    const body = await request.json();
+      const { menus, menuItems } = await getCollections();
+      const body = await req.json();
     
     // Validate input
     const validatedData = menuItemSchema.parse(body);
@@ -138,7 +133,7 @@ export async function POST(request: NextRequest) {
     // Clear cache for the menu's location
     if (menu.location) {
       try {
-        await fetch(`${request.nextUrl.origin}/api/cms/menus/location/${menu.location}`, {
+        await fetch(`${req.nextUrl.origin}/api/cms/menus/location/${menu.location}`, {
           method: 'GET',
           headers: {
             'Cache-Control': 'no-cache',
@@ -186,7 +181,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:update' as Permission); // Menu items POST requires menu update permission
 }
 
 /**

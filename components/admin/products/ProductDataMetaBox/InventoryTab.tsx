@@ -7,11 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { Package, AlertCircle, CheckCircle2, Info, Loader2 } from 'lucide-react';
 import type { ProductDataMetaBoxState } from './ProductDataMetaBox';
+import { SkuAutoGenerateButton } from '@/components/admin/products/SkuAutoGenerateButton';
 
 interface InventoryTabProps {
   state: ProductDataMetaBoxState;
   onUpdate: (updates: Partial<ProductDataMetaBoxState>) => void;
   productId?: string; // For SKU validation (exclude current product)
+  productName?: string; // For SKU auto-generation
+  categoryId?: string; // For SKU auto-generation
 }
 
 /**
@@ -23,7 +26,7 @@ interface InventoryTabProps {
  * - Allow Backorders dropdown
  * - Sold Individually checkbox
  */
-export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) {
+export function InventoryTab({ state, onUpdate, productId, productName, categoryId }: InventoryTabProps) {
   const [skuValue, setSkuValue] = useState(state.sku || '');
   const [skuValidating, setSkuValidating] = useState(false);
   const [skuError, setSkuError] = useState<string | null>(null);
@@ -58,7 +61,10 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
         // Call API to validate SKU uniqueness
         const response = await fetch(
           `/api/admin/products/validate-sku?sku=${encodeURIComponent(skuValue)}${productId ? `&excludeId=${productId}` : ''}`,
-          { method: 'POST' }
+          { 
+            method: 'POST',
+            credentials: 'include', // Include credentials for authentication
+          }
         );
         
         const data = await response.json();
@@ -68,7 +74,12 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
           setSkuError(null);
         } else {
           setSkuValid(false);
-          setSkuError(data.error || 'SKU đã tồn tại trong hệ thống');
+          // Handle authentication errors with user-friendly message
+          if (response.status === 401) {
+            setSkuError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.');
+          } else {
+            setSkuError(data.error || 'SKU đã tồn tại trong hệ thống');
+          }
         }
       } catch (error) {
         console.error('Error validating SKU:', error);
@@ -118,27 +129,40 @@ export function InventoryTab({ state, onUpdate, productId }: InventoryTabProps) 
           Mã sản phẩm (SKU)
           <span className="text-xs text-muted-foreground font-normal">(Tùy chọn)</span>
         </Label>
-        <div className="relative">
-          <Input
-            id="sku"
-            type="text"
-            placeholder="VD: PROD-001"
-            value={skuValue}
-            onChange={(e) => {
-              const newValue = e.target.value;
-              setSkuValue(newValue);
-              onUpdate({ sku: newValue || undefined });
-            }}
-            className={`pr-10 ${skuError ? 'border-red-500' : skuValid ? 'border-green-500' : ''}`}
-          />
-          {skuValidating && (
-            <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-          )}
-          {!skuValidating && skuValid && (
-            <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-600" />
-          )}
-          {!skuValidating && skuError && (
-            <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-600" />
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <Input
+              id="sku"
+              type="text"
+              placeholder="VD: PROD-001"
+              value={skuValue}
+              onChange={(e) => {
+                const newValue = e.target.value;
+                setSkuValue(newValue);
+                onUpdate({ sku: newValue || undefined });
+              }}
+              className={`pr-10 ${skuError ? 'border-red-500' : skuValid ? 'border-green-500' : ''}`}
+            />
+            {skuValidating && (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+            )}
+            {!skuValidating && skuValid && (
+              <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-600" />
+            )}
+            {!skuValidating && skuError && (
+              <AlertCircle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-red-600" />
+            )}
+          </div>
+          {productName && (
+            <SkuAutoGenerateButton
+              productName={productName}
+              categoryId={categoryId}
+              onSkuGenerated={(sku) => {
+                setSkuValue(sku);
+                onUpdate({ sku });
+              }}
+              excludeProductId={productId}
+            />
           )}
         </div>
         {skuError && (

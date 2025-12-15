@@ -11,6 +11,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
 import { resolveMenuItemLink } from '@/lib/utils/menuUtils';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { Permission } from '@/types/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -64,18 +66,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus, menuItems } = await getCollections();
-    const { id } = params;
-    const searchParams = request.nextUrl.searchParams;
+      const { menus, menuItems } = await getCollections();
+      const { id } = params;
+      const searchParams = req.nextUrl.searchParams;
     const format = searchParams.get('format') || 'tree'; // 'tree' | 'flat'
     
     if (!ObjectId.isValid(id)) {
@@ -180,25 +175,19 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:read' as Permission); // Menu GET requires read permission
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus } = await getCollections();
-    const { id } = params;
-    const body = await request.json();
+      const { menus } = await getCollections();
+      const { id } = params;
+      const body = await req.json();
     
     if (!ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid menu ID' }, { status: 400 });
@@ -342,23 +331,17 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:update' as Permission); // Menu PUT requires update permission
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus, menuItems } = await getCollections();
+      const { menus, menuItems } = await getCollections();
     const { id } = params;
     
     if (!ObjectId.isValid(id)) {
@@ -409,6 +392,7 @@ export async function DELETE(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:delete' as Permission); // Menu DELETE requires delete permission
 }
 

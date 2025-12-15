@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections } from '@/lib/db';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,16 +17,9 @@ const TRASH_RETENTION_DAYS = 30;
 const TRASH_RETENTION_MS = TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { products } = await getCollections();
+      const { products } = await getCollections();
     const now = new Date();
     const cutoffDate = new Date(now.getTime() - TRASH_RETENTION_MS);
 
@@ -85,6 +79,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:delete');
 }
 

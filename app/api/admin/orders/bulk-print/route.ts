@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,16 +18,9 @@ const bulkPrintSchema = z.object({
 });
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const body = await request.json();
+      const body = await req.json();
     const validatedData = bulkPrintSchema.parse(body);
 
     const { orders, orderItems } = await getCollections();
@@ -211,6 +205,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:read'); // Bulk print requires read permission
 }
 

@@ -82,6 +82,67 @@ export interface MongoVariant {
   stockQuantity?: number;
   image?: string;
   sku?: string;
+  sku_normalized?: string; // NEW: Normalized SKU for duplicate checking
+}
+
+/**
+ * Smart SKU System Types
+ */
+
+/**
+ * SKU Settings Document
+ * Stores SKU generation patterns (global or category-specific)
+ */
+export interface SkuSetting {
+  _id?: any; // ObjectId
+  categoryId?: string | null; // null = global pattern, ObjectId = category-specific
+  pattern: string; // e.g., "{CATEGORY_CODE}-{PRODUCT_NAME}-{ATTRIBUTE_VALUE}-{INCREMENT}"
+  separator: string; // Default: "-"
+  caseType: 'UPPER' | 'LOWER'; // Default: 'UPPER'
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * SKU Abbreviation Document
+ * Stores abbreviation mappings for attributes (colors, sizes, materials, etc.)
+ * Note: Category codes are stored in categories.code field, not here
+ */
+export interface SkuAbbreviation {
+  _id?: any; // ObjectId
+  type: 'ATTRIBUTE'; // Only ATTRIBUTE (Category code in categories.code)
+  originalValue: string; // e.g., "Màu Đỏ", "Xanh Dương", "Size L"
+  shortCode: string; // e.g., "DO", "XD", "L"
+  categoryId?: string | null; // Optional: category-specific mapping
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * SKU Counter Document
+ * Atomic sequence counter for {INCREMENT} token
+ */
+export interface SkuCounter {
+  _id?: any; // ObjectId
+  key: string; // e.g., "CAT-ATTR-2025" (base SKU without increment)
+  sequence: number; // Current sequence number
+  updatedAt: Date;
+}
+
+/**
+ * SKU History Document
+ * Audit log for SKU changes (for order lookup, SEO redirect, debugging)
+ */
+export interface SkuHistory {
+  _id?: any; // ObjectId
+  productId: string; // Product ObjectId
+  variantId?: string; // Variant ID (if variant SKU changed)
+  oldSku: string; // Previous SKU
+  newSku: string; // New SKU
+  patternUsed?: string; // Pattern used to generate new SKU (for debugging)
+  reason: 'regenerate' | 'manual' | 'bulk_import'; // Reason for change
+  changedBy?: string; // Admin user ID
+  changedAt: Date;
 }
 
 /**

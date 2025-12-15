@@ -138,12 +138,26 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Window Object:** Never access `window`/`document` in Server Components.
 - **Dates:** Format dates on client side to prevent server/client mismatch.
 
-## 3. Shipping Calculation Logic (Error Proof)
+## 3. Server/Client Code Separation (CRITICAL)
+- **Never import server-only code into client components:**
+  - *Bad:* Client component importing from `lib/utils/skuGenerator.ts` which imports `lib/db.ts` (MongoDB)
+  - *Good:* Extract pure utility functions (like `validateVariantUniqueness`) into separate files that don't import MongoDB/db code
+- **Server-only modules (DO NOT import into 'use client' components):**
+  - `lib/db.ts` (MongoDB connection)
+  - Any file importing `lib/db.ts` or MongoDB directly
+  - Node.js built-in modules (`net`, `fs`, `path`, etc.)
+- **Solution:** If a utility function needs to work in both server and client:
+  1. Split pure functions (no DB/Node.js dependencies) into separate files (e.g., `lib/utils/skuValidator.ts`)
+  2. Keep server-only functions in files that clearly indicate server-only usage
+  3. Use Next.js API routes for server-side operations that need DB access
+- **Build Error Prevention:** Always check import chain when adding imports to client components. If any file in the chain imports MongoDB or Node.js modules, extract or refactor.
+
+## 4. Shipping Calculation Logic (Error Proof)
 - **Formula:** `Volumetric Weight = (L * W * H) / 6000`.
 - **Safety Check:** Ensure L, W, H are converted to Numbers.
 - **Logic:** `Final Weight = Math.max(Number(actualWeight) || 0, Number(volumetricWeight) || 0)`.
 
-## 4. Code Quality & Debugging
+## 5. Code Quality & Debugging
 - **NO console.log in production:** Remove all debug console.log statements before committing.
 - **State Management:** Use separate state variables for mobile and desktop when components render conditionally (e.g., `lg:hidden` vs `hidden lg:block`).
 - **Popover State:** When using Radix UI Popover with React Portals, ensure conditional rendering sections (mobile/desktop) use separate state variables to prevent duplicate PopoverContent rendering.
@@ -162,7 +176,7 @@ Before implementing any feature, you MUST reference the following sources based 
   - **Image Alt Text:** Always provide alt text for SEO. Use `mediaExtended.imageAltTexts` object to store alt texts by image ID
   - **HTML Display:** When displaying product names or descriptions in admin lists/tables, use `stripHtmlTags()` from `lib/utils/sanitizeHtml.ts` to remove HTML tags and display plain text only (prevents raw HTML tags like `<p></p>` from appearing)
 
-## 5. TypeScript Type Safety Rules (CRITICAL)
+## 6. TypeScript Type Safety Rules (CRITICAL)
 - **NO implicit any types:** Always add explicit type annotations for callback parameters in map/filter/reduce operations.
   - *Bad:* `.map((v) => v.price)` or `.filter((item) => item.active)`
   - *Good:* `.map((v: { price: number }) => v.price)` or `.filter((item: Product) => item.active)`
@@ -187,7 +201,7 @@ Before implementing any feature, you MUST reference the following sources based 
 - **WooCommerceProduct interface:** Always include optional date fields when extending WooCommerceProduct.
   - *Good:* `date_created?: string; date_modified?: string;` in interface
 
-## 6. Radix UI Component Usage Rules (CRITICAL)
+## 7. Radix UI Component Usage Rules (CRITICAL)
 - **Select Component:** NEVER use Radix UI `Select` like native HTML `<select>`. Always use proper Radix API.
   - *Bad:* 
     ```tsx
@@ -213,7 +227,7 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Select empty value:** Radix Select does NOT allow empty string (`""`) as value. Use special placeholder value like `"__none__"` and convert to `undefined` when updating state.
   - *Good:* `<SelectItem value="__none__">Không có</SelectItem>` then `onValueChange={(val) => setValue(val === '__none__' ? undefined : val)}`
 
-## 7. Cron Jobs & Deployment Rules
+## 8. Cron Jobs & Deployment Rules
 - **Vercel Cron Jobs Limit:** Free/Pro plans have limits (typically 2 cron jobs per team). Check before adding new cron jobs.
 - **Alternative to Vercel Cron:** Use external services (cron-job.org, EasyCron) or GitHub Actions for scheduled tasks.
 - **Combining cron jobs:** If hitting limits, create a single route that calls multiple tasks: `/api/admin/cron/all-tasks`
@@ -282,3 +296,100 @@ Before implementing any feature, you MUST reference the following sources based 
   ```
 - **What it does:** Collects all `.tsx`, `.ts`, `.js`, `.css`, and `package.json` files (excluding `node_modules`, `.next`, `.git`) and combines them into `full_code_context.txt` with file headers.
 - **After execution:** Confirm file creation with size and location.
+
+# TERMINAL COMMAND RULES (CRITICAL)
+## force-script-for-complex-io
+- **Rule Name:** `force-script-for-complex-io`
+- **Purpose:** Prevent "Connection Error: Connection failed" in Cursor's integrated terminal when executing complex PowerShell commands with I/O redirection and piping.
+- **When to Apply:** When a command contains complex I/O operations:
+  - Piping operators: `|`
+  - Redirection operators: `>`, `>>`, `2>&1`
+  - Multiple chained commands with cmdlets like `Select-String`, `Select-Object`, `Where-Object`, etc.
+  - Commands that create multiple child processes
+- **Action Required:**
+  1. **DO NOT** execute the command directly in the terminal
+  2. **INSTEAD:** Wrap the entire command in a temporary PowerShell script file (`.ps1`)
+  3. **THEN:** Execute only the script file (e.g., `.\temp-script.ps1` or `powershell -File temp-script.ps1`)
+  4. **CLEANUP:** Optionally remove the temporary script after execution if it's truly temporary
+- **Example:**
+  - *Bad:* `npm run type-check 2>&1 | Select-String -Pattern "error" | Select-Object -First 5`
+  - *Good:* Create `temp-check-errors.ps1`:
+    ```powershell
+    npm run type-check 2>&1 | Select-String -Pattern "error" | Select-Object -First 5
+    ```
+    Then execute: `.\temp-check-errors.ps1`
+- **Rationale:** Terminal integration only needs to track a single process (the script executor) instead of managing complex pipelines with multiple child processes, preventing connection failures.
+
+## 8. API Authentication & Fetch Rules (CRITICAL)
+- **API Route Authentication:** Always use `withAuthAdmin` middleware for admin API routes. NEVER use deprecated `requireAdmin()` function.
+  - *Bad:* 
+    ```typescript
+    export async function POST(request: NextRequest) {
+      const { requireAdmin } = await import('@/lib/auth');
+      try {
+        await requireAdmin();
+      } catch {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      // handler code...
+    }
+    ```
+  - *Good:*
+    ```typescript
+    import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+    export async function POST(request: NextRequest) {
+      return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+        // req.adminUser is guaranteed to be available here
+        // handler code...
+      });
+    }
+    ```
+  - **Why:** `withAuthAdmin` provides comprehensive authentication checks (session, token version, user active status, permissions) while `requireAdmin()` is deprecated and only does basic checks.
+- **Client-Side Fetch Calls:** Always include `credentials: 'include'` in fetch calls to admin APIs from client components.
+  - *Bad:* `fetch('/api/admin/products/validate-sku?sku=...', { method: 'POST' })`
+  - *Good:* `fetch('/api/admin/products/validate-sku?sku=...', { method: 'POST', credentials: 'include' })`
+  - **Why:** Ensures authentication cookies are sent with the request, preventing 401 Unauthorized errors.
+- **Error Handling in Fetch:** Always check `response.ok` before parsing JSON response to handle authentication errors properly.
+  - *Bad:*
+    ```typescript
+    const response = await fetch('/api/admin/...');
+    const data = await response.json();
+    if (data.exists) { ... }
+    ```
+  - *Good:*
+    ```typescript
+    const response = await fetch('/api/admin/...', { credentials: 'include' });
+    if (!response.ok) {
+      // Handle error (401, 403, etc.)
+      return;
+    }
+    const data = await response.json();
+    if (data.exists) { ... }
+    ```
+  - **Why:** Prevents trying to parse error responses as JSON and provides proper error handling for authentication failures.
+
+## 9. Rules Refresh & Consistency (CRITICAL)
+- **Rule Name:** `refresh-rules-pre-task`
+- **Purpose:** Ensure AI always operates with the most up-to-date rules and avoid behavioral errors (such as terminal connection failures due to complex piping). This rule ensures that all new or modified rules are applied from the very beginning of any task.
+- **When to Apply:** BEFORE starting ANY task, work item, or response to the user, including:
+  - Bug fixes
+  - Code refactoring
+  - Feature implementation
+  - Terminal command execution
+  - File modifications
+  - Any other coding or administrative tasks
+- **Action Required:**
+  1. **ALWAYS** read/re-read the `.cursorrules` file BEFORE starting a task
+  2. **PREFER** reading the entire file to ensure all rules are fresh in context
+  3. **IF** the file is very large (>500 lines), at minimum read the sections relevant to the current task type
+  4. **ENSURE** any new rules or rule modifications are immediately applied to the current task
+- **Rationale:** 
+  - Maintains consistency across all AI interactions
+  - Prevents outdated rule application
+  - Ensures new rules (like `force-script-for-complex-io`) are immediately effective from the start
+  - Reduces risk of behavioral errors from stale rule context
+  - Particularly useful when users add new rules, as they will be applied from the beginning of the next task
+- **Implementation:**
+  - Before starting any task, use `read_file` tool to refresh `.cursorrules` context
+  - Pay special attention to recently added rules (check file modification time or recent changes)
+  - If multiple tasks are completed in sequence, refresh rules before each new task

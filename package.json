@@ -29,6 +29,7 @@
     "migrate:wordpress-to-mongodb": "tsx scripts/migrate-wordpress-to-mongodb.ts",
     "migrate:verify": "tsx scripts/verify-migration.ts",
     "migrate:categories": "tsx scripts/migrate-categories-schema.ts",
+    "migrate:category-codes": "tsx scripts/migrate-category-codes.ts",
     "migrate:orders-schema": "tsx scripts/migrate-orders-schema.ts",
     "migrate:users-to-admin-users": "tsx scripts/migrate-users-to-admin-users.ts",
     "create:admin-user": "tsx scripts/create-admin-user.ts",
@@ -38,6 +39,9 @@
     "import:woocommerce": "tsx scripts/import-products-from-woocommerce.ts",
     "test:product-management": "tsx scripts/test-product-management.ts",
     "test:menu-phase5": "tsx scripts/test-menu-phase5.ts",
+    "test:smart-sku-phase1": "tsx scripts/test-smart-sku-phase1.ts",
+    "test:smart-sku-api": "tsx scripts/test-smart-sku-api.ts",
+    "test:smart-sku-phase5": "tsx scripts/test-smart-sku-phase5.ts",
     "generate:nextauth-secret": "node scripts/generate-nextauth-secret.js"
   },
   "dependencies": {

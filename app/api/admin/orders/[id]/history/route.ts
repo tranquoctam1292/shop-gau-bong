@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { getOrderHistory } from '@/lib/services/orderHistory';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,16 +16,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { orders } = await getCollections();
+      const { orders } = await getCollections();
     const { id } = params;
 
     // Find order by ObjectId or orderNumber
@@ -65,6 +59,7 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:read'); // Order history requires read permission
 }
 

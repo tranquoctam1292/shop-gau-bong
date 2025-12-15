@@ -68,9 +68,6 @@ export function ProductCard({ product }: ProductCardProps) {
     }
   );
   
-  // Lấy ảnh hiển thị (ưu tiên ảnh biến thể nếu có logic chọn màu, hiện tại dùng ảnh chính)
-  const imageUrl = product?.image?.sourceUrl || '/images/teddy-placeholder.png';
-  
   // Auto-select smallest size (lowest price) when variations load
   const smallestSize = useSmallestSizeByPrice(variations);
   
@@ -83,6 +80,16 @@ export function ProductCard({ product }: ProductCardProps) {
   
   // Use custom hook to find matching variation (replaces duplicate logic)
   const selectedVariation = useVariationMatcher(variations, selectedSize, selectedColor);
+  
+  // Lấy ảnh hiển thị: ưu tiên ảnh biến thể nếu có, nếu không thì dùng ảnh chính
+  const imageUrl = useMemo(() => {
+    // Nếu có selectedVariation và variation có ảnh, dùng ảnh variation
+    if (selectedVariation?.image) {
+      return selectedVariation.image;
+    }
+    // Fallback về ảnh chính của sản phẩm
+    return product?.image?.sourceUrl || '/images/teddy-placeholder.png';
+  }, [selectedVariation, product?.image?.sourceUrl]);
   
   // Use custom hook for pricing logic (replaces ~60 lines of duplicate code)
   const { displayPrice, displayRegularPrice, isOnSale, priceRange } = useProductPrice(product, selectedVariation);

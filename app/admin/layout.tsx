@@ -31,6 +31,7 @@ import {
   Image,
   Users,
   Shield,
+  Hash,
 } from 'lucide-react';
 import { AdminRole } from '@/types/admin';
 
@@ -55,17 +56,28 @@ function AdminLayoutContent({
   // Check if menus path
   const isMenusPath = pathname.startsWith('/admin/menus');
   
+  // Check if settings submenu should be expanded
+  const isSettingsPath = pathname.startsWith('/admin/settings');
+  
   // IMPORTANT: All hooks must be called before any conditional returns
   const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
-    new Set(isProductsPath ? ['products'] : [])
+    new Set(
+      [
+        ...(isProductsPath ? ['/admin/products'] : []),
+        ...(isSettingsPath ? ['/admin/settings'] : []),
+      ]
+    )
   );
 
   // Auto-expand menu if on submenu page
   useEffect(() => {
-    if (isProductsPath && !expandedMenus.has('products')) {
-      setExpandedMenus((prev) => new Set(prev).add('products'));
+    if (isProductsPath && !expandedMenus.has('/admin/products')) {
+      setExpandedMenus((prev) => new Set(prev).add('/admin/products'));
     }
-  }, [pathname, isProductsPath, expandedMenus]);
+    if (isSettingsPath && !expandedMenus.has('/admin/settings')) {
+      setExpandedMenus((prev) => new Set(prev).add('/admin/settings'));
+    }
+  }, [pathname, isProductsPath, isSettingsPath, expandedMenus]);
 
   useEffect(() => {
     // Only redirect if we're sure the user is not authenticated
@@ -173,9 +185,13 @@ function AdminLayoutContent({
         ]
       : []),
     {
-      href: '/admin/settings/security',
-      label: 'Bảo mật',
+      href: '/admin/settings',
+      label: 'Cài đặt',
       icon: Shield,
+      submenu: [
+        { href: '/admin/settings/security', label: 'Bảo mật', icon: Shield },
+        { href: '/admin/settings/sku', label: 'Cài đặt SKU', icon: Hash },
+      ],
     },
   ];
 

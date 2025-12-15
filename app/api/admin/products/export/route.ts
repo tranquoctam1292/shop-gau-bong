@@ -7,20 +7,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections } from '@/lib/db';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const searchParams = request.nextUrl.searchParams;
+      const searchParams = req.nextUrl.searchParams;
     const format = searchParams.get('format') || 'json'; // json, csv, excel
     const category = searchParams.get('category');
     const status = searchParams.get('status');
@@ -119,6 +113,7 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:read'); // Export only requires read permission
 }
 

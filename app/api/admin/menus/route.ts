@@ -9,6 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { Permission } from '@/types/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,17 +22,10 @@ const menuSchema = z.object({
 });
 
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus, menuItems } = await getCollections();
-    const searchParams = request.nextUrl.searchParams;
+      const { menus, menuItems } = await getCollections();
+      const searchParams = req.nextUrl.searchParams;
     
     // Filter parameters
     const location = searchParams.get('location');
@@ -115,21 +110,15 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:read' as Permission); // Menus GET requires read permission
 }
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus } = await getCollections();
-    const body = await request.json();
+      const { menus } = await getCollections();
+      const body = await req.json();
     
     // Validate input
     const validatedData = menuSchema.parse(body);
@@ -219,6 +208,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:update' as Permission); // Menus POST requires update permission
 }
 

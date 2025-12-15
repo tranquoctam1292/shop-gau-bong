@@ -10,7 +10,7 @@
 // Load environment variables (for scripts)
 if (typeof window === 'undefined' && !process.env.MONGODB_URI) {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    // @ts-ignore - dotenv is optional dependency
     require('dotenv').config({ path: require('path').resolve(process.cwd(), '.env.local') });
   } catch {
     // dotenv not available or .env.local not found - will check later
@@ -147,6 +147,11 @@ export interface Collections {
   adminUsers: Collection;
   adminActivityLogs: Collection;
   rateLimits: Collection;
+  // Smart SKU System
+  skuSettings: Collection;
+  skuAbbreviations: Collection;
+  skuCounters: Collection;
+  skuHistory: Collection;
 }
 
 /**
@@ -198,6 +203,11 @@ export async function getCollections(): Promise<Collections> {
     adminActivityLogs: db.collection('admin_activity_logs'),
     // Rate Limiting (for serverless environments)
     rateLimits: db.collection('rate_limits'),
+    // Smart SKU System
+    skuSettings: db.collection('sku_settings'),
+    skuAbbreviations: db.collection('sku_abbreviations'),
+    skuCounters: db.collection('sku_counters'),
+    skuHistory: db.collection('sku_history'),
   };
 }
 

@@ -30,6 +30,11 @@ export interface Variation {
 interface VariationTableProps {
   variations: Variation[];
   onVariationsChange: (variations: Variation[]) => void;
+  productName?: string; // For SKU auto-generation
+  categoryId?: string; // For SKU auto-generation
+  autoGenerateSku?: boolean; // Auto-generate SKU enabled
+  previewSkus?: Record<string, string>; // Preview SKUs for live preview
+  hasIncrementToken?: boolean; // Pattern has {INCREMENT} token
 }
 
 /**
@@ -42,7 +47,15 @@ interface VariationTableProps {
  * - Bulk actions (Delete selected)
  * - Image upload per variation
  */
-export function VariationTable({ variations, onVariationsChange }: VariationTableProps) {
+export function VariationTable({
+  variations,
+  onVariationsChange,
+  productName,
+  categoryId,
+  autoGenerateSku = false,
+  previewSkus = {},
+  hasIncrementToken = false,
+}: VariationTableProps) {
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -356,11 +369,25 @@ export function VariationTable({ variations, onVariationsChange }: VariationTabl
                       className="h-8 text-xs"
                     />
                   ) : (
-                    <div
-                      onClick={() => handleCellClick(variation.id, 'sku', variation.sku)}
-                      className="px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center"
-                    >
-                      {variation.sku || <span className="text-muted-foreground">Click để nhập</span>}
+                    <div className="space-y-1">
+                      <div
+                        onClick={() => handleCellClick(variation.id, 'sku', variation.sku)}
+                        className="px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center"
+                      >
+                        {variation.sku || <span className="text-muted-foreground">Click để nhập</span>}
+                      </div>
+                      {/* Live Preview */}
+                      {autoGenerateSku && !variation.sku && previewSkus[variation.id] && (
+                        <div className="text-xs text-muted-foreground italic px-2">
+                          {hasIncrementToken && previewSkus[variation.id].includes('###') ? (
+                            <span title="Số thứ tự thực tế sẽ được gán khi lưu sản phẩm">
+                              {previewSkus[variation.id]}
+                            </span>
+                          ) : (
+                            <span>Preview: {previewSkus[variation.id]}</span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </TableCell>

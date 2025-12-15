@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections } from '@/lib/db';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,16 +15,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { email: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { orders } = await getCollections();
+      const { orders } = await getCollections();
     const email = decodeURIComponent(params.email);
 
     if (!email) {
@@ -82,6 +76,7 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:read'); // Customer stats requires order read permission
 }
 

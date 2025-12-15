@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useProductREST } from '@/lib/hooks/useProductREST';
 import { RelatedProducts } from '@/components/product/RelatedProducts';
@@ -14,6 +15,7 @@ import { ProductPromotions } from '@/components/product/ProductPromotions';
 export default function ProductPage() {
   const params = useParams();
   const slug = params.slug as string;
+  const [selectedVariationImage, setSelectedVariationImage] = useState<string | undefined>(undefined);
 
   const { product, loading, error } = useProductREST(slug, 'slug');
 
@@ -93,6 +95,7 @@ export default function ProductPage() {
               altText: img?.altText || product.name
             }))}
             productName={product.name}
+            selectedVariationImage={selectedVariationImage}
           />
         </div>
 
@@ -100,7 +103,10 @@ export default function ProductPage() {
         <div className="order-2 lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
           <div className="space-y-6">
             {/* ProductInfo */}
-            <ProductInfo product={product} />
+            <ProductInfo 
+              product={product} 
+              onVariationChange={(variationImage) => setSelectedVariationImage(variationImage)}
+            />
             
             {/* QuickOrderBox */}
             {product.databaseId && (

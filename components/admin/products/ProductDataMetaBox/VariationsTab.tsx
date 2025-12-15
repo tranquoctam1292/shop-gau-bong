@@ -1,17 +1,22 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RefreshCw, Plus, AlertTriangle } from 'lucide-react';
 import type { ProductDataMetaBoxState } from './ProductDataMetaBox';
 import { VariationTable } from './VariationTable';
 import { VariationsBulkEditToolbar } from './VariationsBulkEditToolbar';
 import { VariationImageMapper } from './VariationImageMapper';
+import { VariantSkuGenerator } from '@/components/admin/products/VariantSkuGenerator';
+import { validateVariantUniqueness } from '@/lib/utils/skuValidator';
+import { useToastContext } from '@/components/providers/ToastProvider';
 import type { Variation } from './VariationTable';
 
 interface VariationsTabProps {
   state: ProductDataMetaBoxState;
   onUpdate: (updates: Partial<ProductDataMetaBoxState>) => void;
+  productName?: string; // For SKU auto-generation
+  categoryId?: string; // For SKU auto-generation
 }
 
 /**
@@ -22,8 +27,13 @@ interface VariationsTabProps {
  * - Variation Image Upload
  * - Performance optimization
  */
-export function VariationsTab({ state, onUpdate }: VariationsTabProps) {
+export function VariationsTab({ state, onUpdate, productName, categoryId }: VariationsTabProps) {
+  const { showToast } = useToastContext();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [autoGenerateSku, setAutoGenerateSku] = useState(false);
+  const [previewSkus, setPreviewSkus] = useState<Record<string, string>>({});
+  const [hasIncrementToken, setHasIncrementToken] = useState(false);
+  const [variantValidationErrors, setVariantValidationErrors] = useState<string[]>([]);
 
   // Get attributes that are used for variations
   const variationAttributes = useMemo(() => {
@@ -113,14 +123,41 @@ export function VariationsTab({ state, onUpdate }: VariationsTabProps) {
         return variationData;
       });
 
+      // Validate variant uniqueness before updating
+      const validation = validateVariantUniqueness(newVariations);
+      if (!validation.isValid) {
+        setVariantValidationErrors(validation.errors);
+        showToast('Có biến thể trùng lặp. Vui lòng kiểm tra lại.', 'error');
+        return;
+      }
+      
+      setVariantValidationErrors([]);
       onUpdate({ variations: newVariations });
     } catch (error) {
       console.error('Error generating variations:', error);
-      alert('Có lỗi xảy ra khi tạo biến thể. Vui lòng thử lại.');
+      showToast('Có lỗi xảy ra khi tạo biến thể. Vui lòng thử lại.', 'error');
     } finally {
       setIsGenerating(false);
     }
   };
+
+  // Validate variants whenever they change
+  useEffect(() => {
+    if (state.variations.length === 0) {
+      setVariantValidationErrors([]);
+      return;
+    }
+
+    const validation = validateVariantUniqueness(
+      state.variations.map((v) => ({
+        attributes: v.attributes,
+        size: v.attributes?.Size || v.attributes?.size,
+        color: v.attributes?.Color || v.attributes?.color,
+      }))
+    );
+
+    setVariantValidationErrors(validation.errors);
+  }, [state.variations]);
 
   // Empty state
   if (!canGenerateVariations) {
@@ -258,10 +295,87 @@ export function VariationsTab({ state, onUpdate }: VariationsTabProps) {
               }}
             />
 
+            {/* Variant Validation Errors */}
+            {variantValidationErrors.length > 0 && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                      Có biến thể trùng lặp
+                    </p>
+                    <ul className="text-xs text-red-700 dark:text-red-300 space-y-1">
+                      {variantValidationErrors.map((error, idx) => (
+                        <li key={idx}>• {error}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-2">
+                      Không thể tạo 2 biến thể có cùng thuộc tính (Size, Màu, ...)
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Variant SKU Generator */}
+            {productName && (
+              <VariantSkuGenerator
+                variations={state.variations}
+                productName={productName}
+                categoryId={categoryId}
+                onVariationsChange={(variations) => {
+                  // Validate before updating
+                  const validation = validateVariantUniqueness(
+                    variations.map((v) => ({
+                      attributes: v.attributes,
+                      size: v.attributes?.Size || v.attributes?.size,
+                      color: v.attributes?.Color || v.attributes?.color,
+                    }))
+                  );
+                  
+                  if (!validation.isValid) {
+                    setVariantValidationErrors(validation.errors);
+                    showToast('Có biến thể trùng lặp. Vui lòng kiểm tra lại.', 'error');
+                    return;
+                  }
+                  
+                  setVariantValidationErrors([]);
+                  onUpdate({ variations });
+                }}
+                autoGenerateEnabled={autoGenerateSku}
+                onAutoGenerateChange={setAutoGenerateSku}
+                onPreviewSkusChange={setPreviewSkus}
+                onHasIncrementTokenChange={setHasIncrementToken}
+              />
+            )}
+
             {/* Variations Table */}
             <VariationTable
               variations={state.variations}
-              onVariationsChange={(variations) => onUpdate({ variations })}
+              onVariationsChange={(variations) => {
+                // Validate before updating
+                const validation = validateVariantUniqueness(
+                  variations.map((v) => ({
+                    attributes: v.attributes,
+                    size: v.attributes?.Size || v.attributes?.size,
+                    color: v.attributes?.Color || v.attributes?.color,
+                  }))
+                );
+                
+                if (!validation.isValid) {
+                  setVariantValidationErrors(validation.errors);
+                  showToast('Có biến thể trùng lặp. Vui lòng kiểm tra lại.', 'error');
+                  return;
+                }
+                
+                setVariantValidationErrors([]);
+                onUpdate({ variations });
+              }}
+              productName={productName}
+              categoryId={categoryId}
+              autoGenerateSku={autoGenerateSku}
+              previewSkus={previewSkus}
+              hasIncrementToken={hasIncrementToken}
             />
           </div>
         ) : (

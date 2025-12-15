@@ -7,6 +7,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { Permission } from '@/types/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,16 +16,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus, menuItems } = await getCollections();
+      const { menus, menuItems } = await getCollections();
     const { id } = params;
     
     if (!ObjectId.isValid(id)) {
@@ -77,7 +72,7 @@ export async function POST(
     const menu = await menus.findOne({ _id: item.menuId });
     if (menu?.location) {
       try {
-        await fetch(`${request.nextUrl.origin}/api/cms/menus/location/${menu.location}`, {
+        await fetch(`${req.nextUrl.origin}/api/cms/menus/location/${menu.location}`, {
           method: 'GET',
           headers: {
             'Cache-Control': 'no-cache',
@@ -129,6 +124,7 @@ export async function POST(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:update' as Permission); // Menu item duplicate requires menu update permission
 }
 

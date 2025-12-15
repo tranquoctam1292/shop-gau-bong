@@ -68,7 +68,7 @@ export function Header() {
               </span>
               <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold hidden md:block">
                 Soft & Cute
-              </span>
+            </span>
             </div>
           </Link>
 
@@ -82,8 +82,8 @@ export function Header() {
           {/* Actions */}
           <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
             {/* Mobile Search */}
-            <button 
-              onClick={() => setIsSearchModalOpen(true)} 
+            <button
+              onClick={() => setIsSearchModalOpen(true)}
               className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'md:hidden text-text-main')}
               aria-label="Tìm kiếm"
             >

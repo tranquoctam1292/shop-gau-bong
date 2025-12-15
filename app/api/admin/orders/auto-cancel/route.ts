@@ -13,6 +13,7 @@ import {
   createHistoryEntry,
   createCancellationHistory,
 } from '@/lib/services/orderHistory';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,16 +22,9 @@ const QR_PAYMENT_TIMEOUT = 30 * 60 * 1000; // 30 minutes
 const COD_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
 
 export async function POST(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { orders, orderItems } = await getCollections();
+      const { orders, orderItems } = await getCollections();
     const now = new Date();
 
     // Find pending orders that have timed out
@@ -145,6 +139,7 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:update');
 }
 

@@ -27,8 +27,6 @@ interface PublishBoxProps {
   productId?: string;
   productSlug?: string;
   hasUnsavedChanges?: boolean;
-  onAutosave?: () => void;
-  lastAutosaveTime?: Date | null;
 }
 
 /**
@@ -41,7 +39,6 @@ interface PublishBoxProps {
  * - Primary Action (Đăng/Cập nhật)
  * - Footer (Di chuyển vào thùng rác)
  * - Unsaved Changes Warning
- * - Autosave mỗi 60 giây
  */
 export function PublishBox({
   status,
@@ -62,16 +59,12 @@ export function PublishBox({
   productId,
   productSlug,
   hasUnsavedChanges = false,
-  onAutosave,
-  lastAutosaveTime,
 }: PublishBoxProps) {
   const [showStatusEdit, setShowStatusEdit] = useState(false);
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [scheduleDateTime, setScheduleDateTime] = useState<string>('');
   const [showPasswordInput, setShowPasswordInput] = useState(visibility === 'password');
   const [passwordValue, setPasswordValue] = useState(password);
-  const autosaveIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const [autosaveNotification, setAutosaveNotification] = useState<string | null>(null);
 
   // Status display với icon màu
   const getStatusDisplay = () => {
@@ -105,25 +98,8 @@ export function PublishBox({
     }
   }, [scheduledDate]);
 
-  // Autosave mỗi 60 giây (chỉ khi đã có productId - không tạo sản phẩm mới qua autosave)
-  useEffect(() => {
-    // Only autosave if product already exists (has productId)
-    // This prevents creating duplicate products when user is creating a new product
-    if (onAutosave && hasUnsavedChanges && productId) {
-      autosaveIntervalRef.current = setInterval(() => {
-        onAutosave();
-        const now = new Date();
-        setAutosaveNotification(`Đã lưu nháp lúc ${format(now, 'HH:mm')}`);
-        setTimeout(() => setAutosaveNotification(null), 3000);
-      }, 60000); // 60 seconds
-    }
-
-    return () => {
-      if (autosaveIntervalRef.current) {
-        clearInterval(autosaveIntervalRef.current);
-      }
-    };
-  }, [onAutosave, hasUnsavedChanges, productId]);
+  // Auto-save đã bị loại bỏ - chỉ lưu khi người dùng click button
+  // useEffect cho autosave đã bị loại bỏ
 
   // Unsaved Changes Warning
   useEffect(() => {
@@ -439,21 +415,9 @@ export function PublishBox({
             </p>
           )}
 
-          {/* Last Autosave Time */}
-          {lastAutosaveTime && (
-            <p className="text-xs text-muted-foreground">
-              Đã lưu nháp lúc {format(lastAutosaveTime, 'HH:mm')}
-            </p>
-          )}
         </CardContent>
       </Card>
 
-      {/* Autosave Notification */}
-      {autosaveNotification && (
-        <div className="fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
-          {autosaveNotification}
-        </div>
-      )}
     </>
   );
 }

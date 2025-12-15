@@ -20,6 +20,7 @@ import {
   type ActorType,
 } from '@/lib/services/orderHistory';
 import { handleValidationError } from '@/lib/utils/validation-errors';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,17 +48,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { orders, orderItems } = await getCollections();
-    const { id } = params;
+      const { orders, orderItems } = await getCollections();
+      const { id } = params;
     
     // Find by ObjectId or orderNumber
     let order = null;
@@ -99,25 +93,19 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:read'); // Order GET requires read permission
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { orders } = await getCollections();
-    const { id } = params;
-    const body = await request.json();
+      const { orders } = await getCollections();
+      const { id } = params;
+      const body = await req.json();
     
     // Validate input
     const validatedData = orderUpdateSchema.parse(body);
@@ -146,22 +134,10 @@ export async function PUT(
     }
     
     // Get current admin user for history logging
-    let actorId: string | undefined;
-    let actorName: string | undefined;
-    let actorType: ActorType = 'admin';
-    
-    try {
-      const { getSession } = await import('@/lib/auth');
-      const session = await getSession();
-      if (session?.user) {
-        actorId = (session.user as any).id || session.user.email || undefined;
-        actorName = session.user.name || session.user.email || 'Admin';
-      }
-    } catch {
-      // If session not available, use system as actor
-      actorType = 'system';
-      actorName = 'System';
-    }
+    // req.adminUser is available from withAuthAdmin middleware
+    const actorId: string | undefined = req.adminUser?._id?.toString();
+    const actorName: string | undefined = req.adminUser?.full_name || req.adminUser?.username || 'Admin';
+    const actorType: ActorType = 'admin';
 
     // Validate status transition if status is being changed
     if (validatedData.status && validatedData.status !== order.status) {
@@ -320,6 +296,7 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:update'); // Order PUT requires update permission
 }
 

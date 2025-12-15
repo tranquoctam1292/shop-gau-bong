@@ -10,6 +10,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +26,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { productTemplates } = await getCollections();
+      const { productTemplates } = await getCollections();
     const { id } = params;
     
     if (!ObjectId.isValid(id)) {
@@ -65,25 +59,19 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:read'); // Template GET requires read permission
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { productTemplates } = await getCollections();
+      const { productTemplates } = await getCollections();
     const { id } = params;
-    const body = await request.json();
+    const body = await req.json();
     
     // Validate input
     const validatedData = templateUpdateSchema.parse(body);
@@ -148,24 +136,18 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:update'); // Template PUT requires update permission
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { productTemplates } = await getCollections();
-    const { id } = params;
+      const { productTemplates } = await getCollections();
+      const { id } = params;
     
     if (!ObjectId.isValid(id)) {
       return NextResponse.json(
@@ -202,6 +184,7 @@ export async function DELETE(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:delete'); // Template DELETE requires delete permission
 }
 

@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -46,18 +47,11 @@ export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { products } = await getCollections();
-    let { id } = params;
-    const body = await request.json();
+      const { products } = await getCollections();
+      let { id } = params;
+      const body = await request.json();
 
     // Extract ObjectId from GraphQL format if needed (backward compatibility)
     if (id.startsWith('gid://shop-gau-bong/Product/')) {
@@ -214,5 +208,6 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:update');
 }

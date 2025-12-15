@@ -99,8 +99,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   const [scheduledDate, setScheduledDate] = useState<Date | null>(null);
   const [password, setPassword] = useState<string>('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [lastAutosaveTime, setLastAutosaveTime] = useState<Date | null>(null);
   const [initialFormData, setInitialFormData] = useState<ProductFormData | null>(null);
+  const [previousCategoryId, setPreviousCategoryId] = useState<string | undefined>(undefined);
   const [formData, setFormData] = useState<ProductFormData>({
     name: '',
     slug: '',
@@ -152,7 +152,17 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
         // Check if slug exists
         try {
-          const response = await fetch(`/api/admin/products/validate-slug?slug=${encodeURIComponent(baseSlug)}`);
+          const response = await fetch(
+            `/api/admin/products/validate-slug?slug=${encodeURIComponent(baseSlug)}`,
+            { credentials: 'include' } // Include credentials for authentication
+          );
+          
+          if (!response.ok) {
+            // Authentication error or other error - use base slug (will be validated on submit)
+            setFormData((prev) => ({ ...prev, slug: baseSlug }));
+            return;
+          }
+          
           const data = await response.json();
           
           if (data.exists) {
@@ -165,7 +175,16 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               const suffix = generateShortId();
               uniqueSlug = `${baseSlug}-${suffix}`;
               
-              const checkResponse = await fetch(`/api/admin/products/validate-slug?slug=${encodeURIComponent(uniqueSlug)}`);
+              const checkResponse = await fetch(
+                `/api/admin/products/validate-slug?slug=${encodeURIComponent(uniqueSlug)}`,
+                { credentials: 'include' } // Include credentials for authentication
+              );
+              
+              if (!checkResponse.ok) {
+                // Error - break and use fallback
+                break;
+              }
+              
               const checkData = await checkResponse.json();
               
               if (!checkData.exists) {
@@ -585,9 +604,10 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       } else if (saveStatus === 'publish') {
         finalStatus = 'publish';
       } else if (saveStatus === 'keep') {
-        // Keep current status, but default to 'draft' for new products
-        if (!effectiveProductId && !formData.status) {
-          finalStatus = 'draft';
+        // Keep current status, but ALWAYS default to 'draft' for new products
+        // This prevents auto-publishing when creating new products
+        if (!effectiveProductId) {
+          finalStatus = 'draft'; // Force draft for new products
         } else {
           finalStatus = formData.status || 'draft';
         }
@@ -708,7 +728,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       
       // Clear unsaved changes flag after successful save
       setHasUnsavedChanges(false);
-      setLastAutosaveTime(new Date());
       
       // Update initialFormData after successful save (including new version)
       const savedFormData = JSON.parse(JSON.stringify({
@@ -772,48 +791,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     await handleSave('keep');
   };
 
-  const handleAutosave = async () => {
-    // Prevent autosave if:
-    // 1. Currently submitting (manual save in progress)
-    // 2. No productId and no currentProductId (don't create new products via autosave)
-    if (isSubmitting) {
-      return;
-    }
-
-    // Use currentProductId (may have been set by previous save)
-    const effectiveProductId = currentProductId || productId;
-    
-    // Only autosave if product already exists (don't create new products via autosave)
-    if (!effectiveProductId) {
-      return;
-    }
-
-    // Silent autosave (no loading state, no alerts)
-    try {
-      const payload = preparePayload();
-      if (!payload) return;
-
-      // Preserve current status instead of forcing to draft
-      // This prevents published products from being reverted to draft
-      const finalPayload = {
-        ...payload,
-        status: formData.status || 'draft', // Preserve current status
-      };
-
-      const url = `/api/admin/products/${effectiveProductId}`;
-      const method = 'PUT'; // Always use PUT for autosave (product must exist)
-
-      await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(finalPayload),
-      });
-
-      setLastAutosaveTime(new Date());
-    } catch (error) {
-      console.error('Autosave failed:', error);
-    }
-  };
+  // Auto-save đã bị loại bỏ - chỉ lưu khi người dùng click button
 
   const handleDelete = async () => {
     if (!productId) return;
@@ -893,8 +871,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         productId={currentProductId || productId}
         productSlug={formData.slug}
         hasUnsavedChanges={hasUnsavedChanges}
-        onAutosave={handleAutosave}
-        lastAutosaveTime={lastAutosaveTime}
       />
 
       {/* Categories Box */}
@@ -903,19 +879,44 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         selectedCategories={formData.categories || (formData.category ? [formData.category] : [])}
         primaryCategory={formData.categories?.[0] || formData.category || undefined}
         onCategoriesChange={(categoryIds) => {
+          const newPrimaryCategory = categoryIds[0] || '';
+          const oldPrimaryCategory = formData.categories?.[0] || formData.category || '';
+          
           setFormData((prev) => ({
             ...prev,
             categories: categoryIds,
-            category: categoryIds[0] || '', // Keep for backward compatibility
+            category: newPrimaryCategory, // Keep for backward compatibility
           }));
+          
+          // Category change trigger: Show notification if category changed and product has SKU
+          if (oldPrimaryCategory && newPrimaryCategory && oldPrimaryCategory !== newPrimaryCategory) {
+            const hasSku = formData.productDataMetaBox?.sku || formData.sku;
+            if (hasSku) {
+              showToast('Danh mục đã thay đổi. Nhấn "Auto Gen" để tạo lại SKU với pattern mới.', 'info');
+            }
+          }
+          
+          setPreviousCategoryId(newPrimaryCategory);
         }}
         onPrimaryCategoryChange={(categoryId) => {
           if (categoryId) {
+            const oldPrimaryCategory = formData.categories?.[0] || formData.category || '';
+            
             setFormData((prev) => ({
               ...prev,
               categories: categoryId ? [categoryId, ...(prev.categories || []).filter(id => id !== categoryId)] : prev.categories,
               category: categoryId || prev.category,
             }));
+            
+            // Category change trigger: Show notification if category changed and product has SKU
+            if (oldPrimaryCategory && categoryId && oldPrimaryCategory !== categoryId) {
+              const hasSku = formData.productDataMetaBox?.sku || formData.sku;
+              if (hasSku) {
+                showToast('Danh mục đã thay đổi. Nhấn "Auto Gen" để tạo lại SKU với pattern mới.', 'info');
+              }
+            }
+            
+            setPreviousCategoryId(categoryId);
           }
         }}
       />
@@ -1099,6 +1100,9 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       {/* Product Data Meta Box */}
       <ProductDataMetaBox
         data={formData.productDataMetaBox}
+        productId={currentProductId || productId}
+        productName={formData.name}
+        categoryId={formData.categories?.[0] || formData.category || undefined}
         onChange={(metaBoxData) => {
           // Use functional update to batch state changes and prevent race conditions
           setFormData((prev) => {
@@ -1156,7 +1160,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
             };
           });
         }}
-        productId={productId}
       />
 
       {/* Short Description Editor - Nằm dưới ProductDataMetaBox và trên SEO Meta Box */}

@@ -134,24 +134,24 @@ export function EnhancedSearchBar({ onSearch, autoFocus = false, className }: En
     <div ref={searchRef} className={cn("relative w-full group", className)}>
       <form onSubmit={handleSubmit} className="relative w-full">
         <input 
-          ref={inputRef}
+            ref={inputRef}
           type="text" 
           placeholder="Bạn đang tìm gấu Teddy, gấu hoạt hình..." 
-          value={searchQuery}
-          onChange={(e) => handleInputChange(e.target.value)}
-          onFocus={handleInputFocus}
+            value={searchQuery}
+            onChange={(e) => handleInputChange(e.target.value)}
+            onFocus={handleInputFocus}
           className="w-full h-11 pl-6 pr-14 rounded-full border-2 border-primary/20 bg-white focus:border-primary focus:ring-4 focus:ring-primary/10 outline-none transition-all placeholder:text-gray-400 text-sm"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={handleClearInput}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleClearInput}
             className="absolute right-12 top-1/2 -translate-y-1/2 text-text-muted hover:text-text-main transition-colors"
-            aria-label="Xóa"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+              aria-label="Xóa"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         <button 
           type="submit" 
           className="absolute right-1 top-1 bottom-1 w-9 h-9 bg-primary hover:bg-primary/90 text-white rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition-all"

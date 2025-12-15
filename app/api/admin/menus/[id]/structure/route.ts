@@ -8,6 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { Permission } from '@/types/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -119,18 +121,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { menus, menuItems } = await getCollections();
-    const { id } = params;
-    const body = await request.json();
+      const { menus, menuItems } = await getCollections();
+      const { id } = params;
+      const body = await req.json();
     
     if (!ObjectId.isValid(id)) {
       return NextResponse.json({ error: 'Invalid menu ID' }, { status: 400 });
@@ -290,6 +285,7 @@ export async function POST(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'menu:update' as Permission); // Menu structure update requires update permission
 }
 

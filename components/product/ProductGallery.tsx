@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils/cn';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -11,15 +11,46 @@ interface ProductGalleryProps {
     altText?: string;
   }>;
   productName?: string;
+  selectedVariationImage?: string; // Ảnh từ variation được chọn (màu sắc)
 }
 
-export function ProductGallery({ images, productName }: ProductGalleryProps) {
+export function ProductGallery({ images, productName, selectedVariationImage }: ProductGalleryProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
   // Fallback to placeholder if no images
-  const allImages = images.length > 0 
+  const baseImages = images.length > 0 
     ? images 
     : [{ sourceUrl: '/images/teddy-placeholder.png', altText: productName || 'Sản phẩm' }];
+
+  // Nếu có selectedVariationImage, đặt nó làm ảnh đầu tiên
+  const allImages = useMemo(() => {
+    if (selectedVariationImage) {
+      // Tìm xem variation image đã có trong images chưa
+      const existingIndex = baseImages.findIndex(img => img.sourceUrl === selectedVariationImage);
+      if (existingIndex >= 0) {
+        // Nếu đã có, di chuyển nó lên đầu
+        const reordered = [
+          baseImages[existingIndex],
+          ...baseImages.filter((_, idx) => idx !== existingIndex)
+        ];
+        return reordered;
+      } else {
+        // Nếu chưa có, thêm vào đầu
+        return [
+          { sourceUrl: selectedVariationImage, altText: productName || 'Sản phẩm' },
+          ...baseImages
+        ];
+      }
+    }
+    return baseImages;
+  }, [baseImages, selectedVariationImage, productName]);
+
+  // Reset selectedImageIndex về 0 khi selectedVariationImage thay đổi
+  useEffect(() => {
+    if (selectedVariationImage) {
+      setSelectedImageIndex(0);
+    }
+  }, [selectedVariationImage]);
 
   const mainImage = allImages[selectedImageIndex] || allImages[0];
   const thumbnails = allImages.slice(0, 5); // Limit to 5 thumbnails

@@ -224,6 +224,58 @@ async function setupIndexes() {
     await collections.productAttributeTerms.createIndex({ createdAt: -1 }); // Sort newest
     console.log('   ✅ Product attribute terms indexes created');
 
+    // Smart SKU System indexes
+    console.log('📦 Setting up Smart SKU System indexes...');
+    
+    // SKU Settings indexes
+    await collections.skuSettings.createIndex({ categoryId: 1 }, { unique: true, sparse: true }); // Unique pattern per category (null = global)
+    await collections.skuSettings.createIndex({ createdAt: -1 }); // Sort newest
+    console.log('   ✅ SKU settings indexes created');
+    
+    // SKU Abbreviations indexes
+    await collections.skuAbbreviations.createIndex({ type: 1, originalValue: 1 }); // For lookup
+    await collections.skuAbbreviations.createIndex({ type: 1, categoryId: 1, originalValue: 1 }); // For category-specific lookup
+    await collections.skuAbbreviations.createIndex({ createdAt: -1 }); // Sort newest
+    console.log('   ✅ SKU abbreviations indexes created');
+    
+    // SKU Counters indexes
+    await collections.skuCounters.createIndex({ key: 1 }, { unique: true }); // Unique counter per base SKU
+    await collections.skuCounters.createIndex({ updatedAt: -1 }); // Sort by last update
+    console.log('   ✅ SKU counters indexes created');
+    
+    // SKU History indexes
+    await collections.skuHistory.createIndex({ productId: 1, changedAt: -1 }); // For product history lookup
+    await collections.skuHistory.createIndex({ oldSku: 1 }); // For SKU redirect lookup
+    await collections.skuHistory.createIndex({ variantId: 1 }); // For variant history lookup
+    await collections.skuHistory.createIndex({ changedAt: -1 }); // Sort by change date
+    console.log('   ✅ SKU history indexes created');
+    
+    // Products: Add sku_normalized index (CRITICAL for race condition prevention)
+    console.log('📦 Adding sku_normalized index to products...');
+    try {
+      await collections.products.createIndex({ sku_normalized: 1 }, { unique: true, sparse: true });
+      console.log('   ✅ Products sku_normalized index created');
+    } catch (error: any) {
+      if (error.code === 85) {
+        console.log('   ℹ️  Products sku_normalized index already exists');
+      } else {
+        console.error('   ⚠️  Error creating products sku_normalized index:', error.message);
+      }
+    }
+    
+    // Categories: Add code index (for category code lookup)
+    console.log('📦 Adding code index to categories...');
+    try {
+      await collections.categories.createIndex({ code: 1 }, { unique: true, sparse: true });
+      console.log('   ✅ Categories code index created');
+    } catch (error: any) {
+      if (error.code === 85) {
+        console.log('   ℹ️  Categories code index already exists');
+      } else {
+        console.error('   ⚠️  Error creating categories code index:', error.message);
+      }
+    }
+
     console.log('\n🎉 All indexes created successfully!\n');
 
     // List all indexes
@@ -254,6 +306,10 @@ async function setupIndexes() {
       { name: 'admin_users', collection: collections.adminUsers },
       { name: 'admin_activity_logs', collection: collections.adminActivityLogs },
       { name: 'rate_limits', collection: collections.rateLimits },
+      { name: 'sku_settings', collection: collections.skuSettings },
+      { name: 'sku_abbreviations', collection: collections.skuAbbreviations },
+      { name: 'sku_counters', collection: collections.skuCounters },
+      { name: 'sku_history', collection: collections.skuHistory },
     ];
 
     for (const { name, collection } of allCollections) {

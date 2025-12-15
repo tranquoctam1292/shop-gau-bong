@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { getStatusLabel } from '@/lib/utils/orderStateMachine';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,16 +26,9 @@ function escapeCSV(value: any): string {
 }
 
 export async function GET(request: NextRequest) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { searchParams } = new URL(request.url);
+      const { searchParams } = new URL(req.url);
     const orderIdsParam = searchParams.get('orderIds');
 
     const { orders } = await getCollections();
@@ -120,6 +114,7 @@ export async function GET(request: NextRequest) {
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:read'); // Export requires read permission
 }
 

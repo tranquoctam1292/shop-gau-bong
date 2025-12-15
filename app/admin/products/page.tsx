@@ -200,14 +200,24 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(`/api/admin/products/${id}/force`, {
         method: 'DELETE',
+        credentials: 'include', // Include credentials for authentication
       });
 
       if (response.ok) {
-        showToast('Đã xóa vĩnh viễn sản phẩm', 'success');
+        const data = await response.json();
+        showToast(data.message || 'Đã xóa vĩnh viễn sản phẩm', 'success');
+        // Remove from selected products if it was selected
+        setSelectedProducts((prev) => prev.filter((pid) => pid !== id));
+        // Refresh product list
         fetchProducts();
       } else {
         const errorData = await response.json().catch(() => ({}));
-        showToast(errorData.error || 'Không thể xóa sản phẩm', 'error');
+        // Handle authentication errors
+        if (response.status === 401) {
+          showToast('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.', 'error');
+        } else {
+          showToast(errorData.error || 'Không thể xóa sản phẩm', 'error');
+        }
       }
     } catch (error) {
       console.error('Error force deleting product:', error);

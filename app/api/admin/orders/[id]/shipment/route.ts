@@ -15,6 +15,7 @@ import {
   createHistoryEntry,
   type ActorType,
 } from '@/lib/services/orderHistory';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,18 +30,11 @@ export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { orders } = await getCollections();
-    const { id } = params;
-    const body = await request.json();
+      const { orders } = await getCollections();
+      const { id } = params;
+      const body = await req.json();
 
     // Validate input
     const validatedData = shipmentCreateSchema.parse(body);
@@ -93,21 +87,10 @@ export async function POST(
     }
 
     // Get current admin user for history logging
-    let actorId: string | undefined;
-    let actorName: string | undefined;
-    let actorType: ActorType = 'admin';
-
-    try {
-      const { getSession } = await import('@/lib/auth');
-      const session = await getSession();
-      if (session?.user) {
-        actorId = (session.user as any).id || session.user.email || undefined;
-        actorName = session.user.name || session.user.email || 'Admin';
-      }
-    } catch {
-      actorType = 'system';
-      actorName = 'System';
-    }
+    // req.adminUser is available from withAuthAdmin middleware
+    const actorId: string | undefined = req.adminUser?._id?.toString();
+    const actorName: string | undefined = req.adminUser?.full_name || req.adminUser?.username || 'Admin';
+    const actorType: ActorType = 'admin';
 
     // Create shipment
     const shipment = await createShipment(
@@ -194,6 +177,7 @@ export async function POST(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'order:update'); // Shipment creation requires update permission
 }
 

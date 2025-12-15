@@ -83,6 +83,8 @@ interface ProductDataMetaBoxProps {
   data?: Partial<ProductDataMetaBoxState>;
   onChange?: (data: ProductDataMetaBoxState) => void;
   productId?: string; // For SKU validation
+  productName?: string; // For SKU auto-generation
+  categoryId?: string; // For SKU auto-generation
 }
 
 /**
@@ -93,7 +95,7 @@ interface ProductDataMetaBoxProps {
  * - Tab-based content organization
  * - Responsive design
  */
-export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMetaBoxProps) {
+export function ProductDataMetaBox({ data, onChange, productId, productName, categoryId }: ProductDataMetaBoxProps) {
   const [activeTab, setActiveTab] = useState<string>('general');
   const [state, setState] = useState<ProductDataMetaBoxState>({
     productType: 'simple',
@@ -211,6 +213,8 @@ export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMet
             state={state}
             onUpdate={updateState}
             productId={productId}
+            productName={productName}
+            categoryId={categoryId}
           />
         );
       case 'shipping':
@@ -232,6 +236,8 @@ export function ProductDataMetaBox({ data, onChange, productId }: ProductDataMet
           <VariationsTab
             state={state}
             onUpdate={updateState}
+            productName={productName}
+            categoryId={categoryId}
           />
         );
       case 'advanced':

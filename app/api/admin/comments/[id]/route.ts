@@ -10,6 +10,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { Permission } from '@/types/admin';
 
 export const dynamic = 'force-dynamic';
 
@@ -23,16 +25,9 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { comments } = await getCollections();
+      const { comments } = await getCollections();
     const { id } = params;
     
     if (!ObjectId.isValid(id)) {
@@ -63,25 +58,19 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'comment:read' as Permission); // Comment GET requires read permission
 }
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { comments } = await getCollections();
-    const { id } = params;
-    const body = await request.json();
+      const { comments } = await getCollections();
+      const { id } = params;
+      const body = await req.json();
     
     // Validate input
     const validatedData = commentUpdateSchema.parse(body);
@@ -146,23 +135,17 @@ export async function PUT(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'comment:update' as Permission); // Comment PUT requires update permission
 }
 
 export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-    
-    const { comments } = await getCollections();
+      const { comments } = await getCollections();
     const { id } = params;
     
     if (!ObjectId.isValid(id)) {
@@ -200,6 +183,7 @@ export async function DELETE(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'comment:delete' as Permission); // Comment DELETE requires delete permission
 }
 

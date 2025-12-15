@@ -42,6 +42,26 @@ export type Permission =
   | 'blog:read'
   | 'blog:manage'
   | 'page:manage'
+  // Post permissions
+  | 'post:create'
+  | 'post:read'
+  | 'post:update'
+  | 'post:delete'
+  // Author permissions
+  | 'author:read'
+  | 'author:create'
+  | 'author:update'
+  | 'author:delete'
+  // Comment permissions
+  | 'comment:read'
+  | 'comment:create'
+  | 'comment:update'
+  | 'comment:delete'
+  // Menu permissions
+  | 'menu:read'
+  | 'menu:create'
+  | 'menu:update'
+  | 'menu:delete'
   // Media permissions
   | 'media:read'
   | 'media:upload'

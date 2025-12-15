@@ -212,7 +212,17 @@ export function SEOMetaBox({
       try {
         // Only validate if slug is different from current productSlug
         if (data.slug && data.slug !== productSlug) {
-          const response = await fetch(`/api/admin/products/validate-slug?slug=${encodeURIComponent(data.slug)}&excludeId=${productSlug || ''}`);
+          const response = await fetch(
+            `/api/admin/products/validate-slug?slug=${encodeURIComponent(data.slug)}&excludeId=${productSlug || ''}`,
+            { credentials: 'include' } // Include credentials for authentication
+          );
+          
+          if (!response.ok) {
+            // Authentication error or other error - skip validation silently
+            setSlugValidation(null);
+            return;
+          }
+          
           const result = await response.json();
           if (result.exists) {
             setSlugValidation({ isValid: false, message: 'Slug này đã tồn tại' });

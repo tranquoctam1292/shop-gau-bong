@@ -8,6 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { checkStockAvailability } from '@/lib/services/inventory';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,17 +16,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  try {
-    // Authentication check
-    const { requireAdmin } = await import('@/lib/auth');
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      await requireAdmin();
-    } catch {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const { id } = params;
-    const searchParams = request.nextUrl.searchParams;
+      const { id } = params;
+      const searchParams = req.nextUrl.searchParams;
     const variationId = searchParams.get('variationId') || undefined;
     const quantity = parseInt(searchParams.get('quantity') || '1', 10);
 
@@ -56,6 +50,7 @@ export async function GET(
       },
       { status: 500 }
     );
-  }
+    }
+  }, 'product:read'); // Stock check requires read permission
 }
 

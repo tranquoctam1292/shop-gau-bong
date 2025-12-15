@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
+import { normalizeSku } from '@/lib/utils/skuGenerator';
 import { z } from 'zod';
 import { handleValidationError } from '@/lib/utils/validation-errors';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
@@ -677,6 +678,33 @@ export async function POST(request: NextRequest) {
           });
         }
       }
+    }
+    
+    // Normalize SKU for duplicate checking (according to SMART_SKU_IMPLEMENTATION_PLAN.md)
+    // Priority: productDataMetaBox.sku > top-level sku
+    const skuToNormalize = productDoc.productDataMetaBox?.sku || productDoc.sku;
+    if (skuToNormalize && typeof skuToNormalize === 'string' && skuToNormalize.trim()) {
+      productDoc.sku_normalized = normalizeSku(skuToNormalize.trim());
+    }
+    
+    // Normalize variant SKUs
+    if (productDoc.variants && Array.isArray(productDoc.variants)) {
+      productDoc.variants = productDoc.variants.map((variant: any) => {
+        if (variant.sku && typeof variant.sku === 'string' && variant.sku.trim()) {
+          variant.sku_normalized = normalizeSku(variant.sku.trim());
+        }
+        return variant;
+      });
+    }
+    
+    // Also normalize SKUs in productDataMetaBox.variations if exists
+    if (productDoc.productDataMetaBox?.variations && Array.isArray(productDoc.productDataMetaBox.variations)) {
+      productDoc.productDataMetaBox.variations = productDoc.productDataMetaBox.variations.map((variation: any) => {
+        if (variation.sku && typeof variation.sku === 'string' && variation.sku.trim()) {
+          variation.sku_normalized = normalizeSku(variation.sku.trim());
+        }
+        return variation;
+      });
     }
     
     // Generate and save Product Schema (JSON-LD)
