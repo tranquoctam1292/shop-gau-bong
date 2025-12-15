@@ -9,23 +9,38 @@ export interface ToastProps {
   type?: 'info' | 'warning' | 'error' | 'success';
   duration?: number;
   onClose?: () => void;
+  isReplacing?: boolean; // Flag để báo hiệu toast này đang bị thay thế
 }
 
 /**
  * Simple Toast Notification Component
  * Hiển thị thông báo tạm thời ở góc màn hình
  */
-export function Toast({ message, type = 'info', duration = 5000, onClose }: ToastProps) {
+export function Toast({ message, type = 'info', duration = 5000, onClose, isReplacing = false }: ToastProps) {
   const [isVisible, setIsVisible] = useState(true);
+  const [isExiting, setIsExiting] = useState(false);
 
+  // Nếu toast đang bị thay thế, đóng ngay với animation nhanh
   useEffect(() => {
+    if (isReplacing && !isExiting) {
+      setIsExiting(true);
+      setIsVisible(false);
+      setTimeout(() => onClose?.(), 150); // Fade out nhanh hơn khi bị thay thế
+    }
+  }, [isReplacing, isExiting, onClose]);
+
+  // Auto-close sau duration
+  useEffect(() => {
+    if (isReplacing) return; // Không auto-close nếu đang bị thay thế
+
     const timer = setTimeout(() => {
+      setIsExiting(true);
       setIsVisible(false);
       setTimeout(() => onClose?.(), 300); // Wait for fade out animation
     }, duration);
 
     return () => clearTimeout(timer);
-  }, [duration, onClose]);
+  }, [duration, onClose, isReplacing]);
 
   if (!isVisible) return null;
 
@@ -37,11 +52,19 @@ export function Toast({ message, type = 'info', duration = 5000, onClose }: Toas
   };
 
   return (
-    <div className="fixed top-4 right-4 z-[130] animate-in slide-in-from-right duration-300">
+    <div 
+      className={cn(
+        "fixed top-4 right-4 z-[130]",
+        isExiting 
+          ? "animate-out slide-out-to-right fade-out duration-150" 
+          : "animate-in slide-in-from-right fade-in duration-300"
+      )}
+    >
       <Card
         className={cn(
-          'p-4 shadow-lg border-2 min-w-[300px] max-w-md',
-          typeStyles[type]
+          'p-4 shadow-lg border-2 min-w-[300px] max-w-md transition-all',
+          typeStyles[type],
+          isExiting && 'scale-95'
         )}
       >
         <div className="flex items-start gap-3">
@@ -54,10 +77,11 @@ export function Toast({ message, type = 'info', duration = 5000, onClose }: Toas
           <p className="text-sm font-medium flex-1">{message}</p>
           <button
             onClick={() => {
+              setIsExiting(true);
               setIsVisible(false);
               setTimeout(() => onClose?.(), 300);
             }}
-            className="flex-shrink-0 text-lg leading-none opacity-70 hover:opacity-100"
+            className="flex-shrink-0 text-lg leading-none opacity-70 hover:opacity-100 transition-opacity"
             aria-label="Đóng"
           >
             ×

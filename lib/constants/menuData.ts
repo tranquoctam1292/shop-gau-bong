@@ -246,7 +246,7 @@ export const menuDataConfig: MenuDataConfig = {
   },
   mobileConfig: {
     hotlineButton: {
-      enabled: true,
+      enabled: false,
       position: "sticky-bottom",
       phone: "0123 456 789",
       href: "tel:+84123456789",
