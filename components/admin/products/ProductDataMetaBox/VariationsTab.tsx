@@ -198,6 +198,7 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
               </p>
             </div>
             <Button
+              type="button"
               onClick={generateVariations}
               disabled={isGenerating || !canGenerateVariations}
               className="gap-2"

@@ -98,8 +98,8 @@ export function PublishBox({
     }
   }, [scheduledDate]);
 
-  // Auto-save đã bị loại bỏ - chỉ lưu khi người dùng click button
-  // useEffect cho autosave đã bị loại bỏ
+  // Auto-save đã bị loại bỏ hoàn toàn - chỉ lưu khi người dùng click button
+  // Không có useEffect nào tự động gọi onSaveDraft hoặc onPublish
 
   // Unsaved Changes Warning
   useEffect(() => {

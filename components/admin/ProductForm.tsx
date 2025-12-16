@@ -801,7 +801,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         );
       }
       
-      // If creating new product, update productId immediately to prevent duplicate autosave
+      // If creating new product, update productId immediately
       if (!effectiveProductId && result.product?._id) {
         const newProductId = result.product._id;
         setCurrentProductId(newProductId); // Update state immediately
@@ -837,7 +837,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     await handleSave('keep');
   };
 
-  // Auto-save đã bị loại bỏ - chỉ lưu khi người dùng click button
+  // Auto-save đã bị loại bỏ hoàn toàn - chỉ lưu khi người dùng click button
+  // Không có code nào tự động gọi handleSave hoặc tạo sản phẩm
 
   const handleDelete = async () => {
     if (!productId) return;
