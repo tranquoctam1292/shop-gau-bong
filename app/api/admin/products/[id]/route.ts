@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { normalizeSku } from '@/lib/utils/skuGenerator';
 import { z } from 'zod';
@@ -340,7 +340,7 @@ export async function GET(
       );
     }
     
-    const mappedProduct = mapMongoProduct(product);
+    const mappedProduct = mapMongoProduct(product as unknown as MongoProduct);
     
     // Include image IDs in response for frontend
     const response: any = {
@@ -720,7 +720,7 @@ export async function PUT(
       );
     }
     
-    const mappedProduct = mapMongoProduct(updatedProduct);
+    const mappedProduct = mapMongoProduct(updatedProduct as unknown as MongoProduct);
     
     return NextResponse.json({ product: mappedProduct });
   } catch (error: any) {
@@ -800,7 +800,7 @@ export async function DELETE(
     
     // Fetch updated product
     const updatedProduct = await products.findOne({ _id: productId });
-    const mappedProduct = updatedProduct ? mapMongoProduct(updatedProduct) : null;
+    const mappedProduct = updatedProduct ? mapMongoProduct(updatedProduct as unknown as MongoProduct) : null;
     
     return NextResponse.json({
       success: true,

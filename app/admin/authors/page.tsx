@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,11 +28,7 @@ export default function AdminAuthorsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchAuthors();
-  }, []);
-
-  const fetchAuthors = async () => {
+  const fetchAuthors = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch('/api/admin/authors');
@@ -52,7 +48,11 @@ export default function AdminAuthorsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
+
+  useEffect(() => {
+    fetchAuthors();
+  }, [fetchAuthors]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc muốn xóa tác giả này?')) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import Image from 'next/image';
 import { Editor } from '@tiptap/react';
 import { Button } from '@/components/ui/button';
 
@@ -163,15 +164,19 @@ export function FocalPointPicker({
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
         >
-          <img
-            src={imageUrl}
-            alt="Preview"
-            className="w-full h-full object-cover"
-            style={{
-              objectPosition: focalPoint ? `${focalPoint.x}% ${focalPoint.y}%` : 'center',
-            }}
-            draggable={false}
-          />
+          <div className="relative w-full h-full">
+            <Image
+              src={imageUrl}
+              alt="Preview"
+              fill
+              className="object-cover"
+              style={{
+                objectPosition: focalPoint ? `${focalPoint.x}% ${focalPoint.y}%` : 'center',
+              }}
+              sizes="(max-width: 768px) 100vw, 600px"
+              draggable={false}
+            />
+          </div>
 
           {/* Focal point dot */}
           {focalPoint && (

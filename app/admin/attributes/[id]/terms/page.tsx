@@ -192,7 +192,7 @@ export default function AdminAttributeTermsPage() {
             Loại hiển thị: <span className="font-semibold">{typeLabels[attribute.type]}</span>
           </p>
           <p className="text-sm text-muted-foreground mt-1">
-            Quản lý các giá trị cụ thể cho thuộc tính này (Ví dụ: Đỏ, Xanh cho "Màu sắc")
+            Quản lý các giá trị cụ thể cho thuộc tính này (Ví dụ: Đỏ, Xanh cho &quot;Màu sắc&quot;)
           </p>
         </div>
       </div>

@@ -39,10 +39,17 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
   // Always call useProductVariations with consistent signature to avoid hooks violation
   const productId = product?.databaseId ?? null;
   const shouldFetchVariations = product?.type === 'variable' && (product?.variations?.length || 0) > 0;
-  const { variations, isLoading: isLoadingVariations } = useProductVariations(
+  const { variations, isLoading: isLoadingVariations, refetch: refetchVariations } = useProductVariations(
     productId,
     { enabled: shouldFetchVariations && !!productId }
   );
+  
+  // FIX: Khi user chọn size, đảm bảo variations được fetch ngay nếu chưa có
+  useEffect(() => {
+    if (selectedSize && product?.type === 'variable' && variations.length === 0 && !isLoadingVariations) {
+      refetchVariations();
+    }
+  }, [selectedSize, product?.type, variations.length, isLoadingVariations, refetchVariations]);
 
   // Extract Size and Color attributes using centralized constants
   // This replaces hardcoded string matching with reusable helper functions
@@ -177,7 +184,12 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, product, sizeAttribute, colorAttribute]);
 
-  if (!product || !product.name) return null;
+  // Early return with null/undefined safety check
+  // Per .cursorrules: Always handle missing product data gracefully
+  if (!product || !product.name) {
+    console.warn('[ProductInfo] Product or product.name is missing');
+    return null;
+  }
 
   const isOutOfStock = product.stockStatus === 'outofstock';
 
@@ -217,7 +229,7 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
 
       for (let i = 0; i < quantity; i++) {
         await addToCart({
-          productId: product.databaseId,
+          productId: typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId,
           productName: `${product.name} ${sizeToUse ? `(${sizeToUse})` : ''}`,
           price: priceToUse || '0',
           image: product.image?.sourceUrl,

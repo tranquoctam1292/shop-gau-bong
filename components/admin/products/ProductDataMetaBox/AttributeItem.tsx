@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { X, Plus, Palette } from 'lucide-react';
-import { SmartValueInput, type Term as SmartValueTerm } from '../SmartValueInput';
+import { SmartValueInput } from '../SmartValueInput';
 import type { Attribute as GlobalAttribute } from '@/app/admin/attributes/page';
 import type { Term } from '@/app/admin/attributes/[id]/terms/page';
 
@@ -188,8 +188,9 @@ export function AttributeItem({
         {/* Smart Value Input for Global Attributes */}
         {isGlobalAttribute && globalAttributeType ? (
           <SmartValueInput
-            terms={globalTerms.map((term): SmartValueTerm => ({
+            terms={globalTerms.map((term): Term => ({
               id: term.id,
+              attributeId: term.attributeId,
               name: term.name,
               slug: term.slug,
               colorHex: term.colorHex,
@@ -199,7 +200,7 @@ export function AttributeItem({
               description: term.description,
             }))}
             selectedValues={attribute.values}
-            onValuesChange={(values) => {
+            onValuesChange={(values: string[]) => {
               // Update values and colorCodes from selected terms
               const selectedTerms = globalTerms.filter((term) =>
                 values.includes(term.name)

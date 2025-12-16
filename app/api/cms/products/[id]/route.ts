@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -55,7 +55,7 @@ export async function GET(
     }
     
     // Map to frontend format
-    const mappedProduct = mapMongoProduct(product);
+    const mappedProduct = mapMongoProduct(product as unknown as MongoProduct);
     
     // Populate category if exists
     if (product.category) {
@@ -78,13 +78,15 @@ export async function GET(
     }
     
     return NextResponse.json({ product: mappedProduct });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[Product API] Error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
     return NextResponse.json(
       { 
-        error: error.message || 'Failed to fetch product',
+        error: errorMessage,
         details: process.env.NODE_ENV === 'development' 
-          ? { stack: error.stack }
+          ? { stack: errorStack }
           : undefined,
       },
       { status: 500 }

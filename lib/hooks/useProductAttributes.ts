@@ -1,6 +1,7 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
+import type { MappedProduct } from '@/lib/utils/productMapper';
 
 /**
  * Product Attributes từ WooCommerce
@@ -9,6 +10,25 @@ export interface ProductAttribute {
   name: string;        // e.g., 'pa_size', 'pa_color', 'pa_material'
   slug: string;        // e.g., 'pa-size', 'pa-color', 'pa-material'
   options: string[];   // Unique options từ tất cả products
+}
+
+/**
+ * Global Attribute Term Type
+ */
+interface GlobalAttributeTerm {
+  id: string;
+  name: string;
+  slug: string;
+}
+
+/**
+ * Global Attribute Type
+ */
+interface GlobalAttribute {
+  id: string;
+  name: string;
+  slug: string;
+  terms?: GlobalAttributeTerm[];
 }
 
 /**
@@ -46,7 +66,7 @@ export function useProductAttributes() {
                     attributesWithTerms.push({
                       name: attr.name || attrSlug,
                       slug: attr.slug || attrSlug,
-                      options: terms.map((term: any) => term.name || term.slug).filter(Boolean),
+                      options: terms.map((term: GlobalAttributeTerm) => term.name || term.slug).filter(Boolean),
                     });
                   }
                 }
@@ -67,7 +87,7 @@ export function useProductAttributes() {
       
       // Priority 2: Fallback - Extract from products
       // Fetch multiple pages to get all attributes
-      const allProducts: any[] = [];
+      const allProducts: MappedProduct[] = [];
       let page = 1;
       let hasMore = true;
       const maxPages = 10; // Limit to prevent infinite loop
@@ -93,21 +113,13 @@ export function useProductAttributes() {
       let productsWithVariants = 0;
       let totalAttributesFound = 0;
 
-      allProducts.forEach((product: any, index: number) => {
+      allProducts.forEach((product: MappedProduct) => {
         // Priority 1: Extract từ attributes array (mapped products từ API)
         // Mapped products từ mapMongoProduct có attributes array với options
         if (product.attributes && Array.isArray(product.attributes) && product.attributes.length > 0) {
           productsWithVariants++;
           
-          if (process.env.NODE_ENV === 'development' && index < 3) {
-            console.log(`[useProductAttributes] Product ${index + 1} has attributes:`, {
-              productName: product.name,
-              attributesCount: product.attributes.length,
-              attributes: product.attributes,
-            });
-          }
-          
-          product.attributes.forEach((attr: any) => {
+          product.attributes.forEach((attr) => {
             if (attr.name && attr.options && Array.isArray(attr.options)) {
               const attrName = attr.name.toLowerCase();
               
@@ -154,58 +166,14 @@ export function useProductAttributes() {
                     totalAttributesFound++;
                   }
                 });
-                
-                if (process.env.NODE_ENV === 'development' && index < 3) {
-                  console.log(`[useProductAttributes] Extracted from ${product.name}:`, {
-                    originalName: attr.name,
-                    attrName,
-                    normalizedName,
-                    isSize,
-                    isColor,
-                    isMaterial,
-                    optionsCount: attr.options.length,
-                    options: attr.options,
-                  });
-                }
               }
             }
-          });
-        } else if (process.env.NODE_ENV === 'development' && index < 3) {
-          console.log(`[useProductAttributes] Product ${index + 1} has NO attributes:`, {
-            productName: product.name,
-            hasAttributes: !!product.attributes,
-            attributesType: typeof product.attributes,
-            attributesIsArray: Array.isArray(product.attributes),
-            attributesLength: product.attributes?.length,
-            hasVariants: !!product.variants,
-            variantsLength: product.variants?.length,
           });
         }
         
-        // Priority 2: Fallback - Extract từ variants array (nếu API trả về raw MongoDB data)
-        if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
-          product.variants.forEach((variant: any) => {
-            // Extract size
-            if (variant.size && typeof variant.size === 'string' && variant.size.trim()) {
-              const attrName = 'pa_size';
-              if (!attributesMap.has(attrName)) {
-                attributesMap.set(attrName, new Set<string>());
-              }
-              attributesMap.get(attrName)!.add(variant.size.trim());
-              totalAttributesFound++;
-            }
-            
-            // Extract color
-            if (variant.color && typeof variant.color === 'string' && variant.color.trim()) {
-              const attrName = 'pa_color';
-              if (!attributesMap.has(attrName)) {
-                attributesMap.set(attrName, new Set<string>());
-              }
-              attributesMap.get(attrName)!.add(variant.color.trim());
-              totalAttributesFound++;
-            }
-          });
-        }
+        // Note: MappedProduct không có variants property trực tiếp
+        // Variants được extract từ attributes array ở Priority 1
+        // Nếu cần extract từ raw MongoDB variants, cần fetch raw data từ API trước khi map
 
         // Nếu product có material field trực tiếp (từ MongoDB)
         if (product.material) {
@@ -217,42 +185,6 @@ export function useProductAttributes() {
           totalAttributesFound++;
         }
       });
-
-      // Debug logging - Chi tiết hơn để debug
-      if (process.env.NODE_ENV === 'development') {
-        const sampleProduct = allProducts[0];
-        console.log('[useProductAttributes] Extracted attributes:', {
-          totalProducts: allProducts.length,
-          productsWithVariants,
-          totalAttributesFound,
-          attributesMap: Array.from(attributesMap.entries()).map(([name, options]) => ({
-            name,
-            optionsCount: options.size,
-            options: Array.from(options).slice(0, 5), // First 5 options
-          })),
-          sampleProduct: sampleProduct ? {
-            id: sampleProduct.id,
-            name: sampleProduct.name,
-            hasAttributes: !!sampleProduct.attributes,
-            attributesCount: sampleProduct.attributes?.length || 0,
-            attributes: sampleProduct.attributes,
-            hasVariants: !!sampleProduct.variants,
-            variantsCount: sampleProduct.variants?.length || 0,
-            variants: sampleProduct.variants?.slice(0, 2), // First 2 variants
-            type: sampleProduct.type,
-          } : null,
-          // Check first 3 products for attributes
-          firstThreeProducts: allProducts.slice(0, 3).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            hasAttributes: !!p.attributes,
-            attributesCount: p.attributes?.length || 0,
-            attributes: p.attributes,
-            hasVariants: !!p.variants,
-            variantsCount: p.variants?.length || 0,
-          })),
-        });
-      }
 
       // Convert Map to Array
       const attributesArray: ProductAttribute[] = [];

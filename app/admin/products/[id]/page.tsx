@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Edit, Trash2, Copy, ArrowLeft, MessageSquare, BarChart3 } from 'lucide-react';
@@ -236,19 +237,26 @@ export default function ProductDetailPage({
               <CardContent>
                 <div className="grid grid-cols-4 gap-4">
                   {product.image && (
-                    <img
-                      src={product.image.sourceUrl}
-                      alt={product.image.altText}
-                      className="w-full h-32 object-cover rounded"
-                    />
+                    <div className="relative w-full h-32 rounded overflow-hidden">
+                      <Image
+                        src={product.image.sourceUrl}
+                        alt={product.image.altText || 'Product image'}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 25vw"
+                      />
+                    </div>
                   )}
                   {product.galleryImages.map((img, idx) => (
-                    <img
-                      key={idx}
-                      src={img.sourceUrl}
-                      alt={img.altText}
-                      className="w-full h-32 object-cover rounded"
-                    />
+                    <div key={idx} className="relative w-full h-32 rounded overflow-hidden">
+                      <Image
+                        src={img.sourceUrl}
+                        alt={img.altText || `Gallery image ${idx + 1}`}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 25vw"
+                      />
+                    </div>
                   ))}
                 </div>
               </CardContent>

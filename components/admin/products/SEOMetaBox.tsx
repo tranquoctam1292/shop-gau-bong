@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -636,7 +637,7 @@ export function SEOMetaBox({
                 maxLength={160}
               />
               <p className="text-xs text-gray-500 mt-1">
-                Tự động lấy từ "Mô tả ngắn" nếu để trống
+                Tự động lấy từ &quot;Mô tả ngắn&quot; nếu để trống
               </p>
             </div>
 
@@ -721,11 +722,13 @@ export function SEOMetaBox({
               <Label>Ảnh chia sẻ (Open Graph Image)</Label>
               <div className="space-y-2">
                 {data.ogImage ? (
-                  <div className="relative">
-                    <img
+                  <div className="relative w-full max-w-md h-48 rounded border overflow-hidden">
+                    <Image
                       src={data.ogImage}
                       alt="OG Image"
-                      className="w-full max-w-md h-48 object-cover rounded border"
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, 512px"
                     />
                     <Button
                       type="button"

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
@@ -177,7 +177,7 @@ export async function PATCH(
       );
     }
     
-    const mappedProduct = mapMongoProduct(updatedProduct);
+    const mappedProduct = mapMongoProduct(updatedProduct as unknown as MongoProduct);
     
     return NextResponse.json({
       success: true,

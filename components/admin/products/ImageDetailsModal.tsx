@@ -614,7 +614,7 @@ export function ImageDetailsModal({
                 onCheckedChange={(checked) => handleInputChange('openInNewTab', checked === true)}
               />
               <Label htmlFor="open-new-tab" className="text-sm font-normal cursor-pointer">
-                Mở trong tab mới (target="_blank")
+                Mở trong tab mới (target=&quot;_blank&quot;)
               </Label>
             </div>
           </div>

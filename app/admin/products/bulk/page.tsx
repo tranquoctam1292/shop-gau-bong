@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -19,11 +19,7 @@ export default function BulkOperationsPage() {
   const [bulkAction, setBulkAction] = useState<string>('');
   const [bulkValue, setBulkValue] = useState<string>('');
 
-  useEffect(() => {
-    fetchProducts();
-  }, [search]);
-
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -41,7 +37,11 @@ export default function BulkOperationsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const toggleSelectProduct = (id: string) => {
     setSelectedProducts((prev) =>

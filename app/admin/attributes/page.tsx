@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { AttributeForm } from '@/components/admin/attributes/AttributeForm';
@@ -26,11 +26,7 @@ export default function AdminAttributesPage() {
   const [editingAttribute, setEditingAttribute] = useState<Attribute | null>(null);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchAttributes();
-  }, [search]);
-
-  const fetchAttributes = async () => {
+  const fetchAttributes = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -45,7 +41,11 @@ export default function AdminAttributesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [search]);
+
+  useEffect(() => {
+    fetchAttributes();
+  }, [fetchAttributes]);
 
   const handleCreate = async (attributeData: Omit<Attribute, 'id'>) => {
     try {

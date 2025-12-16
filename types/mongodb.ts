@@ -83,6 +83,7 @@ export interface MongoVariant {
   image?: string;
   sku?: string;
   sku_normalized?: string; // NEW: Normalized SKU for duplicate checking
+  reservedQuantity?: number; // For inventory reservation
 }
 
 /**

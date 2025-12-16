@@ -25,12 +25,6 @@ export function QuickCheckoutModal() {
   const { submitOrder } = useCheckoutREST();
   const router = useRouter();
 
-  // Debug: Log state changes (only in development)
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[QuickCheckoutModal] State:', { isOpen, itemsCount: items.length });
-    }
-  }, [isOpen, items.length]);
 
   // Form state
   const [fullName, setFullName] = useState('');

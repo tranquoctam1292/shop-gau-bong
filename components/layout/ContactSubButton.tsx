@@ -10,6 +10,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Phone, MessageCircle } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import type { ContactWidgetConfig } from '@/types/mongodb';
@@ -91,25 +92,29 @@ function getIcon(
   // If custom icon URL is provided, render it
   if (iconUrl) {
     return (
-      <img
-        src={iconUrl}
-        alt={`${type} icon`}
-        className={className}
-        onError={(e) => {
-          // Fallback to default icon if custom icon fails to load
-          const target = e.target as HTMLImageElement;
-          target.style.display = 'none';
-          // Replace with default icon
-          const parent = target.parentElement;
-          if (parent) {
-            const defaultIcon = getDefaultIcon(type, className);
-            if (defaultIcon) {
-              parent.innerHTML = '';
-              parent.appendChild(defaultIcon as any);
+      <div className={className}>
+        <Image
+          src={iconUrl}
+          alt={`${type} icon`}
+          width={24}
+          height={24}
+          className="w-full h-full"
+          onError={(e) => {
+            // Fallback to default icon if custom icon fails to load
+            const target = e.target as HTMLImageElement;
+            target.style.display = 'none';
+            // Replace with default icon
+            const parent = target.parentElement;
+            if (parent) {
+              const defaultIcon = getDefaultIcon(type, className);
+              if (defaultIcon) {
+                parent.innerHTML = '';
+                parent.appendChild(defaultIcon as any);
+              }
             }
-          }
-        }}
-      />
+          }}
+        />
+      </div>
     );
   }
 
@@ -195,9 +200,11 @@ export function ContactSubButton({ item, primaryColor, delay = 0 }: ContactSubBu
       {/* Icon */}
       <div className="flex-shrink-0 w-6 h-6 md:w-7 md:h-7 flex items-center justify-center">
         {item.iconUrl && !iconError ? (
-          <img
+          <Image
             src={item.iconUrl}
             alt={`${item.type} icon`}
+            width={28}
+            height={28}
             className="w-full h-full object-contain"
             onError={() => setIconError(true)}
           />

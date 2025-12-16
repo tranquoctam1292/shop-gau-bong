@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import Image from 'next/image';
 import { Editor } from '@tiptap/react';
 import Cropper from 'cropperjs';
 import 'cropperjs/dist/cropper.css';
@@ -355,12 +356,16 @@ export function ImagePixelEditor({
               {/* Compare View - Show original when holding button */}
               {showOriginal && originalSrc !== imageUrl && (
                 <div className="absolute inset-0 z-10 border-4 border-primary rounded overflow-hidden">
-                  <img
-                    src={originalSrc}
-                    alt="Original image"
-                    className="w-full h-full object-contain bg-muted"
-                    style={{ display: 'block' }}
-                  />
+                  <div className="relative w-full h-full bg-muted">
+                    <Image
+                      src={originalSrc}
+                      alt="Original image"
+                      fill
+                      className="object-contain"
+                      sizes="(max-width: 768px) 100vw, 800px"
+                      unoptimized
+                    />
+                  </div>
                   <div className="absolute top-2 left-2 bg-primary text-primary-foreground px-2 py-1 rounded text-xs font-medium">
                     Ảnh gốc
                   </div>

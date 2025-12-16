@@ -25,6 +25,51 @@ import { ProductDataMetaBox, type ProductDataMetaBoxState, type ProductType } fr
 import { StickyActionBar } from './products/ProductDataMetaBox/StickyActionBar';
 import { generateSlug, generateShortId } from '@/lib/utils/slug';
 
+// Media Extended Data Type
+interface MediaExtendedData {
+  videos?: Array<{
+    url: string;
+    type: 'youtube' | 'vimeo' | 'upload';
+    thumbnail?: string;
+  }>;
+  view360Images?: string[];
+  imageAltTexts?: Record<string, string>; // imageId -> altText
+}
+
+// API Product Response Type (includes additional fields from MongoDB)
+interface ApiProductResponse extends MappedProduct {
+  _thumbnail_id?: string;
+  _product_image_gallery?: string;
+  thumbnail?: {
+    url?: string;
+    thumbnail_url?: string;
+  };
+  gallery?: Array<{
+    id?: string | number;
+    url?: string;
+    thumbnail_url?: string;
+    title?: string;
+  }>;
+  mediaExtended?: MediaExtendedData;
+  scheduledDate?: string;
+  password?: string;
+  visibility?: 'public' | 'private' | 'password';
+  productDataMetaBox?: Partial<ProductDataMetaBoxState>;
+}
+
+// Product Payload Type for API
+interface ProductPayload extends Omit<ProductFormData, 'mediaExtended' | 'category'> {
+  mediaExtended?: MediaExtendedData;
+  slug: string;
+  minPrice?: number;
+  maxPrice?: number;
+  category?: string; // Optional in payload
+  categories?: string[];
+  _thumbnail_id?: string;
+  _product_image_gallery?: string;
+  version?: number;
+}
+
 interface ProductVariant {
   id: string;
   size: string;
@@ -75,7 +120,7 @@ interface ProductFormData {
     giftDeliveryDateEnabled: boolean;
   };
   // Media extended
-  mediaExtended?: Record<string, any>;
+  mediaExtended?: MediaExtendedData;
 }
 
 interface ProductFormProps {
@@ -258,7 +303,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           const data = await response.json();
           if (data.product) {
             const product = data.product as MappedProduct;
-            const apiProduct = data.product as any;
+            const apiProduct = data.product as ApiProductResponse;
             
             // Map product data to ProductDataMetaBox state
             // If productDataMetaBox exists in API response, use it directly (with fallbacks)
@@ -335,9 +380,9 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
                   stock: product.stockQuantity || 0,
                 })) || [],
               // Image fields - try new structure first, fallback to old structure
-              _thumbnail_id: (product as any)._thumbnail_id || (product.image?.id?.toString()),
-              _product_image_gallery: (product as any)._product_image_gallery ||
-                (product.galleryImages?.map((img: any) => img.id?.toString()).filter(Boolean).join(',') || undefined),
+              _thumbnail_id: apiProduct._thumbnail_id || (product.image?.id?.toString()),
+              _product_image_gallery: apiProduct._product_image_gallery ||
+                (product.galleryImages?.map((img: { id?: string | number }) => img.id?.toString()).filter(Boolean).join(',') || undefined),
               // Keep images for backward compatibility (will be removed later)
               images: [
                 product.image?.sourceUrl,
@@ -381,33 +426,33 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
             if (apiProduct._product_image_gallery) {
               // New structure: use gallery array if available
               if (apiProduct.gallery && Array.isArray(apiProduct.gallery)) {
-                setGalleryImages(apiProduct.gallery.map((img: any) => ({
+                setGalleryImages(apiProduct.gallery.map((img: { id?: string | number; url?: string; thumbnail_url?: string; title?: string }) => ({
                   id: img.id?.toString() || '',
-                  thumbnail_url: img.thumbnail_url || img.url,
-                  title: img.title,
+                  thumbnail_url: img.thumbnail_url || img.url || '',
+                  title: img.title || '',
                   altText: imageAltTexts[img.id?.toString() || ''] || '',
                 })));
               } else if (product.galleryImages && product.galleryImages.length > 0) {
                 // Fallback: map from galleryImages with IDs from _product_image_gallery
-                const galleryIds = apiProduct._product_image_gallery.split(',').filter(Boolean);
-                setGalleryImages(product.galleryImages.map((img: any, idx: number) => {
+                const galleryIds = apiProduct._product_image_gallery?.split(',').filter(Boolean) || [];
+                setGalleryImages(product.galleryImages.map((img: { sourceUrl?: string; url?: string; title?: string; alt?: string }, idx: number) => {
                   const imageId = galleryIds[idx] || `gallery-${idx}`;
                   return {
                     id: imageId,
-                    thumbnail_url: img.sourceUrl || img.url,
-                    title: img.title || img.alt,
+                    thumbnail_url: img.sourceUrl || img.url || '',
+                    title: img.title || img.alt || '',
                     altText: imageAltTexts[imageId] || '',
                   };
                 }));
               }
             } else if (product.galleryImages && product.galleryImages.length > 0) {
               // Old structure: map from galleryImages
-              setGalleryImages(product.galleryImages.map((img: any, idx: number) => {
+              setGalleryImages(product.galleryImages.map((img: { id?: string | number; sourceUrl?: string; url?: string; title?: string; alt?: string }, idx: number) => {
                 const imageId = img.id?.toString() || `gallery-${idx}`;
                 return {
                   id: imageId,
-                  thumbnail_url: img.sourceUrl || img.url,
-                  title: img.title || img.alt,
+                  thumbnail_url: img.sourceUrl || img.url || '',
+                  title: img.title || img.alt || '',
                   altText: imageAltTexts[imageId] || '',
                 };
               }));
@@ -485,7 +530,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
     // Merge ProductDataMetaBox data into payload
     const metaBoxData = formData.productDataMetaBox || {};
-    const payload: any = {
+    const payload: ProductPayload = {
       ...formData,
       slug,
       minPrice,
@@ -766,9 +811,9 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         // Just refresh if editing
         router.refresh();
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving product:', error);
-      const errorMessage = error?.message || 'Có lỗi xảy ra khi lưu sản phẩm';
+      const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi lưu sản phẩm';
       showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
@@ -812,7 +857,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
         // Redirect to products list
         router.push('/admin/products');
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('Error deleting product:', error);
         showToast('Có lỗi xảy ra khi xóa sản phẩm', 'error');
       } finally {
@@ -941,17 +986,20 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           setThumbnailUrl(thumbUrl);
         }}
         onImageRemove={() => {
-          setFormData((prev) => ({
-            ...prev,
-            _thumbnail_id: undefined,
-            mediaExtended: {
-              ...prev.mediaExtended,
-              imageAltTexts: {
-                ...prev.mediaExtended?.imageAltTexts,
-                [prev._thumbnail_id || '']: undefined,
+          setFormData((prev) => {
+            const thumbnailId = prev._thumbnail_id || '';
+            const currentAltTexts = prev.mediaExtended?.imageAltTexts || {};
+            const newAltTexts = { ...currentAltTexts };
+            delete newAltTexts[thumbnailId];
+            return {
+              ...prev,
+              _thumbnail_id: undefined,
+              mediaExtended: {
+                ...prev.mediaExtended,
+                imageAltTexts: newAltTexts,
               },
-            },
-          }));
+            };
+          });
           setThumbnailUrl(undefined);
         }}
         onAltTextChange={(altText) => {

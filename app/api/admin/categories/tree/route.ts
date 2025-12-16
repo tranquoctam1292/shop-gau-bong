@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections } from '@/lib/db';
-import { mapMongoCategory } from '@/lib/utils/productMapper';
+import { mapMongoCategory, MongoCategory } from '@/lib/utils/productMapper';
 import { buildCategoryTree } from '@/lib/utils/categoryHelpers';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       .toArray();
     
     // Map to frontend format
-    const mappedCategories = categoriesList.map((cat) => mapMongoCategory(cat));
+    const mappedCategories = categoriesList.map((cat) => mapMongoCategory(cat as unknown as MongoCategory));
     
     // Build tree structure
     const tree = buildCategoryTree(mappedCategories);

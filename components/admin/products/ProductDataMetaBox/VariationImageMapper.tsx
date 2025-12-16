@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
@@ -30,6 +31,15 @@ export function VariationImageMapper({
   const mappableAttributes = useMemo(() => {
     return attributes.filter((attr) => attr.usedForVariations && attr.values.length > 0);
   }, [attributes]);
+
+  // Group by attribute name - MUST be called before any early returns (React Hooks rules)
+  const groupedByAttribute = useMemo(() => {
+    const grouped: Record<string, string[]> = {};
+    mappableAttributes.forEach((attr) => {
+      grouped[attr.name] = attr.values;
+    });
+    return grouped;
+  }, [mappableAttributes]);
 
   // Calculate how many variations will be affected by each mapping
   const getAffectedCount = (attributeName: string, attributeValue: string): number => {
@@ -92,20 +102,11 @@ export function VariationImageMapper({
     return (
       <div className="p-4 border border-input rounded-lg bg-muted/30">
         <p className="text-sm text-muted-foreground text-center">
-          Chưa có thuộc tính nào được dùng cho biến thể. Vui lòng thêm thuộc tính trong tab "Thuộc tính".
+          Chưa có thuộc tính nào được dùng cho biến thể. Vui lòng thêm thuộc tính trong tab &quot;Thuộc tính&quot;.
         </p>
       </div>
     );
   }
-
-  // Group by attribute name
-  const groupedByAttribute = useMemo(() => {
-    const grouped: Record<string, string[]> = {};
-    mappableAttributes.forEach((attr) => {
-      grouped[attr.name] = attr.values;
-    });
-    return grouped;
-  }, [mappableAttributes]);
 
   return (
     <>
@@ -113,7 +114,7 @@ export function VariationImageMapper({
         <div>
           <Label className="text-sm font-semibold">Gán ảnh thông minh theo Thuộc tính</Label>
           <p className="text-xs text-muted-foreground mt-1">
-            Gán ảnh cho tất cả biến thể có cùng giá trị thuộc tính. Ví dụ: Gán ảnh "Gấu Nâu" cho tất cả biến thể có màu Nâu (Nâu-1m, Nâu-1m5, Nâu-2m).
+            Gán ảnh cho tất cả biến thể có cùng giá trị thuộc tính. Ví dụ: Gán ảnh &quot;Gấu Nâu&quot; cho tất cả biến thể có màu Nâu (Nâu-1m, Nâu-1m5, Nâu-2m).
           </p>
         </div>
 
@@ -150,10 +151,12 @@ export function VariationImageMapper({
                         {mapping ? (
                           <div className="space-y-2">
                             <div className="relative w-full h-20 border rounded overflow-hidden">
-                              <img
+                              <Image
                                 src={mapping.imageUrl}
                                 alt={value}
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 200px"
                               />
                             </div>
                             <Button

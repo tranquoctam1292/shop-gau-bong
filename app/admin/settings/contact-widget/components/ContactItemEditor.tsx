@@ -8,6 +8,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -161,11 +162,13 @@ export function ContactItemEditor({ item, onChange }: ContactItemEditorProps) {
                 <div className="space-y-2">
                   {item.iconUrl ? (
                     <div className="flex items-center gap-3 p-3 border rounded-lg bg-gray-50">
-                      <div className="w-12 h-12 flex items-center justify-center border rounded bg-white">
-                        <img
+                      <div className="relative w-12 h-12 flex items-center justify-center border rounded bg-white">
+                        <Image
                           src={item.iconUrl}
                           alt={`${label} icon`}
-                          className="w-full h-full object-contain"
+                          fill
+                          className="object-contain"
+                          sizes="48px"
                           onError={(e) => {
                             // Fallback nếu SVG không load được
                             (e.target as HTMLImageElement).style.display = 'none';

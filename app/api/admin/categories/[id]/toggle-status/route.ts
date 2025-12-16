@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoCategory } from '@/lib/utils/productMapper';
+import { mapMongoCategory, MongoCategory } from '@/lib/utils/productMapper';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
@@ -71,7 +71,7 @@ export async function PUT(
       );
     }
     
-    const mappedCategory = mapMongoCategory(updatedCategory);
+    const mappedCategory = mapMongoCategory(updatedCategory as unknown as MongoCategory);
     
     return NextResponse.json({ 
       category: mappedCategory,

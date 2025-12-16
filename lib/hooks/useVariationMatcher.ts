@@ -41,7 +41,12 @@ export function useVariationMatcher(
     }
 
     // Normalize selected size for comparison (trim and lowercase)
-    const normalizedSelectedSize = selectedSize.trim().toLowerCase();
+    // Also remove any extra spaces to handle "30cm" vs "30 cm"
+    const normalizeSize = (size: string): string => {
+      return size.trim().toLowerCase().replace(/\s+/g, '');
+    };
+    
+    const normalizedSelectedSize = normalizeSize(selectedSize);
     const normalizedSelectedColor = selectedColor?.trim().toLowerCase();
 
     // Find variation that matches selected size and color
@@ -50,7 +55,7 @@ export function useVariationMatcher(
       if (!variation.size) return false;
 
       // Normalize variation size for comparison
-      const normalizedVariationSize = variation.size.trim().toLowerCase();
+      const normalizedVariationSize = normalizeSize(String(variation.size));
 
       // Check if size matches
       if (normalizedVariationSize !== normalizedSelectedSize) {

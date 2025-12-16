@@ -173,7 +173,7 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
                   Chưa có thuộc tính để tạo biến thể
                 </p>
                 <p className="text-xs text-yellow-700 dark:text-yellow-300">
-                  Vui lòng thêm thuộc tính trong tab "Thuộc tính" và đánh dấu "Dùng cho biến thể" để có thể tạo biến thể.
+                  Vui lòng thêm thuộc tính trong tab &quot;Thuộc tính&quot; và đánh dấu &quot;Dùng cho biến thể&quot; để có thể tạo biến thể.
                 </p>
               </div>
             </div>
@@ -381,7 +381,7 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
         ) : (
           <div className="text-center py-12 border-2 border-dashed border-muted rounded-lg">
             <p className="text-sm text-muted-foreground mb-4">
-              Chưa có biến thể nào. Nhấn "Tạo biến thể" để tạo tự động.
+              Chưa có biến thể nào. Nhấn &quot;Tạo biến thể&quot; để tạo tự động.
             </p>
           </div>
         )}

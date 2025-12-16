@@ -41,12 +41,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log restore action (optional: save to database for audit)
-    console.log('Image restore requested:', {
-      currentImage: imageUrl,
-      originalImage: originalUrl,
-      timestamp: new Date().toISOString(),
-    });
 
     return NextResponse.json({
       success: true,

@@ -120,7 +120,7 @@ export function GeneralTab({ state, onUpdate }: GeneralTabProps) {
         />
         {state.productType === 'variable' && (
           <p className="text-xs text-muted-foreground">
-            Với sản phẩm có biến thể, giá được quản lý tại tab "Biến thể". Trường này sẽ bị vô hiệu hóa.
+            Với sản phẩm có biến thể, giá được quản lý tại tab &quot;Biến thể&quot;. Trường này sẽ bị vô hiệu hóa.
           </p>
         )}
         {/* Real-time Profit Calculation */}

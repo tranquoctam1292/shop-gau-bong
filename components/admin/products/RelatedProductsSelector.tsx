@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -127,11 +128,15 @@ export function RelatedProductsSelector({
               >
                 <div className="flex items-center gap-3 flex-1">
                   {product.image?.sourceUrl && (
-                    <img
-                      src={product.image.sourceUrl}
-                      alt={product.name}
-                      className="w-12 h-12 object-cover rounded"
-                    />
+                    <div className="relative w-12 h-12 rounded overflow-hidden">
+                      <Image
+                        src={product.image.sourceUrl}
+                        alt={product.name}
+                        fill
+                        className="object-cover"
+                        sizes="48px"
+                      />
+                    </div>
                   )}
                   <div className="flex-1">
                     <p className="text-sm font-medium">{product.name}</p>

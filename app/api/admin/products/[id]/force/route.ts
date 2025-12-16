@@ -76,9 +76,6 @@ export async function DELETE(
         );
       }
       
-      // Log successful deletion
-      console.log(`[Force Delete] Successfully deleted product ${productId}`);
-      
       return NextResponse.json({
         success: true,
         message: 'Đã xóa vĩnh viễn sản phẩm',

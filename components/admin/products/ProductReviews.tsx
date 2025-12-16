@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -191,12 +192,15 @@ export function ProductReviews({ productId }: ProductReviewsProps) {
                     {review.photos && review.photos.length > 0 && (
                       <div className="flex gap-2 mt-2">
                         {review.photos.map((photo, idx) => (
-                          <img
-                            key={idx}
-                            src={photo}
-                            alt={`Review photo ${idx + 1}`}
-                            className="w-20 h-20 object-cover rounded"
-                          />
+                          <div key={idx} className="relative w-20 h-20 rounded overflow-hidden">
+                            <Image
+                              src={photo}
+                              alt={`Review photo ${idx + 1}`}
+                              fill
+                              className="object-cover"
+                              sizes="80px"
+                            />
+                          </div>
                         ))}
                       </div>
                     )}

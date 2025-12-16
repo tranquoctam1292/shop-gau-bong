@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -31,11 +31,7 @@ export default function AdminCommentsPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  useEffect(() => {
-    fetchComments();
-  }, [page, statusFilter]);
-
-  const fetchComments = async () => {
+  const fetchComments = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -65,7 +61,11 @@ export default function AdminCommentsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, statusFilter, search]);
+
+  useEffect(() => {
+    fetchComments();
+  }, [fetchComments]);
 
   const updateCommentStatus = async (id: string, status: string) => {
     try {

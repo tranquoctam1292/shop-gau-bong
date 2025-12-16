@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -91,11 +92,15 @@ function AttributePreview({
             title={term.name}
           >
             {term.imageUrl ? (
-              <img
-                src={term.imageUrl}
-                alt={term.name}
-                className="w-full h-full object-cover"
-              />
+              <div className="relative w-full h-full">
+                <Image
+                  src={term.imageUrl}
+                  alt={term.name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, 150px"
+                />
+              </div>
             ) : (
               <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-400">
                 {term.name.charAt(0).toUpperCase()}

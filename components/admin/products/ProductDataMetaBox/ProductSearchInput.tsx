@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import Image from 'next/image';
 import { Input } from '@/components/ui/input';
 import { Loader2, Search, X, Image as ImageIcon } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
@@ -102,7 +103,8 @@ export function ProductSearchInput({
           const allExcludeIds = [...excludeIds, ...value];
           
           // Handle different response formats
-          let productsList: any[] = [];
+          type ProductResponse = { id?: string; _id?: { toString: () => string } | string; name?: string; image?: { sourceUrl?: string } | string; sku?: string; price?: string | number };
+          let productsList: ProductResponse[] = [];
           if (Array.isArray(data)) {
             productsList = data;
           } else if (data.products && Array.isArray(data.products)) {
@@ -112,15 +114,23 @@ export function ProductSearchInput({
           }
           
           const products: ProductSearchResult[] = productsList
-            .map((product: any) => {
+            .map((product: ProductResponse) => {
               const productId = product.id || product._id?.toString();
               if (!productId) return null;
+              
+              // Handle image: can be string or object with sourceUrl
+              let imageUrl: string | undefined;
+              if (typeof product.image === 'string') {
+                imageUrl = product.image;
+              } else if (product.image && typeof product.image === 'object' && 'sourceUrl' in product.image) {
+                imageUrl = product.image.sourceUrl;
+              }
               
               return {
                 id: productId,
                 name: product.name || '',
                 price: typeof product.price === 'string' ? parseFloat(product.price) : product.price,
-                image: product.image?.sourceUrl || product.images?.[0]?.sourceUrl || product.images?.[0],
+                image: imageUrl,
                 sku: product.sku || '',
               };
             })
@@ -204,11 +214,15 @@ export function ProductSearchInput({
               className="w-full flex items-center gap-3 p-3 hover:bg-muted transition-colors text-left border-b border-input last:border-b-0"
             >
               {product.image ? (
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-12 h-12 object-cover rounded"
-                />
+                <div className="relative w-12 h-12 rounded overflow-hidden">
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    className="object-cover"
+                    sizes="48px"
+                  />
+                </div>
               ) : (
                 <div className="w-12 h-12 bg-muted rounded flex items-center justify-center">
                   <ImageIcon className="h-6 w-6 text-muted-foreground" />
@@ -235,11 +249,15 @@ export function ProductSearchInput({
               className="flex items-center gap-2 px-3 py-1.5 bg-muted rounded-full text-sm"
             >
               {product.image ? (
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-5 h-5 object-cover rounded"
-                />
+                <div className="relative w-5 h-5 rounded overflow-hidden">
+                  <Image
+                    src={product.image}
+                    alt={product.name}
+                    fill
+                    className="object-cover"
+                    sizes="20px"
+                  />
+                </div>
               ) : (
                 <ImageIcon className="h-4 w-4 text-muted-foreground" />
               )}

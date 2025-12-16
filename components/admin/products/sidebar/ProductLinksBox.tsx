@@ -174,7 +174,7 @@ export function ProductLinksBox({
               )}
             </Button>
             <p className="text-xs text-muted-foreground">
-              Tạo bản sao sản phẩm này với trạng thái "Bản nháp"
+              Tạo bản sao sản phẩm này với trạng thái &quot;Bản nháp&quot;
             </p>
           </div>
         )}

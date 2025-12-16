@@ -138,7 +138,7 @@ export function VietQRPayment({
             <p className="font-semibold">Hướng dẫn thanh toán:</p>
             <ol className="list-decimal list-inside space-y-1 text-text-muted">
               <li>Mở ứng dụng ngân hàng trên điện thoại</li>
-              <li>Chọn tính năng "Quét QR" hoặc "Chuyển khoản"</li>
+              <li>Chọn tính năng &quot;Quét QR&quot; hoặc &quot;Chuyển khoản&quot;</li>
               <li>Quét QR code ở trên hoặc nhập thông tin tài khoản</li>
               <li>Kiểm tra số tiền và nội dung chuyển khoản</li>
               <li>Xác nhận thanh toán</li>

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -414,10 +415,12 @@ function SafeImage({
 
   return (
     <div className={cn("relative overflow-hidden", className)}>
-      <img
+      <Image
         src={src}
         alt={alt}
-        className="w-full h-full object-cover transition-transform group-hover:scale-105"
+        fill
+        className="object-cover transition-transform group-hover:scale-105"
+        sizes="(max-width: 768px) 100vw, 300px"
         onError={() => {
           setHasError(true);
           onError?.();

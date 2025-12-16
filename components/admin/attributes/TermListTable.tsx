@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Input } from '@/components/ui/input';
 import {
   Table,
@@ -104,11 +105,13 @@ export function TermListTable({
                       />
                     )}
                     {(attributeType === 'image' || attributeType === 'button') && term.imageUrl && (
-                      <div className="w-12 h-12 border rounded overflow-hidden">
-                        <img
+                      <div className="relative w-12 h-12 border rounded overflow-hidden">
+                        <Image
                           src={term.imageUrl}
                           alt={term.name}
-                          className="w-full h-full object-cover"
+                          fill
+                          className="object-cover"
+                          sizes="48px"
                         />
                       </div>
                     )}

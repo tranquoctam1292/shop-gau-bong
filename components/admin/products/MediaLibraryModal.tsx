@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { createPortal } from 'react-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -625,11 +626,15 @@ export function MediaLibraryModal({
                           }`}
                         >
                           {item.type === 'image' ? (
-                            <img
-                              src={item.url}
-                              alt={item.alt || ''}
-                              className="w-full h-32 object-cover"
-                            />
+                            <div className="relative w-full h-32">
+                              <Image
+                                src={item.url}
+                                alt={item.alt || ''}
+                                fill
+                                className="object-cover"
+                                sizes="(max-width: 768px) 100vw, 200px"
+                              />
+                            </div>
                           ) : (
                             <div className="w-full h-32 bg-muted flex items-center justify-center">
                               <Video className="h-8 w-8 text-muted-foreground" />
@@ -664,11 +669,15 @@ export function MediaLibraryModal({
                 <>
                   <div className="mb-4">
                     {selectedMedia.type === 'image' ? (
-                      <img
-                        src={selectedMedia.url}
-                        alt={selectedMedia.alt || ''}
-                        className="w-full rounded-lg"
-                      />
+                      <div className="relative w-full aspect-video rounded-lg overflow-hidden">
+                        <Image
+                          src={selectedMedia.url}
+                          alt={selectedMedia.alt || ''}
+                          fill
+                          className="object-contain"
+                          sizes="(max-width: 768px) 100vw, 512px"
+                        />
+                      </div>
                     ) : (
                       <div className="w-full aspect-video bg-muted rounded-lg flex items-center justify-center">
                         <Video className="h-12 w-12 text-muted-foreground" />
@@ -812,11 +821,15 @@ export function MediaLibraryModal({
                   {selectedMediaMultiple.map((item) => (
                     <div key={item.id} className="relative">
                       {item.type === 'image' ? (
-                        <img
-                          src={item.thumbnail_url || item.url}
-                          alt={item.alt || ''}
-                          className="w-full rounded-lg"
-                        />
+                        <div className="relative w-full aspect-video rounded-lg overflow-hidden">
+                          <Image
+                            src={item.thumbnail_url || item.url}
+                            alt={item.alt || ''}
+                            fill
+                            className="object-cover"
+                            sizes="(max-width: 768px) 50vw, 200px"
+                          />
+                        </div>
                       ) : (
                         <div className="w-full aspect-square bg-muted rounded-lg flex items-center justify-center">
                           <Video className="h-8 w-8 text-muted-foreground" />

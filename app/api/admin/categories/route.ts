@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoCategory } from '@/lib/utils/productMapper';
+import { mapMongoCategory, MongoCategory } from '@/lib/utils/productMapper';
 import { buildCategoryTree } from '@/lib/utils/categoryHelpers';
 import { z } from 'zod';
 import { handleValidationError } from '@/lib/utils/validation-errors';
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
       .toArray();
     
     // Map to frontend format
-    const mappedCategories = categoriesList.map((cat) => mapMongoCategory(cat));
+    const mappedCategories = categoriesList.map((cat) => mapMongoCategory(cat as unknown as MongoCategory));
     
     // Return tree structure if requested
     if (type === 'tree') {
@@ -187,7 +187,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const mappedCategory = mapMongoCategory(createdCategory);
+    const mappedCategory = mapMongoCategory(createdCategory as unknown as MongoCategory);
     
     return NextResponse.json(
       { category: mappedCategory },

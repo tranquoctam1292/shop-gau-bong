@@ -9,7 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoCategory } from '@/lib/utils/productMapper';
+import { mapMongoCategory, MongoCategory } from '@/lib/utils/productMapper';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
@@ -60,7 +60,7 @@ export async function GET(
       );
     }
     
-    const mappedCategory = mapMongoCategory(category);
+    const mappedCategory = mapMongoCategory(category as unknown as MongoCategory);
     
     return NextResponse.json({ category: mappedCategory });
   } catch (error: any) {
@@ -213,7 +213,7 @@ export async function PUT(
       );
     }
     
-    const mappedCategory = mapMongoCategory(updatedCategory);
+    const mappedCategory = mapMongoCategory(updatedCategory as unknown as MongoCategory);
     
     return NextResponse.json({ category: mappedCategory });
   } catch (error: any) {

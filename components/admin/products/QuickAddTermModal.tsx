@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -199,7 +200,7 @@ export function QuickAddTermModal({
       <Dialog open={isOpen} onOpenChange={onClose}>
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Tạo giá trị mới cho "{attribute.name}"</DialogTitle>
+            <DialogTitle>Tạo giá trị mới cho &quot;{attribute.name}&quot;</DialogTitle>
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -308,10 +309,12 @@ export function QuickAddTermModal({
                 <div className="space-y-2">
                   {imageUrl && (
                     <div className="relative w-full h-24 border rounded-lg overflow-hidden">
-                      <img
+                      <Image
                         src={imageUrl}
                         alt={name || 'Preview'}
-                        className="w-full h-full object-contain"
+                        fill
+                        className="object-contain"
+                        sizes="(max-width: 768px) 100vw, 200px"
                       />
                     </div>
                   )}

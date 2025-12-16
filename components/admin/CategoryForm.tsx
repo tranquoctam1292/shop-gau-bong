@@ -384,7 +384,7 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
                   Danh mục nổi bật (hiển thị trên trang chủ)
                 </Label>
                 <p className="text-xs text-gray-500 mt-1">
-                  Chỉ có thể chọn tối đa 4 danh mục nổi bật. Danh mục này sẽ hiển thị trong phần "Danh mục sản phẩm" trên trang chủ.
+                  Chỉ có thể chọn tối đa 4 danh mục nổi bật. Danh mục này sẽ hiển thị trong phần &quot;Danh mục sản phẩm&quot; trên trang chủ.
                 </p>
               </div>
             </label>

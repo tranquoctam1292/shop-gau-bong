@@ -116,7 +116,7 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
                       onClick={async () => {
                         if (!isOutOfStock) {
                           await addToCart({
-                            productId: product.databaseId,
+                            productId: typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId,
                             productName: product.name,
                             price: product.price || '0',
                             image: product.image?.sourceUrl,

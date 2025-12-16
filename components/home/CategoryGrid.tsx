@@ -61,13 +61,6 @@ export function CategoryGrid() {
     .slice(0, 4); // Tối đa 4 danh mục
   
   const displayCategories = featuredCategories;
-  
-  // Debug: Log để kiểm tra
-  if (process.env.NODE_ENV === 'development') {
-    console.log('[CategoryGrid] Total categories:', categories.length);
-    console.log('[CategoryGrid] Featured categories:', featuredCategories.length);
-    console.log('[CategoryGrid] Featured categories data:', featuredCategories.map(c => ({ name: c.name, featured: c.featured })));
-  }
 
   return (
     <section className="container-mobile py-8 md:py-16">

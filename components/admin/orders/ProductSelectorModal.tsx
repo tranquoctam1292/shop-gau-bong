@@ -11,6 +11,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -227,11 +228,15 @@ export function ProductSelectorModal({
                     >
                       <div className="flex gap-3">
                         {product.images?.[0] ? (
-                          <img
-                            src={product.images[0]}
-                            alt={product.name}
-                            className="w-16 h-16 object-cover rounded"
-                          />
+                          <div className="relative w-16 h-16 rounded overflow-hidden">
+                            <Image
+                              src={product.images[0]}
+                              alt={product.name}
+                              fill
+                              className="object-cover"
+                              sizes="64px"
+                            />
+                          </div>
                         ) : (
                           <div className="w-16 h-16 bg-muted rounded flex items-center justify-center">
                             <ImageIcon className="w-8 h-8 text-muted-foreground" />
@@ -268,11 +273,15 @@ export function ProductSelectorModal({
             <div className="border rounded-lg p-4 space-y-4">
               <div className="flex gap-4">
                 {getProductImage(selectedProduct, selectedVariantId || undefined) ? (
-                  <img
-                    src={getProductImage(selectedProduct, selectedVariantId || undefined)!}
-                    alt={selectedProduct.name}
-                    className="w-24 h-24 object-cover rounded"
-                  />
+                  <div className="relative w-24 h-24 rounded overflow-hidden">
+                    <Image
+                      src={getProductImage(selectedProduct, selectedVariantId || undefined)!}
+                      alt={selectedProduct.name}
+                      fill
+                      className="object-cover"
+                      sizes="96px"
+                    />
+                  </div>
                 ) : (
                   <div className="w-24 h-24 bg-muted rounded flex items-center justify-center">
                     <ImageIcon className="w-12 h-12 text-muted-foreground" />

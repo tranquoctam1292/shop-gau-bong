@@ -4,6 +4,11 @@ You are paranoid about **Error Handling**, obsessed with **Mobile UX**, and stri
 
 **⚠️ IMPORTANT:** Project đã migrated từ WordPress/WooCommerce sang custom CMS với MongoDB. Không sử dụng WordPress/WooCommerce/WPGraphQL nữa.
 
+**⚠️ DEPRECATED CODE:** The following are marked as `@deprecated` and should NOT be used in new code:
+- `lib/api/woocommerce.ts` - Use Custom CMS API (`/api/cms/*`, `/api/admin/*`) instead
+- `mapWooCommerce*` functions in `lib/utils/productMapper.ts` - Use `mapMongoProduct()` and `mapMongoCategory()` instead
+- These are kept only for migration scripts and historical reference
+
 # PROJECT CONTEXT
 This is a teddy bear e-commerce site for the Vietnam market.
 - **Key Challenge 1:** Products are bulky (Volumetric Weight logic required).
@@ -22,14 +27,18 @@ Before implementing any feature, you MUST reference the following sources based 
   - RULE: Do not guess field names. Look at `SCHEMA_CONTEXT.md` to see exactly which fields exist in MongoDB documents.
   - RULE: Always use Next.js API routes (`/api/cms/*`) for public access and (`/api/admin/*`) for admin access. Never call MongoDB directly from client.
 - **IF Working with Product Module:**
-  - READ: `docs/PRODUCT_MODULE_CONTEXT.md`
+  - READ: `docs/PRODUCT_MODULE_CONTEXT.md` (detailed context)
+  - READ: `docs/PRODUCT_MODULE_REFERENCE.md` (comprehensive reference - API endpoints, schema, hooks, patterns)
   - RULE: Always include `version` field in PUT requests for optimistic locking
   - RULE: Use soft delete (`deletedAt`, `status: 'trash'`) instead of hard delete
   - RULE: Validate `salePrice < regularPrice` in Zod schema
   - RULE: Only auto-generate slug when creating new product, preserve on edit
+  - RULE: Use `per_page` (not `limit`) for pagination query parameters
+  - RULE: Stock status values are `instock`, `outofstock`, `onbackorder` (not `in_stock`, `out_of_stock`, `on_backorder`)
+  - RULE: `giftFeatures.giftWrapping` field (not `giftWrappingEnabled`)
 
 - **IF Planning / Architectural Decisions:**
-  - READ: `KE_HOACH_DU_AN.md`
+  - READ: `KE_HOACH_DU_AN.md` (root) or `docs/plans/*.md` for specific plans
   - RULE: Ensure alignment with the project phases and strict Business Logic (VietQR, Shipping).
 
 # TECH STACK RULES
@@ -68,6 +77,8 @@ Before implementing any feature, you MUST reference the following sources based 
   - Image Alt Text: SEO alt text inputs in FeaturedImageBox and ProductGalleryBox
   - Rich Text Editor: Image paste uploads to server instead of Base64
   - Error Handling: Toast notifications with specific error messages from server (✅ All `alert()` and `window.prompt()` calls replaced with `showToast()` and Dialog components - see `docs/ADMIN_TOAST_NOTIFICATIONS_PLAN.md`)
+  - **API Endpoints:** 20+ endpoints documented in `docs/PRODUCT_MODULE_REFERENCE.md`
+  - **Comprehensive Reference:** See `docs/PRODUCT_MODULE_REFERENCE.md` for complete technical reference (API, schema, hooks, patterns)
   - See: `docs/PRODUCT_MODULE_FIX_PLAN.md` and `docs/PRODUCT_MODULE_REVIEW_REPORT.md` for details
 - **Safe Mapping:** MongoDB documents are mapped to frontend format using `productMapper`. Use `mapMongoProduct()` helper.
   - *Bad:* Direct access to MongoDB `_id` or nested fields without mapping
@@ -79,6 +90,11 @@ Before implementing any feature, you MUST reference the following sources based 
   - Upload endpoint: `POST /api/admin/media` (not `/api/admin/media/upload`)
   - Always refresh media list after upload to ensure sync
 - **Type Safety:** Use `types/woocommerce.ts` for frontend types (kept for compatibility), `types/mongodb.ts` for MongoDB types, `types/media.ts` for Media Library types. Never use `any`.
+  - **Preferred types over `any`:**
+    - Use `Record<string, unknown>` for MongoDB query conditions
+    - Use `MappedProduct` for product data in hooks
+    - Use proper interfaces instead of `any` assertions
+    - Use `unknown` for error handling, then check with `instanceof Error`
 - **Database Access:** Use `lib/db.ts` with `getCollections()` helper. Always use Repository Pattern.
 - **React Query:** Use `@tanstack/react-query` for data fetching, caching, and deduplication. Configured globally via `QueryProvider`.
   - *Use for:* Product variations, product lists, categories
@@ -89,12 +105,23 @@ Before implementing any feature, you MUST reference the following sources based 
 - Framework: Next.js 14+ (App Router).
 - Styling: Tailwind CSS + Shadcn UI.
 - **Image Handling:** Next.js `Image` component is mandatory. Fallback to placeholder if source is null.
+  - **CRITICAL:** Never use native `<img>` tags. Always use Next.js `Image` component for optimization.
+  - *Bad:* `<img src={imageUrl} alt="Product" />`
+  - *Good:* 
+    ```tsx
+    import Image from 'next/image';
+    <Image src={imageUrl} alt="Product" width={500} height={500} />
+    ```
+  - **Exception:** Only use `<img>` when a `ref` is required for third-party libraries (e.g., Cropper.js in `ImagePixelEditor.tsx`). In such cases, document why `<img>` is necessary.
+  - **Benefits:** Automatic image optimization, lazy loading, responsive images, and better performance.
 - **State Management:** Zustand for cart state (localStorage persistence), React Query for server state.
 - **Product Variations:** Support variable products with size and color attributes. Use `useProductVariations` hook for lazy loading.
   - **CRITICAL:** MongoDB variants use direct `size` and `color` fields, NOT an `attributes` object.
   - **Structure:** `MongoVariant { id, size, color?, colorCode?, price, stock, image?, sku? }`
   - **Matching:** Match variations by `variation.size === selectedSize` directly, not through `variation.attributes.find()`
   - **Pricing:** Variants only have `price` field (no `on_sale`, `sale_price`, `regular_price`)
+  - **Hook Usage:** Use `useProductVariations(productId, { enabled: true })` - returns `{ variations, isLoading, error, refetch }`
+  - **Price Hook:** Use `useProductPrice(product, selectedVariation)` - returns `{ displayPrice, isOnSale, discountPercentage, priceRange, regularPrice, salePrice }`
 - **Button Styling:** Use `buttonVariants` from `lib/utils/button-variants.ts`. Default variant includes gradient and shadow effects. Ghost variant for subtle buttons.
 - **Product Filters:** 
   - Component: `components/product/ProductFilters.tsx`
@@ -133,6 +160,15 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Images:** If missing, fallback to local placeholder (`/images/teddy-placeholder.png`).
 - **Attributes:** If `length/width/height` missing, handle gracefully (do not crash shipping calc).
 - **HTML Content:** When displaying product names, descriptions, or any text content in admin lists/tables, always use `stripHtmlTags()` from `lib/utils/sanitizeHtml.ts` to prevent raw HTML tags from appearing in the UI (e.g., `<p></p>` showing as text).
+- **Safe Array Mapping:** Always filter null/undefined values before mapping arrays.
+  - *Bad:* `items.map(item => item.name)` (if items can contain null)
+  - *Good:* `items.filter((item): item is NonNullable<typeof item> => Boolean(item)).map(item => item.name)`
+- **Safe Parsing:** Always use safe parsing for numbers and strings.
+  - *Bad:* `const weight = parseFloat(product.weight);` (if weight can be null/undefined)
+  - *Good:* `const weight = product.weight ? parseFloat(product.weight) : null;`
+- **Null Checks Before Mapping:** Always check for null before calling mapper functions.
+  - *Bad:* `return mapMongoProduct(mongoProduct);` (if mongoProduct can be null)
+  - *Good:* `if (!mongoProduct) return null; return mapMongoProduct(mongoProduct);`
 
 ## 2. Hydration Mismatches
 - **Window Object:** Never access `window`/`document` in Server Components.
@@ -159,6 +195,24 @@ Before implementing any feature, you MUST reference the following sources based 
 
 ## 5. Code Quality & Debugging
 - **NO console.log in production:** Remove all debug console.log statements before committing.
+- **React Hooks Dependencies (CRITICAL):** Always include all dependencies in `useEffect`, `useMemo`, and `useCallback` dependency arrays.
+  - *Bad:* 
+    ```typescript
+    useEffect(() => {
+      fetchData();
+    }, []); // Missing fetchData dependency
+    ```
+  - *Good:*
+    ```typescript
+    const fetchData = useCallback(async () => {
+      // fetch logic
+    }, [/* dependencies */]);
+    
+    useEffect(() => {
+      fetchData();
+    }, [fetchData]); // Include fetchData in dependencies
+    ```
+  - **Rule:** Wrap async fetch functions in `useCallback` and include them in `useEffect` dependency arrays to prevent stale closures and ensure proper re-fetching.
 - **State Management:** Use separate state variables for mobile and desktop when components render conditionally (e.g., `lg:hidden` vs `hidden lg:block`).
 - **Popover State:** When using Radix UI Popover with React Portals, ensure conditional rendering sections (mobile/desktop) use separate state variables to prevent duplicate PopoverContent rendering.
 - **Product Variations Handling:**
@@ -183,6 +237,23 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Type assertions:** Use type assertions (`as Type`) only when necessary and safe. Prefer proper type definitions.
   - *Bad:* `const data = result as any;`
   - *Good:* `const data = result as RefundData;` or define proper interface
+- **MongoDB Document Type Assertions (CRITICAL):** When mapping MongoDB documents, always use proper type assertions and null checks.
+  - *Bad:* `const product = await collections.products.findOne({ _id: new ObjectId(id) }); return mapMongoProduct(product);`
+  - *Good:*
+    ```typescript
+    const product = await collections.products.findOne({ _id: new ObjectId(id) });
+    if (!product) {
+      return NextResponse.json({ error: 'Product not found' }, { status: 404 });
+    }
+    return NextResponse.json({ product: mapMongoProduct(product as unknown as MongoProduct) });
+    ```
+  - **Why:** MongoDB returns `WithId<Document>` which is not directly assignable to custom interfaces. Always check for null and use `as unknown as MongoProduct/MongoCategory` assertion.
+- **MongoDB Query Types:** Use `Record<string, unknown>` instead of `any` for MongoDB query conditions.
+  - *Bad:* `const query: any = { status: 'publish' };`
+  - *Good:* `const query: Record<string, unknown> = { status: 'publish' };`
+- **Error Handling Types:** Never use `error: any` in catch blocks. Use proper error type checking.
+  - *Bad:* `catch (error: any) { console.error(error.message); }`
+  - *Good:* `catch (error: unknown) { if (error instanceof Error) { console.error(error.message); } }`
 - **OrderStatus type:** Always use `OrderStatus` type from `@/lib/utils/orderStateMachine`. Never use string literals directly.
   - *Bad:* `currentStatus = transition.to;` (where transition.to is string)
   - *Good:* `currentStatus = transition.to as OrderStatus;`
@@ -233,14 +304,37 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Combining cron jobs:** If hitting limits, create a single route that calls multiple tasks: `/api/admin/cron/all-tasks`
 - **Documentation:** Always document cron job setup in `CRON_JOBS_SETUP.md` when adding new scheduled tasks.
 
+## 11. Dead Code & Legacy Code Management (CRITICAL)
+- **Dead Code Detection:** Regularly review and remove unused code to maintain codebase health.
+  - Check for unused components, functions, and imports
+  - Use code review findings from `BAO_CAO_REVIEW_CODE_TOAN_DIEN.md` as reference
+- **Deprecated Code:** Code marked with `@deprecated` should NOT be used in new implementations.
+  - **Deprecated Files:**
+    - `lib/api/woocommerce.ts` - Use Custom CMS API instead
+  - **Deprecated Functions:**
+    - `mapWooCommerceProduct()`, `mapWooCommerceProducts()`, `mapWooCommerceCategory()`, `mapWooCommerceCategories()` in `lib/utils/productMapper.ts`
+    - Use `mapMongoProduct()` and `mapMongoCategory()` instead
+  - **Migration Scripts:** Deprecated code is kept only for migration scripts in `scripts/` directory
+- **Test Scripts Organization:**
+  - Active test scripts remain in `scripts/` directory
+  - Legacy test scripts are moved to `scripts/legacy/` with documentation in `scripts/legacy/README.md`
+  - Only add test scripts to `package.json` if they are actively used
+- **Component Removal:** Removed components (e.g., `CustomerPhotos.tsx`) should not be referenced in new code.
+  - Check `app/page.tsx` and component imports before using removed components
+
 # BUSINESS LOGIC RULES
 - **Language:** UI text MUST be **Vietnamese**. Code comments in English/Vietnamese.
 - **Payment:** Prioritize **VietQR** & **MoMo**. COD and Bank Transfer are also supported.
 - **Cart:** Guest checkout only. No user authentication required. Cart is stored locally (Zustand). Cart supports product variations (size, color) via `variationId`.
 - **Homepage:** Each product section displays **8 products** (2 rows × 4 columns on desktop, 2 columns × 4 rows on mobile).
-- **Homepage Sections:** Hero Carousel, New Arrivals, Bigsize Products, Category Products, Trending Products, Categories Grid, Featured Products, Best Sellers, Video Section, Stories Section, Store Locations. (Customer Photos section has been removed)
+- **Homepage Sections:** Hero Carousel, New Arrivals, Bigsize Products, Category Products, Trending Products, Categories Grid, Featured Products, Best Sellers, Video Section, Stories Section, Store Locations.
+  - **Note:** Customer Photos section (`CustomerPhotos.tsx`) has been removed and should not be used.
 - **Product Variations:** Products can have size and color variations. Display up to 4 size options and 4 color options on ProductCard. Dynamic pricing based on selected variation.
   - **Product Info Actions:** Only "Thêm giỏ hàng" (Add to cart) and "GỬI TẶNG" (Gift) buttons are available. "Mua ngay" (Quick checkout) button has been removed.
+- **Code Review Reference:** For comprehensive code review findings and fixes, refer to `BAO_CAO_REVIEW_CODE_TOAN_DIEN.md`.
+  - This document tracks all TypeScript errors, ESLint warnings, type safety improvements, and dead code cleanup
+  - Use it as a reference when implementing new features to avoid repeating past mistakes
+  - Updated regularly with new findings and fixes
 - **Cart UI:** CartDrawer uses Shadcn Sheet component. Cart button uses ghost variant with hover effect. Buttons have proper padding (`px-10 py-5`) and text centering.
 - **Product Management:**
   - **Soft Delete:** Products are never hard deleted. Use `deletedAt` field and `status: 'trash'` for soft delete
@@ -249,6 +343,12 @@ Before implementing any feature, you MUST reference the following sources based 
   - **Slug Uniqueness:** Slugs must be unique. Auto-generate with random suffix if duplicate
   - **Optimistic Locking:** Products have `version` field. Check version on update to prevent concurrent edit conflicts
   - **Image Alt Text:** All product images should have alt text for SEO (stored in `mediaExtended.imageAltTexts`)
+  - **API Query Parameters:** Use `per_page` (not `limit`) for pagination (default: 10 for admin, 10 for public)
+  - **Stock Status Values:** Use `instock`, `outofstock`, `onbackorder` (not `in_stock`, `out_of_stock`, `on_backorder`)
+  - **Field Naming:** `giftFeatures.giftWrapping` (not `giftWrappingEnabled`)
+  - **Bulk Action Endpoint:** `/api/admin/products/bulk-action` (not `/api/admin/products/bulk`)
+  - **Validate Slug Method:** `GET /api/admin/products/validate-slug` (not POST)
+  - **Public Product Endpoint:** `/api/cms/products/[id]` accepts both ObjectId and slug as `[id]` parameter
 
 # ENCODING & VIETNAMESE LANGUAGE STANDARDS
 - **Global Encoding:** ALWAYS enforce **UTF-8** encoding for all file reads and writes.
@@ -287,15 +387,42 @@ Before implementing any feature, you MUST reference the following sources based 
     1. Explicitly requested by the user.
     2. It represents a major project milestone (e.g., `PHASE_COMPLETION.md`).
     3. It is a complex technical audit/migration log that needs to be preserved in Git.
+    4. It is a comprehensive module reference document (e.g., `PRODUCT_MODULE_REFERENCE.md`) for long-term technical reference.
+- **Module Reference Documentation (CRITICAL):**
+  - **Purpose:** Create comprehensive reference documents for major modules to serve as long-term technical documentation.
+  - **When to Create:** When a module has complex architecture, multiple API endpoints, hooks, components, and business logic that needs centralized documentation.
+  - **Structure:** Should include:
+    1. Overview (purpose, features, tech stack)
+    2. Database Schema (complete structure with all fields)
+    3. Backend API (all endpoints with methods, parameters, responses)
+    4. Frontend Components (key components and their purposes)
+    5. Hooks & Utilities (data fetching hooks, utility functions)
+    6. Data Flow (how data moves through the system)
+    7. Business Logic (pricing, validation, state management)
+    8. Related Modules (integration points)
+    9. Common Patterns (code examples, best practices)
+    10. Troubleshooting (common issues and solutions)
+  - **Verification:** Always verify documentation against actual codebase:
+    - Check API endpoint methods (GET, POST, PUT, DELETE)
+    - Verify query parameter names (`per_page` vs `limit`)
+    - Confirm hook signatures and return values
+    - Validate field names in schema (e.g., `giftWrapping` not `giftWrappingEnabled`)
+    - Check enum values (e.g., `instock` not `in_stock`)
+  - **Update Process:** When creating or updating module reference:
+    1. Read actual codebase files (API routes, hooks, components)
+    2. Compare with existing documentation
+    3. Fix discrepancies immediately
+    4. Update UPDATE LOG section with changes
+  - **Reference Files:**
+    - Product Module: `docs/PRODUCT_MODULE_REFERENCE.md` - Complete reference for Product Module
+    - Use as template for other module references
 
 # FULL CODE CONTEXT FILE UPDATE
-- **When user requests to update `full_code_context.txt`:** Automatically run the PowerShell command to regenerate the file.
-- **Command to execute:**
-  ```powershell
-  $files = Get-ChildItem -Path . -Recurse -Include *.tsx,*.ts,*.js,*.css,package.json | Where-Object { $_.FullName -notmatch '\\node_modules\\' -and $_.FullName -notmatch '\\.next\\' -and $_.FullName -notmatch '\\.git\\' -and $_.Exists }; $output = @(); foreach ($file in $files) { try { $relativePath = $file.FullName.Replace((Get-Location).Path + '\', ''); $content = Get-Content $file.FullName -ErrorAction SilentlyContinue | Out-String; if ($content) { $output += "`n`n--- FILE: $relativePath ---`n`n"; $output += $content; } } catch { Write-Host "Skipping $($file.FullName): $_" } }; $output | Out-File -FilePath full_code_context.txt -Encoding utf8
-  ```
-- **What it does:** Collects all `.tsx`, `.ts`, `.js`, `.css`, and `package.json` files (excluding `node_modules`, `.next`, `.git`) and combines them into `full_code_context.txt` with file headers.
+- **When user requests to update `full_code_context.txt`:** Automatically run the PowerShell script to regenerate the file.
+- **Script to execute:** `.\scripts\export-full-code.ps1` (follows `force-script-for-complex-io` rule)
+- **What it does:** Collects all `.tsx`, `.ts`, `.js`, `.jsx`, `.json` files (excluding `node_modules`, `.next`, `.git`, `dist`, `build`, `coverage`, etc.) and combines them into `full_code_context.txt` with file headers.
 - **After execution:** Confirm file creation with size and location.
+- **Note:** This uses the existing script instead of inline command to prevent terminal connection errors with complex piping operations.
 
 # TERMINAL COMMAND RULES (CRITICAL)
 ## force-script-for-complex-io
@@ -320,7 +447,7 @@ Before implementing any feature, you MUST reference the following sources based 
     Then execute: `.\temp-check-errors.ps1`
 - **Rationale:** Terminal integration only needs to track a single process (the script executor) instead of managing complex pipelines with multiple child processes, preventing connection failures.
 
-## 8. API Authentication & Fetch Rules (CRITICAL)
+## 9. API Authentication & Fetch Rules (CRITICAL)
 - **API Route Authentication:** Always use `withAuthAdmin` middleware for admin API routes. NEVER use deprecated `requireAdmin()` function.
   - *Bad:* 
     ```typescript
@@ -368,7 +495,7 @@ Before implementing any feature, you MUST reference the following sources based 
     ```
   - **Why:** Prevents trying to parse error responses as JSON and provides proper error handling for authentication failures.
 
-## 9. Rules Refresh & Consistency (CRITICAL)
+## 10. Rules Refresh & Consistency (CRITICAL)
 - **Rule Name:** `refresh-rules-pre-task`
 - **Purpose:** Ensure AI always operates with the most up-to-date rules and avoid behavioral errors (such as terminal connection failures due to complex piping). This rule ensures that all new or modified rules are applied from the very beginning of any task.
 - **When to Apply:** BEFORE starting ANY task, work item, or response to the user, including:

@@ -59,7 +59,7 @@ export function ProductCard({ product }: ProductCardProps) {
   const shouldFetchVariations = isHovered || selectedSize !== null || !hasRegularPrice;
   
   // Fetch variations nếu product là variable type
-  const { variations, isLoading: isLoadingVariations } = useProductVariations(
+  const { variations, isLoading: isLoadingVariations, refetch: refetchVariations } = useProductVariations(
     product?.databaseId,
     { 
       enabled: !!product && product.type === 'variable' && 
@@ -67,6 +67,13 @@ export function ProductCard({ product }: ProductCardProps) {
                shouldFetchVariations
     }
   );
+  
+  // FIX: Khi user chọn size, đảm bảo variations được fetch ngay nếu chưa có
+  useEffect(() => {
+    if (selectedSize && product?.type === 'variable' && variations.length === 0 && !isLoadingVariations) {
+      refetchVariations();
+    }
+  }, [selectedSize, product?.type, variations.length, isLoadingVariations, refetchVariations]);
   
   // Auto-select smallest size (lowest price) when variations load
   const smallestSize = useSmallestSizeByPrice(variations);
@@ -237,7 +244,7 @@ export function ProductCard({ product }: ProductCardProps) {
     }
     
     await addToCart({
-      productId: product.databaseId,
+      productId: typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId,
       productName: `${product.name} ${selectedSize ? `(${selectedSize})` : ''}`,
       price: priceToUse || '0',
       image: product.image?.sourceUrl,

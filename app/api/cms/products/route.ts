@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 
 export const dynamic = 'force-dynamic';
 
@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
     // Build MongoDB query
     // Only show published, active products that are not deleted
     // Base conditions: status, isActive, deletedAt
-    const baseConditions: any = {
+    // Using Record<string, unknown> for MongoDB filter query type safety
+    const baseConditions: Record<string, unknown> = {
       status: 'publish',
       isActive: true,
       $or: [
@@ -46,7 +47,7 @@ export async function GET(request: NextRequest) {
     };
     
     // Additional conditions (search, category, price, etc.)
-    const additionalConditions: any[] = [];
+    const additionalConditions: Record<string, unknown>[] = [];
     
     // Search filter
     if (search) {
@@ -70,7 +71,7 @@ export async function GET(request: NextRequest) {
         if (categoryDocs.length > 0) {
           const categoryIds = categoryDocs.map(cat => cat._id.toString());
           // Hỗ trợ cả category (single) và categories (array)
-          const categoryCondition: any = {};
+          const categoryCondition: Record<string, unknown> = {};
           if (categoryIds.length === 1) {
             categoryCondition.$or = [
               { category: categoryIds[0] },
@@ -91,7 +92,7 @@ export async function GET(request: NextRequest) {
     // Price range filter
     // Products có thể có: price (simple), minPrice/maxPrice (variable), hoặc regularPrice/salePrice
     if (minPrice !== undefined || maxPrice !== undefined) {
-      const priceConditions: any[] = [];
+      const priceConditions: Record<string, unknown>[] = [];
       
       // Simple products: filter by price field
       if (minPrice !== undefined && maxPrice !== undefined) {
@@ -156,12 +157,12 @@ export async function GET(request: NextRequest) {
     // QUAN TRỌNG: Nếu có cả size VÀ color, phải match CẢ HAI (AND logic)
     // Nếu chỉ có size HOẶC chỉ có color, chỉ cần match điều kiện đó
     if (size || color) {
-      const sizeColorConditions: any[] = [];
+      const sizeColorConditions: Record<string, unknown>[] = [];
       
       // Condition 1: Filter by variants array (direct size/color fields)
       // Nếu có cả size và color, variantMatch phải có CẢ HAI
       if (size || color) {
-        const variantMatch: any = {};
+        const variantMatch: Record<string, unknown> = {};
         
         if (size) {
           variantMatch.size = { $regex: size, $options: 'i' };
@@ -415,7 +416,7 @@ export async function GET(request: NextRequest) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/b261569c-76a6-4f8c-839c-264dc5457f92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:129',message:'API FULL PRODUCT DOCUMENT',data:{productId:product._id?.toString(),name:product.name,_thumbnail_id:product._thumbnail_id,_product_image_gallery:product._product_image_gallery,images:product.images,imagesLength:product.images?.length,hasVariants:!!product.variants?.length,variantsCount:product.variants?.length,variants:product.variants?.slice(0,2),hasProductDataMetaBox:!!product.productDataMetaBox,productDataMetaBoxAttributes:product.productDataMetaBox?.attributes,productDataMetaBoxVariations:product.productDataMetaBox?.variations,minPrice:product.minPrice,maxPrice:product.maxPrice,regularPrice:product.productDataMetaBox?.regularPrice,salePrice:product.productDataMetaBox?.salePrice},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H1,H2,H3,H4'})}).catch(()=>{});
       // #endregion
-      const mapped = mapMongoProduct(product);
+      const mapped = mapMongoProduct(product as unknown as MongoProduct);
       
       // Populate categories
       if (product.category) {

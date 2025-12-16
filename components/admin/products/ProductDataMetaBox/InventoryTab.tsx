@@ -270,7 +270,7 @@ export function InventoryTab({ state, onUpdate, productId, productName, category
                       className="bg-muted cursor-not-allowed"
                     />
                     <p className="text-xs text-muted-foreground">
-                      Tổng số lượng từ các biến thể (tự động tính). Quản lý tồn kho tại tab "Biến thể"
+                      Tổng số lượng từ các biến thể (tự động tính). Quản lý tồn kho tại tab &quot;Biến thể&quot;
                     </p>
                   </div>
                 ) : (

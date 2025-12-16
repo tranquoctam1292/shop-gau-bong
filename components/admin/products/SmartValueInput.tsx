@@ -1,26 +1,14 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Check, ChevronDown, Plus, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 import { AttributeValueSelectionModal } from './AttributeValueSelectionModal';
-
-// Term interface - matches API response
-export interface Term {
-  id: string;
-  name: string;
-  slug: string;
-  colorHex?: string;
-  colorHex2?: string;
-  imageUrl?: string;
-  imageId?: string;
-  description?: string;
-  attributeId?: string;
-  sortOrder?: number;
-}
+import type { Term } from '@/app/admin/attributes/[id]/terms/page';
 
 interface SmartValueInputProps {
   terms: Term[];
@@ -220,11 +208,13 @@ export function SmartValueInput({
                         )}
                         {(attributeType === 'image' || attributeType === 'button') &&
                           term.imageUrl && (
-                            <div className="w-8 h-8 border rounded overflow-hidden">
-                              <img
+                            <div className="relative w-8 h-8 border rounded overflow-hidden">
+                              <Image
                                 src={term.imageUrl}
                                 alt={term.name}
-                                className="w-full h-full object-cover"
+                                fill
+                                className="object-cover"
+                                sizes="32px"
                               />
                             </div>
                           )}
@@ -269,7 +259,7 @@ export function SmartValueInput({
         }}
         attributeName={attributeName}
         attributeType={attributeType}
-        terms={terms as any}
+        terms={terms}
         selectedValues={selectedValues}
         loading={loading}
         onQuickAdd={onQuickAdd}

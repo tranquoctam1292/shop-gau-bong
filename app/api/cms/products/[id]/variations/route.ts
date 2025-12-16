@@ -16,7 +16,28 @@ export async function GET(
 ) {
   try {
     const { products } = await getCollections();
-    const { id } = params;
+    let { id } = params;
+    
+    // FIX: Handle scientific notation (e.g., "3.257312785587351e+28")
+    // This happens when databaseId was converted from ObjectId to number
+    // Try to convert back to ObjectId hex string if it's scientific notation
+    if (id.includes('e+') || id.includes('e-') || id.includes('E+') || id.includes('E-')) {
+      try {
+        // Parse scientific notation to number
+        const numId = parseFloat(id);
+        // Convert back to hex string (ObjectId format)
+        // ObjectId is 24 hex characters, so we need to pad with zeros
+        const hexId = Math.floor(numId).toString(16).padStart(24, '0');
+        if (ObjectId.isValid(hexId)) {
+          id = hexId;
+        }
+      } catch (e) {
+        // If conversion fails, continue with original id
+      }
+    }
+    
+    // Decode URL-encoded ID
+    id = decodeURIComponent(id);
     
     // Find product by ID or slug
     let product = null;

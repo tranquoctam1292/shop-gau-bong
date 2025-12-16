@@ -102,7 +102,7 @@ export default function AdminUsersPage() {
     if (urlSearch !== search) setSearch(urlSearch);
     if (urlRole !== roleFilter) setRoleFilter(urlRole);
     if (urlActive !== activeFilter) setActiveFilter(urlActive);
-  }, [searchParams]); // Sync when URL changes
+  }, [searchParams, page, search, roleFilter, activeFilter]); // Sync when URL changes
 
   const handleDelete = async (userId: string, username: string) => {
     if (!confirm(`Bạn có chắc muốn vô hiệu hóa người dùng "${username}"?`)) {

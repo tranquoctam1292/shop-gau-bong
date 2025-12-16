@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
@@ -72,7 +72,7 @@ export async function PATCH(
     
     // Fetch restored product
     const restoredProduct = await products.findOne({ _id: productId });
-    const mappedProduct = restoredProduct ? mapMongoProduct(restoredProduct) : null;
+    const mappedProduct = restoredProduct ? mapMongoProduct(restoredProduct as unknown as MongoProduct) : null;
     
     return NextResponse.json({
       success: true,

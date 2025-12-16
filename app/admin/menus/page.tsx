@@ -72,12 +72,7 @@ export default function AdminMenusPage() {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [filters.search]);
-
-  // Fetch menus when page or filters change
-  useEffect(() => {
-    fetchMenus();
-  }, [page, filters.location, filters.status]);
+  }, [filters.search, searchDebounceTimer, searchParams, router]);
 
   // Sync URL params to filters
   useEffect(() => {
@@ -88,7 +83,7 @@ export default function AdminMenusPage() {
     });
   }, [searchParams]);
 
-  const fetchMenus = async () => {
+  const fetchMenus = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -118,14 +113,20 @@ export default function AdminMenusPage() {
       setMenus(data.menus || []);
       setTotalPages(data.pagination?.totalPages || 1);
       setTotal(data.pagination?.total || 0);
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching menus:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch menus'));
+      const error = err instanceof Error ? err : new Error('Failed to fetch menus');
+      setError(error);
       showToast('Không thể tải danh sách menu', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, filters.location, filters.status, filters.search, showToast]);
+
+  // Fetch menus when page or filters change
+  useEffect(() => {
+    fetchMenus();
+  }, [fetchMenus]);
 
   const handleDeleteClick = async (id: string): Promise<void> => {
     const menu = menus.find((m) => m.id === id);
@@ -152,13 +153,13 @@ export default function AdminMenusPage() {
       setDeleteDialogOpen(false);
       setMenuToDelete(null);
       fetchMenus();
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error deleting menu:', err);
       showToast('Không thể xóa menu', 'error');
     }
   };
 
-  const updateFilter = useCallback((key: keyof MenuFiltersState, value: any) => {
+  const updateFilter = useCallback((key: keyof MenuFiltersState, value: MenuFiltersState[keyof MenuFiltersState]) => {
     setFilters((prev) => {
       const newFilters = { ...prev, [key]: value };
       const params = new URLSearchParams(searchParams.toString());

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -55,12 +55,7 @@ export default function MenuEditorPage({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    fetchMenu();
-    fetchMenuItems();
-  }, [id]);
-
-  const fetchMenu = async () => {
+  const fetchMenu = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/menus/${id}?format=tree`);
       
@@ -78,16 +73,17 @@ export default function MenuEditorPage({
         createdAt: new Date(data.menu.createdAt),
         updatedAt: new Date(data.menu.updatedAt),
       });
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching menu:', err);
-      setError(err instanceof Error ? err : new Error('Failed to fetch menu'));
+      const error = err instanceof Error ? err : new Error('Failed to fetch menu');
+      setError(error);
       showToast('Không thể tải thông tin menu', 'error');
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, showToast]);
 
-  const fetchMenuItems = async () => {
+  const fetchMenuItems = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/menus/${id}?format=tree`);
       
@@ -123,10 +119,15 @@ export default function MenuEditorPage({
       };
       
       setMenuItems(flattenItems(data.menu.items || []));
-    } catch (err: any) {
+    } catch (err) {
       console.error('Error fetching menu items:', err);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchMenu();
+    fetchMenuItems();
+  }, [fetchMenu, fetchMenuItems]);
 
   const handleMenuUpdate = async (updates: Partial<Menu>) => {
     try {

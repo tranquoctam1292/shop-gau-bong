@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -69,15 +70,18 @@ function SortableGalleryItem({
       className="relative group rounded-lg overflow-hidden border-2 border-muted cursor-move"
       title={image.title || `Image ${image.id}`}
     >
-      <img
-        src={image.thumbnail_url}
-        alt={image.title || `Gallery ${image.id}`}
-        className="w-full h-full object-cover"
-        loading={image.id ? 'lazy' : 'eager'} // Lazy load for better performance
-        onError={() => {
-          console.error(`Failed to load gallery image: ${image.id}`);
-        }}
-      />
+      <div className="relative w-full h-full">
+        <Image
+          src={image.thumbnail_url}
+          alt={image.title || `Gallery ${image.id}`}
+          fill
+          className="object-cover"
+          sizes="80px"
+          onError={() => {
+            console.error(`Failed to load gallery image: ${image.id}`);
+          }}
+        />
+      </div>
 
       {/* Overlay on hover */}
       <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">

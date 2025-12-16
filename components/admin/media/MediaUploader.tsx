@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import Image from 'next/image';
 import { useDropzone } from 'react-dropzone';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -261,11 +262,16 @@ export function MediaUploader({
                 >
                   {/* Preview */}
                   {uploadFile.preview ? (
-                    <img
-                      src={uploadFile.preview}
-                      alt={uploadFile.file.name}
-                      className="w-12 h-12 object-cover rounded"
-                    />
+                    <div className="relative w-12 h-12 rounded overflow-hidden">
+                      <Image
+                        src={uploadFile.preview}
+                        alt={uploadFile.file.name}
+                        fill
+                        className="object-cover"
+                        sizes="48px"
+                        unoptimized
+                      />
+                    </div>
                   ) : (
                     <div className="w-12 h-12 bg-gray-100 rounded flex items-center justify-center">
                       <Upload className="h-6 w-6 text-gray-400" />

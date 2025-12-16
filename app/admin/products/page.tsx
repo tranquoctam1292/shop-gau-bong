@@ -55,7 +55,7 @@ export default function AdminProductsPage() {
     return () => {
       if (timer) clearTimeout(timer);
     };
-  }, [search]);
+  }, [search, searchDebounceTimer, updateFilter]);
 
   // Reset page to 1 when filters change (except search which is handled separately)
   useEffect(() => {
@@ -71,12 +71,7 @@ export default function AdminProductsPage() {
       params.delete('page');
       router.push(`/admin/products?${params.toString()}`);
     }
-  }, [filters.category, filters.brand, filters.priceMin, filters.priceMax, filters.stockStatus]);
-
-  // Fetch products when page, tab, or filters change
-  useEffect(() => {
-    fetchProducts();
-  }, [page, activeTab, filters]);
+  }, [filters.category, filters.brand, filters.priceMin, filters.priceMax, filters.stockStatus, page, searchParams, router]);
 
   // Update URL when tab changes
   const handleTabChange = useCallback((tab: ProductListTab) => {
@@ -86,7 +81,7 @@ export default function AdminProductsPage() {
     router.push(`/admin/products?${params.toString()}`);
   }, [searchParams, router]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -146,7 +141,12 @@ export default function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [page, activeTab, filters, search, showToast]);
+
+  // Fetch products when page, tab, or filters change
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleDelete = async (id: string) => {
     // Add to deleting set

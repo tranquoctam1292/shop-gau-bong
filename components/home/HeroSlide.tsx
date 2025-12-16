@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useState } from 'react';
 import { buttonVariants } from '@/lib/utils/button-variants';
 import { cn } from '@/lib/utils/cn';
 
@@ -32,30 +33,35 @@ export function HeroSlide({
   className,
   index = 0,
 }: HeroSlideProps) {
-  // Fallback to placeholder if image doesn't exist
-  const imageSrc = image || '/images/teddy-placeholder.png';
+  // Track image load errors to prevent infinite loop
+  const [imageError, setImageError] = useState(false);
+  
+  // Only use image if it exists and hasn't errored
+  const imageSrc = image && !imageError ? image : null;
   
   return (
     <div className={cn('relative w-full h-[60vh] md:h-[80vh] overflow-hidden z-0', className)}>
       {/* Background Image - Optimized for mobile/desktop */}
-      <Image
-        src={imageSrc}
-        alt={title}
-        fill
-        className="object-cover"
-        priority={index === 0}
-        quality={85}
-        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1920px"
-        placeholder="blur"
-        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
-        onError={(e) => {
-          // Fallback to placeholder on error
-          const target = e.target as HTMLImageElement;
-          if (target.src !== '/images/teddy-placeholder.png') {
-            target.src = '/images/teddy-placeholder.png';
-          }
-        }}
-      />
+      {imageSrc ? (
+        <Image
+          src={imageSrc}
+          alt={title}
+          fill
+          className="object-cover"
+          priority={index === 0}
+          quality={85}
+          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 100vw, 1920px"
+          placeholder="blur"
+          blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWGRkqGx0f/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQMRAD8AltJagyeH0AthI5xdrLcNM91BF5pX2HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+          onError={() => {
+            // Prevent infinite loop: only set error once
+            setImageError(true);
+          }}
+        />
+      ) : (
+        // Fallback gradient background when image is missing or errored
+        <div className="absolute inset-0 bg-gradient-to-br from-pink-200 via-purple-200 to-blue-200" />
+      )}
 
       {/* Overlay Gradient */}
       {overlay && (

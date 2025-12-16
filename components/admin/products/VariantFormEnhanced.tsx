@@ -90,7 +90,7 @@ export function VariantFormEnhanced({ variants, onChange, baseSku }: VariantForm
       <CardContent className="space-y-4">
         {variants.length === 0 ? (
           <p className="text-sm text-gray-500 text-center py-8">
-            Chưa có biến thể nào. Click "Thêm biến thể" để bắt đầu.
+            Chưa có biến thể nào. Click &quot;Thêm biến thể&quot; để bắt đầu.
           </p>
         ) : (
           variants.map((variant) => {

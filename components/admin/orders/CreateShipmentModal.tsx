@@ -170,7 +170,7 @@ export function CreateShipmentModal({
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Đơn hàng đã được chuyển sang trạng thái "Đang giao hàng"
+              Đơn hàng đã được chuyển sang trạng thái &quot;Đang giao hàng&quot;
             </p>
           </div>
         ) : (

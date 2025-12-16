@@ -54,14 +54,6 @@ export async function POST(request: NextRequest) {
     // Check payment status
     // resultCode: 0 = success, others = failed
     if (resultCode !== 0) {
-      console.log('MoMo Payment Failed:', {
-        orderId,
-        amount,
-        transId,
-        resultCode,
-        message,
-      });
-
       return NextResponse.json({
         success: false,
         message: 'Payment failed',
@@ -69,13 +61,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Payment successful
-    console.log('MoMo Payment Confirmed:', {
-      orderId,
-      amount,
-      transId,
-      payType,
-      timestamp: new Date().toISOString(),
-    });
 
     // Update order status in MongoDB
     try {
@@ -173,12 +158,6 @@ export async function POST(request: NextRequest) {
 
       // Fetch updated order
       const updatedOrder = await orders.findOne({ _id: orderIdObj });
-
-      console.log('Order status updated successfully:', {
-        orderId: orderIdObj.toString(),
-        status: updatedOrder?.status,
-        transactionId: transId,
-      });
 
       return NextResponse.json({
         success: true,

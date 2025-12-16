@@ -35,7 +35,7 @@ function SearchContent() {
         </div>
         {query && (
           <p className="text-text-muted mt-4">
-            Kết quả tìm kiếm cho: <span className="font-semibold">"{query}"</span>
+            Kết quả tìm kiếm cho: <span className="font-semibold">&quot;{query}&quot;</span>
           </p>
         )}
       </div>

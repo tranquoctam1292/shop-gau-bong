@@ -4,7 +4,7 @@
  */
 
 import { connectDB, getCollections, closeDB } from '@/lib/db';
-import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 
 async function checkProductVariants() {
   try {
@@ -53,7 +53,7 @@ async function checkProductVariants() {
       });
       
       // Map product và check attributes
-      const mapped = mapMongoProduct(product);
+      const mapped = mapMongoProduct(product as unknown as MongoProduct);
       console.log(`   Mapped attributes:`, {
         hasAttributes: !!mapped.attributes,
         attributesCount: mapped.attributes?.length || 0,
@@ -74,7 +74,7 @@ async function checkProductVariants() {
     console.log(`\n=== Tổng kết ===`);
     const productsWithVariants = sampleProducts.filter(p => p.variants && p.variants.length > 0).length;
     const productsWithMappedAttributes = sampleProducts.filter(p => {
-      const mapped = mapMongoProduct(p);
+      const mapped = mapMongoProduct(p as unknown as MongoProduct);
       return mapped.attributes && mapped.attributes.length > 0;
     }).length;
     

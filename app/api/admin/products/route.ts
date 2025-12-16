@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { mapMongoProduct } from '@/lib/utils/productMapper';
+import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { normalizeSku } from '@/lib/utils/skuGenerator';
 import { z } from 'zod';
@@ -428,7 +428,7 @@ export async function GET(request: NextRequest) {
       products.countDocuments({ deletedAt: { $ne: null } }),
     ]);
     
-    const mappedProducts = productsList.map((product) => mapMongoProduct(product));
+    const mappedProducts = productsList.map((product) => mapMongoProduct(product as unknown as MongoProduct));
     const totalPages = Math.ceil(total / perPage);
     
     return NextResponse.json({
@@ -725,7 +725,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const mappedProduct = mapMongoProduct(createdProduct);
+    const mappedProduct = mapMongoProduct(createdProduct as unknown as MongoProduct);
     
     return NextResponse.json(
       { product: mappedProduct },

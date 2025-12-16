@@ -110,7 +110,7 @@ export function DownloadableFilesSection({
           <File className="h-12 w-12 mx-auto text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">Chưa có file nào</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Click "Thêm file" để bắt đầu
+            Click &quot;Thêm file&quot; để bắt đầu
           </p>
         </div>
       ) : (

@@ -9,6 +9,27 @@
  */
 
 import type { WooCommerceProduct } from '@/types/woocommerce';
+import type { MongoVariant } from '@/types/mongodb';
+
+// Types for productDataMetaBox (backward compatibility)
+interface ProductDataMetaBoxVariation {
+  id: string;
+  attributes?: Record<string, string>;
+  regularPrice?: number;
+  salePrice?: number;
+  stockQuantity?: number;
+  sku?: string;
+  image?: string;
+}
+
+interface ProductDataMetaBoxAttribute {
+  name: string;
+  values?: string[];
+  visible?: boolean;
+  variation?: boolean;
+  globalAttributeId?: string;
+  usedForVariations?: boolean;
+}
 
 /**
  * Helper function để extract ACF field value từ meta_data array
@@ -18,7 +39,7 @@ import type { WooCommerceProduct } from '@/types/woocommerce';
  * @param key - Key to extract
  * @returns Value hoặc undefined
  */
-function getMetaValue(metaData: Array<{ key: string; value: any }>, key: string): any {
+function getMetaValue(metaData: Array<{ key: string; value: unknown }>, key: string): unknown {
   const meta = metaData?.find(m => m.key === key);
   return meta?.value;
 }
@@ -29,7 +50,7 @@ function getMetaValue(metaData: Array<{ key: string; value: any }>, key: string)
  */
 export interface MappedProduct {
   id: string; // GraphQL ID format (hoặc databaseId)
-  databaseId: number;
+  databaseId: string | number; // MongoDB ObjectId string (or number for backward compatibility)
   name: string;
   slug: string;
   price: string;
@@ -95,6 +116,9 @@ export interface MappedProduct {
 /**
  * Map WooCommerce REST API product to frontend format
  * 
+ * @deprecated This function is only used in migration scripts. 
+ * For production code, use `mapMongoProduct()` instead.
+ * 
  * @param wcProduct - WooCommerce product từ REST API
  * @returns Mapped product cho frontend
  */
@@ -156,6 +180,9 @@ export function mapWooCommerceProduct(wcProduct: WooCommerceProduct): MappedProd
 /**
  * Map array of WooCommerce products
  * 
+ * @deprecated This function is only used in migration scripts.
+ * For production code, use `mapMongoProducts()` instead.
+ * 
  * @param wcProducts - Array of WooCommerce products
  * @returns Array of mapped products
  */
@@ -190,6 +217,9 @@ export interface MappedCategory {
 /**
  * Map WooCommerce category
  * 
+ * @deprecated This function is only used in migration scripts.
+ * For production code, use `mapMongoCategory()` instead.
+ * 
  * @param wcCategory - WooCommerce category từ REST API
  * @returns Mapped category cho frontend
  */
@@ -221,6 +251,9 @@ export function mapWooCommerceCategory(wcCategory: {
 /**
  * Map array of WooCommerce categories
  * 
+ * @deprecated This function is only used in migration scripts.
+ * For production code, use `mapMongoCategories()` instead.
+ * 
  * @param wcCategories - Array of WooCommerce categories
  * @returns Array of mapped categories
  */
@@ -244,7 +277,7 @@ export function mapWooCommerceCategories(
  * MongoDB Product Type (from database)
  */
 export interface MongoProduct {
-  _id: any; // ObjectId
+  _id: { toString: () => string }; // ObjectId
   id?: string;
   name: string;
   slug: string;
@@ -271,7 +304,49 @@ export interface MongoProduct {
   }>;
   isHot?: boolean;
   isActive: boolean;
-  status: 'draft' | 'publish';
+  status: 'draft' | 'publish' | 'trash';
+  // Optimistic Locking
+  version?: number; // Version field for optimistic locking (starts at 1)
+  // Product Data Meta Box
+  productDataMetaBox?: {
+    productType: 'simple' | 'variable' | 'grouped' | 'external';
+    isVirtual: boolean;
+    isDownloadable: boolean;
+    sku?: string;
+    manageStock: boolean;
+    stockQuantity?: number;
+    stockStatus: 'instock' | 'outofstock' | 'onbackorder';
+    weight?: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    regularPrice?: number;
+    salePrice?: number; // Must be < regularPrice
+    salePriceStartDate?: Date;
+    salePriceEndDate?: Date;
+    costPrice?: number;
+    lowStockThreshold?: number;
+    backorders: 'no' | 'notify' | 'yes';
+    soldIndividually: boolean;
+    purchaseNote?: string;
+    menuOrder: number;
+    enableReviews: boolean;
+    attributes?: Array<{
+      name: string;
+      options: string[];
+      visible: boolean;
+      variation: boolean;
+    }>;
+    variations?: Array<{
+      id: string;
+      attributes: Record<string, string>;
+      regularPrice: number;
+      salePrice?: number;
+      stockQuantity?: number;
+      sku?: string;
+      image?: string;
+    }>;
+  };
   length?: number;
   width?: number;
   height?: number;
@@ -279,6 +354,7 @@ export interface MongoProduct {
   volumetricWeight?: number;
   material?: string;
   origin?: string;
+  deletedAt?: Date | null; // Soft delete timestamp
   createdAt: Date;
   updatedAt: Date;
 }
@@ -286,15 +362,33 @@ export interface MongoProduct {
 /**
  * MongoDB Document type (with _id)
  */
-type MongoDocument = MongoProduct & { _id: any };
+type MongoDocument = MongoProduct;
 
 /**
  * Map MongoDB product to frontend format
  * 
- * @param mongoProduct - MongoDB product document
- * @returns Mapped product cho frontend
+ * Maps a MongoDB product document to the frontend-compatible MappedProduct format.
+ * Handles null/undefined values gracefully with appropriate fallbacks.
+ * 
+ * @param mongoProduct - MongoDB product document (can be MongoProduct or MongoDocument)
+ * @returns Mapped product cho frontend với proper null/undefined handling
+ * 
+ * @example
+ * ```typescript
+ * const mongoProduct = await products.findOne({ _id: new ObjectId(id) });
+ * if (mongoProduct) {
+ *   const mapped = mapMongoProduct(mongoProduct);
+ *   // mapped.price, mapped.image, etc. are safely handled
+ * }
+ * ```
+ * 
+ * @remarks
+ * - Price: Falls back to '0' if missing (will display as "Liên hệ" via formatPrice)
+ * - Images: Returns null if no image available (components should use placeholder)
+ * - Stock: Calculates from variants or productDataMetaBox, returns null if 0
+ * - Dimensions: Returns null if missing (shipping calc handles gracefully)
  */
-export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any): MappedProduct {
+export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument): MappedProduct {
   const productId = mongoProduct._id.toString();
   
   // Determine product type first
@@ -310,7 +404,7 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     : isVariableProduct
     ? '0' // Variable products should not have regularPrice auto-filled from variations
     : mongoProduct.variants && mongoProduct.variants.length > 0
-    ? String(Math.max(...mongoProduct.variants.map((v: any) => v.price || v.regularPrice || 0)))
+    ? String(Math.max(...mongoProduct.variants.map((v: MongoVariant) => v.price || (v as { regularPrice?: number }).regularPrice || 0)))
     : String(mongoProduct.maxPrice || mongoProduct.minPrice || 0);
   
   const salePrice = mongoProduct.productDataMetaBox?.salePrice !== undefined
@@ -332,29 +426,18 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
   if (mongoProduct.variants && mongoProduct.variants.length > 0) {
     // Use variants array (new format)
     // Filter out empty/null/undefined values
-    const allSizes = mongoProduct.variants.map((v: any) => v.size).filter(Boolean);
-    const allColors = mongoProduct.variants.map((v: any) => v.color).filter(Boolean);
+    const allSizes = mongoProduct.variants.map((v: MongoVariant) => v.size).filter(Boolean);
+    const allColors = mongoProduct.variants.map((v: MongoVariant) => v.color).filter(Boolean);
     
     sizeOptions = [...new Set(allSizes
-      .filter((size: any) => size && String(size).trim().length > 0)
-      .map((size: any) => String(size).trim()))] as string[];
+      .filter((size): size is string => Boolean(size) && String(size).trim().length > 0)
+      .map((size: string) => String(size).trim()))] as string[];
     colorOptions = [...new Set(allColors
-      .filter((color: any) => color && String(color).trim().length > 0)
-      .map((color: any) => String(color).trim()))] as string[];
-    
-    // Debug logging
-    if (process.env.NODE_ENV === 'development' && (sizeOptions.length === 0 && colorOptions.length === 0)) {
-      console.log('[mapMongoProduct] No size/color extracted from variants:', {
-        productName: mongoProduct.name,
-        variantsCount: mongoProduct.variants.length,
-        firstVariant: mongoProduct.variants[0],
-        allSizes,
-        allColors,
-      });
-    }
+      .filter((color): color is string => Boolean(color) && String(color).trim().length > 0)
+      .map((color: string) => String(color).trim()))] as string[];
   } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
     // Fallback: Extract from productDataMetaBox.variations (backward compatibility)
-    mongoProduct.productDataMetaBox.variations.forEach((variation: any) => {
+    mongoProduct.productDataMetaBox.variations.forEach((variation: ProductDataMetaBoxVariation) => {
       if (variation.attributes) {
         Object.entries(variation.attributes).forEach(([attrName, value]) => {
           const attrNameLower = attrName.toLowerCase();
@@ -390,7 +473,7 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
   // Check if productDataMetaBox.attributes exists (new format with globalAttributeId)
   if (mongoProduct.productDataMetaBox?.attributes && mongoProduct.productDataMetaBox.attributes.length > 0) {
     // Map from productDataMetaBox.attributes (includes globalAttributeId)
-    mongoProduct.productDataMetaBox.attributes.forEach((attr: any, index: number) => {
+    mongoProduct.productDataMetaBox.attributes.forEach((attr: ProductDataMetaBoxAttribute, index: number) => {
       if (attr.values && attr.values.length > 0) {
         attributes.push({
           id: index + 1,
@@ -426,19 +509,6 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
         variation: true,
       });
     }
-    
-    // Debug logging nếu không có attributes được tạo
-    if (process.env.NODE_ENV === 'development' && attributes.length === 0) {
-      console.log('[mapMongoProduct] No attributes created:', {
-        productName: mongoProduct.name,
-        hasProductDataMetaBoxAttributes: !!mongoProduct.productDataMetaBox?.attributes,
-        productDataMetaBoxAttributesLength: mongoProduct.productDataMetaBox?.attributes?.length || 0,
-        sizeOptionsLength: sizeOptions.length,
-        colorOptionsLength: colorOptions.length,
-        hasVariants: !!mongoProduct.variants,
-        variantsLength: mongoProduct.variants?.length || 0,
-      });
-    }
   }
   
   // Determine product type (use already calculated isVariableProduct)
@@ -454,27 +524,27 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     // Variable product: Calculate sum from variants
     // Priority 1: Sum from variants array (new format)
     if (mongoProduct.variants && mongoProduct.variants.length > 0) {
-      stockQuantity = mongoProduct.variants.reduce((sum: number, v: any) => {
+      stockQuantity = mongoProduct.variants.reduce((sum: number, v: MongoVariant) => {
         // Support both 'stock' and 'stockQuantity' fields in variants
         const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : (v.stock || 0);
         return sum + (variantStock || 0);
       }, 0);
       
       // Check if any variant has stock for stockStatus
-      const hasStock = mongoProduct.variants.some((v: any) => {
+      const hasStock = mongoProduct.variants.some((v: MongoVariant) => {
         const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : (v.stock || 0);
         return (variantStock || 0) > 0;
       });
       stockStatus = hasStock ? 'instock' : 'outofstock';
     } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
       // Priority 2: Sum from productDataMetaBox.variations (backward compatibility)
-      stockQuantity = mongoProduct.productDataMetaBox.variations.reduce((sum: number, v: any) => {
+      stockQuantity = mongoProduct.productDataMetaBox.variations.reduce((sum: number, v: ProductDataMetaBoxVariation) => {
         const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : 0;
         return sum + (variantStock || 0);
       }, 0);
       
       // Check if any variation has stock
-      const hasStock = mongoProduct.productDataMetaBox.variations.some((v: any) => (v.stockQuantity || 0) > 0);
+      const hasStock = mongoProduct.productDataMetaBox.variations.some((v: ProductDataMetaBoxVariation) => (v.stockQuantity || 0) > 0);
       stockStatus = hasStock ? 'instock' : 'outofstock';
     } else {
       // No variants found, use productDataMetaBox values or default
@@ -498,11 +568,15 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
       : (stockQuantity !== null && stockQuantity > 0) ? 'instock' : 'outofstock';
   }
   
+  // Use ObjectId string directly for databaseId (don't convert to number to avoid scientific notation)
+  // Keep as string to preserve ObjectId format and prevent precision loss
+  const databaseId = productId || '';
+  
   const mappedResult = {
-    id: productId, // Use MongoDB ObjectId directly (not GraphQL format)
-    databaseId: productId, // Use ObjectId string as databaseId for compatibility
-    name: mongoProduct.name,
-    slug: mongoProduct.slug,
+    id: productId || '', // Use MongoDB ObjectId directly (not GraphQL format), fallback to empty string
+    databaseId: databaseId, // Use ObjectId string directly (not converted to number)
+    name: mongoProduct.name || '', // Fallback to empty string if missing
+    slug: mongoProduct.slug || '', // Fallback to empty string if missing
     price,
     regularPrice,
     salePrice,
@@ -519,7 +593,7 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
             id: mongoProduct._thumbnail_id || firstImageUrl,
             sourceUrl: firstImageUrl,
             altText: mongoProduct.name,
-          } as any;
+          };
         }
       }
       
@@ -531,7 +605,7 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
             id: mongoProduct._thumbnail_id,
             sourceUrl: mongoProduct._thumbnail_id,
             altText: mongoProduct.name,
-          } as any;
+          };
         }
         // If _thumbnail_id is pathname and images array is empty, we can't resolve it
         // This should not happen if POST handler populates images array correctly
@@ -568,15 +642,15 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
             sourceUrl: imageUrl,
             altText: mongoProduct.name,
           };
-        }).filter((img: { sourceUrl: string }) => img.sourceUrl) as any; // Filter out images without URL
+        }).filter((img: { sourceUrl: string }) => img.sourceUrl); // Filter out images without URL
       }
       
       // Priority 2: Use images array (old structure) - skip first image (featured)
       if (mongoProduct.images && mongoProduct.images.length > 1) {
-        return mongoProduct.images.slice(1).map((img: any) => ({
+        return mongoProduct.images.slice(1).map((img: string) => ({
           sourceUrl: img,
           altText: mongoProduct.name,
-        })) as any;
+        }));
       }
       
       // No gallery images
@@ -596,15 +670,15 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument | any
     material: mongoProduct.material || null,
     origin: mongoProduct.origin || null,
     categories: [], // TODO: Populate from category reference
-    tags: (mongoProduct.tags || []).map((tag: any, idx: number) => ({
+    tags: (mongoProduct.tags || []).map((tag: string, idx: number) => ({
       id: idx + 1,
       name: tag,
       slug: tag.toLowerCase().replace(/\s+/g, '-'),
     })),
     attributes: attributes.length > 0 ? attributes : undefined,
     type,
-    variations: (mongoProduct.variants?.map((_: any, idx: number) => idx + 1) || 
-                 mongoProduct.productDataMetaBox?.variations?.map((_: any, idx: number) => idx + 1) || []),
+    variations: (mongoProduct.variants?.map((_: MongoVariant, idx: number) => idx + 1) || 
+                 mongoProduct.productDataMetaBox?.variations?.map((_: ProductDataMetaBoxVariation, idx: number) => idx + 1) || []),
     status: mongoProduct.status || 'draft',
     isActive: mongoProduct.isActive !== undefined ? mongoProduct.isActive : (mongoProduct.status === 'publish'),
     // Include version for optimistic locking
@@ -628,7 +702,7 @@ export function mapMongoProducts(mongoProducts: MongoProduct[]): MappedProduct[]
  * MongoDB Category Type (from database)
  */
 export interface MongoCategory {
-  _id: any; // ObjectId
+  _id: { toString: () => string }; // ObjectId
   name: string;
   slug: string;
   description?: string;
@@ -648,18 +722,38 @@ export interface MongoCategory {
 /**
  * Map MongoDB category to frontend format
  * 
+ * Maps a MongoDB category document to the frontend-compatible MappedCategory format.
+ * Handles null/undefined values gracefully with appropriate fallbacks.
+ * 
  * @param mongoCategory - MongoDB category document
- * @returns Mapped category cho frontend
+ * @returns Mapped category cho frontend với proper null/undefined handling
+ * 
+ * @example
+ * ```typescript
+ * const category = await categories.findOne({ _id: new ObjectId(id) });
+ * if (category) {
+ *   const mapped = mapMongoCategory(category);
+ *   // mapped.image, mapped.parentId, etc. are safely handled
+ * }
+ * ```
+ * 
+ * @remarks
+ * - Image: Returns null if no image available (components should use placeholder)
+ * - ParentId: Returns null if top-level category (parentId is null or '0')
+ * - Count: Returns null if not provided (instead of 0)
  */
-export function mapMongoCategory(mongoCategory: MongoCategory | any): MappedCategory {
+export function mapMongoCategory(mongoCategory: MongoCategory): MappedCategory {
   const categoryId = mongoCategory._id.toString();
   
   // Convert parentId from ObjectId string to string (keep as string for compatibility)
   let parentId: string | null = null;
   if (mongoCategory.parentId) {
-    parentId = typeof mongoCategory.parentId === 'string' 
-      ? mongoCategory.parentId 
-      : mongoCategory.parentId.toString();
+    if (typeof mongoCategory.parentId === 'string') {
+      parentId = mongoCategory.parentId;
+    } else {
+      // parentId could be ObjectId or other type, convert to string
+      parentId = String(mongoCategory.parentId);
+    }
   }
   
   return {

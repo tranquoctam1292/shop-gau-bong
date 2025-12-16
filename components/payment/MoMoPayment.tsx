@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 // MoMo payment handled via API route (server-side)
@@ -113,7 +114,15 @@ export function MoMoPayment({
       {paymentUrl && (
         <div className="text-center">
           <p className="text-sm text-text-muted mb-2">Quét QR code để thanh toán:</p>
-          <img src={paymentUrl} alt="MoMo QR Code" className="mx-auto max-w-xs" />
+          <div className="relative w-full max-w-xs mx-auto aspect-square">
+            <Image
+              src={paymentUrl}
+              alt="MoMo QR Code"
+              fill
+              className="object-contain"
+              sizes="(max-width: 768px) 100vw, 320px"
+            />
+          </div>
         </div>
       )}
 

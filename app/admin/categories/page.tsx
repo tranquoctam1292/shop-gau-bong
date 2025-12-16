@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
@@ -78,11 +78,7 @@ export default function AdminCategoriesPage() {
     })
   );
 
-  useEffect(() => {
-    fetchCategories();
-  }, [statusFilter, viewMode]);
-
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
       const type = viewMode === 'tree' ? 'tree' : 'flat';
@@ -110,7 +106,11 @@ export default function AdminCategoriesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [statusFilter, viewMode]);
+
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc muốn xóa danh mục này? Các sản phẩm trong danh mục này sẽ được chuyển về "Chưa phân loại".')) {

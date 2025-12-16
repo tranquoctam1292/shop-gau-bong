@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Search, Loader2 } from 'lucide-react';
@@ -62,12 +63,12 @@ export function ProductsTab({
       }
 
       const data = await response.json();
-      const newProducts = (data.products || []).map((p: any) => ({
+      const newProducts = (data.products || []).map((p: { id: string; name: string; slug: string; price?: string; image?: string }) => ({
         id: p.id,
         name: p.name,
         slug: p.slug,
         price: p.price || '0',
-        image: p.images?.[0] || null,
+        image: p.image || null,
       }));
 
       if (page === 1) {
@@ -158,10 +159,12 @@ export function ProductsTab({
                   />
                   {product.image && (
                     <div className="relative w-10 h-10 rounded overflow-hidden flex-shrink-0">
-                      <img
+                      <Image
                         src={product.image}
                         alt={product.name}
-                        className="w-full h-full object-cover"
+                        fill
+                        className="object-cover"
+                        sizes="40px"
                       />
                     </div>
                   )}

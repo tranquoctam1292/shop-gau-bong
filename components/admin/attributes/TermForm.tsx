@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -330,10 +331,12 @@ export function TermForm({ attributeType, initialData, onSubmit, onCancel }: Ter
             <div className="space-y-3">
               {imageUrl && (
                 <div className="relative w-full h-32 border rounded-lg overflow-hidden">
-                  <img
+                  <Image
                     src={imageUrl}
                     alt={name || 'Preview'}
-                    className="w-full h-full object-contain"
+                    fill
+                    className="object-contain"
+                    sizes="(max-width: 768px) 100vw, 400px"
                   />
                 </div>
               )}

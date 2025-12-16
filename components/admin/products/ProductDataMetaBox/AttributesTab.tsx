@@ -388,7 +388,7 @@ export function AttributesTab({ state, onUpdate }: AttributesTabProps) {
       {state.attributes.some((a) => a.usedForVariations) && (
         <div className="p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg">
           <p className="text-sm text-green-900 dark:text-green-200">
-            <strong>✓ Sẵn sàng tạo biến thể:</strong> Bạn có thể chuyển sang tab "Biến thể" để tạo các biến thể từ các thuộc tính đã chọn.
+            <strong>✓ Sẵn sàng tạo biến thể:</strong> Bạn có thể chuyển sang tab &quot;Biến thể&quot; để tạo các biến thể từ các thuộc tính đã chọn.
           </p>
         </div>
       )}

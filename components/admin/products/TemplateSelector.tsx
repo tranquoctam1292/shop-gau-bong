@@ -9,19 +9,22 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { useToastContext } from '@/components/providers/ToastProvider';
 
+// Template data can be any product form data structure
+type TemplateData = Record<string, unknown>;
+
 interface ProductTemplate {
   _id: string;
   name: string;
   description?: string;
   category?: string;
-  templateData: any;
+  templateData: TemplateData;
   createdAt: string;
 }
 
 interface TemplateSelectorProps {
-  onLoadTemplate: (templateData: any) => void;
-  onSaveTemplate?: (name: string, description: string, category: string, templateData: any) => void;
-  currentFormData?: any;
+  onLoadTemplate: (templateData: TemplateData) => void;
+  onSaveTemplate?: (name: string, description: string, category: string, templateData: TemplateData) => void;
+  currentFormData?: TemplateData;
 }
 
 export function TemplateSelector({ onLoadTemplate, onSaveTemplate, currentFormData }: TemplateSelectorProps) {
@@ -85,9 +88,10 @@ export function TemplateSelector({ onLoadTemplate, onSaveTemplate, currentFormDa
       setTemplateDescription('');
       setTemplateCategory('');
       fetchTemplates();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error saving template:', error);
-      showToast(error?.message || 'Có lỗi xảy ra khi lưu template', 'error');
+      const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi lưu template';
+      showToast(errorMessage, 'error');
     }
   };
 

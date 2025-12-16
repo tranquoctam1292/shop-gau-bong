@@ -6,6 +6,7 @@
  */
 
 import { getCollections, ObjectId } from '@/lib/db';
+import type { MongoVariant } from '@/types/mongodb';
 
 export interface StockReservation {
   orderId: string;
@@ -51,7 +52,7 @@ export async function reserveStock(
     // For variable products, check variant stock
     if (item.variationId && product.variants) {
       const variant = product.variants.find(
-        (v: any) => v.id === item.variationId || v._id?.toString() === item.variationId
+        (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
       );
 
       if (variant) {
@@ -69,8 +70,8 @@ export async function reserveStock(
         // Reserve stock for variant
         // MongoDB doesn't support $ positional operator with nested queries easily
         // We need to update the entire variants array
-        const updatedVariants = product.variants.map((v: any) => {
-          if (v.id === item.variationId || v._id?.toString() === item.variationId) {
+        const updatedVariants = product.variants.map((v: MongoVariant) => {
+          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
             return {
               ...v,
               reservedQuantity: (v.reservedQuantity || 0) + item.quantity,
@@ -141,13 +142,13 @@ export async function deductStock(
     // For variable products, deduct from variant stock
     if (item.variationId && product.variants) {
       const variant = product.variants.find(
-        (v: any) => v.id === item.variationId || v._id?.toString() === item.variationId
+        (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
       );
 
       if (variant) {
         // Deduct from variant stock and release reserved quantity
-        const updatedVariants = product.variants.map((v: any) => {
-          if (v.id === item.variationId || v._id?.toString() === item.variationId) {
+        const updatedVariants = product.variants.map((v: MongoVariant) => {
+          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
             return {
               ...v,
               stock: (v.stock || v.stockQuantity || 0) - item.quantity,
@@ -210,13 +211,13 @@ export async function releaseStock(
     // For variable products, release variant reserved stock
     if (item.variationId && product.variants) {
       const variant = product.variants.find(
-        (v: any) => v.id === item.variationId || v._id?.toString() === item.variationId
+        (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
       );
 
       if (variant) {
         // Release reserved quantity for variant
-        const updatedVariants = product.variants.map((v: any) => {
-          if (v.id === item.variationId || v._id?.toString() === item.variationId) {
+        const updatedVariants = product.variants.map((v: MongoVariant) => {
+          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
             return {
               ...v,
               reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
@@ -281,7 +282,7 @@ export async function checkStockAvailability(
   // For variable products, check variant stock
   if (variationId && product.variants) {
     const variant = product.variants.find(
-      (v: any) => v.id === variationId || v._id?.toString() === variationId
+      (v: MongoVariant) => v.id === variationId || (v as { _id?: { toString: () => string } })._id?.toString() === variationId
     );
 
     if (variant) {

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import {
   Dialog,
   DialogContent,
@@ -141,11 +142,13 @@ function VisualTableRow({
       </td>
       <td className="px-4 py-3 w-24">
         {term.imageUrl ? (
-          <div className="w-16 h-16 border rounded overflow-hidden bg-gray-100">
-            <img
+          <div className="relative w-16 h-16 border rounded overflow-hidden bg-gray-100">
+            <Image
               src={term.imageUrl}
               alt={term.name}
-              className="w-full h-full object-cover"
+              fill
+              className="object-cover"
+              sizes="64px"
             />
           </div>
         ) : (

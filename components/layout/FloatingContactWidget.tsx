@@ -43,15 +43,6 @@ export function FloatingContactWidget({ className }: FloatingContactWidgetProps)
     refetchOnWindowFocus: false,
   });
 
-  // Debug: Log config status (development only)
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[Contact Widget] Config:', config);
-      console.log('[Contact Widget] Loading:', isLoading);
-      console.log('[Contact Widget] Error:', error);
-      console.log('[Contact Widget] Visible:', isVisible);
-    }
-  }, [config, isLoading, error, isVisible]);
 
   // Determine visibility based on config
   useEffect(() => {

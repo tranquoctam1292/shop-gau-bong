@@ -49,13 +49,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ received: true });
     }
 
-    // Log payment confirmation
-    console.log('VietQR Payment Confirmed:', {
-      orderId,
-      amount,
-      transactionId,
-      timestamp,
-    });
 
     // Update order status in MongoDB
     try {
@@ -152,12 +145,6 @@ export async function POST(request: NextRequest) {
 
       // Fetch updated order
       const updatedOrder = await orders.findOne({ _id: orderIdObj });
-
-      console.log('Order status updated successfully:', {
-        orderId: orderIdObj.toString(),
-        status: updatedOrder?.status,
-        transactionId,
-      });
 
       return NextResponse.json({
         success: true,

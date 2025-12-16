@@ -111,7 +111,7 @@ export default function ProductPage() {
             {/* QuickOrderBox */}
             {product.databaseId && (
               <QuickOrderBox 
-                productId={product.databaseId}
+                productId={typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId}
                 productName={product.name}
               />
             )}
@@ -151,8 +151,8 @@ export default function ProductPage() {
       {/* Related Products */}
       {product.databaseId && (
         <RelatedProducts
-          productId={product.databaseId}
-          excludeId={product.databaseId}
+          productId={typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId}
+          excludeId={typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId}
         />
       )}
       </div>

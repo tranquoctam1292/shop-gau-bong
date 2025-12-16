@@ -281,7 +281,7 @@ export function OrderActionBar({
         {/* No actions available */}
         {!canConfirm && !canProcess && !canShip && !canComplete && !canCancel && !canRefund && (
           <div className="text-sm text-muted-foreground py-2">
-            Không có thao tác nào khả dụng cho trạng thái "{getStatusLabel(currentStatus)}"
+            Không có thao tác nào khả dụng cho trạng thái &quot;{getStatusLabel(currentStatus)}&quot;
           </div>
         )}
       </div>

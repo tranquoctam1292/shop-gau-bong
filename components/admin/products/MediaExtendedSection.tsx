@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Image from 'next/image';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -30,7 +31,7 @@ export function MediaExtendedSection({ data, onChange, productImages = [] }: Med
   const [view360Input, setView360Input] = useState('');
   const [altTextInputs, setAltTextInputs] = useState<Record<string, string>>({});
 
-  const updateField = (field: keyof MediaExtendedData, value: any) => {
+  const updateField = <K extends keyof MediaExtendedData>(field: K, value: MediaExtendedData[K]) => {
     onChange({ ...data, [field]: value });
   };
 
@@ -107,7 +108,7 @@ export function MediaExtendedSection({ data, onChange, productImages = [] }: Med
             <div className="flex gap-2">
               <select
                 value={videoInput.type}
-                onChange={(e) => setVideoInput({ ...videoInput, type: e.target.value as any })}
+                onChange={(e) => setVideoInput({ ...videoInput, type: e.target.value as 'youtube' | 'vimeo' | 'upload' })}
                 className="border rounded px-3 py-2"
               >
                 <option value="youtube">YouTube</option>
@@ -148,11 +149,15 @@ export function MediaExtendedSection({ data, onChange, productImages = [] }: Med
                       </div>
                       <p className="text-sm text-gray-600 truncate">{video.url}</p>
                       {getVideoThumbnail(video) && (
-                        <img
-                          src={getVideoThumbnail(video)}
-                          alt="Video thumbnail"
-                          className="w-24 h-16 object-cover rounded mt-2"
-                        />
+                        <div className="relative w-24 h-16 rounded mt-2 overflow-hidden">
+                          <Image
+                            src={getVideoThumbnail(video)!}
+                            alt="Video thumbnail"
+                            fill
+                            className="object-cover"
+                            sizes="96px"
+                          />
+                        </div>
                       )}
                     </div>
                     <Button
@@ -193,11 +198,15 @@ export function MediaExtendedSection({ data, onChange, productImages = [] }: Med
               <div className="grid grid-cols-4 gap-3">
                 {data.view360Images.map((imageUrl, idx) => (
                   <div key={idx} className="relative group">
-                    <img
-                      src={imageUrl}
-                      alt={`360 view ${idx + 1}`}
-                      className="w-full h-24 object-cover rounded"
-                    />
+                    <div className="relative w-full h-24 rounded overflow-hidden">
+                      <Image
+                        src={imageUrl}
+                        alt={`360 view ${idx + 1}`}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 25vw, 150px"
+                      />
+                    </div>
                     <Button
                       type="button"
                       variant="destructive"
@@ -224,11 +233,13 @@ export function MediaExtendedSection({ data, onChange, productImages = [] }: Med
             <div className="space-y-3">
               {productImages.map((imageUrl) => (
                 <div key={imageUrl} className="flex gap-3">
-                  <div className="w-20 h-20 flex-shrink-0">
-                    <img
+                  <div className="relative w-20 h-20 flex-shrink-0 rounded overflow-hidden">
+                    <Image
                       src={imageUrl}
                       alt="Product"
-                      className="w-full h-full object-cover rounded"
+                      fill
+                      className="object-cover"
+                      sizes="80px"
                     />
                   </div>
                   <div className="flex-1">

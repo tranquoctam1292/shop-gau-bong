@@ -1,10 +1,16 @@
 /**
  * WooCommerce REST API Client
  * 
+ * @deprecated This file is LEGACY code and only used in migration scripts.
+ * Production code should use Custom CMS API routes (`/api/cms/*`, `/api/admin/*`) instead.
+ * 
  * Base URL: /wp-json/wc/v3/
  * Authentication: Consumer Key & Consumer Secret (Basic Auth)
  * 
  * Documentation: https://woocommerce.github.io/woocommerce-rest-api-docs/
+ * 
+ * Migration Status: ✅ Complete - All production code has been migrated to MongoDB/Custom CMS
+ * This file is kept for historical reference and migration scripts only.
  */
 
 const WOOCOMMERCE_API_BASE = 
@@ -62,11 +68,7 @@ async function wcFetch<T>(endpoint: string, options: RequestInit = {}): Promise<
   const url = `${WOOCOMMERCE_API_BASE}${endpoint}`;
   
   try {
-    // Debug: Log authentication (không log credentials trong production)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[WooCommerce API] Fetching:', url);
-      console.log('[WooCommerce API] Auth header present:', !!getAuthHeader());
-    }
+    // Note: Debug logging removed per project rules (no console.log in production code)
     
     const response = await fetch(url, {
       ...options,
@@ -287,8 +289,8 @@ export const wcApi = {
    * @param data - Order data (billing, shipping, line_items, payment_method, etc.)
    * @returns Created order object
    */
-  createOrder: (data: any) => 
-    wcFetch<any>('/orders', { 
+  createOrder: (data: import('@/types/woocommerce').WooCommerceOrderCreateInput) => 
+    wcFetch<import('@/types/woocommerce').WooCommerceOrder>('/orders', { 
       method: 'POST', 
       body: JSON.stringify(data) 
     }),
@@ -299,7 +301,7 @@ export const wcApi = {
    * @param id - Order ID
    * @returns Order object
    */
-  getOrder: (id: number) => wcFetch<any>(`/orders/${id}`),
+  getOrder: (id: number) => wcFetch<import('@/types/woocommerce').WooCommerceOrder>(`/orders/${id}`),
 
   /**
    * Update order
