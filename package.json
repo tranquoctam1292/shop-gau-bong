@@ -24,6 +24,7 @@
     "test:phase3": "node scripts/test-phase3-api.js",
     "test:mongodb": "tsx scripts/test-mongodb-connection.ts",
     "db:setup-indexes": "tsx scripts/setup-database-indexes.ts",
+    "db:cleanup-sku-normalized": "tsx scripts/cleanup-sku-normalized-null.ts",
     "test:api-routes": "tsx scripts/test-api-routes.ts",
     "test:hooks-api": "tsx scripts/test-hooks-api.ts",
     "migrate:wordpress-to-mongodb": "tsx scripts/migrate-wordpress-to-mongodb.ts",

@@ -643,6 +643,10 @@ export async function PUT(
       }
     }
     
+    // CRITICAL: Prepare $unset operation for sku_normalized when SKU is cleared
+    // Sparse unique index doesn't allow multiple null values, so we must $unset the field instead
+    let unsetSkuNormalized = false;
+    
     // Normalize SKU for duplicate checking (according to SMART_SKU_IMPLEMENTATION_PLAN.md)
     // Only normalize if SKU is actually being updated
     // Priority: productDataMetaBox.sku > top-level sku
@@ -651,8 +655,11 @@ export async function PUT(
       if (skuToNormalize && typeof skuToNormalize === 'string' && skuToNormalize.trim()) {
         updateData.sku_normalized = normalizeSku(skuToNormalize.trim());
       } else if (skuToNormalize === null || skuToNormalize === '' || skuToNormalize === undefined) {
-        // If SKU is being cleared, also clear sku_normalized
-        updateData.sku_normalized = null;
+        // CRITICAL: Don't set sku_normalized: null - use $unset instead
+        // Sparse unique index doesn't allow multiple documents with null value
+        // Removing the field allows sparse index to ignore the document
+        delete updateData.sku_normalized; // Remove from $set
+        unsetSkuNormalized = true;
       }
     }
     
@@ -662,7 +669,8 @@ export async function PUT(
         if (variant.sku && typeof variant.sku === 'string' && variant.sku.trim()) {
           variant.sku_normalized = normalizeSku(variant.sku.trim());
         } else if (variant.sku === null || variant.sku === '' || variant.sku === undefined) {
-          variant.sku_normalized = null;
+          // Remove sku_normalized from variant when SKU is cleared
+          delete variant.sku_normalized;
         }
         return variant;
       });
@@ -675,7 +683,8 @@ export async function PUT(
         if (variation.sku && typeof variation.sku === 'string' && variation.sku.trim()) {
           variation.sku_normalized = normalizeSku(variation.sku.trim());
         } else if (variation.sku === null || variation.sku === '' || variation.sku === undefined) {
-          variation.sku_normalized = null;
+          // Remove sku_normalized from variation when SKU is cleared
+          delete variation.sku_normalized;
         }
         return variation;
       });
@@ -692,6 +701,13 @@ export async function PUT(
     
     // Prepare update operation
     const updateOperation: any = { $set: updateData };
+    
+    // CRITICAL: Handle removal of sku_normalized when SKU is cleared
+    // Use $unset instead of setting to null to avoid duplicate key error with sparse unique index
+    if (unsetSkuNormalized) {
+      if (!updateOperation.$unset) updateOperation.$unset = {};
+      updateOperation.$unset.sku_normalized = '';
+    }
     
     // Handle removal of scheduledDate and password if needed
     if (validatedData.scheduledDate === null || validatedData.scheduledDate === undefined) {
