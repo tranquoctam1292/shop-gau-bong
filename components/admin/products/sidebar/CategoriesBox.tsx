@@ -12,6 +12,7 @@ import { useToastContext } from '@/components/providers/ToastProvider';
 import { AddSubCategoryModal } from '@/components/admin/AddSubCategoryModal';
 import { generateSlug } from '@/lib/utils/slug';
 import type { MappedCategory } from '@/lib/utils/productMapper';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface CategoriesBoxProps {
   categories?: MappedCategory[]; // Optional: if not provided, will fetch using useCategories
@@ -20,6 +21,7 @@ interface CategoriesBoxProps {
   onCategoriesChange: (categoryIds: string[]) => void;
   onPrimaryCategoryChange?: (categoryId: string | null) => void;
   onAddNew?: () => void; // Optional: Quick add category
+  onCategoryAdded?: (newCategory: MappedCategory) => void; // Callback when new category is added
 }
 
 /**
@@ -38,6 +40,7 @@ export function CategoriesBox({
   onCategoriesChange,
   onPrimaryCategoryChange,
   onAddNew,
+  onCategoryAdded,
 }: CategoriesBoxProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -53,9 +56,10 @@ export function CategoriesBox({
   }>({ isOpen: false, parentId: '', parentName: '' });
 
   const { showToast } = useToastContext();
+  const queryClient = useQueryClient();
   
   // Fetch categories if not provided
-  const { categories: fetchedCategories, isLoading } = useCategories({
+  const { categories: fetchedCategories, isLoading, refetch: refetchCategories } = useCategories({
     type: 'tree',
     status: 'active',
     enabled: !propCategories,
@@ -142,6 +146,7 @@ export function CategoriesBox({
       const response = await fetch('/api/admin/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // CRITICAL: Include credentials for authentication
         body: JSON.stringify({
           name: newCategoryName.trim(),
           slug: newCategorySlug.trim() || generateSlug(newCategoryName),
@@ -162,6 +167,19 @@ export function CategoriesBox({
       onCategoriesChange([...selectedCategories, newCategory.id]);
       if (onPrimaryCategoryChange) {
         onPrimaryCategoryChange(newCategory.id);
+      }
+
+      // Notify parent component if callback provided (for propCategories case)
+      if (onCategoryAdded) {
+        onCategoryAdded(newCategory);
+      }
+
+      // Invalidate React Query cache for categories to force refetch
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+
+      // Refresh categories list if using hook (not propCategories)
+      if (!propCategories && refetchCategories) {
+        refetchCategories();
       }
 
       // Reset form

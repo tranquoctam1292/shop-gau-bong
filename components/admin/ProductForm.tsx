@@ -135,6 +135,35 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false); // Prevent double submission
   const [currentProductId, setCurrentProductId] = useState<string | undefined>(productId); // Track current product ID
   const [categories, setCategories] = useState<MappedCategory[]>([]);
+  
+  // Handle new category added
+  const handleCategoryAdded = async (newCategory: MappedCategory) => {
+    // Add new category to categories list immediately
+    setCategories((prev) => {
+      // Check if category already exists
+      if (prev.some((cat) => cat.id === newCategory.id || cat.databaseId?.toString() === newCategory.id)) {
+        return prev;
+      }
+      // Add new category to list
+      return [...prev, newCategory];
+    });
+    
+    // Also refetch categories to get full tree structure (for hierarchy)
+    try {
+      const response = await fetch('/api/admin/categories?type=tree&status=active', {
+        credentials: 'include', // Include credentials for authentication
+      });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.categories && Array.isArray(data.categories)) {
+          setCategories(data.categories);
+        }
+      }
+    } catch (error) {
+      console.error('Error refetching categories:', error);
+      // Continue with manually added category if refetch fails
+    }
+  };
   // Image URLs for display (separate from IDs stored in formData)
   const [thumbnailUrl, setThumbnailUrl] = useState<string | undefined>(undefined);
   const [galleryImages, setGalleryImages] = useState<Array<{id: string, thumbnail_url: string, title?: string, altText?: string}>>([]);
@@ -368,8 +397,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
               description: product.description || '',
               shortDescription: product.shortDescription || '',
               sku: product.sku || '',
-              category: product.categories[0]?.id?.toString() || '',
-              categories: product.categories?.map((c) => c.id?.toString()).filter(Boolean) || [],
+              category: product.categories[0]?.id?.toString() || (product.categories[0] as any)?.databaseId?.toString() || '',
+              categories: product.categories?.map((c: any) => (c.id || c.databaseId)?.toString()).filter(Boolean) || [],
               tags: product.tags?.map((t) => t.name) || [],
               variants: product.attributes
                 ?.find((a) => a.name === 'Size')
@@ -925,6 +954,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         categories={categories}
         selectedCategories={formData.categories || (formData.category ? [formData.category] : [])}
         primaryCategory={formData.categories?.[0] || formData.category || undefined}
+        onCategoryAdded={handleCategoryAdded}
         onCategoriesChange={(categoryIds) => {
           const newPrimaryCategory = categoryIds[0] || '';
           const oldPrimaryCategory = formData.categories?.[0] || formData.category || '';

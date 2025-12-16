@@ -313,7 +313,7 @@ export async function GET(
   return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       // Permission: product:read (checked by middleware)
-      const { products } = await getCollections();
+      const { products, categories } = await getCollections();
       let { id } = params;
     
     // Extract ObjectId from GraphQL format if needed (backward compatibility)
@@ -342,10 +342,46 @@ export async function GET(
     
     const mappedProduct = mapMongoProduct(product as unknown as MongoProduct);
     
+    // Populate categories from categoryId/categories
+    const { categories: categoriesCollection } = await getCollections();
+    const categoryIds: string[] = [];
+    
+    // Get category IDs from product
+    if (product.categories && Array.isArray(product.categories) && product.categories.length > 0) {
+      // Multiple categories (new structure)
+      categoryIds.push(...product.categories.filter((id: any) => id));
+    } else if (product.categoryId) {
+      // Single category ID
+      categoryIds.push(product.categoryId);
+    } else if (product.category) {
+      // Legacy: single category (could be ID or slug)
+      categoryIds.push(product.category);
+    }
+    
+    // Fetch category documents
+    const categoryDocs = categoryIds.length > 0
+      ? await categoriesCollection.find({
+          $or: [
+            { _id: { $in: categoryIds.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id)) } },
+            { slug: { $in: categoryIds.filter((id) => !ObjectId.isValid(id)) } },
+          ],
+        }).toArray()
+      : [];
+    
+    // Map categories to frontend format
+    const mappedCategories = categoryDocs.map((cat: any) => ({
+      id: cat._id.toString(),
+      databaseId: cat._id.toString(),
+      name: cat.name,
+      slug: cat.slug,
+    }));
+    
     // Include image IDs in response for frontend
     const response: any = {
       product: {
         ...mappedProduct,
+        // Override categories with populated data
+        categories: mappedCategories,
         // Include raw IDs for frontend to use
         _thumbnail_id: product._thumbnail_id || undefined,
         _product_image_gallery: product._product_image_gallery || undefined,
