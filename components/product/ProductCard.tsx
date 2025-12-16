@@ -290,17 +290,13 @@ export function ProductCard({ product }: ProductCardProps) {
         />
         
         {/* Badges */}
-        <div className="absolute top-2 left-2 flex flex-col gap-1">
-          {isOnSale && (
+        {isOnSale && (
+          <div className="absolute top-2 left-2 flex flex-col gap-1">
             <span className="bg-red-500 text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded-full shadow-sm">
               Sale
             </span>
-          )}
-          {/* Logo Brand nhỏ (như ảnh mẫu GOMI) */}
-          <div className="bg-white/90 p-1 rounded-full shadow-sm w-6 h-6 flex items-center justify-center">
-            <span className="text-[8px] font-extrabold text-pink-500">GB</span>
           </div>
-        </div>
+        )}
 
         {/* Quick Add Button (Hiện khi hover - Desktop) */}
         {/* Sử dụng Button component với variant default để có gradient effect đồng bộ */}

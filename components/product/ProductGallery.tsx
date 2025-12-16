@@ -88,11 +88,6 @@ export function ProductGallery({ images, productName, selectedVariationImage }: 
           priority
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 40vw"
         />
-        
-        {/* Badge Logo "GB" */}
-        <div className="absolute top-4 left-4 bg-white/90 p-1 rounded-full shadow-sm w-6 h-6 flex items-center justify-center z-10">
-          <span className="text-[8px] font-extrabold text-pink-500">GB</span>
-        </div>
 
         {/* Navigation Arrows - Only show if more than 1 image */}
         {allImages.length > 1 && (
