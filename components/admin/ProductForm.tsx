@@ -680,6 +680,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // CRITICAL: Include credentials for authentication
         body: JSON.stringify(finalPayload),
       });
 

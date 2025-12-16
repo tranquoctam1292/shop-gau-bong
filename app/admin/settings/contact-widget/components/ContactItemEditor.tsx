@@ -7,7 +7,8 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, memo } from 'react';
+import * as React from 'react';
 import Image from 'next/image';
 import { Card, CardContent } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -47,7 +48,9 @@ const itemDescriptions: Record<ContactWidgetConfig['items'][0]['type'], string> 
   messenger: 'Page ID hoặc username Facebook (chỉ chữ, số, dấu chấm, gạch ngang)',
 };
 
-export function ContactItemEditor({ item, onChange }: ContactItemEditorProps) {
+// CRITICAL: Memoize component để tránh re-render loop
+// Chỉ re-render khi item hoặc onChange thay đổi
+const ContactItemEditorComponent = ({ item, onChange }: ContactItemEditorProps) => {
   const { showToast } = useToastContext();
   const [uploading, setUploading] = useState(false);
   const Icon = itemIcons[item.type];
@@ -55,6 +58,17 @@ export function ContactItemEditor({ item, onChange }: ContactItemEditorProps) {
   const placeholder = itemPlaceholders[item.type];
   const description = itemDescriptions[item.type];
   const canUploadIcon = item.type === 'zalo' || item.type === 'messenger';
+
+  // Memoize callback để tránh re-render loop
+  // CRITICAL: Sử dụng useRef để lưu onChange callback mới nhất mà không trigger re-render
+  const onChangeRef = React.useRef(onChange);
+  React.useEffect(() => {
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  const handleActiveChange = useCallback((checked: boolean) => {
+    onChangeRef.current({ active: checked });
+  }, []); // Empty deps - onChange được lấy từ ref nên không cần trong deps
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -122,7 +136,7 @@ export function ContactItemEditor({ item, onChange }: ContactItemEditorProps) {
           </div>
           <Switch
             checked={item.active}
-            onCheckedChange={(checked) => onChange({ active: checked })}
+            onCheckedChange={handleActiveChange}
           />
         </div>
 
@@ -248,4 +262,13 @@ export function ContactItemEditor({ item, onChange }: ContactItemEditorProps) {
       </CardContent>
     </Card>
   );
-}
+};
+
+// CRITICAL: Memoize component để tránh re-render loop
+// Chỉ re-render khi item hoặc onChange thay đổi reference
+export const ContactItemEditor = memo(ContactItemEditorComponent, (prevProps, nextProps) => {
+  // Custom comparison: chỉ re-render nếu item hoặc onChange thay đổi
+  const itemChanged = JSON.stringify(prevProps.item) !== JSON.stringify(nextProps.item);
+  const onChangeChanged = prevProps.onChange !== nextProps.onChange;
+  return !itemChanged && !onChangeChanged;
+});

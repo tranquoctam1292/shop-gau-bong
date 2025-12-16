@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import type { MappedProduct } from '@/lib/utils/productMapper';
@@ -13,6 +13,13 @@ interface StatusCellProps {
 export function StatusCell({ product, onStatusChange }: StatusCellProps) {
   const [isUpdating, setIsUpdating] = useState(false);
   
+  // CRITICAL: Sử dụng useRef để lưu onStatusChange callback mới nhất
+  // Tránh re-render loop khi onStatusChange thay đổi reference
+  const onStatusChangeRef = useRef(onStatusChange);
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+  }, [onStatusChange]);
+  
   // Determine status from product
   // Priority: status field > stockStatus > isActive
   const status = (product as any).status || 
@@ -23,19 +30,22 @@ export function StatusCell({ product, onStatusChange }: StatusCellProps) {
   const isDraft = status === 'draft';
   const isTrash = status === 'trash';
 
-  const handleToggle = async () => {
-    if (!onStatusChange || isUpdating) return;
+  // CRITICAL: Sử dụng useRef để tránh re-render loop
+  // Callback không phụ thuộc vào onStatusChange reference
+  const handleToggle = useCallback(async (checked: boolean) => {
+    const handler = onStatusChangeRef.current;
+    if (!handler) return;
     
     setIsUpdating(true);
     try {
-      const newStatus = isPublished ? 'draft' : 'publish';
-      await onStatusChange(newStatus);
+      const newStatus = checked ? 'publish' : 'draft';
+      await handler(newStatus);
     } catch (error) {
       console.error('Error updating status:', error);
     } finally {
       setIsUpdating(false);
     }
-  };
+  }, []); // Empty deps - onStatusChange được lấy từ ref
 
   // Status badge colors
   const getStatusBadge = () => {

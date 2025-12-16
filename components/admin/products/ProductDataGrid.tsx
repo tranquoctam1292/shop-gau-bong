@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useCallback, useRef, useEffect } from 'react';
 import {
   Table,
   TableBody,
@@ -21,6 +22,7 @@ import { StockCell } from './StockCell';
 import { StatusCell } from './StatusCell';
 import { ProductActionMenu } from './ProductActionMenu';
 import { Filter } from 'lucide-react';
+import { memo } from 'react';
 
 interface ProductDataGridProps {
   products: MappedProduct[];
@@ -40,6 +42,58 @@ interface ProductDataGridProps {
   onProductUpdate?: (updatedProduct: MappedProduct) => void;
   onRetry?: () => void;
 }
+
+// CRITICAL: Memoize StatusCell wrapper để tránh re-render loop
+// Component này nhận productId và onStatusChange, tạo callback ổn định
+const StatusCellWrapper = memo(({ 
+  productId, 
+  product, 
+  onStatusChange 
+}: { 
+  productId: string; 
+  product: MappedProduct;
+  onStatusChange?: (id: string, status: 'draft' | 'publish') => Promise<void>;
+}) => {
+  // CRITICAL: Sử dụng useRef để lưu onStatusChange và productId mới nhất
+  // Tránh tạo callback mới mỗi lần render
+  const onStatusChangeRef = useRef(onStatusChange);
+  const productIdRef = useRef(productId);
+  
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange;
+    productIdRef.current = productId;
+  }, [onStatusChange, productId]);
+
+  // CRITICAL: Tạo stable callback không phụ thuộc vào onStatusChange reference
+  const handleStatusChange = useCallback(
+    async (status: 'draft' | 'publish') => {
+      const handler = onStatusChangeRef.current;
+      const id = productIdRef.current;
+      if (handler) {
+        await handler(id, status);
+      }
+    },
+    [] // Empty deps - onStatusChange và productId được lấy từ ref
+  );
+
+  return (
+    <StatusCell
+      product={product}
+      onStatusChange={onStatusChange ? handleStatusChange : undefined}
+    />
+  );
+}, (prevProps, nextProps) => {
+  // Custom comparison: chỉ re-render nếu product hoặc onStatusChange thay đổi
+  // So sánh các trường quan trọng của product thay vì JSON.stringify (hiệu suất tốt hơn)
+  return (
+    prevProps.productId === nextProps.productId &&
+    prevProps.product.status === nextProps.product.status &&
+    prevProps.product.stockStatus === nextProps.product.stockStatus &&
+    prevProps.product.isActive === nextProps.product.isActive &&
+    prevProps.onStatusChange === nextProps.onStatusChange
+  );
+});
+StatusCellWrapper.displayName = 'StatusCellWrapper';
 
 export function ProductDataGrid({
   products,
@@ -210,13 +264,10 @@ export function ProductDataGrid({
               />
             </TableCell>
             <TableCell className="hidden lg:table-cell">
-              <StatusCell
+              <StatusCellWrapper
+                productId={product.id}
                 product={product}
-                onStatusChange={
-                  onStatusChange
-                    ? (status) => onStatusChange(product.id, status)
-                    : undefined
-                }
+                onStatusChange={onStatusChange}
               />
             </TableCell>
             <TableCell>

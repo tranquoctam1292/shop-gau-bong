@@ -6,7 +6,8 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import * as React from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -101,13 +102,36 @@ export function ContactWidgetForm() {
     },
   });
 
-  const handleItemChange = (index: number, updates: Partial<ContactWidgetConfig['items'][0]>) => {
-    setItems((prev) => {
-      const newItems = [...prev];
-      newItems[index] = { ...newItems[index], ...updates };
-      return newItems;
+  // CRITICAL: Sử dụng useRef để lưu items và handler, tránh re-render loop
+  const itemsRef = React.useRef(items);
+  React.useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  // CRITICAL: Tạo stable callbacks sử dụng ref để tránh re-render loop
+  // Callbacks luôn sử dụng items mới nhất từ ref
+  const itemCallbacks = React.useMemo(() => {
+    const callbacks: Record<string, (updates: Partial<ContactWidgetConfig['items'][0]>) => void> = {};
+    items.forEach((item) => {
+      callbacks[item.type] = (updates: Partial<ContactWidgetConfig['items'][0]>) => {
+        // Luôn lấy items mới nhất từ ref để tìm index chính xác
+        const currentIndex = itemsRef.current.findIndex((i) => i.type === item.type);
+        if (currentIndex !== -1) {
+          setItems((prev) => {
+            const newItems = [...prev];
+            newItems[currentIndex] = { ...newItems[currentIndex], ...updates };
+            return newItems;
+          });
+        }
+      };
     });
-  };
+    return callbacks;
+  }, [items.length]); // Chỉ phụ thuộc vào length để tạo lại khi thêm/xóa item
+
+  // Memoize handleEnabledChange để tránh re-render loop
+  const handleEnabledChange = useCallback((checked: boolean) => {
+    setEnabled(checked);
+  }, []);
 
   const handleSave = () => {
     saveMutation.mutate({
@@ -156,7 +180,7 @@ export function ContactWidgetForm() {
           <Switch
             id="enabled"
             checked={enabled}
-            onCheckedChange={setEnabled}
+            onCheckedChange={handleEnabledChange}
           />
         </div>
 
@@ -206,7 +230,7 @@ export function ContactWidgetForm() {
             <ContactItemEditor
               key={item.type}
               item={item}
-              onChange={(updates) => handleItemChange(index, updates)}
+              onChange={itemCallbacks[item.type]}
             />
           ))}
         </div>

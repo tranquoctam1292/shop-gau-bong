@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,8 @@ export default function AdminProductsPage() {
   const [total, setTotal] = useState(0);
   const [trashCount, setTrashCount] = useState(0);
   const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
-  const [searchDebounceTimer, setSearchDebounceTimer] = useState<NodeJS.Timeout | null>(null);
+  // CRITICAL: Sử dụng useRef thay vì useState để tránh re-render loop
+  const searchDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [deletingProducts, setDeletingProducts] = useState<Set<string>>(new Set());
   
   // Get active tab from URL or default to 'all'
@@ -39,23 +40,35 @@ export default function AdminProductsPage() {
   // Search state (separate from filters for debouncing)
   const [search, setSearch] = useState(searchParams.get('search') || '');
 
-  // Debounce search to prevent race conditions
+  // CRITICAL: Sử dụng useRef để lưu updateFilter callback mới nhất
+  // Tránh re-render loop khi updateFilter thay đổi reference
+  const updateFilterRef = useRef(updateFilter);
   useEffect(() => {
-    if (searchDebounceTimer) {
-      clearTimeout(searchDebounceTimer);
+    updateFilterRef.current = updateFilter;
+  }, [updateFilter]);
+
+  // CRITICAL: Debounce search to prevent race conditions
+  // Sử dụng useRef để lưu timer, tránh re-render loop
+  useEffect(() => {
+    // Clear previous timer if exists
+    if (searchDebounceTimerRef.current) {
+      clearTimeout(searchDebounceTimerRef.current);
     }
     
-    const timer = setTimeout(() => {
+    // Set new timer
+    searchDebounceTimerRef.current = setTimeout(() => {
       setPage(1); // Reset to page 1 when search changes
-      updateFilter('search', search || undefined);
+      updateFilterRef.current('search', search || undefined);
     }, 300);
     
-    setSearchDebounceTimer(timer);
-    
+    // Cleanup function
     return () => {
-      if (timer) clearTimeout(timer);
+      if (searchDebounceTimerRef.current) {
+        clearTimeout(searchDebounceTimerRef.current);
+        searchDebounceTimerRef.current = null;
+      }
     };
-  }, [search, searchDebounceTimer, updateFilter]);
+  }, [search]); // Removed updateFilter from dependencies - use ref instead
 
   // Reset page to 1 when filters change (except search which is handled separately)
   useEffect(() => {
@@ -81,6 +94,8 @@ export default function AdminProductsPage() {
     router.push(`/admin/products?${params.toString()}`);
   }, [searchParams, router]);
 
+  // CRITICAL: Memoize fetchProducts với dependencies cụ thể thay vì toàn bộ filters object
+  // Tránh re-render loop khi filters object thay đổi reference
   const fetchProducts = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -141,14 +156,27 @@ export default function AdminProductsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, activeTab, filters, search, showToast]);
+  }, [
+    page, 
+    activeTab, 
+    filters.category, 
+    filters.brand, 
+    filters.priceMin, 
+    filters.priceMax, 
+    filters.stockStatus, 
+    filters.search,
+    search, 
+    showToast
+  ]);
 
   // Fetch products when page, tab, or filters change
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
 
-  const handleDelete = async (id: string) => {
+  // CRITICAL: Memoize all handlers với useCallback để tránh re-render loop
+  // Các handlers này được truyền vào ProductDataGrid và các component con
+  const handleDelete = useCallback(async (id: string) => {
     // Add to deleting set
     setDeletingProducts((prev) => new Set(prev).add(id));
     
@@ -175,9 +203,9 @@ export default function AdminProductsPage() {
         return next;
       });
     }
-  };
+  }, [showToast, fetchProducts]);
 
-  const handleRestore = async (id: string) => {
+  const handleRestore = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/admin/products/${id}/restore`, {
         method: 'PATCH',
@@ -194,9 +222,9 @@ export default function AdminProductsPage() {
       console.error('Error restoring product:', error);
       showToast('Không thể khôi phục sản phẩm', 'error');
     }
-  };
+  }, [showToast, fetchProducts]);
 
-  const handleForceDelete = async (id: string) => {
+  const handleForceDelete = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/admin/products/${id}/force`, {
         method: 'DELETE',
@@ -223,9 +251,9 @@ export default function AdminProductsPage() {
       console.error('Error force deleting product:', error);
       showToast('Không thể xóa sản phẩm', 'error');
     }
-  };
+  }, [showToast, fetchProducts]);
 
-  const handleDuplicate = async (id: string) => {
+  const handleDuplicate = useCallback(async (id: string) => {
     try {
       const response = await fetch(`/api/admin/products/${id}/duplicate`, {
         method: 'POST',
@@ -242,9 +270,11 @@ export default function AdminProductsPage() {
       console.error('Error duplicating product:', error);
       showToast('Có lỗi xảy ra khi tạo bản sao', 'error');
     }
-  };
+  }, [showToast, fetchProducts]);
 
-  const handleStatusChange = async (id: string, status: 'draft' | 'publish') => {
+  // CRITICAL: Memoize handleStatusChange để tránh re-render loop
+  // Đây là handler quan trọng nhất vì nó được truyền vào StatusCellWrapper
+  const handleStatusChange = useCallback(async (id: string, status: 'draft' | 'publish') => {
     try {
       const response = await fetch(`/api/admin/products/${id}/quick-update`, {
         method: 'PATCH',
@@ -263,30 +293,33 @@ export default function AdminProductsPage() {
       console.error('Error updating status:', error);
       showToast('Không thể cập nhật trạng thái', 'error');
     }
-  };
+  }, [showToast, fetchProducts]);
 
-  const handleProductUpdate = (updatedProduct: MappedProduct) => {
+  // CRITICAL: Memoize handlers được truyền vào ProductDataGrid
+  const handleProductUpdate = useCallback((updatedProduct: MappedProduct) => {
     // Optimistic update: update product in local state
     setProducts((prevProducts) =>
       prevProducts.map((p) => (p.id === updatedProduct.id ? updatedProduct : p))
     );
     // Refetch to ensure consistency
     fetchProducts();
-  };
+  }, [fetchProducts]);
 
-  const toggleSelectProduct = (id: string) => {
+  const toggleSelectProduct = useCallback((id: string) => {
     setSelectedProducts((prev) =>
       prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
     );
-  };
+  }, []);
 
-  const toggleSelectAll = () => {
-    if (selectedProducts.length === products.length) {
-      setSelectedProducts([]);
-    } else {
-      setSelectedProducts(products.map((p) => p.id));
-    }
-  };
+  const toggleSelectAll = useCallback(() => {
+    setSelectedProducts((prev) => {
+      if (prev.length === products.length) {
+        return [];
+      } else {
+        return products.map((p) => p.id);
+      }
+    });
+  }, [products]);
 
   const handleBulkDelete = async () => {
     if (selectedProducts.length === 0) {
