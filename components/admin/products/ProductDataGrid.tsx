@@ -278,6 +278,7 @@ export function ProductDataGrid({
                 onRestore={onRestore}
                 onForceDelete={onForceDelete}
                 onDuplicate={onDuplicate}
+                onProductUpdate={onProductUpdate}
               />
             </TableCell>
           </TableRow>

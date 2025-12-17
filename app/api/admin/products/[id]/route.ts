@@ -376,6 +376,154 @@ export async function GET(
       slug: cat.slug,
     }));
     
+    // Convert productDataMetaBox.variations → variants array if variations exist
+    // This is needed for Quick Edit dialog and other frontend components
+    let variants: Array<{
+      id: string;
+      size: string;
+      color?: string;
+      colorCode?: string;
+      price: number;
+      stock: number;
+      image?: string;
+      sku?: string;
+    }> | undefined = undefined;
+    
+    // Priority 1: Use variants array from MongoDB (if exists)
+    if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+      variants = product.variants.map((v: any) => ({
+        id: v.id || '',
+        size: v.size || '',
+        color: v.color || undefined,
+        colorCode: v.colorCode || undefined,
+        price: v.price || 0,
+        stock: v.stock || v.stockQuantity || 0,
+        image: v.image || undefined,
+        sku: v.sku || undefined,
+      }));
+    }
+    // Priority 2: Convert from productDataMetaBox.variations
+    else if (product.productDataMetaBox?.variations && product.productDataMetaBox.variations.length > 0) {
+      // Find color attribute in productDataMetaBox.attributes to get colorCodes mapping
+      const colorAttribute = product.productDataMetaBox?.attributes?.find((attr: any) => {
+        const attrNameLower = (attr.name || '').toLowerCase();
+        return attrNameLower.includes('color') || 
+               attrNameLower === 'pa_color' || 
+               attrNameLower === 'màu' ||
+               attrNameLower === 'màu sắc';
+      });
+      const colorCodesMap = colorAttribute?.colorCodes || {};
+      
+      // Find size attribute name for matching
+      const sizeAttribute = product.productDataMetaBox?.attributes?.find((attr: any) => {
+        const attrNameLower = (attr.name || '').toLowerCase();
+        return attrNameLower.includes('size') || 
+               attrNameLower === 'pa_size' || 
+               attrNameLower === 'kích thước';
+      });
+      const sizeAttributeName = sizeAttribute?.name || '';
+      const colorAttributeName = colorAttribute?.name || '';
+      
+      variants = product.productDataMetaBox.variations.map((variation: any) => {
+        // Extract size and color from attributes
+        let size = '';
+        let color = '';
+        let colorCode = '';
+        
+        if (variation.attributes && typeof variation.attributes === 'object') {
+          // Debug: Log variation attributes structure in development
+          if (process.env.NODE_ENV === 'development' && variation.attributes) {
+            console.log('[DEBUG] Variation attributes:', JSON.stringify(variation.attributes));
+            console.log('[DEBUG] Size attribute name:', sizeAttributeName);
+            console.log('[DEBUG] Color attribute name:', colorAttributeName);
+            console.log('[DEBUG] Color codes map:', JSON.stringify(colorCodesMap));
+          }
+          
+          Object.entries(variation.attributes).forEach(([attrName, value]) => {
+            const attrNameLower = attrName.toLowerCase().trim();
+            const valueStr = String(value).trim();
+            
+            // Normalize attribute names for comparison (remove accents, lowercase)
+            const normalizeString = (str: string) => {
+              return str.toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '') // Remove accents
+                .trim();
+            };
+            
+            const normalizedAttrName = normalizeString(attrName);
+            const normalizedSizeAttrName = sizeAttributeName ? normalizeString(sizeAttributeName) : '';
+            const normalizedColorAttrName = colorAttributeName ? normalizeString(colorAttributeName) : '';
+            
+            // Match by attribute name (exact match or contains)
+            // Try exact match first, then contains check
+            const isSizeAttr = sizeAttributeName ? (
+              attrName === sizeAttributeName ||
+              normalizedAttrName === normalizedSizeAttrName ||
+              normalizedAttrName.includes('size') || 
+              normalizedAttrName === 'pa_size' || 
+              normalizedAttrName === 'kich thuoc' ||
+              normalizedAttrName.includes('kich thuoc')
+            ) : (
+              normalizedAttrName.includes('size') || 
+              normalizedAttrName === 'pa_size' || 
+              normalizedAttrName === 'kich thuoc' ||
+              normalizedAttrName.includes('kich thuoc')
+            );
+            
+            const isColorAttr = colorAttributeName ? (
+              attrName === colorAttributeName ||
+              normalizedAttrName === normalizedColorAttrName ||
+              normalizedAttrName.includes('color') || 
+              normalizedAttrName === 'pa_color' || 
+              normalizedAttrName === 'mau' ||
+              normalizedAttrName === 'mau sac' ||
+              normalizedAttrName.includes('mau')
+            ) : (
+              normalizedAttrName.includes('color') || 
+              normalizedAttrName === 'pa_color' || 
+              normalizedAttrName === 'mau' ||
+              normalizedAttrName === 'mau sac' ||
+              normalizedAttrName.includes('mau')
+            );
+            
+            if (isSizeAttr && !size) {
+              size = valueStr;
+            } else if (isColorAttr && !color) {
+              color = valueStr;
+              // Lookup colorCode from colorCodes mapping (try multiple formats)
+              colorCode = colorCodesMap[valueStr] || 
+                         colorCodesMap[valueStr.toLowerCase()] || 
+                         colorCodesMap[valueStr.toUpperCase()] ||
+                         colorCodesMap[valueStr.trim()] ||
+                         '';
+              
+              // Debug: Log color extraction in development
+              if (process.env.NODE_ENV === 'development') {
+                console.log(`[DEBUG] Extracted color: "${color}" from attribute "${attrName}", colorCode: "${colorCode}"`);
+              }
+            }
+          });
+        }
+        
+        // Use salePrice if available and valid, otherwise use regularPrice
+        const price = variation.salePrice && variation.regularPrice && variation.salePrice < variation.regularPrice
+          ? variation.salePrice
+          : variation.regularPrice || 0;
+        
+        return {
+          id: variation.id || '',
+          size,
+          color: color || undefined,
+          colorCode: colorCode || undefined,
+          price,
+          stock: variation.stockQuantity || 0,
+          image: variation.image || undefined,
+          sku: variation.sku || undefined,
+        };
+      });
+    }
+    
     // Include image IDs in response for frontend
     const response: any = {
       product: {
@@ -394,6 +542,8 @@ export async function GET(
         version: mappedProduct.version !== undefined ? mappedProduct.version : (product.version || 0),
         // Include productDataMetaBox from raw MongoDB document
         productDataMetaBox: product.productDataMetaBox || undefined,
+        // Include variants array (converted from productDataMetaBox.variations or from product.variants)
+        variants: variants || undefined,
         // TODO: Expand IDs to full URLs when media API is available
         // For now, include IDs and let frontend handle display
         thumbnail: product._thumbnail_id ? {

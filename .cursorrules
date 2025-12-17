@@ -28,7 +28,11 @@ Before implementing any feature, you MUST reference the following sources based 
   - RULE: Always use Next.js API routes (`/api/cms/*`) for public access and (`/api/admin/*`) for admin access. Never call MongoDB directly from client.
 - **IF Working with Product Module:**
   - READ: `docs/PRODUCT_MODULE_CONTEXT.md` (detailed context)
-  - READ: `docs/PRODUCT_MODULE_REFERENCE.md` (comprehensive reference - API endpoints, schema, hooks, patterns)
+  - READ: `docs/PRODUCT_MODULE_REFERENCE.md` (main reference with links to sub-documents)
+  - READ: `docs/product-module/API.md` (API endpoints, request/response formats, validation)
+  - READ: `docs/product-module/COMPONENTS.md` (frontend components documentation)
+  - READ: `docs/product-module/HOOKS.md` (hooks and utilities)
+  - READ: `docs/product-module/BUSINESS_LOGIC.md` (business logic and rules)
   - RULE: Always include `version` field in PUT requests for optimistic locking
   - RULE: Use soft delete (`deletedAt`, `status: 'trash'`) instead of hard delete
   - RULE: Validate `salePrice < regularPrice` in Zod schema
@@ -77,8 +81,12 @@ Before implementing any feature, you MUST reference the following sources based 
   - Image Alt Text: SEO alt text inputs in FeaturedImageBox and ProductGalleryBox
   - Rich Text Editor: Image paste uploads to server instead of Base64
   - Error Handling: Toast notifications with specific error messages from server (✅ All `alert()` and `window.prompt()` calls replaced with `showToast()` and Dialog components - see `docs/ADMIN_TOAST_NOTIFICATIONS_PLAN.md`)
-  - **API Endpoints:** 20+ endpoints documented in `docs/PRODUCT_MODULE_REFERENCE.md`
-  - **Comprehensive Reference:** See `docs/PRODUCT_MODULE_REFERENCE.md` for complete technical reference (API, schema, hooks, patterns)
+  - **API Endpoints:** 20+ endpoints documented in `docs/product-module/API.md`
+  - **Comprehensive Reference:** See `docs/PRODUCT_MODULE_REFERENCE.md` (main index) and sub-documents:
+    - `docs/product-module/API.md` - Backend API endpoints
+    - `docs/product-module/COMPONENTS.md` - Frontend components
+    - `docs/product-module/HOOKS.md` - Hooks and utilities
+    - `docs/product-module/BUSINESS_LOGIC.md` - Business logic
   - See: `docs/PRODUCT_MODULE_FIX_PLAN.md` and `docs/PRODUCT_MODULE_REVIEW_REPORT.md` for details
 - **Safe Mapping:** MongoDB documents are mapped to frontend format using `productMapper`. Use `mapMongoProduct()` helper.
   - *Bad:* Direct access to MongoDB `_id` or nested fields without mapping
@@ -414,8 +422,13 @@ Before implementing any feature, you MUST reference the following sources based 
     3. Fix discrepancies immediately
     4. Update UPDATE LOG section with changes
   - **Reference Files:**
-    - Product Module: `docs/PRODUCT_MODULE_REFERENCE.md` - Complete reference for Product Module
-    - Use as template for other module references
+    - Product Module: `docs/PRODUCT_MODULE_REFERENCE.md` - Main reference index (with links to sub-documents)
+    - Product Module Sub-documents:
+      - `docs/product-module/API.md` - Backend API documentation
+      - `docs/product-module/COMPONENTS.md` - Frontend components
+      - `docs/product-module/HOOKS.md` - Hooks and utilities
+      - `docs/product-module/BUSINESS_LOGIC.md` - Business logic
+    - Use as template for other module references (split large documents into sub-documents when >1000 lines)
 
 # FULL CODE CONTEXT FILE UPDATE
 - **When user requests to update `full_code_context.txt`:** Automatically run the PowerShell script to regenerate the file.

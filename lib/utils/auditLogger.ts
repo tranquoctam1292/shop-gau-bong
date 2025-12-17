@@ -157,3 +157,45 @@ export async function getActivityLogsByAction(
     return [];
   }
 }
+
+/**
+ * Audit Log Data Interface for Product Quick Update
+ * Used specifically for product quick edit feature
+ */
+export interface AuditLogData {
+  admin_id: string; // Admin user ID (matches existing schema)
+  action: string;
+  target_collection: string; // e.g., 'products'
+  target_id: string; // Product ID
+  details: {
+    oldValues?: Record<string, unknown>;
+    changes: Record<string, unknown>;
+  };
+  ip_address?: string;
+  user_agent?: string;
+}
+
+/**
+ * Create audit log for product quick update
+ * 
+ * @param data - Audit log data
+ * @returns Promise<void>
+ */
+export async function createAuditLog(data: AuditLogData): Promise<void> {
+  try {
+    const { adminActivityLogs } = await getCollections();
+    await adminActivityLogs.insertOne({
+      admin_id: new ObjectId(data.admin_id),
+      action: data.action,
+      target_collection: data.target_collection,
+      target_id: new ObjectId(data.target_id),
+      details: data.details,
+      ip_address: data.ip_address,
+      user_agent: data.user_agent,
+      createdAt: new Date(), // Matches existing schema
+    });
+  } catch (error) {
+    // Log error but don't throw - audit logging should not break the application
+    console.error('[AuditLogger] Failed to create audit log:', error);
+  }
+}

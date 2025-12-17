@@ -11,11 +11,12 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { MoreHorizontal, Eye, Copy, Trash2, RotateCcw, AlertTriangle, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Eye, Copy, Trash2, RotateCcw, AlertTriangle, Loader2, Edit } from 'lucide-react';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { useToastContext } from '@/components/providers/ToastProvider';
 import { RestoreProductModal } from './RestoreProductModal';
 import { ForceDeleteModal } from './ForceDeleteModal';
+import { ProductQuickEditDialog } from './ProductQuickEditDialog';
 
 interface ProductActionMenuProps {
   product: MappedProduct;
@@ -25,6 +26,7 @@ interface ProductActionMenuProps {
   onRestore?: (id: string) => Promise<void>;
   onForceDelete?: (id: string) => Promise<void>;
   onDuplicate?: (id: string) => Promise<void>;
+  onProductUpdate?: (updatedProduct: MappedProduct) => void; // ✅ NEW
 }
 
 export function ProductActionMenu({
@@ -34,12 +36,14 @@ export function ProductActionMenu({
   onRestore,
   onForceDelete,
   onDuplicate,
+  onProductUpdate,
 }: ProductActionMenuProps) {
   const router = useRouter();
   const { showToast } = useToastContext();
   const [isLoading, setIsLoading] = useState(false);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [showForceDeleteModal, setShowForceDeleteModal] = useState(false);
+  const [showQuickEdit, setShowQuickEdit] = useState(false);
 
   const handleDelete = async () => {
     if (!onDelete) return;
@@ -131,6 +135,14 @@ export function ProductActionMenu({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem
+              onClick={() => setShowQuickEdit(true)}
+              disabled={isLoading}
+              className="cursor-pointer"
+            >
+              <Edit className="mr-2 h-4 w-4" />
+              Sửa nhanh
+            </DropdownMenuItem>
+            <DropdownMenuItem
               onClick={handleDuplicate}
               disabled={isLoading}
               className="cursor-pointer"
@@ -196,6 +208,16 @@ export function ProductActionMenu({
         onClose={() => setShowForceDeleteModal(false)}
         onConfirm={handleForceDelete}
         product={product}
+      />
+      
+      {/* Quick Edit Dialog */}
+      <ProductQuickEditDialog
+        product={product}
+        open={showQuickEdit}
+        onClose={() => setShowQuickEdit(false)}
+        onSuccess={(updatedProduct) => {
+          onProductUpdate?.(updatedProduct);
+        }}
       />
     </DropdownMenu>
   );

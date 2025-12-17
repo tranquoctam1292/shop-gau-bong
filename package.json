@@ -43,6 +43,8 @@
     "test:smart-sku-phase1": "tsx scripts/test-smart-sku-phase1.ts",
     "test:smart-sku-api": "tsx scripts/test-smart-sku-api.ts",
     "test:smart-sku-phase5": "tsx scripts/test-smart-sku-phase5.ts",
+    "test:product-quick-edit": "tsx scripts/test-product-quick-edit.ts",
+    "debug:product-variants": "tsx scripts/debug-product-variants.ts",
     "generate:nextauth-secret": "node scripts/generate-nextauth-secret.js"
   },
   "dependencies": {
