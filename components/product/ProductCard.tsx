@@ -285,7 +285,7 @@ export function ProductCard({ product }: ProductCardProps) {
 
   return (
     <div 
-      className="group relative flex flex-col gap-2 bg-white rounded-2xl p-2 md:p-3 hover:shadow-lg transition-all duration-300 border border-transparent hover:border-pink-100"
+      className="group relative flex flex-col gap-1.5 md:gap-2 bg-white rounded-xl md:rounded-2xl p-1.5 md:p-3 hover:shadow-lg transition-all duration-300 border border-transparent hover:border-pink-100"
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

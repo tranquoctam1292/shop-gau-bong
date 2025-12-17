@@ -50,6 +50,11 @@ const nextConfig = {
     return config;
   },
   
+  // Disable experimental instrumentation (can cause opentelemetry errors)
+  experimental: {
+    instrumentationHook: false,
+  },
+  
   // Environment variables are accessed directly via process.env
   // No need to explicitly expose WordPress/WooCommerce env vars anymore
   
