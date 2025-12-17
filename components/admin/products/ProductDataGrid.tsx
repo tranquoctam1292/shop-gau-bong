@@ -20,7 +20,6 @@ import { SKUCell } from './SKUCell';
 import { PriceCell } from './PriceCell';
 import { StockCell } from './StockCell';
 import { StatusCell } from './StatusCell';
-import { ProductActionMenu } from './ProductActionMenu';
 import { Filter } from 'lucide-react';
 import { memo } from 'react';
 
@@ -228,12 +227,11 @@ export function ProductDataGrid({
             <TableHead>Giá bán</TableHead>
             <TableHead className="hidden md:table-cell">Tồn kho</TableHead>
             <TableHead className="hidden lg:table-cell">Trạng thái</TableHead>
-            <TableHead className="w-12">Hành động</TableHead>
           </TableRow>
         </TableHeader>
       <TableBody>
         {products.map((product) => (
-          <TableRow key={product.id}>
+          <TableRow key={product.id} className="group">
             <TableCell>
               <input
                 type="checkbox"
@@ -243,7 +241,15 @@ export function ProductDataGrid({
               />
             </TableCell>
             <TableCell>
-              <ProductCell product={product} />
+              <ProductCell 
+                product={product}
+                isTrashTab={isTrashTab}
+                onDelete={onDelete}
+                onRestore={onRestore}
+                onForceDelete={onForceDelete}
+                onDuplicate={onDuplicate}
+                onProductUpdate={onProductUpdate}
+              />
             </TableCell>
             <TableCell className="hidden md:table-cell">
               <CategoryBrandCell product={product} />
@@ -268,17 +274,6 @@ export function ProductDataGrid({
                 productId={product.id}
                 product={product}
                 onStatusChange={onStatusChange}
-              />
-            </TableCell>
-            <TableCell>
-              <ProductActionMenu
-                product={product}
-                isTrashTab={isTrashTab}
-                onDelete={onDelete}
-                onRestore={onRestore}
-                onForceDelete={onForceDelete}
-                onDuplicate={onDuplicate}
-                onProductUpdate={onProductUpdate}
               />
             </TableCell>
           </TableRow>

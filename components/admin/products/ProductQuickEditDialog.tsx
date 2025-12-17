@@ -24,7 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { useQuickUpdateProduct } from '@/lib/hooks/useQuickUpdateProduct';
 import { useToastContext } from '@/components/providers/ToastProvider';
@@ -146,6 +146,8 @@ export function ProductQuickEditDialog({
   const [showConfirmClose, setShowConfirmClose] = useState(false);
   const [productWithVariants, setProductWithVariants] = useState<ProductWithVariants | null>(null);
   const [loadingProduct, setLoadingProduct] = useState(false);
+  // Store initial data snapshot when dialog opens to prevent comparison issues
+  const [snapshotInitialData, setSnapshotInitialData] = useState<QuickEditFormData | null>(null);
 
   // Fetch full product data with variants when dialog opens
   useEffect(() => {
@@ -249,6 +251,7 @@ export function ProductQuickEditDialog({
     setValue,
     watch,
     reset,
+    getValues,
   } = useForm<QuickEditFormData>({
     resolver: zodResolver(quickEditSchema),
     defaultValues: initialData,
@@ -282,9 +285,17 @@ export function ProductQuickEditDialog({
 
   // Reset form when dialog opens (only once, not when initialData changes)
   // CRITICAL FIX #17: Prevent form reset when initialData changes during editing
+  // Also reset confirm close state when dialog opens and snapshot initial data
   useEffect(() => {
-    if (open) {
-      reset(initialData);
+    if (open && initialData) {
+      // Snapshot initial data when dialog opens to ensure stable comparison
+      setSnapshotInitialData(initialData);
+      // Reset form with keepDefaultValues to ensure isDirty is reset properly
+      reset(initialData, { keepDefaultValues: false });
+      setShowConfirmClose(false); // Reset confirm dialog state when opening
+    } else if (!open) {
+      // Clear snapshot when dialog closes
+      setSnapshotInitialData(null);
     }
     // Remove initialData from dependencies to prevent reset during editing
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -307,37 +318,46 @@ export function ProductQuickEditDialog({
     // If onbackorder, respect user's manual choice (don't auto-sync)
   };
 
-  // Optimized dirty check - field-by-field comparison (no JSON.stringify)
+  // Helper function to normalize values for comparison
+  const normalizeValue = (value: any): any => {
+    if (value === null || value === undefined) return undefined;
+    if (typeof value === 'string' && value.trim() === '') return '';
+    if (typeof value === 'number' && isNaN(value)) return 0;
+    return value;
+  };
+
+  // Optimized dirty check - combine react-hook-form's isDirty with custom variant check
+  // Use snapshotInitialData for stable comparison (snapshot taken when dialog opens)
   const isDirty = useMemo(() => {
-    if (!initialData) return false;
+    // If dialog is not open, always return false
+    if (!open) return false;
     
-    const fieldsToCompare = [
-      'name', 'sku', 'status', 'manageStock',
-      'regularPrice', 'salePrice', 'stockQuantity', 'stockStatus'
-    ] as const;
+    // Use snapshot if available, otherwise fallback to initialData
+    const baseData = snapshotInitialData || initialData;
+    if (!baseData) return false;
     
-    // Check basic fields
-    const basicFieldsChanged = fieldsToCompare.some(field => {
-      const currentValue = formData[field];
-      const initialValue = initialData[field];
-      return currentValue !== initialValue;
-    });
+    // Use react-hook-form's isDirty for registered fields (more reliable)
+    // This checks: name, sku, status, manageStock, regularPrice, salePrice, stockQuantity, stockStatus
+    const formFieldsDirty = formIsDirty;
     
-    // Check variants with field-by-field comparison (more accurate than JSON.stringify)
-    const variantsChanged = formData.variants && initialData.variants && (
-      formData.variants.length !== initialData.variants.length ||
-      formData.variants.some((v, i) => {
-        const initial = initialData.variants?.[i];
+    // Custom check for variants (not tracked by react-hook-form's isDirty)
+    const currentVariants = formData.variants || [];
+    const initialVariants = baseData.variants || [];
+    
+    const variantsChanged = currentVariants.length !== initialVariants.length ||
+      currentVariants.some((v, i) => {
+        const initial = initialVariants[i];
         if (!initial) return true;
+        // Normalize and compare variant fields
         return v.id !== initial.id || 
-               v.sku !== initial.sku || 
-               v.price !== initial.price || 
-               v.stock !== initial.stock;
-      })
-    );
+               normalizeValue(v.sku) !== normalizeValue(initial.sku) || 
+               normalizeValue(v.price) !== normalizeValue(initial.price) || 
+               normalizeValue(v.stock) !== normalizeValue(initial.stock);
+      });
     
-    return basicFieldsChanged || !!variantsChanged;
-  }, [formData, initialData]);
+    // Return true if either form fields or variants have changed
+    return formFieldsDirty || variantsChanged;
+  }, [formIsDirty, formData.variants, snapshotInitialData, initialData, open]);
 
   // Handle close from onOpenChange (backdrop click, ESC key)
   const handleOpenChange = (isOpen: boolean) => {
@@ -346,15 +366,15 @@ export function ProductQuickEditDialog({
       return;
     }
     
-    // If dialog is being closed and form has unsaved changes, show confirm dialog
-    if (isOpen === false && isDirty) {
-      setShowConfirmClose(true);
-      return;
-    }
-    
-    // If no changes, close normally
-    if (!isDirty) {
-      onClose();
+    // Only show confirm dialog if there are actual unsaved changes
+    if (isOpen === false) {
+      if (isDirty) {
+        // Form has unsaved changes - show confirm dialog
+        setShowConfirmClose(true);
+      } else {
+        // No changes - close immediately without confirmation
+        onClose();
+      }
     }
   };
 
@@ -365,14 +385,14 @@ export function ProductQuickEditDialog({
       return;
     }
     
-    // If form has unsaved changes, show confirm dialog
+    // Only show confirm dialog if there are actual unsaved changes
     if (isDirty) {
+      // Form has unsaved changes - show confirm dialog
       setShowConfirmClose(true);
-      return;
+    } else {
+      // No changes - close immediately without confirmation
+      onClose();
     }
-    
-    // If no changes, close normally
-    onClose();
   };
 
   const handleConfirmClose = () => {
@@ -701,20 +721,8 @@ export function ProductQuickEditDialog({
             className="h-[90vh] rounded-t-2xl overflow-hidden flex flex-col p-0"
           >
             <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-200 flex-shrink-0">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <SheetTitle className="text-lg font-semibold text-slate-900">Sửa nhanh sản phẩm</SheetTitle>
-                  <p className="text-sm text-slate-500 mt-1">ID: {product.id || 'N/A'}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleCloseClick}
-                  className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+              <SheetTitle className="text-lg font-semibold text-slate-900">Sửa nhanh sản phẩm</SheetTitle>
+              <p className="text-sm text-slate-500 mt-1">ID: {product.id || 'N/A'}</p>
             </SheetHeader>
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {formContent}
@@ -754,20 +762,8 @@ export function ProductQuickEditDialog({
         <Dialog open={open} onOpenChange={handleOpenChange}>
           <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
             <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200 flex-shrink-0">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <DialogTitle className="text-lg font-semibold text-slate-900">Sửa nhanh sản phẩm</DialogTitle>
-                  <p className="text-sm text-slate-500 mt-1">ID: {product.id || 'N/A'}</p>
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={handleCloseClick}
-                  className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100 -mr-2"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
+              <DialogTitle className="text-lg font-semibold text-slate-900">Sửa nhanh sản phẩm</DialogTitle>
+              <p className="text-sm text-slate-500 mt-1">ID: {product.id || 'N/A'}</p>
             </DialogHeader>
             <div className="flex-1 overflow-y-auto px-6 py-4 relative">
               {formContent}

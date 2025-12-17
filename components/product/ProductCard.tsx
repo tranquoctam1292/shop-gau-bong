@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils/cn';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import { ShoppingCart, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { getColorHex } from '@/lib/utils/colorMapping';
 import { generateSlug } from '@/lib/utils/slug';
 import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
@@ -31,6 +32,8 @@ export function ProductCard({ product }: ProductCardProps) {
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   // State cho loading feedback
   const [isAddingToCart, setIsAddingToCart] = useState(false);
+  // State cho Popover hiển thị tất cả sizes
+  const [isSizePopoverOpen, setIsSizePopoverOpen] = useState(false);
   
   // ============================================
   // LAZY LOADING: Chỉ fetch variations khi cần
@@ -161,8 +164,15 @@ export function ProductCard({ product }: ProductCardProps) {
   const availableSizes = sizeAttribute?.options || [];
   const availableColors = colorAttribute?.options || [];
   
-  // Limit display to 4 sizes and 4 colors (Cập nhật hiển thị tối đa 4)
-  const displaySizes = availableSizes.slice(0, 4);
+  // Size display logic: Hiển thị tối đa 3 sizes + 1 button "+X" nếu có >= 5 sizes
+  // Nếu có đúng 4 sizes, hiển thị cả 4. Nếu có >= 5 sizes, hiển thị 3 + button "+X"
+  // Đảm bảo 4 buttons nằm trên 1 dòng
+  const maxDisplaySizes = availableSizes.length > 4 ? 3 : 4;
+  const displaySizes = availableSizes.slice(0, maxDisplaySizes);
+  const remainingSizes = availableSizes.length - maxDisplaySizes;
+  const hasMoreSizes = remainingSizes > 0;
+  
+  // Limit display to 4 colors (Cập nhật hiển thị tối đa 4)
   const displayColors = availableColors.slice(0, 4);
   const remainingColors = availableColors.length - displayColors.length;
 
@@ -360,8 +370,9 @@ export function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* 3. Variants Selection (Size Tabs) - Style GOMI Compact với kích thước vừa phải */}
-        {displaySizes.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
+        {availableSizes.length > 0 && (
+          <div className="flex gap-1.5 mt-2 overflow-x-auto scrollbar-hide">
+            {/* Hiển thị 3 sizes đầu tiên */}
             {displaySizes.map((size, idx) => (
               <button
                 key={idx}
@@ -375,9 +386,10 @@ export function ProductCard({ product }: ProductCardProps) {
                   // 2. Padding vừa phải (px-2 py-0.75)
                   // 3. Border mỏng, bo góc nhẹ (rounded-sm)
                   // 4. Min height vừa phải để đảm bảo touch target
+                  // 5. Flex-shrink-0 để không bị co lại
                   "text-[10px] md:text-xs font-medium px-2 py-0.75 rounded-sm border transition-all",
-                  "min-h-[32px] touch-manipulation",
-                  "flex items-center justify-center",
+                  "min-h-[32px] touch-manipulation flex-shrink-0",
+                  "flex items-center justify-center whitespace-nowrap",
                   
                   // Trạng thái Active (Đã chọn)
                   selectedSize === size
@@ -388,6 +400,68 @@ export function ProductCard({ product }: ProductCardProps) {
                 {size}
               </button>
             ))}
+            
+            {/* Button "+X" để xem thêm sizes nếu có > 4 sizes */}
+            {hasMoreSizes && (
+              <Popover open={isSizePopoverOpen} onOpenChange={setIsSizePopoverOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setIsSizePopoverOpen(true);
+                    }}
+                    className={cn(
+                      "text-[10px] md:text-xs font-medium px-2 py-0.75 rounded-sm border transition-all",
+                      "min-h-[32px] touch-manipulation flex-shrink-0",
+                      "flex items-center justify-center whitespace-nowrap",
+                      "border-gray-200 bg-white text-gray-500 hover:border-pink-300 hover:text-pink-500",
+                      selectedSize && availableSizes.slice(maxDisplaySizes).includes(selectedSize)
+                        ? "border-[#D6336C] bg-pink-50 text-[#D6336C]"
+                        : ""
+                    )}
+                  >
+                    +{remainingSizes}
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent 
+                  className="w-auto p-2"
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                >
+                  <div className="flex flex-col gap-2">
+                    <div className="text-xs font-semibold text-gray-700 mb-1">
+                      Chọn kích thước:
+                    </div>
+                    <div className="flex flex-wrap gap-1.5 max-w-[200px]">
+                      {availableSizes.map((size, idx) => {
+                        const isSelected = selectedSize === size;
+                        return (
+                          <button
+                            key={idx}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              setSelectedSize(size);
+                              setIsSizePopoverOpen(false);
+                            }}
+                            className={cn(
+                              "text-[10px] md:text-xs font-medium px-2 py-0.75 rounded-sm border transition-all",
+                              "min-h-[32px] touch-manipulation",
+                              "flex items-center justify-center",
+                              isSelected
+                                ? "border-[#D6336C] bg-pink-50 text-[#D6336C]"
+                                : "border-gray-200 bg-white text-gray-500 hover:border-pink-300 hover:text-pink-500"
+                            )}
+                          >
+                            {size}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
           </div>
         )}
 
@@ -440,3 +514,4 @@ export function ProductCard({ product }: ProductCardProps) {
     </div>
   );
 }
+
