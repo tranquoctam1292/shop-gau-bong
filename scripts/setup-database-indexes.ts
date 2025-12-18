@@ -32,7 +32,65 @@ async function setupIndexes() {
     // PIM Module: Soft Delete indexes
     await collections.products.createIndex({ deletedAt: 1 });
     await collections.products.createIndex({ status: 1, deletedAt: 1 }); // Compound index for common queries
-    console.log('   ✅ Products indexes created');
+    
+    // ✅ PERFORMANCE: Compound indexes for complex queries (Bước 3)
+    // Index 1: Hỗ trợ query với status, deletedAt, category và price range
+    // Sử dụng cho: Filter products by category và price
+    await collections.products.createIndex({ 
+      status: 1, 
+      deletedAt: 1, 
+      category: 1, 
+      minPrice: 1 
+    }, { name: 'status_deletedAt_category_minPrice' });
+    
+    // Index 2: Hỗ trợ query với status, deletedAt và price range (minPrice, maxPrice)
+    // Sử dụng cho: Filter products by price range (variable products)
+    await collections.products.createIndex({ 
+      status: 1, 
+      deletedAt: 1, 
+      minPrice: 1, 
+      maxPrice: 1 
+    }, { name: 'status_deletedAt_minPrice_maxPrice' });
+    
+    // Index 3: Hỗ trợ query với status, deletedAt và price field
+    // Sử dụng cho: Filter simple products by price
+    await collections.products.createIndex({ 
+      status: 1, 
+      deletedAt: 1, 
+      price: 1 
+    }, { name: 'status_deletedAt_price' });
+    
+    // Index 4: Hỗ trợ query với variants và status
+    // Sử dụng cho: Filter products by variants (size, color) với $elemMatch
+    await collections.products.createIndex({ 
+      status: 1, 
+      deletedAt: 1, 
+      'variants.size': 1 
+    }, { name: 'status_deletedAt_variants_size' });
+    
+    await collections.products.createIndex({ 
+      status: 1, 
+      deletedAt: 1, 
+      'variants.color': 1 
+    }, { name: 'status_deletedAt_variants_color' });
+    
+    // Index 5: Hỗ trợ query với categories array (nếu sử dụng categories thay vì category)
+    await collections.products.createIndex({ 
+      status: 1, 
+      deletedAt: 1, 
+      categories: 1, 
+      minPrice: 1 
+    }, { name: 'status_deletedAt_categories_minPrice' });
+    
+    // ✅ PERFORMANCE: Single-field indexes cho minPrice, maxPrice, totalStock
+    // Hỗ trợ quick-update API recalculate operations và các query filter theo các field này
+    // Note: Compound indexes đã bao gồm minPrice và maxPrice, nhưng single-field indexes
+    // vẫn hữu ích cho các query chỉ filter theo một field này
+    await collections.products.createIndex({ minPrice: 1 }, { name: 'minPrice' });
+    await collections.products.createIndex({ maxPrice: 1 }, { name: 'maxPrice' });
+    await collections.products.createIndex({ totalStock: 1 }, { name: 'totalStock' });
+    
+    console.log('   ✅ Products indexes created (including compound indexes and single-field indexes for performance)');
 
     // Categories indexes
     console.log('📦 Setting up categories indexes...');

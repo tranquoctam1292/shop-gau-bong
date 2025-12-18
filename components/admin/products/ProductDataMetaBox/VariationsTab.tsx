@@ -43,18 +43,35 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
   // Check if we can generate variations
   const canGenerateVariations = variationAttributes.length > 0;
 
+  // ✅ PERFORMANCE: Maximum variations limit to prevent browser freeze
+  const MAX_VARIATIONS = 100; // Maximum allowed variations to prevent browser freeze
+  
   // Calculate total possible variations (Cartesian product)
   const totalPossibleVariations = useMemo(() => {
     if (variationAttributes.length === 0) return 0;
     return variationAttributes.reduce((total, attr) => total * attr.values.length, 1);
   }, [variationAttributes]);
+  
+  // Check if variations exceed limit
+  const exceedsLimit = totalPossibleVariations > MAX_VARIATIONS;
 
   /**
    * Generate all possible variations using Cartesian Product
    * Example: Color [Red, Blue] x Size [S, M] = 4 variations
+   * 
+   * ✅ PERFORMANCE: Limited to MAX_VARIATIONS to prevent browser freeze
    */
   const generateVariations = () => {
     if (!canGenerateVariations) return;
+
+    // ✅ PERFORMANCE: Prevent generation if exceeds limit
+    if (exceedsLimit) {
+      showToast(
+        `Không thể tạo ${totalPossibleVariations} biến thể. Giới hạn tối đa là ${MAX_VARIATIONS} biến thể để đảm bảo hiệu suất. Vui lòng giảm số lượng giá trị thuộc tính.`,
+        'error'
+      );
+      return;
+    }
 
     // Confirmation if there are existing variations
     if (state.variations.length > 0) {
@@ -200,7 +217,7 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
             <Button
               type="button"
               onClick={generateVariations}
-              disabled={isGenerating || !canGenerateVariations}
+              disabled={isGenerating || !canGenerateVariations || exceedsLimit}
               className="gap-2"
             >
               {isGenerating ? (
@@ -241,12 +258,6 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
               <p className="text-sm font-medium">
                 {state.variations.length} biến thể
               </p>
-              {totalPossibleVariations > 50 && (
-                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                  <AlertTriangle className="h-4 w-4" />
-                  <span>Nhiều biến thể có thể làm chậm hiệu suất</span>
-                </div>
-              )}
             </div>
 
             {/* Bulk Edit Toolbar */}

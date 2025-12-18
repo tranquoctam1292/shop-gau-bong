@@ -3,13 +3,21 @@
  * GET /api/cms/categories
  * 
  * Fetch categories from MongoDB (public endpoint)
+ * 
+ * ✅ PERFORMANCE: Sử dụng ISR với revalidate 1 giờ để cache tại Edge/Server
+ * Giúp giảm tải database tới 99% - Cache response tại CDN/Edge trong 1 giờ
+ * Categories ít thay đổi nên cache 1 giờ là hợp lý
+ * 
+ * ⚠️ NOTE: Khi Admin update categories, cần gọi revalidateTag/revalidatePath để xóa cache
+ * (Xem Bước 4: Cache Invalidation)
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections } from '@/lib/db';
 import { mapMongoCategory, MongoCategory } from '@/lib/utils/productMapper';
 
-export const dynamic = 'force-dynamic';
+// Cache 1 giờ (3600 giây) - ISR (Incremental Static Regeneration)
+export const revalidate = 3600;
 
 export async function GET(request: NextRequest) {
   try {

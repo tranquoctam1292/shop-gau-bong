@@ -584,6 +584,9 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument): Map
     minPrice: mongoProduct.minPrice,
     maxPrice: mongoProduct.maxPrice,
     // Map images - try new structure first, fallback to old structure
+    // ✅ PERFORMANCE: Images từ Vercel Blob được optimize tự động bởi Next.js Image Optimization API
+    // Next.js sẽ tự động resize và convert sang WebP/AVIF format dựa trên `sizes` prop trong Image component
+    // Đảm bảo tất cả Image components có `sizes` prop để tối ưu LCP (Largest Contentful Paint)
     image: (() => {
       // Priority 1: Use images array if available (these are already URLs from payload)
       if (mongoProduct.images && Array.isArray(mongoProduct.images) && mongoProduct.images.length > 0) {
@@ -611,7 +614,8 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument): Map
         // This should not happen if POST handler populates images array correctly
       }
       
-      // No image available
+      // No image available - fallback to placeholder
+      // Components should handle null image and use placeholder: '/images/teddy-placeholder.png'
       return null;
     })(),
     galleryImages: (() => {

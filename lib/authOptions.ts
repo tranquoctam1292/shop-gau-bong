@@ -11,6 +11,79 @@ import bcrypt from 'bcryptjs';
 import { comparePassword } from '@/lib/utils/passwordUtils';
 import { AdminRole } from '@/types/admin';
 
+/**
+ * ✅ PERFORMANCE: In-memory cache for user status (token_version, is_active)
+ * Cache TTL: 2 minutes (120 seconds)
+ * This reduces database queries from every request to once per 2 minutes per user
+ */
+interface CachedUserStatus {
+  token_version: number;
+  is_active: boolean;
+  cachedAt: number; // Timestamp
+}
+
+const userStatusCache = new Map<string, CachedUserStatus>();
+const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+
+/**
+ * Get cached user status or fetch from database
+ */
+async function getUserStatus(userId: string): Promise<{ token_version: number; is_active: boolean } | null> {
+  const cached = userStatusCache.get(userId);
+  const now = Date.now();
+
+  // Check if cache is valid
+  if (cached && (now - cached.cachedAt) < CACHE_TTL_MS) {
+    return {
+      token_version: cached.token_version,
+      is_active: cached.is_active,
+    };
+  }
+
+  // Cache miss or expired - fetch from database
+  try {
+    const { adminUsers } = await getCollections();
+    const { ObjectId } = await import('mongodb');
+    const user = await adminUsers.findOne(
+      { _id: new ObjectId(userId) },
+      { projection: { token_version: 1, is_active: 1 } }
+    );
+
+    if (!user) {
+      return null;
+    }
+
+    // Update cache
+    userStatusCache.set(userId, {
+      token_version: user.token_version || 0,
+      is_active: user.is_active || false,
+      cachedAt: now,
+    });
+
+    return {
+      token_version: user.token_version || 0,
+      is_active: user.is_active || false,
+    };
+  } catch (error) {
+    console.error('[NextAuth] Error fetching user status:', error);
+    // Return cached value if available (even if expired) as fallback
+    if (cached) {
+      return {
+        token_version: cached.token_version,
+        is_active: cached.is_active,
+      };
+    }
+    return null;
+  }
+}
+
+/**
+ * Invalidate cache for a user (call when user status changes)
+ */
+export function invalidateUserStatusCache(userId: string): void {
+  userStatusCache.delete(userId);
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
     CredentialsProvider({
@@ -78,24 +151,21 @@ export const authOptions: NextAuthOptions = {
         token.permissions = (user as any).permissions || [];
         token.tokenVersion = (user as any).tokenVersion || 0; // V1.2: Store token version
       } else if (token.id) {
-        // V1.2: Verify token version on each request (optional - can be done in middleware instead)
-        // This is a lightweight check - full verification happens in middleware
+        // ✅ PERFORMANCE: Use cached user status instead of querying DB every request
+        // Cache TTL: 2 minutes - reduces DB queries from every request to once per 2 minutes per user
+        // Full verification still happens in middleware for critical operations
         try {
-          const { adminUsers } = await getCollections();
-          const { ObjectId } = await import('mongodb');
-          const user = await adminUsers.findOne(
-            { _id: new ObjectId(token.id as string) },
-            { projection: { token_version: 1, is_active: 1 } }
-          );
+          const userStatus = await getUserStatus(token.id as string);
           
-          if (!user || !user.is_active) {
+          if (!userStatus || !userStatus.is_active) {
             // User deleted or inactive - invalidate token
             return { ...token, tokenVersion: -1 };
           }
           
           // Check token version
-          if (user.token_version !== token.tokenVersion) {
-            // Token revoked - invalidate
+          if (userStatus.token_version !== token.tokenVersion) {
+            // Token revoked - invalidate token and cache
+            invalidateUserStatusCache(token.id as string);
             return { ...token, tokenVersion: -1 };
           }
         } catch (error) {

@@ -86,7 +86,6 @@ async function migrateProductsSoftDelete() {
     console.log('   2. Test soft delete functionality');
     console.log('   3. Update frontend to show trash tab\n');
 
-    await closeDB();
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Migration failed!\n');
@@ -101,8 +100,11 @@ async function migrateProductsSoftDelete() {
       console.error('Unknown error:', error);
     }
 
-    await closeDB();
     process.exit(1);
+  } finally {
+    // ✅ PERFORMANCE: Luôn đóng database connection trong finally block
+    // Đảm bảo connection được đóng dù có lỗi hay không, tránh connection leaks
+    await closeDB();
   }
 }
 

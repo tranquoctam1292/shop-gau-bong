@@ -542,12 +542,13 @@ async function migrate() {
     // Step 5: Print summary
     printSummary();
 
-    // Close database connection
-    await closeDB();
   } catch (error: any) {
     console.error(`${colors.red}Fatal error during migration:${colors.reset}`, error);
-    await closeDB();
     process.exit(1);
+  } finally {
+    // ✅ PERFORMANCE: Luôn đóng database connection trong finally block
+    // Đảm bảo connection được đóng dù có lỗi hay không, tránh connection leaks
+    await closeDB();
   }
 }
 

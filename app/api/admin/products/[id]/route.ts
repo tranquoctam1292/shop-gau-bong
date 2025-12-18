@@ -8,10 +8,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { normalizeSku } from '@/lib/utils/skuGenerator';
+import { cleanHtmlForStorage } from '@/lib/utils/sanitizeHtml';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
@@ -672,6 +674,15 @@ export async function PUT(
       }
     }
 
+    // ✅ PERFORMANCE: Clean HTML for description and shortDescription to reduce data bloat
+    // Remove unnecessary attributes, empty classes, and redundant styles before saving
+    if (updateData.description && typeof updateData.description === 'string') {
+      updateData.description = cleanHtmlForStorage(updateData.description);
+    }
+    if (updateData.shortDescription && typeof updateData.shortDescription === 'string') {
+      updateData.shortDescription = cleanHtmlForStorage(updateData.shortDescription);
+    }
+
     // Replace category string with categoryId
     if (categoryId) {
       updateData.categoryId = categoryId;
@@ -922,6 +933,31 @@ export async function PUT(
       );
     }
     
+    // ✅ PERFORMANCE: Cache Invalidation (Bước 4)
+    // Revalidate public API routes để đảm bảo dữ liệu cập nhật ngay lập tức
+    try {
+      // Revalidate products list API
+      revalidatePath('/api/cms/products');
+      
+      // Revalidate product detail API (nếu có slug)
+      if (updatedProduct.slug) {
+        revalidatePath(`/api/cms/products/${updatedProduct.slug}`);
+        // Also revalidate by ObjectId format
+        revalidatePath(`/api/cms/products/${updatedProduct._id.toString()}`);
+      }
+      
+      // Revalidate categories API nếu category thay đổi
+      const categoryChanged = validatedData.category !== undefined || 
+                              validatedData.categoryId !== undefined ||
+                              (updateData.categories && Array.isArray(updateData.categories));
+      if (categoryChanged) {
+        revalidatePath('/api/cms/categories');
+      }
+    } catch (revalidateError) {
+      // Log error nhưng không fail request nếu revalidation fails
+      console.warn('[Cache Invalidation] Failed to revalidate paths:', revalidateError);
+    }
+    
     const mappedProduct = mapMongoProduct(updatedProduct as unknown as MongoProduct);
     
     return NextResponse.json({ product: mappedProduct });
@@ -1002,6 +1038,19 @@ export async function DELETE(
     
     // Fetch updated product
     const updatedProduct = await products.findOne({ _id: productId });
+    
+    // ✅ PERFORMANCE: Cache Invalidation (Bước 4)
+    // Revalidate public API routes khi product bị xóa
+    try {
+      revalidatePath('/api/cms/products');
+      if (product.slug) {
+        revalidatePath(`/api/cms/products/${product.slug}`);
+        revalidatePath(`/api/cms/products/${product._id.toString()}`);
+      }
+    } catch (revalidateError) {
+      console.warn('[Cache Invalidation] Failed to revalidate paths:', revalidateError);
+    }
+    
     const mappedProduct = updatedProduct ? mapMongoProduct(updatedProduct as unknown as MongoProduct) : null;
     
     return NextResponse.json({

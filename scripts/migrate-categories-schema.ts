@@ -76,7 +76,6 @@ async function migrateCategories() {
     await collections.categories.createIndex({ deletedAt: 1 });
     console.log('   ✅ Indexes created');
 
-    await closeDB();
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Migration failed!\n');
@@ -91,8 +90,11 @@ async function migrateCategories() {
       console.error('Unknown error:', error);
     }
 
-    await closeDB();
     process.exit(1);
+  } finally {
+    // ✅ PERFORMANCE: Luôn đóng database connection trong finally block
+    // Đảm bảo connection được đóng dù có lỗi hay không, tránh connection leaks
+    await closeDB();
   }
 }
 

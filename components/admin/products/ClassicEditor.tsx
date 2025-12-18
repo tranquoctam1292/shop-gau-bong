@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Image from '@tiptap/extension-image';
@@ -70,6 +70,20 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
+
+  // ✅ PERFORMANCE: Helper function to clean HTML before saving
+  // Only clean HTML from visual editor (not text mode raw HTML)
+  const handleHtmlChange = useCallback((html: string, isFromVisualEditor: boolean = true) => {
+    if (isFromVisualEditor && mode === 'visual') {
+      // Clean HTML from visual editor to reduce data bloat
+      const { cleanHtmlForStorage } = require('@/lib/utils/sanitizeHtml');
+      const cleanedHtml = cleanHtmlForStorage(html);
+      onChange(cleanedHtml);
+    } else {
+      // Text mode: pass through as-is (user is editing raw HTML)
+      onChange(html);
+    }
+  }, [mode, onChange]);
 
   // Initialize Tiptap editor for Visual mode
   const editor = useEditor({
@@ -167,7 +181,8 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
       // Only update if different to avoid unnecessary re-renders
       if (html !== textContent) {
         setTextContent(html);
-        onChange(html);
+        // ✅ PERFORMANCE: Clean HTML before saving to reduce data bloat
+        handleHtmlChange(html, true);
       }
     },
     editorProps: {
@@ -220,7 +235,7 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
                 // Update content
                 const newHtml = editor.getHTML();
                 setTextContent(newHtml);
-                onChange(newHtml);
+                handleHtmlChange(newHtml, true);
                 return true;
               }
             } else {
@@ -815,7 +830,7 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
       // Update textContent for sync
       const newHtml = editor.getHTML();
       setTextContent(newHtml);
-      onChange(newHtml);
+      handleHtmlChange(newHtml, true);
     } else {
       const imgTag = alt ? `<img src="${url}" alt="${alt}" />` : `<img src="${url}" />`;
       if (textareaRef.current) {
@@ -844,7 +859,7 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
       // Update textContent for sync
       const newHtml = editor.getHTML();
       setTextContent(newHtml);
-      onChange(newHtml);
+      handleHtmlChange(newHtml, true);
     } else {
       if (textareaRef.current) {
         const textarea = textareaRef.current;
@@ -1980,7 +1995,7 @@ export function ClassicEditor({ value, onChange, placeholder = 'Nhập nội dun
             // Check if video embed wrapper exists in DOM
             const editorElement = editor.view.dom;
             setTextContent(newHtml);
-            onChange(newHtml);
+            handleHtmlChange(newHtml, true);
           } else {
             // Insert into textarea
             if (textareaRef.current) {

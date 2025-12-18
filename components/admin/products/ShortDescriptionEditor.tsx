@@ -61,7 +61,10 @@ export function ShortDescriptionEditor({
       const html = editor.getHTML();
       if (html !== textContent) {
         setTextContent(html);
-        onChange(html);
+        // ✅ PERFORMANCE: Clean HTML before saving to reduce data bloat
+        const { cleanHtmlForStorage } = require('@/lib/utils/sanitizeHtml');
+        const cleanedHtml = cleanHtmlForStorage(html);
+        onChange(cleanedHtml);
       }
     },
     editorProps: {

@@ -359,6 +359,7 @@ export function VariationTable({
                           fill
                           className="object-cover"
                           unoptimized={variation.image.startsWith('data:')}
+                          sizes="64px" // Fixed size for admin table cell
                         />
                         <button
                           onClick={() => handleImageRemove(variation.id)}

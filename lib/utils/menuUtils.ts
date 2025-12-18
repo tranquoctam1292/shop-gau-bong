@@ -16,8 +16,240 @@ export interface MenuItemReference {
 }
 
 /**
- * Resolve dynamic link for a menu item
+ * ✅ PERFORMANCE: Batch resolve menu item links
+ * Gộp tất cả các referenceId theo type và query một lần với $in để tránh N+1 queries
+ * 
+ * @param items - Array of menu items to resolve
+ * @returns Map of referenceId -> resolved link data
+ */
+export async function resolveMenuItemLinksBatch(
+  items: Array<{
+    type: 'custom' | 'category' | 'page' | 'product' | 'post';
+    url?: string | null;
+    referenceId?: ObjectId | string | null;
+    title?: string | null;
+  }>
+): Promise<Map<string, { url: string; title: string; exists: boolean; active: boolean }>> {
+  const { categories, products, posts } = await getCollections();
+  const resultMap = new Map<string, { url: string; title: string; exists: boolean; active: boolean }>();
+  
+  // Group items by type
+  const categoryIds: ObjectId[] = [];
+  const productIds: ObjectId[] = [];
+  const pageIds: ObjectId[] = [];
+  const postIds: ObjectId[] = [];
+  const customItems: Array<{ key: string; item: typeof items[0] }> = [];
+  
+  items.forEach((item, index) => {
+    const key = `${item.type}-${item.referenceId || index}`;
+    
+    if (item.type === 'custom') {
+      customItems.push({ key, item });
+      return;
+    }
+    
+    if (!item.referenceId) {
+      resultMap.set(key, {
+        url: '#',
+        title: item.title || 'Untitled',
+        exists: false,
+        active: false,
+      });
+      return;
+    }
+    
+    const referenceId = typeof item.referenceId === 'string'
+      ? new ObjectId(item.referenceId)
+      : item.referenceId;
+    
+    switch (item.type) {
+      case 'category':
+        categoryIds.push(referenceId);
+        break;
+      case 'product':
+        productIds.push(referenceId);
+        break;
+      case 'page':
+        pageIds.push(referenceId);
+        break;
+      case 'post':
+        postIds.push(referenceId);
+        break;
+    }
+  });
+  
+  // Batch query categories
+  if (categoryIds.length > 0) {
+    const categoryDocs = await categories.find({
+      _id: { $in: categoryIds },
+    }).toArray();
+    
+    const categoryMap = new Map(
+      categoryDocs.map(cat => [cat._id.toString(), cat])
+    );
+    
+    items.forEach((item, index) => {
+      if (item.type === 'category' && item.referenceId) {
+        const key = `${item.type}-${item.referenceId}`;
+        const referenceId = typeof item.referenceId === 'string'
+          ? item.referenceId
+          : item.referenceId.toString();
+        const category = categoryMap.get(referenceId);
+        
+        if (!category) {
+          resultMap.set(key, {
+            url: '#',
+            title: item.title || 'Category not found',
+            exists: false,
+            active: false,
+          });
+        } else {
+          const isActive = category.status === 'active' && !category.deletedAt;
+          resultMap.set(key, {
+            url: `/products?category=${category.slug}`,
+            title: item.title || category.name,
+            exists: true,
+            active: isActive,
+          });
+        }
+      }
+    });
+  }
+  
+  // Batch query products
+  if (productIds.length > 0) {
+    const productDocs = await products.find({
+      _id: { $in: productIds },
+    }).toArray();
+    
+    const productMap = new Map(
+      productDocs.map(prod => [prod._id.toString(), prod])
+    );
+    
+    items.forEach((item, index) => {
+      if (item.type === 'product' && item.referenceId) {
+        const key = `${item.type}-${item.referenceId}`;
+        const referenceId = typeof item.referenceId === 'string'
+          ? item.referenceId
+          : item.referenceId.toString();
+        const product = productMap.get(referenceId);
+        
+        if (!product) {
+          resultMap.set(key, {
+            url: '#',
+            title: item.title || 'Product not found',
+            exists: false,
+            active: false,
+          });
+        } else {
+          const isActive = product.status === 'publish' && !product.deletedAt;
+          resultMap.set(key, {
+            url: `/products/${product.slug}`,
+            title: item.title || product.name,
+            exists: true,
+            active: isActive,
+          });
+        }
+      }
+    });
+  }
+  
+  // Batch query pages
+  if (pageIds.length > 0) {
+    const pageDocs = await posts.find({
+      _id: { $in: pageIds },
+      type: 'page',
+    }).toArray();
+    
+    const pageMap = new Map(
+      pageDocs.map(page => [page._id.toString(), page])
+    );
+    
+    items.forEach((item, index) => {
+      if (item.type === 'page' && item.referenceId) {
+        const key = `${item.type}-${item.referenceId}`;
+        const referenceId = typeof item.referenceId === 'string'
+          ? item.referenceId
+          : item.referenceId.toString();
+        const page = pageMap.get(referenceId);
+        
+        if (!page) {
+          resultMap.set(key, {
+            url: '#',
+            title: item.title || 'Page not found',
+            exists: false,
+            active: false,
+          });
+        } else {
+          const isActive = page.status === 'publish';
+          resultMap.set(key, {
+            url: `/${page.slug}`,
+            title: item.title || page.title,
+            exists: true,
+            active: isActive,
+          });
+        }
+      }
+    });
+  }
+  
+  // Batch query posts
+  if (postIds.length > 0) {
+    const postDocs = await posts.find({
+      _id: { $in: postIds },
+      type: 'post',
+    }).toArray();
+    
+    const postMap = new Map(
+      postDocs.map(post => [post._id.toString(), post])
+    );
+    
+    items.forEach((item, index) => {
+      if (item.type === 'post' && item.referenceId) {
+        const key = `${item.type}-${item.referenceId}`;
+        const referenceId = typeof item.referenceId === 'string'
+          ? item.referenceId
+          : item.referenceId.toString();
+        const post = postMap.get(referenceId);
+        
+        if (!post) {
+          resultMap.set(key, {
+            url: '#',
+            title: item.title || 'Post not found',
+            exists: false,
+            active: false,
+          });
+        } else {
+          const isActive = post.status === 'publish';
+          resultMap.set(key, {
+            url: `/blog/${post.slug}`,
+            title: item.title || post.title,
+            exists: true,
+            active: isActive,
+          });
+        }
+      }
+    });
+  }
+  
+  // Handle custom items
+  customItems.forEach(({ key, item }) => {
+    resultMap.set(key, {
+      url: item.url || '#',
+      title: item.title || 'Untitled',
+      exists: true,
+      active: true,
+    });
+  });
+  
+  return resultMap;
+}
+
+/**
+ * Resolve dynamic link for a menu item (single item - backward compatibility)
  * Returns the URL and title based on the item's type and reference
+ * 
+ * @deprecated Use resolveMenuItemLinksBatch for multiple items to avoid N+1 queries
  */
 export async function resolveMenuItemLink(
   item: {

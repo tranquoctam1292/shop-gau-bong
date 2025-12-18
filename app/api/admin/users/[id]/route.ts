@@ -390,6 +390,10 @@ export async function DELETE(
         }
       );
 
+      // ✅ PERFORMANCE: Invalidate cache when user is deactivated
+      const { invalidateUserStatusCache } = await import('@/lib/authOptions');
+      invalidateUserStatusCache(id);
+
       // Log activity
       await logActivity(
         AdminAction.DELETE_USER,

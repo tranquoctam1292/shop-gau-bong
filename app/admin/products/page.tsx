@@ -13,6 +13,7 @@ import { ProductFilters } from '@/components/admin/products/ProductFilters';
 import { BulkActionsBar } from '@/components/admin/products/BulkActionsBar';
 import { useToastContext } from '@/components/providers/ToastProvider';
 import { useProductFilters } from '@/lib/hooks/useProductFilters';
+import { useProductSelectionStore } from '@/lib/store/productSelectionStore';
 
 export default function AdminProductsPage() {
   const router = useRouter();
@@ -26,7 +27,14 @@ export default function AdminProductsPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [trashCount, setTrashCount] = useState(0);
-  const [selectedProducts, setSelectedProducts] = useState<string[]>([]);
+  // ✅ PERFORMANCE: Sử dụng Zustand store để quản lý selection độc lập
+  // Tránh re-render cả page khi chỉ một checkbox thay đổi
+  const { 
+    getSelectedIds, 
+    clearSelection, 
+    setSelection,
+    getSelectedCount,
+  } = useProductSelectionStore();
   // CRITICAL: Sử dụng useRef thay vì useState để tránh re-render loop
   const searchDebounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [deletingProducts, setDeletingProducts] = useState<Set<string>>(new Set());
@@ -234,8 +242,9 @@ export default function AdminProductsPage() {
       if (response.ok) {
         const data = await response.json();
         showToast(data.message || 'Đã xóa vĩnh viễn sản phẩm', 'success');
-        // Remove from selected products if it was selected
-        setSelectedProducts((prev) => prev.filter((pid) => pid !== id));
+        // Remove from selected products if it was selected (using store)
+        const { toggleProduct } = useProductSelectionStore.getState();
+        toggleProduct(id); // This will remove it if selected
         // Refresh product list
         fetchProducts();
       } else {
@@ -305,23 +314,11 @@ export default function AdminProductsPage() {
     fetchProducts();
   }, [fetchProducts]);
 
-  const toggleSelectProduct = useCallback((id: string) => {
-    setSelectedProducts((prev) =>
-      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
-    );
-  }, []);
-
-  const toggleSelectAll = useCallback(() => {
-    setSelectedProducts((prev) => {
-      if (prev.length === products.length) {
-        return [];
-      } else {
-        return products.map((p) => p.id);
-      }
-    });
-  }, [products]);
+  // ✅ PERFORMANCE: Selection handlers đã được move vào Zustand store
+  // Không cần local handlers nữa vì ProductDataGrid sử dụng store trực tiếp
 
   const handleBulkDelete = async () => {
+    const selectedProducts = getSelectedIds();
     if (selectedProducts.length === 0) {
       showToast('Vui lòng chọn ít nhất một sản phẩm', 'warning');
       return;
@@ -344,7 +341,7 @@ export default function AdminProductsPage() {
       if (response.ok) {
         const data = await response.json();
         showToast(data.message || `Đã xóa ${selectedProducts.length} sản phẩm`, 'success');
-        setSelectedProducts([]);
+        clearSelection();
         fetchProducts();
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -357,6 +354,7 @@ export default function AdminProductsPage() {
   };
 
   const handleBulkStatusChange = async (status: 'draft' | 'publish') => {
+    const selectedProducts = getSelectedIds();
     if (selectedProducts.length === 0) {
       showToast('Vui lòng chọn ít nhất một sản phẩm', 'warning');
       return;
@@ -376,7 +374,7 @@ export default function AdminProductsPage() {
       if (response.ok) {
         const data = await response.json();
         showToast(data.message || `Đã cập nhật ${selectedProducts.length} sản phẩm`, 'success');
-        setSelectedProducts([]);
+        clearSelection();
         fetchProducts();
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -389,6 +387,7 @@ export default function AdminProductsPage() {
   };
 
   const handleBulkRestore = async () => {
+    const selectedProducts = getSelectedIds();
     if (selectedProducts.length === 0) {
       showToast('Vui lòng chọn ít nhất một sản phẩm', 'warning');
       return;
@@ -407,7 +406,7 @@ export default function AdminProductsPage() {
       if (response.ok) {
         const data = await response.json();
         showToast(data.message || `Đã khôi phục ${selectedProducts.length} sản phẩm`, 'success');
-        setSelectedProducts([]);
+        clearSelection();
         fetchProducts();
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -477,11 +476,12 @@ export default function AdminProductsPage() {
 
         {/* Bulk Actions Bar */}
         <BulkActionsBar
-          selectedCount={selectedProducts.length}
+          selectedCount={getSelectedCount()}
           isTrashTab={activeTab === 'trash'}
           onBulkDelete={handleBulkDelete}
           onBulkRestore={handleBulkRestore}
           onBulkForceDelete={async () => {
+            const selectedProducts = getSelectedIds();
             if (!confirm(`Bạn có chắc muốn xóa vĩnh viễn ${selectedProducts.length} sản phẩm?\n\nHành động này không thể hoàn tác!`)) {
               return;
             }
@@ -497,7 +497,7 @@ export default function AdminProductsPage() {
               if (response.ok) {
                 const data = await response.json();
                 showToast(data.message || `Đã xóa vĩnh viễn ${selectedProducts.length} sản phẩm`, 'success');
-                setSelectedProducts([]);
+                clearSelection();
                 fetchProducts();
               } else {
                 const errorData = await response.json().catch(() => ({}));
@@ -509,6 +509,7 @@ export default function AdminProductsPage() {
           }}
           onBulkStatusChange={handleBulkStatusChange}
           onBulkUpdatePrice={async (price: number) => {
+            const selectedProducts = getSelectedIds();
             try {
               const response = await fetch('/api/admin/products/bulk-action', {
                 method: 'POST',
@@ -522,7 +523,7 @@ export default function AdminProductsPage() {
               if (response.ok) {
                 const data = await response.json();
                 showToast(data.message || `Đã cập nhật giá cho ${selectedProducts.length} sản phẩm`, 'success');
-                setSelectedProducts([]);
+                clearSelection();
                 fetchProducts();
               } else {
                 const errorData = await response.json().catch(() => ({}));
@@ -533,6 +534,7 @@ export default function AdminProductsPage() {
             }
           }}
           onBulkUpdateStock={async (value: number, operation: 'set' | 'add' | 'subtract') => {
+            const selectedProducts = getSelectedIds();
             try {
               // For add/subtract, we need to fetch current stock first
               // For now, we'll use a simplified approach: set to value for 'set', add/subtract for others
@@ -550,7 +552,7 @@ export default function AdminProductsPage() {
               if (response.ok) {
                 const data = await response.json();
                 showToast(data.message || `Đã cập nhật kho cho ${selectedProducts.length} sản phẩm`, 'success');
-                setSelectedProducts([]);
+                clearSelection();
                 fetchProducts();
               } else {
                 const errorData = await response.json().catch(() => ({}));
@@ -560,17 +562,16 @@ export default function AdminProductsPage() {
               showToast('Có lỗi xảy ra khi cập nhật kho', 'error');
             }
           }}
-          onClearSelection={() => setSelectedProducts([])}
+          onClearSelection={clearSelection}
         />
 
         {/* Data Grid */}
+        {/* ✅ PERFORMANCE: ProductDataGrid now uses Zustand store directly for selection */}
+        {/* Props selectedProducts, onSelectProduct, onSelectAll are deprecated but kept for backward compatibility */}
         <ProductDataGrid
           products={products}
           loading={loading}
           error={error}
-          selectedProducts={selectedProducts}
-          onSelectProduct={toggleSelectProduct}
-          onSelectAll={toggleSelectAll}
           isTrashTab={activeTab === 'trash'}
           hasActiveFilters={hasActiveFilters}
           onClearFilters={clearFilters}

@@ -22,14 +22,17 @@ import { StockCell } from './StockCell';
 import { StatusCell } from './StatusCell';
 import { Filter } from 'lucide-react';
 import { memo } from 'react';
+import { useProductSelectionStore } from '@/lib/store/productSelectionStore';
 
 interface ProductDataGridProps {
   products: MappedProduct[];
   loading?: boolean;
   error?: Error | null;
-  selectedProducts: string[];
-  onSelectProduct: (id: string) => void;
-  onSelectAll: () => void;
+  // ✅ PERFORMANCE: Deprecated - selection is now managed by Zustand store
+  // Kept for backward compatibility but not used
+  selectedProducts?: string[];
+  onSelectProduct?: (id: string) => void;
+  onSelectAll?: () => void;
   isTrashTab?: boolean;
   hasActiveFilters?: boolean;
   onClearFilters?: () => void;
@@ -98,9 +101,9 @@ export function ProductDataGrid({
   products,
   loading = false,
   error = null,
-  selectedProducts,
-  onSelectProduct,
-  onSelectAll,
+  selectedProducts: _deprecatedSelectedProducts,
+  onSelectProduct: _deprecatedOnSelectProduct,
+  onSelectAll: _deprecatedOnSelectAll,
   isTrashTab = false,
   hasActiveFilters = false,
   onClearFilters,
@@ -112,8 +115,39 @@ export function ProductDataGrid({
   onProductUpdate,
   onRetry,
 }: ProductDataGridProps) {
-  const allSelected = products.length > 0 && selectedProducts.length === products.length;
-  const someSelected = selectedProducts.length > 0 && selectedProducts.length < products.length;
+  // ✅ PERFORMANCE: Sử dụng Zustand store để quản lý selection độc lập
+  // Chỉ component này và các component con subscribe vào selection state
+  // Parent component không cần re-render khi selection thay đổi
+  const { 
+    selectedProducts, 
+    toggleProduct, 
+    toggleAll, 
+    isSelected,
+    getSelectedCount,
+  } = useProductSelectionStore();
+  
+  // ✅ PERFORMANCE: Memoize computed values để tránh tính toán lại mỗi lần render
+  const selectedCount = getSelectedCount();
+  const productIds = useMemo(() => products.map(p => p.id), [products]);
+  
+  const allSelected = useMemo(
+    () => products.length > 0 && selectedCount === products.length,
+    [products.length, selectedCount]
+  );
+  
+  const someSelected = useMemo(
+    () => selectedCount > 0 && selectedCount < products.length,
+    [selectedCount, products.length]
+  );
+  
+  // ✅ PERFORMANCE: Memoize handlers để tránh re-render
+  const handleSelectProduct = useCallback((id: string) => {
+    toggleProduct(id);
+  }, [toggleProduct]);
+  
+  const handleSelectAll = useCallback(() => {
+    toggleAll(productIds);
+  }, [toggleAll, productIds]);
 
   // Error state
   if (error) {
@@ -217,7 +251,7 @@ export function ProductDataGrid({
                 ref={(input) => {
                   if (input) input.indeterminate = someSelected;
                 }}
-                onChange={onSelectAll}
+                onChange={handleSelectAll}
                 className="w-4 h-4"
               />
             </TableHead>
@@ -235,8 +269,8 @@ export function ProductDataGrid({
             <TableCell>
               <input
                 type="checkbox"
-                checked={selectedProducts.includes(product.id)}
-                onChange={() => onSelectProduct(product.id)}
+                checked={isSelected(product.id)}
+                onChange={() => handleSelectProduct(product.id)}
                 className="w-4 h-4"
               />
             </TableCell>

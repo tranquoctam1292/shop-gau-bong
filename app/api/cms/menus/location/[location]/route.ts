@@ -8,7 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { resolveMenuItemLink } from '@/lib/utils/menuUtils';
+import { resolveMenuItemLinksBatch } from '@/lib/utils/menuUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -47,32 +47,42 @@ export async function GET(
       .sort({ order: 1 })
       .toArray();
     
-    // Resolve references and filter valid items
-    const resolvedItems = await Promise.all(
-      items.map(async (item) => {
-        // Resolve link for this item
-        const resolved = await resolveMenuItemLink({
-          type: item.type,
-          url: item.url || null,
-          referenceId: item.referenceId || null,
-          title: item.title || null,
-        });
-        
-        // Only include item if reference exists and is active (or if it's a custom link)
-        if (item.type === 'custom' || (resolved.exists && resolved.active)) {
-          return {
-            ...item,
-            resolvedUrl: resolved.url,
-            resolvedTitle: resolved.title,
-            exists: resolved.exists,
-            active: resolved.active,
-          };
-        }
-        
-        // Return null for items with deleted/inactive references (will be filtered out)
+    // ✅ PERFORMANCE: Batch resolve all menu item links to avoid N+1 queries
+    // Gộp tất cả các referenceId theo type và query một lần với $in
+    // Giảm từ 20-30 queries xuống còn 4 queries (categories, products, pages, posts)
+    const itemsToResolve = items.map((item) => ({
+      type: item.type,
+      url: item.url || null,
+      referenceId: item.referenceId || null,
+      title: item.title || null,
+    }));
+    
+    const resolvedMap = await resolveMenuItemLinksBatch(itemsToResolve);
+    
+    // Map resolved results back to items
+    const resolvedItems = items.map((item, index) => {
+      const key = `${item.type}-${item.referenceId || index}`;
+      const resolved = resolvedMap.get(key);
+      
+      if (!resolved) {
+        // Fallback: return null if resolution failed
         return null;
-      })
-    );
+      }
+      
+      // Only include item if reference exists and is active (or if it's a custom link)
+      if (item.type === 'custom' || (resolved.exists && resolved.active)) {
+        return {
+          ...item,
+          resolvedUrl: resolved.url,
+          resolvedTitle: resolved.title,
+          exists: resolved.exists,
+          active: resolved.active,
+        };
+      }
+      
+      // Return null for items with deleted/inactive references (will be filtered out)
+      return null;
+    });
     
     // Filter out items with deleted/inactive references
     const validItems = resolvedItems.filter((item) => item !== null) as any[];

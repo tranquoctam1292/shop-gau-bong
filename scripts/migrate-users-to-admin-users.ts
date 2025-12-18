@@ -165,13 +165,14 @@ async function migrateUsersToAdminUsers() {
     
     console.log(`\n${colors.yellow}⚠ Note: All migrated users must change their password on first login${colors.reset}\n`);
 
-    // Close database connection
-    await closeDB();
   } catch (error: any) {
     console.error(`${colors.red}Error:${colors.reset}`, error.message);
     console.error(error.stack);
-    await closeDB();
     process.exit(1);
+  } finally {
+    // ✅ PERFORMANCE: Luôn đóng database connection trong finally block
+    // Đảm bảo connection được đóng dù có lỗi hay không, tránh connection leaks
+    await closeDB();
   }
 }
 

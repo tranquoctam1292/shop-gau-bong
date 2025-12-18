@@ -118,7 +118,6 @@ async function migrateOrdersSchema() {
     console.log(`   Updated: ${updatedCount} orders`);
     console.log(`   Skipped: ${skippedCount} orders (already up to date)`);
 
-    await closeDB();
     process.exit(0);
   } catch (error) {
     console.error('\n❌ Migration failed!\n');
@@ -131,8 +130,11 @@ async function migrateOrdersSchema() {
       console.error('Unknown error:', error);
     }
 
-    await closeDB();
     process.exit(1);
+  } finally {
+    // ✅ PERFORMANCE: Luôn đóng database connection trong finally block
+    // Đảm bảo connection được đóng dù có lỗi hay không, tránh connection leaks
+    await closeDB();
   }
 }
 

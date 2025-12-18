@@ -67,27 +67,67 @@ export async function reserveStock(
           );
         }
 
-        // Reserve stock for variant
-        // MongoDB doesn't support $ positional operator with nested queries easily
-        // We need to update the entire variants array
-        const updatedVariants = product.variants.map((v: MongoVariant) => {
-          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-            return {
-              ...v,
-              reservedQuantity: (v.reservedQuantity || 0) + item.quantity,
-            };
-          }
-          return v;
-        });
-
-        await products.updateOne(
-          { _id: new ObjectId(item.productId) },
-          {
-            $set: {
-              variants: updatedVariants,
+        // ✅ PERFORMANCE: Use atomic operation with positional operator ($) instead of $set entire array
+        // This prevents race conditions and reduces network overhead
+        // Note: Stock availability is already checked above, so we can safely increment
+        
+        // Try atomic update with positional operator if variant has id field
+        if (variant.id && variant.id === item.variationId) {
+          const updateResult = await products.updateOne(
+            { 
+              _id: new ObjectId(item.productId),
+              "variants.id": item.variationId,
             },
+            {
+              $inc: {
+                "variants.$.reservedQuantity": item.quantity,
+              },
+            }
+          );
+
+          // If update failed (variant not found by id), fallback to old method
+          if (updateResult.matchedCount === 0) {
+            // Fallback: Use old method
+            const updatedVariants = product.variants.map((v: MongoVariant) => {
+              if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+                return {
+                  ...v,
+                  reservedQuantity: (v.reservedQuantity || 0) + item.quantity,
+                };
+              }
+              return v;
+            });
+
+            await products.updateOne(
+              { _id: new ObjectId(item.productId) },
+              {
+                $set: {
+                  variants: updatedVariants,
+                },
+              }
+            );
           }
-        );
+        } else {
+          // Variant doesn't have id field or id doesn't match, use old method
+          const updatedVariants = product.variants.map((v: MongoVariant) => {
+            if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+              return {
+                ...v,
+                reservedQuantity: (v.reservedQuantity || 0) + item.quantity,
+              };
+            }
+            return v;
+          });
+
+          await products.updateOne(
+            { _id: new ObjectId(item.productId) },
+            {
+              $set: {
+                variants: updatedVariants,
+              },
+            }
+          );
+        }
       }
     } else {
       // Simple product or no variant specified
@@ -146,27 +186,71 @@ export async function deductStock(
       );
 
       if (variant) {
+        // ✅ PERFORMANCE: Use atomic operations with positional operator ($) instead of $set entire array
         // Deduct from variant stock and release reserved quantity
-        const updatedVariants = product.variants.map((v: MongoVariant) => {
-          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-            return {
-              ...v,
-              stock: (v.stock || v.stockQuantity || 0) - item.quantity,
-              stockQuantity: (v.stockQuantity || v.stock || 0) - item.quantity,
-              reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
-            };
-          }
-          return v;
-        });
-
-        await products.updateOne(
-          { _id: new ObjectId(item.productId) },
-          {
-            $set: {
-              variants: updatedVariants,
+        
+        // Try atomic update with positional operator if variant has id field
+        if (variant.id && variant.id === item.variationId) {
+          const updateResult = await products.updateOne(
+            { 
+              _id: new ObjectId(item.productId),
+              "variants.id": item.variationId,
             },
+            {
+              $inc: {
+                "variants.$.stock": -item.quantity,
+                "variants.$.stockQuantity": -item.quantity,
+                "variants.$.reservedQuantity": -item.quantity,
+              },
+            }
+          );
+
+          // If update failed, fallback to old method
+          if (updateResult.matchedCount === 0) {
+            const updatedVariants = product.variants.map((v: MongoVariant) => {
+              if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+                return {
+                  ...v,
+                  stock: (v.stock || v.stockQuantity || 0) - item.quantity,
+                  stockQuantity: (v.stockQuantity || v.stock || 0) - item.quantity,
+                  reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
+                };
+              }
+              return v;
+            });
+
+            await products.updateOne(
+              { _id: new ObjectId(item.productId) },
+              {
+                $set: {
+                  variants: updatedVariants,
+                },
+              }
+            );
           }
-        );
+        } else {
+          // Variant doesn't have id field or id doesn't match, use old method
+          const updatedVariants = product.variants.map((v: MongoVariant) => {
+            if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+              return {
+                ...v,
+                stock: (v.stock || v.stockQuantity || 0) - item.quantity,
+                stockQuantity: (v.stockQuantity || v.stock || 0) - item.quantity,
+                reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
+              };
+            }
+            return v;
+          });
+
+          await products.updateOne(
+            { _id: new ObjectId(item.productId) },
+            {
+              $set: {
+                variants: updatedVariants,
+              },
+            }
+          );
+        }
       }
     } else {
       // Simple product - deduct from stock and release reserved quantity
@@ -215,26 +299,68 @@ export async function incrementStock(
       );
 
       if (variant) {
+        // ✅ PERFORMANCE: Use atomic operations with positional operator ($) instead of $set entire array
         // Increment variant stock back
-        const updatedVariants = product.variants.map((v: MongoVariant) => {
-          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-            return {
-              ...v,
-              stock: (v.stock || v.stockQuantity || 0) + item.quantity,
-              stockQuantity: (v.stockQuantity || v.stock || 0) + item.quantity,
-            };
-          }
-          return v;
-        });
-
-        await products.updateOne(
-          { _id: new ObjectId(item.productId) },
-          {
-            $set: {
-              variants: updatedVariants,
+        
+        // Try atomic update with positional operator if variant has id field
+        if (variant.id && variant.id === item.variationId) {
+          const updateResult = await products.updateOne(
+            { 
+              _id: new ObjectId(item.productId),
+              "variants.id": item.variationId,
             },
+            {
+              $inc: {
+                "variants.$.stock": item.quantity,
+                "variants.$.stockQuantity": item.quantity,
+              },
+            }
+          );
+
+          // If update failed, fallback to old method
+          if (updateResult.matchedCount === 0) {
+            const updatedVariants = product.variants.map((v: MongoVariant) => {
+              if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+                return {
+                  ...v,
+                  stock: (v.stock || v.stockQuantity || 0) + item.quantity,
+                  stockQuantity: (v.stockQuantity || v.stock || 0) + item.quantity,
+                };
+              }
+              return v;
+            });
+
+            await products.updateOne(
+              { _id: new ObjectId(item.productId) },
+              {
+                $set: {
+                  variants: updatedVariants,
+                },
+              }
+            );
           }
-        );
+        } else {
+          // Variant doesn't have id field or id doesn't match, use old method
+          const updatedVariants = product.variants.map((v: MongoVariant) => {
+            if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+              return {
+                ...v,
+                stock: (v.stock || v.stockQuantity || 0) + item.quantity,
+                stockQuantity: (v.stockQuantity || v.stock || 0) + item.quantity,
+              };
+            }
+            return v;
+          });
+
+          await products.updateOne(
+            { _id: new ObjectId(item.productId) },
+            {
+              $set: {
+                variants: updatedVariants,
+              },
+            }
+          );
+        }
       }
     } else {
       // Simple product - increment stock back
@@ -282,25 +408,67 @@ export async function releaseStock(
       );
 
       if (variant) {
+        // ✅ PERFORMANCE: Use atomic operations with positional operator ($) instead of $set entire array
         // Release reserved quantity for variant
-        const updatedVariants = product.variants.map((v: MongoVariant) => {
-          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-            return {
-              ...v,
-              reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
-            };
-          }
-          return v;
-        });
-
-        await products.updateOne(
-          { _id: new ObjectId(item.productId) },
-          {
-            $set: {
-              variants: updatedVariants,
+        
+        // Try atomic update with positional operator if variant has id field
+        if (variant.id && variant.id === item.variationId) {
+          // Note: We already checked variant exists above, so we can safely decrement
+          // MongoDB will handle negative values, but we'll use Math.max in fallback if needed
+          const updateResult = await products.updateOne(
+            { 
+              _id: new ObjectId(item.productId),
+              "variants.id": item.variationId,
             },
+            {
+              $inc: {
+                "variants.$.reservedQuantity": -item.quantity,
+              },
+            }
+          );
+
+          // If update failed (not enough reserved or variant not found), fallback to old method
+          if (updateResult.matchedCount === 0) {
+            const updatedVariants = product.variants.map((v: MongoVariant) => {
+              if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+                return {
+                  ...v,
+                  reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
+                };
+              }
+              return v;
+            });
+
+            await products.updateOne(
+              { _id: new ObjectId(item.productId) },
+              {
+                $set: {
+                  variants: updatedVariants,
+                },
+              }
+            );
           }
-        );
+        } else {
+          // Variant doesn't have id field or id doesn't match, use old method
+          const updatedVariants = product.variants.map((v: MongoVariant) => {
+            if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+              return {
+                ...v,
+                reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
+              };
+            }
+            return v;
+          });
+
+          await products.updateOne(
+            { _id: new ObjectId(item.productId) },
+            {
+              $set: {
+                variants: updatedVariants,
+              },
+            }
+          );
+        }
       }
     } else {
       // Simple product - release reserved quantity

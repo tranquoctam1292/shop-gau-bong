@@ -6,6 +6,7 @@
  */
 
 import { getCollections, ObjectId } from '@/lib/db';
+import { invalidateUserStatusCache } from '@/lib/authOptions';
 
 /**
  * Increment token_version for a user
@@ -28,6 +29,11 @@ export async function incrementTokenVersion(userId: string | ObjectId): Promise<
   if (!result || !result.token_version) {
     throw new Error('Failed to increment token version');
   }
+  
+  // ✅ PERFORMANCE: Invalidate cache when token_version changes
+  // This ensures JWT callback will fetch fresh data on next request
+  const userIdString = userIdObj.toString();
+  invalidateUserStatusCache(userIdString);
   
   return result.token_version;
 }
