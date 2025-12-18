@@ -202,7 +202,7 @@ const productUpdateSchema = z.object({
     })).optional(),
     sku: z.string().optional(),
     manageStock: z.boolean().optional(),
-    stockQuantity: z.number().optional(),
+    stockQuantity: z.number().int().nonnegative().optional(), // ✅ Validate: integer and >= 0
     stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(),
     lowStockThreshold: z.number().optional(),
     backorders: z.enum(['no', 'notify', 'yes']).optional(),
@@ -228,7 +228,7 @@ const productUpdateSchema = z.object({
       costPrice: z.number().optional(),
       regularPrice: z.number().optional(),
       salePrice: z.number().optional(),
-      stockQuantity: z.number().optional(),
+      stockQuantity: z.number().int().nonnegative().optional(), // ✅ Validate: integer and >= 0
       image: z.string().optional(),
       attributes: z.record(z.string(), z.string()),
     }).passthrough()).optional(),

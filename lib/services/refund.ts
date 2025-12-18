@@ -6,6 +6,8 @@
  */
 
 import { getCollections, ObjectId } from '@/lib/db';
+import { incrementStock, releaseStock } from '@/lib/services/inventory';
+import type { OrderStatus } from '@/lib/utils/orderStateMachine';
 
 export interface RefundData {
   orderId: string;
@@ -47,7 +49,7 @@ export async function processRefund(
 
   // Validate order can be refunded
   // Allow refund if paymentStatus is 'paid' OR if it's 'refunded' but there's remaining refundable amount
-  const grandTotal = order.grandTotal || order.total || 0;
+  const grandTotal = order.grandTotal || 0; // Final total after tax/shipping/discount
   const existingRefunds = await refunds
     .find({ orderId, status: { $in: ['pending', 'processing', 'completed'] } })
     .toArray();
@@ -112,6 +114,59 @@ export async function processRefund(
   }
 
   await orders.updateOne({ _id: new ObjectId(orderId) }, { $set: updateData });
+
+  // Handle stock restoration for refunds
+  // Only restore stock if:
+  // 1. Full refund (not partial)
+  // 2. Order was already confirmed (stock was deducted)
+  const orderStatus = order.status as OrderStatus;
+  const statusesWithDeductedStock: OrderStatus[] = ['confirmed', 'processing', 'shipping', 'completed'];
+  
+  if (isFullRefund && statusesWithDeductedStock.includes(orderStatus)) {
+    // Full refund + order was already confirmed, stock was deducted - need to restore it
+    try {
+      // Fetch order items
+      const { orderItems } = await getCollections();
+      const items = await orderItems.find({ orderId }).toArray();
+      
+      if (items.length > 0) {
+        const itemsForInventory = items.map((item) => ({
+          productId: item.productId as string,
+          variationId: item.variationId as string | undefined,
+          quantity: item.quantity as number,
+        }));
+        
+        // Restore stock back to inventory
+        await incrementStock(orderId, itemsForInventory);
+      }
+    } catch (inventoryError: unknown) {
+      // Log error but don't fail refund (to prevent data inconsistency)
+      console.error('[Refund Service] Stock restoration error:', inventoryError);
+      // Continue with refund processing even if stock restoration fails
+      // This will be logged for manual intervention
+    }
+  } else if (orderStatus === 'pending' || orderStatus === 'awaiting_payment') {
+    // Order was not confirmed yet, only reserved stock - release reserved quantity
+    // This applies to both full and partial refunds for pending orders
+    try {
+      const { orderItems } = await getCollections();
+      const items = await orderItems.find({ orderId }).toArray();
+      
+      if (items.length > 0) {
+        const itemsForInventory = items.map((item) => ({
+          productId: item.productId as string,
+          variationId: item.variationId as string | undefined,
+          quantity: item.quantity as number,
+        }));
+        
+        // Release reserved stock (stock was never deducted, only reserved)
+        await releaseStock(orderId, itemsForInventory);
+      }
+    } catch (inventoryError: unknown) {
+      // Log error but don't fail refund
+      console.error('[Refund Service] Stock release error:', inventoryError);
+    }
+  }
 
   // Fetch the created refund with _id
   const createdRefund = await refunds.findOne({ _id: result.insertedId });

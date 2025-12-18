@@ -94,20 +94,75 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Validate status transition
+      // CRITICAL FIX: Handle status transition properly
+      // According to order state machine: pending/awaiting_payment → confirmed → processing
+      // We must go through 'confirmed' first to trigger deductStock() logic
       const currentStatus = order.status as OrderStatus;
-      const newStatus: OrderStatus = 'processing';
       
-      try {
-        validateTransition(currentStatus, newStatus);
-      } catch (error: any) {
-        console.error('Invalid status transition:', error.message);
-        // Still update payment status even if status transition fails
+      // Get order items for inventory operations
+      const { orderItems } = await getCollections();
+      const items = await orderItems.find({ orderId: orderIdObj.toString() }).toArray();
+      
+      // CRITICAL: Deduct stock when payment is confirmed
+      // Stock is reserved when order is created (pending/awaiting_payment)
+      // Must be deducted when payment is confirmed
+      if (items.length > 0 && (currentStatus === 'pending' || currentStatus === 'awaiting_payment')) {
+        try {
+          const { deductStock } = await import('@/lib/services/inventory');
+          const itemsForInventory = items.map((item) => ({
+            productId: item.productId,
+            variationId: item.variationId,
+            quantity: item.quantity,
+          }));
+
+          // Deduct stock when payment is confirmed
+          await deductStock(orderIdObj.toString(), itemsForInventory);
+        } catch (inventoryError: unknown) {
+          // Log error but don't fail webhook (to prevent retries)
+          console.error('[VietQR Webhook] Inventory deduction error:', inventoryError);
+          // Continue with order update even if inventory deduction fails
+          // This will be logged for manual intervention
+        }
+      }
+
+      // Determine target status based on state machine
+      // If current status is pending/awaiting_payment, first go to 'confirmed'
+      // Then optionally move to 'processing' if needed
+      let targetStatus: OrderStatus = 'processing';
+      
+      // Validate and determine correct transition
+      if (currentStatus === 'pending' || currentStatus === 'awaiting_payment') {
+        // First transition: pending/awaiting_payment → confirmed
+        try {
+          validateTransition(currentStatus, 'confirmed');
+          targetStatus = 'confirmed'; // Go to confirmed first
+        } catch (error: any) {
+          console.error('Invalid status transition to confirmed:', error.message);
+          // Fallback: try direct to processing (may fail validation)
+          try {
+            validateTransition(currentStatus, 'processing');
+            targetStatus = 'processing';
+          } catch (processingError: any) {
+            console.error('Invalid status transition to processing:', processingError.message);
+            // Keep current status if both transitions fail
+            targetStatus = currentStatus;
+          }
+        }
+      } else {
+        // For other statuses, validate transition to processing
+        try {
+          validateTransition(currentStatus, 'processing');
+          targetStatus = 'processing';
+        } catch (error: any) {
+          console.error('Invalid status transition:', error.message);
+          // Keep current status if transition fails
+          targetStatus = currentStatus;
+        }
       }
 
       // Update order status and payment status
       const updateData: any = {
-        status: newStatus,
+        status: targetStatus,
         paymentStatus: 'paid',
         paidAt: new Date(),
         updatedAt: new Date(),
@@ -122,16 +177,49 @@ export async function POST(request: NextRequest) {
       await orders.updateOne({ _id: orderIdObj }, { $set: updateData });
 
       // Create history entries
-      if (currentStatus !== newStatus) {
+      if (currentStatus !== targetStatus) {
         await createStatusChangeHistory(
           orderIdObj.toString(),
           currentStatus,
-          newStatus,
+          targetStatus,
           undefined,
           'system',
           'VietQR Webhook',
           { transactionId }
         );
+      }
+      
+      // If we went to 'confirmed' and can transition to 'processing', do it
+      if (targetStatus === 'confirmed') {
+        try {
+          validateTransition('confirmed', 'processing');
+          // Update to processing
+          await orders.updateOne(
+            { _id: orderIdObj },
+            { 
+              $set: { 
+                status: 'processing',
+                updatedAt: new Date(),
+              } 
+            }
+          );
+          
+          // Create history for processing transition
+          await createStatusChangeHistory(
+            orderIdObj.toString(),
+            'confirmed',
+            'processing',
+            undefined,
+            'system',
+            'VietQR Webhook (Auto)',
+            { transactionId }
+          );
+          
+          targetStatus = 'processing'; // Update for response
+        } catch (error: any) {
+          // If transition to processing fails, stay at confirmed
+          console.error('Failed to transition to processing:', error.message);
+        }
       }
 
       await createPaymentStatusChangeHistory(
@@ -151,7 +239,7 @@ export async function POST(request: NextRequest) {
         message: 'Payment confirmed and order updated',
         orderId: orderIdObj.toString(),
         transactionId,
-        orderStatus: updatedOrder?.status,
+        orderStatus: updatedOrder?.status || targetStatus,
       });
     } catch (updateError: any) {
       // Log error but don't fail the webhook (to prevent retries)

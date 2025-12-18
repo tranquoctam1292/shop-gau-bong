@@ -56,11 +56,17 @@ export interface MongoOrder {
   }>;
   subtotal?: number | string;
   shippingTotal?: number | string;
-  total?: number | string;
+  total?: number | string; // Legacy field (for backward compatibility)
+  grandTotal?: number | string; // Final total after tax/shipping/discount
   totalTax?: number | string;
+  taxTotal?: number | string;
+  discountTotal?: number | string;
   currency?: string;
   customerNote?: string;
+  adminNotes?: string;
+  cancelledReason?: string;
   paymentMetadata?: Record<string, any>;
+  version?: number; // Version field for optimistic locking (starts at 1)
   paidAt?: Date | string;
   completedAt?: Date | string;
   cancelledAt?: Date | string;

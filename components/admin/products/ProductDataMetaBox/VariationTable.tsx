@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ImageIcon, Trash2, Copy, Upload, X } from 'lucide-react';
 import Image from 'next/image';
+import { useToastContext } from '@/components/providers/ToastProvider';
 
 export interface Variation {
   id: string;
@@ -56,6 +57,7 @@ export function VariationTable({
   previewSkus = {},
   hasIncrementToken = false,
 }: VariationTableProps) {
+  const { showToast } = useToastContext();
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
   const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState<string>('');
@@ -85,6 +87,37 @@ export function VariationTable({
     if (!editingCell) return;
 
     const { rowId, field } = editingCell;
+
+    // Special validation for stockQuantity
+    if (field === 'stockQuantity' && editValue.trim()) {
+      const numValue = parseFloat(editValue);
+      
+      // Check if value is a valid number
+      if (isNaN(numValue)) {
+        showToast('Số lượng phải là số hợp lệ', 'error');
+        setEditingCell(null);
+        setEditValue('');
+        return;
+      }
+      
+      // Check if value is negative
+      const intValue = Math.floor(numValue);
+      if (intValue < 0) {
+        showToast('Số lượng không thể là số âm', 'error');
+        setEditingCell(null);
+        setEditValue('');
+        return;
+      }
+      
+      // Check if value is too large (prevent overflow)
+      if (!isFinite(intValue) || intValue > Number.MAX_SAFE_INTEGER) {
+        showToast('Số lượng quá lớn', 'error');
+        setEditingCell(null);
+        setEditValue('');
+        return;
+      }
+    }
+
     const updatedVariations = variations.map((variation) => {
       if (variation.id !== rowId) return variation;
 
@@ -105,7 +138,8 @@ export function VariationTable({
           updated.salePrice = editValue.trim() ? (isNaN(numValue) ? undefined : numValue) : undefined;
           break;
         case 'stockQuantity':
-          updated.stockQuantity = editValue.trim() ? (isNaN(numValue) ? undefined : Math.floor(numValue)) : undefined;
+          // Validation already done above, safe to set value
+          updated.stockQuantity = editValue.trim() ? Math.floor(parseFloat(editValue)) : undefined;
           break;
         default:
           return variation;
@@ -468,6 +502,7 @@ export function VariationTable({
                       ref={inputRef}
                       type="number"
                       step="1"
+                      min="0"
                       value={editValue}
                       onChange={handleInputChange}
                       onBlur={handleSave}

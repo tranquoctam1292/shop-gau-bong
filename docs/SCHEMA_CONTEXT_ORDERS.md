@@ -53,8 +53,10 @@ interface MongoOrder {
   taxTotal: number;                 // Tax amount
   discountTotal: number;            // Discount from coupon
   grandTotal: number;                // Final total (subtotal + shipping + tax - discount)
-  total: number;                     // Alias for grandTotal (backward compatibility)
   currency: string;                 // Default: 'VND'
+  
+  // Optimistic Locking
+  version: number;                   // Version field for optimistic locking (starts at 1)
   
   // Coupon
   couponCode?: string;

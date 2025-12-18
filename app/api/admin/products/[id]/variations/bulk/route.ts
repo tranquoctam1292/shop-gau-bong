@@ -37,7 +37,7 @@ const bulkUpdateSchema = z.object({
   updates: z.object({
     regularPrice: z.number().optional(),
     salePrice: z.number().optional(),
-    stockQuantity: z.number().optional(),
+    stockQuantity: z.number().int().nonnegative().optional(), // ✅ Validate: integer and >= 0
     stockStatus: z.enum(['instock', 'outofstock']).optional(),
     sku: z.string().optional(),
   }),
@@ -143,7 +143,29 @@ export async function PUT(
       }
 
       if (updates.stockQuantity !== undefined) {
-        updated.stockQuantity = updates.stockQuantity;
+        // Additional validation (Zod already validates, but double-check for safety)
+        const stockQty = Math.floor(updates.stockQuantity);
+        if (stockQty < 0) {
+          return NextResponse.json(
+            { 
+              error: 'Stock quantity cannot be negative',
+              field: 'stockQuantity',
+              value: updates.stockQuantity,
+            },
+            { status: 400 }
+          );
+        }
+        if (!isFinite(stockQty) || stockQty > Number.MAX_SAFE_INTEGER) {
+          return NextResponse.json(
+            { 
+              error: 'Stock quantity is too large',
+              field: 'stockQuantity',
+              value: updates.stockQuantity,
+            },
+            { status: 400 }
+          );
+        }
+        updated.stockQuantity = stockQty;
       }
 
       if (updates.stockStatus !== undefined) {

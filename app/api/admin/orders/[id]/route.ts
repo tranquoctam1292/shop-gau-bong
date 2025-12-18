@@ -42,6 +42,7 @@ const orderUpdateSchema = z.object({
   paymentStatus: z.enum(['pending', 'paid', 'failed', 'refunded']).optional(),
   adminNotes: z.string().optional(), // Changed from adminNote to adminNotes to match spec
   cancelledReason: z.string().optional(), // For cancellation reason
+  version: z.number().optional(), // For optimistic locking
 });
 
 export async function GET(
@@ -133,6 +134,21 @@ export async function PUT(
       );
     }
     
+    // Optimistic Locking: Check version if provided
+    const currentVersion = order.version || 0;
+    const requestVersion = validatedData.version;
+    
+    if (requestVersion !== undefined && requestVersion !== currentVersion) {
+      return NextResponse.json(
+        { 
+          error: 'Order has been modified by another user. Please refresh and try again.',
+          code: 'VERSION_MISMATCH',
+          currentVersion,
+        },
+        { status: 409 }
+      );
+    }
+    
     // Get current admin user for history logging
     // req.adminUser is available from withAuthAdmin middleware
     const actorId: string | undefined = req.adminUser?._id?.toString();
@@ -162,6 +178,8 @@ export async function PUT(
     // Update order
     const updateData: any = {
       updatedAt: new Date(),
+      // Increment version for optimistic locking
+      version: (currentVersion || 0) + 1,
     };
 
     // Update status if provided

@@ -138,7 +138,31 @@ export async function PATCH(
         );
       }
 
-      // Create new order item
+      // Fetch product to get costPrice snapshot
+      const { products } = await getCollections();
+      const product = await products.findOne({ _id: new ObjectId(validatedData.productId) });
+      
+      let costPrice: number | undefined = undefined;
+      
+      // Get costPrice from product or variant
+      if (product) {
+        // For variable products, check variant costPrice first
+        if (validatedData.variationId && product.productDataMetaBox?.variations) {
+          const variant = product.productDataMetaBox.variations.find(
+            (v: any) => v.id === validatedData.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === validatedData.variationId
+          );
+          if (variant && typeof variant.costPrice === 'number') {
+            costPrice = variant.costPrice;
+          }
+        }
+        
+        // Fallback to product costPrice if variant doesn't have it
+        if (costPrice === undefined && product.productDataMetaBox?.costPrice !== undefined) {
+          costPrice = product.productDataMetaBox.costPrice;
+        }
+      }
+
+      // Create new order item with costPrice snapshot
       const newItem = {
         orderId: orderId.toString(),
         productId: validatedData.productId,
@@ -146,6 +170,7 @@ export async function PATCH(
         productName: validatedData.productName,
         quantity: validatedData.quantity,
         price: validatedData.price,
+        costPrice: costPrice, // Snapshot costPrice at time of order
         total: validatedData.price * validatedData.quantity,
         createdAt: new Date(),
       };
@@ -316,6 +341,8 @@ export async function PATCH(
     });
 
     // Update order totals
+    // Increment version for optimistic locking
+    const currentVersion = order.version || 0;
     await orders.updateOne(
       { _id: orderId },
       {
@@ -324,8 +351,8 @@ export async function PATCH(
           taxTotal: totals.taxTotal,
           shippingTotal: totals.shippingTotal,
           discountTotal: totals.discountTotal,
-          grandTotal: totals.grandTotal,
-          total: totals.grandTotal, // Keep total for backward compatibility
+          grandTotal: totals.grandTotal, // Final total after tax/shipping/discount
+          version: currentVersion + 1, // Increment version for optimistic locking
           updatedAt: new Date(),
         },
       }

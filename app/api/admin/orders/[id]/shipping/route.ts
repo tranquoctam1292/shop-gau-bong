@@ -126,13 +126,15 @@ export async function PATCH(
 
     // Update totals if shipping changed
     if (totals.shippingTotal !== (order.shippingTotal || 0)) {
+      // Increment version for optimistic locking
+      const currentVersion = order.version || 0;
       await orders.updateOne(
         { _id: orderId },
         {
           $set: {
             shippingTotal: totals.shippingTotal,
-            grandTotal: totals.grandTotal,
-            total: totals.grandTotal,
+            grandTotal: totals.grandTotal, // Final total after tax/shipping/discount
+            version: currentVersion + 1, // Increment version for optimistic locking
             updatedAt: new Date(),
           },
         }

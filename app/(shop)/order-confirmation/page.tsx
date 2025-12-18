@@ -72,9 +72,9 @@ function OrderConfirmationContent() {
             <p className="font-heading text-xl font-bold">
               #{order.number || order.id}
             </p>
-            {order.total && (
+            {(order.grandTotal || order.total) && (
               <p className="text-sm text-text-muted mt-2">
-                Tổng tiền: <span className="font-semibold text-primary">{formatPrice(order.total)}</span>
+                Tổng tiền: <span className="font-semibold text-primary">{formatPrice(order.grandTotal || order.total || '0')}</span>
               </p>
             )}
           </div>
@@ -85,7 +85,7 @@ function OrderConfirmationContent() {
             {paymentMethod === 'bacs' && (
               <VietQRPayment
                 orderId={order.number?.toString() || String(order.id)}
-                amount={parseFloat(String(order.total || '0'))}
+                amount={parseFloat(String(order.grandTotal || order.total || '0'))}
                 accountNo={process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NO || '1234567890'}
                 accountName={process.env.NEXT_PUBLIC_VIETQR_ACCOUNT_NAME || 'SHOP GAU BONG'}
                 acqId={process.env.NEXT_PUBLIC_VIETQR_ACQ_ID || '970415'}
@@ -100,7 +100,7 @@ function OrderConfirmationContent() {
             {paymentMethod === 'momo' && typeof window !== 'undefined' && (
               <MoMoPayment
                 orderId={order.number?.toString() || String(order.id)}
-                amount={parseFloat(String(order.total || '0'))}
+                amount={parseFloat(String(order.grandTotal || order.total || '0'))}
                 returnUrl={`${window.location.origin}/order-confirmation?orderId=${order.id}&paymentMethod=momo&status=success`}
                 notifyUrl={`${window.location.origin}/api/payment/webhook/momo`}
                 onPaymentSuccess={() => {
@@ -116,7 +116,7 @@ function OrderConfirmationContent() {
             {paymentMethod === 'cod' && (
               <CODPayment
                 orderId={order.number?.toString() || String(order.id)}
-                amount={parseFloat(String(order.total || '0'))}
+                amount={parseFloat(String(order.grandTotal || order.total || '0'))}
               />
             )}
 
@@ -124,7 +124,7 @@ function OrderConfirmationContent() {
             {paymentMethod === 'bank_transfer' && (
               <BankTransferPayment
                 orderId={order.number?.toString() || String(order.id)}
-                amount={parseFloat(String(order.total || '0'))}
+                amount={parseFloat(String(order.grandTotal || order.total || '0'))}
               />
             )}
           </div>

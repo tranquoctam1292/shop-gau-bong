@@ -275,7 +275,7 @@ export default function AdminOrdersPage() {
                       {new Intl.NumberFormat('vi-VN', {
                         style: 'currency',
                         currency: 'VND',
-                      }).format(order.grandTotal || order.total)}
+                      }).format(order.grandTotal || 0)}
                     </TableCell>
                     <TableCell>
                       <span

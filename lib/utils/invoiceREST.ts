@@ -182,7 +182,7 @@ function formatMongoOrderForInvoice(order: MongoOrder): InvoiceData | null {
     subtotal: typeof order.subtotal === 'number' ? order.subtotal.toString() : (order.subtotal || '0'),
     shippingTotal: typeof order.shippingTotal === 'number' ? order.shippingTotal.toString() : (order.shippingTotal || '0'),
     totalTax: '0', // MongoDB orders may not have tax field
-    total: typeof order.total === 'number' ? order.total.toString() : (order.total || '0'),
+    total: typeof order.grandTotal === 'number' ? order.grandTotal.toString() : (order.grandTotal || '0'), // Use grandTotal as final total
     currency: 'VND',
     paymentMethod,
     customerNote: order.customerNote || undefined,

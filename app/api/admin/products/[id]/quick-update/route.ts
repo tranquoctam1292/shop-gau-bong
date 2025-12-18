@@ -21,7 +21,7 @@ const quickUpdateSchema = z.object({
   manageStock: z.boolean().optional(),
   regularPrice: z.number().min(0).optional(),
   salePrice: z.number().min(0).nullable().optional(), // Fix #18: Allow null to clear salePrice
-  stockQuantity: z.number().min(0).optional(),
+  stockQuantity: z.number().int().nonnegative().optional(), // ✅ Validate: integer and >= 0
   stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']).optional(),
   version: z.number().optional(), // For optimistic locking
   // Variant updates (for variable products)
@@ -30,7 +30,7 @@ const quickUpdateSchema = z.object({
     id: z.string(),
     sku: z.string().optional(),
     price: z.number().min(0).optional(),
-    stock: z.number().min(0).optional(),
+    stock: z.number().int().nonnegative().optional(), // ✅ Validate: integer and >= 0
     // stockStatus removed - variants don't have this field in MongoDB
   })).optional(),
   // Backward compatibility: support old price field

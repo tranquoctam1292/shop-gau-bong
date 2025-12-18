@@ -47,7 +47,7 @@ export async function GET(
     // Calculate statistics
     const totalOrders = customerOrders.length;
     const totalSpent = customerOrders.reduce((sum, order) => {
-      return sum + (order.grandTotal || order.total || 0);
+      return sum + (order.grandTotal || 0);
     }, 0);
     const averageOrderValue = totalSpent / totalOrders;
 

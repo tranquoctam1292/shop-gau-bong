@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
         <div>Tổng tiền: ${new Intl.NumberFormat('vi-VN', {
           style: 'currency',
           currency: 'VND',
-        }).format(order.grandTotal || order.total || 0)}</div>
+        }).format(order.grandTotal || 0)}</div>
       </div>
     </div>
   `

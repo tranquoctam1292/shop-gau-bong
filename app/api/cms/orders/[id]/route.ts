@@ -7,6 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
+import { mapOrderToPublicDTO } from '@/lib/dto/PublicOrderDTO';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,58 +42,12 @@ export async function GET(
       .find({ orderId: order._id.toString() })
       .toArray();
     
-    // Map to frontend format (compatible with WooCommerceOrder format for backward compatibility)
-    const mappedOrder = {
-      id: order._id.toString(),
-      number: order.orderNumber,
-      status: order.status,
-      payment_method: order.paymentMethod,
-      payment_method_title: order.paymentMethodTitle,
-      payment_status: order.paymentStatus,
-      total: String(order.total),
-      currency: order.currency || 'VND',
-      customer_note: order.customerNote || '',
-      billing: {
-        first_name: order.billing?.firstName || '',
-        last_name: order.billing?.lastName || '',
-        email: order.customerEmail || '',
-        phone: order.customerPhone || '',
-        address_1: order.billing?.address1 || '',
-        address_2: order.billing?.address2 || '',
-        city: order.billing?.city || '',
-        postcode: order.billing?.postcode || '',
-        country: order.billing?.country || 'VN',
-      },
-      shipping: {
-        first_name: order.shipping?.firstName || '',
-        last_name: order.shipping?.lastName || '',
-        address_1: order.shipping?.address1 || '',
-        address_2: order.shipping?.address2 || '',
-        city: order.shipping?.city || '',
-        postcode: order.shipping?.postcode || '',
-        country: order.shipping?.country || 'VN',
-      },
-      line_items: items.map((item) => ({
-        id: item._id.toString(),
-        name: item.productName,
-        product_id: item.productId,
-        variation_id: item.variationId || null,
-        quantity: item.quantity,
-        price: String(item.price),
-        subtotal: String(item.subtotal),
-        total: String(item.total),
-      })),
-      // Include raw MongoDB fields for compatibility
-      _id: order._id.toString(),
-      orderNumber: order.orderNumber,
-      customerName: order.customerName,
-      customerEmail: order.customerEmail,
-      customerPhone: order.customerPhone,
-      createdAt: order.createdAt,
-      updatedAt: order.updatedAt,
-    };
+    // Map to Public Order DTO (sanitized - excludes sensitive fields)
+    // SECURITY: Only return fields necessary for customer-facing features
+    // Excludes: paymentMetadata, adminNotes, cancelledReason, version, updatedAt, _id, etc.
+    const publicOrder = mapOrderToPublicDTO(order, items);
     
-    return NextResponse.json({ order: mappedOrder });
+    return NextResponse.json({ order: publicOrder });
   } catch (error: any) {
     console.error('[CMS Orders API] Error:', error);
     return NextResponse.json(

@@ -184,6 +184,73 @@ export async function deductStock(
 }
 
 /**
+ * Increment stock back to inventory (when order is Refunded after stock was deducted)
+ * 
+ * @param orderId - Order ID
+ * @param items - Array of items to increment stock for
+ */
+export async function incrementStock(
+  orderId: string,
+  items: Array<{ productId: string; variationId?: string; quantity: number }>
+): Promise<void> {
+  const { products } = await getCollections();
+
+  for (const item of items) {
+    // Find product
+    const product = await products.findOne({ _id: new ObjectId(item.productId) });
+    if (!product) {
+      console.warn(`Product ${item.productId} not found for stock increment`);
+      continue;
+    }
+
+    // Check if product manages stock
+    if (!product.manageStock && product.manageStock !== true) {
+      continue;
+    }
+
+    // For variable products, increment variant stock
+    if (item.variationId && product.variants) {
+      const variant = product.variants.find(
+        (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
+      );
+
+      if (variant) {
+        // Increment variant stock back
+        const updatedVariants = product.variants.map((v: MongoVariant) => {
+          if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
+            return {
+              ...v,
+              stock: (v.stock || v.stockQuantity || 0) + item.quantity,
+              stockQuantity: (v.stockQuantity || v.stock || 0) + item.quantity,
+            };
+          }
+          return v;
+        });
+
+        await products.updateOne(
+          { _id: new ObjectId(item.productId) },
+          {
+            $set: {
+              variants: updatedVariants,
+            },
+          }
+        );
+      }
+    } else {
+      // Simple product - increment stock back
+      await products.updateOne(
+        { _id: new ObjectId(item.productId) },
+        {
+          $inc: {
+            stockQuantity: item.quantity,
+          },
+        }
+      );
+    }
+  }
+}
+
+/**
  * Release reserved stock (when order is Cancelled)
  * 
  * @param orderId - Order ID

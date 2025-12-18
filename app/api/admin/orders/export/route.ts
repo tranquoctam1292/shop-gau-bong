@@ -81,7 +81,7 @@ export async function GET(request: NextRequest) {
         order.customerEmail || '',
         order.customerPhone || address.phone || '',
         fullAddress,
-        order.grandTotal || order.total || 0,
+        order.grandTotal || 0,
         getStatusLabel(order.status as any),
         order.paymentStatus || '',
         order.paymentMethod || '',
