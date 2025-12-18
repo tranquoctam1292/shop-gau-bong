@@ -524,6 +524,22 @@ await products.updateOne(
 
 ---
 
+## 🔒 BẢO MẬT & SECURITY FIXES
+
+### ✅ Fix: test-env Endpoint Security
+**File:** `app/api/test-env/route.ts`  
+**Vấn đề:** Endpoint đang expose thông tin môi trường trong production, có thể rò rỉ credentials và cấu hình hệ thống.
+
+**Giải pháp đã áp dụng:**
+- ✅ Chỉ cho phép trong development mode (NODE_ENV === 'development')
+- ✅ Production mode: Yêu cầu admin authentication
+- ✅ Kiểm tra session và role trước khi trả về thông tin môi trường
+- ✅ Trả về 401/403 nếu không có quyền truy cập
+
+**Trạng thái:** ✅ Đã sửa (2025-01-XX)
+
+---
+
 ## ⚠️ CẢNH BÁO XUNG ĐỘT
 
 ### Cache Invalidation

@@ -1,14 +1,50 @@
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
 
 /**
  * Test API Route: Kiểm tra Environment Variables
  * GET /api/test-env
  * 
+ * ⚠️ SECURITY: Chỉ cho phép trong development mode hoặc với admin authentication
  * Dùng để verify environment variables đã được set đúng trên Vercel
+ * 
+ * Trong production: Yêu cầu admin authentication để tránh rò rỉ thông tin môi trường
  */
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
+  // ✅ SECURITY: Chỉ cho phép trong development mode hoặc với admin authentication
+  const isDevelopment = process.env.NODE_ENV === 'development';
+  
+  if (!isDevelopment) {
+    // Production mode: Yêu cầu admin authentication
+    try {
+      const session = await getServerSession(authOptions);
+      
+      if (!session || !session.user || !(session.user as any).id) {
+        return NextResponse.json(
+          { error: 'Unauthorized. Admin authentication required.' },
+          { status: 401 }
+        );
+      }
+      
+      // Check if user is admin (has role)
+      const userRole = (session.user as any).role;
+      if (!userRole) {
+        return NextResponse.json(
+          { error: 'Forbidden. Admin role required.' },
+          { status: 403 }
+        );
+      }
+    } catch (error) {
+      return NextResponse.json(
+        { error: 'Authentication failed.' },
+        { status: 401 }
+      );
+    }
+  }
+
   const env = {
     // WordPress URL
     hasWordPressUrl: !!process.env.NEXT_PUBLIC_WORDPRESS_URL,
