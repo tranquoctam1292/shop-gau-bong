@@ -234,7 +234,10 @@ export default function AdminUsersPage() {
                     <TableRow key={user._id}>
                       <TableCell className="font-medium">{user.username}</TableCell>
                       <TableCell>{user.email}</TableCell>
-                      <TableCell>{user.full_name}</TableCell>
+                      <TableCell>
+                        {/* 🔒 SECURITY FIX: Sanitize full_name to prevent XSS */}
+                        {user.full_name ? user.full_name.replace(/<[^>]*>/g, '') : ''}
+                      </TableCell>
                       <TableCell>{ROLE_DISPLAY_NAMES[user.role]}</TableCell>
                       <TableCell>
                         <span

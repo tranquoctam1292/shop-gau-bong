@@ -7,10 +7,11 @@
 'use client';
 
 import { useRouter, useParams } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { ObjectId } from 'mongodb';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,13 +32,26 @@ const resetPasswordSchema = z.object({
 type ResetPasswordFormData = z.infer<typeof resetPasswordSchema>;
 
 export default function ResetPasswordPage() {
-  // CRITICAL FIX: Use useParams hook for client components instead of params prop
+  // 🔒 SECURITY FIX: Use useParams hook for client components instead of params prop
   const params = useParams();
   const userId = params.id as string;
   const router = useRouter();
   const { showToast } = useToastContext();
-  const { data: userData, isLoading } = useAdminUser(userId);
+  
+  // 🔒 SECURITY FIX: Validate userId before fetching
+  const isValidUserId = userId && ObjectId.isValid(userId);
+  
+  // Hook will automatically disable if userId is null/undefined/empty
+  const { data: userData, isLoading, error } = useAdminUser(isValidUserId ? userId : null);
   const [loading, setLoading] = useState(false);
+
+  // 🔒 SECURITY FIX: Redirect if userId is invalid
+  useEffect(() => {
+    if (!isValidUserId) {
+      showToast('ID người dùng không hợp lệ', 'error');
+      router.push('/admin/users');
+    }
+  }, [isValidUserId, router, showToast]);
 
   const {
     register,
@@ -48,6 +62,12 @@ export default function ResetPasswordPage() {
   });
 
   const onSubmit = async (data: ResetPasswordFormData) => {
+    // 🔒 SECURITY FIX: Validate userId before submitting
+    if (!isValidUserId || !userId) {
+      showToast('ID người dùng không hợp lệ', 'error');
+      return;
+    }
+
     if (!confirm('Bạn có chắc muốn reset mật khẩu cho người dùng này? Người dùng sẽ phải đổi mật khẩu khi đăng nhập lại.')) {
       return;
     }
@@ -63,30 +83,77 @@ export default function ResetPasswordPage() {
         }),
       });
 
-      const result = await response.json();
-
+      // 🔒 SECURITY FIX: Better error handling
       if (!response.ok) {
-        throw new Error(result.message || 'Failed to reset password');
+        const result = await response.json().catch(() => ({}));
+        
+        // Handle specific error codes
+        if (response.status === 403) {
+          showToast('Bạn không có quyền thực hiện hành động này', 'error');
+          return;
+        }
+        
+        if (response.status === 404) {
+          showToast('Người dùng không tồn tại', 'error');
+          router.push('/admin/users');
+          return;
+        }
+        
+        throw new Error(result.message || result.error || 'Không thể reset mật khẩu');
       }
 
-      showToast('Đã reset mật khẩu thành công', 'success');
+      const result = await response.json();
+      showToast(result.message || 'Đã reset mật khẩu thành công', 'success');
       router.push('/admin/users');
-    } catch (error: any) {
-      showToast(error.message || 'Đã xảy ra lỗi', 'error');
+    } catch (error: unknown) {
+      // 🔒 SECURITY FIX: Better error handling with type safety
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Đã xảy ra lỗi không xác định';
+      showToast(errorMessage, 'error');
     } finally {
       setLoading(false);
     }
   };
 
+  // 🔒 SECURITY FIX: Don't render if userId is invalid
+  if (!isValidUserId) {
+    return null; // Will redirect via useEffect
+  }
+
   if (isLoading) {
     return (
+      <PermissionGuard role={AdminRole.SUPER_ADMIN}>
       <div className="p-6">
         <div className="text-center py-8">Đang tải...</div>
       </div>
+      </PermissionGuard>
     );
   }
 
-  const user = userData?.data;
+  // 🔒 SECURITY FIX: Handle error state
+  if (error || !userData?.data) {
+    return (
+      <PermissionGuard role={AdminRole.SUPER_ADMIN}>
+        <div className="p-6">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-red-600 text-center">
+                {(error as Error)?.message || 'Không tìm thấy người dùng'}
+              </div>
+              <div className="mt-4 text-center">
+                <Button onClick={() => router.push('/admin/users')} variant="outline">
+                  Quay lại danh sách người dùng
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </PermissionGuard>
+    );
+  }
+
+  const user = userData.data;
 
   return (
     <PermissionGuard role={AdminRole.SUPER_ADMIN}>

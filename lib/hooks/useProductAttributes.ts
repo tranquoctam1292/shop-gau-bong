@@ -59,8 +59,8 @@ export function useProductAttributes() {
           return [];
         }
 
-        const attributesData = await attributesResponse.json();
-        const globalAttributes = attributesData.attributes || [];
+          const attributesData = await attributesResponse.json();
+          const globalAttributes = attributesData.attributes || [];
         
         // Nếu không có attributes, trả về empty array
         if (globalAttributes.length === 0) {
@@ -69,29 +69,29 @@ export function useProductAttributes() {
           }
           return [];
         }
-        
-        // Fetch terms for each attribute
-        const attributesWithTerms: ProductAttribute[] = [];
-        
-        for (const attr of globalAttributes) {
-          // Only fetch size, color, material attributes
-          const attrSlug = attr.slug?.toLowerCase() || attr.name?.toLowerCase() || '';
-          if (attrSlug.includes('size') || attrSlug.includes('color') || attrSlug.includes('material')) {
-            try {
-              const termsResponse = await fetch(`/api/cms/attributes?attributeId=${attr.id || attr.slug}`);
-              if (termsResponse.ok) {
-                const termsData = await termsResponse.json();
-                const terms = termsData.terms || [];
-                
-                if (terms.length > 0) {
-                  attributesWithTerms.push({
-                    name: attr.name || attrSlug,
-                    slug: attr.slug || attrSlug,
-                    options: terms.map((term: GlobalAttributeTerm) => term.name || term.slug).filter(Boolean),
-                  });
+          
+          // Fetch terms for each attribute
+          const attributesWithTerms: ProductAttribute[] = [];
+          
+          for (const attr of globalAttributes) {
+            // Only fetch size, color, material attributes
+            const attrSlug = attr.slug?.toLowerCase() || attr.name?.toLowerCase() || '';
+            if (attrSlug.includes('size') || attrSlug.includes('color') || attrSlug.includes('material')) {
+              try {
+                const termsResponse = await fetch(`/api/cms/attributes?attributeId=${attr.id || attr.slug}`);
+                if (termsResponse.ok) {
+                  const termsData = await termsResponse.json();
+                  const terms = termsData.terms || [];
+                  
+                  if (terms.length > 0) {
+                    attributesWithTerms.push({
+                      name: attr.name || attrSlug,
+                      slug: attr.slug || attrSlug,
+                      options: terms.map((term: GlobalAttributeTerm) => term.name || term.slug).filter(Boolean),
+                    });
+                  }
                 }
-              }
-            } catch (err) {
+              } catch (err) {
               if (process.env.NODE_ENV === 'development') {
                 console.warn(`[useProductAttributes] Failed to fetch terms for attribute ${attr.id}:`, err);
               }

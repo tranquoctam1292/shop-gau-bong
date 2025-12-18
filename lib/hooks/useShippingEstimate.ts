@@ -18,16 +18,16 @@ export function useShippingEstimate() {
   // Chỉ tính toán lại khi items thay đổi (reference hoặc content)
   const transformedItems = useMemo(() => {
     return items.map((item: CartItem) => ({
-      quantity: item.quantity,
-      product: {
-        weight: item.weight,
-        productSpecs: {
-          length: item.length,
-          width: item.width,
-          height: item.height,
-          volumetricWeight: item.volumetricWeight,
+        quantity: item.quantity,
+        product: {
+          weight: item.weight,
+          productSpecs: {
+            length: item.length,
+            width: item.width,
+            height: item.height,
+            volumetricWeight: item.volumetricWeight,
+          },
         },
-      },
     }));
   }, [items]);
 
@@ -53,15 +53,15 @@ export function useShippingEstimate() {
 
   // ✅ PERFORMANCE: Memoize default address và config (không thay đổi)
   const defaultAddress: ShippingAddress = useMemo(() => ({
-    province: 'Hà Nội',
-    district: 'Quận Hoàn Kiếm',
-    ward: 'Phường Tràng Tiền',
-    address: '',
+      province: 'Hà Nội',
+      district: 'Quận Hoàn Kiếm',
+      ward: 'Phường Tràng Tiền',
+      address: '',
   }), []);
 
   const shippingConfig: ShippingConfig = useMemo(() => ({
-    provider: 'custom',
-    defaultRate: parseInt(process.env.NEXT_PUBLIC_SHIPPING_DEFAULT_RATE || '30000'),
+      provider: 'custom',
+      defaultRate: parseInt(process.env.NEXT_PUBLIC_SHIPPING_DEFAULT_RATE || '30000'),
   }), []);
 
   // ✅ PERFORMANCE: Memoize shipping cost estimate

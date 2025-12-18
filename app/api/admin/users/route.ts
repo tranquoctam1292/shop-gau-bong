@@ -269,6 +269,7 @@ export async function POST(request: NextRequest) {
         is_active: is_active ?? true,
         must_change_password: true, // Force password change on first login
         token_version: 0, // V1.2: Token version for revocation
+        version: 1, // Optimistic locking: Start at version 1
         created_by: new ObjectId(req.adminUser._id),
         createdAt: now,
         updatedAt: now,

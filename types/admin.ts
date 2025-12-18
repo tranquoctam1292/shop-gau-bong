@@ -86,6 +86,7 @@ export interface AdminUser {
   is_active: boolean;
   must_change_password: boolean;
   token_version: number; // V1.2: For token revocation (increment to force logout all devices)
+  version?: number; // Optimistic locking: Version field to prevent concurrent edit conflicts
   last_login?: Date;
   created_by?: ObjectId; // Reference to AdminUser._id
   createdAt: Date;
@@ -104,6 +105,7 @@ export interface AdminUserPublic {
   permissions?: Permission[];
   is_active: boolean;
   must_change_password: boolean;
+  version?: number; // Optimistic locking: Version field to prevent concurrent edit conflicts
   last_login?: Date;
   created_by?: string;
   createdAt: Date;

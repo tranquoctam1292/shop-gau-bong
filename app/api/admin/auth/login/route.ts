@@ -4,7 +4,11 @@
  * 
  * Custom login endpoint with rate limiting and audit logging
  * Note: NextAuth handles actual authentication, this endpoint provides
- * additional features like rate limiting and activity logging
+ * additional features like IP-based rate limiting and activity logging
+ * 
+ * 🔒 SECURITY NOTE: Rate limiting is enforced at two levels:
+ * 1. IP-based rate limiting (this endpoint) - prevents attacks from single IP
+ * 2. Username-based rate limiting (in NextAuth authorize function) - prevents attacks on specific username
  * 
  * Rate Limit: 5 attempts per 15 minutes per IP:username
  */

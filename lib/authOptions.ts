@@ -10,6 +10,7 @@ import { getCollections } from '@/lib/db';
 import bcrypt from 'bcryptjs';
 import { comparePassword } from '@/lib/utils/passwordUtils';
 import { AdminRole } from '@/types/admin';
+import { checkRateLimit, getLoginRateLimitKey, resetRateLimit } from '@/lib/utils/rateLimiter';
 
 /**
  * ✅ PERFORMANCE: In-memory cache for user status (token_version, is_active)
@@ -92,18 +93,34 @@ export const authOptions: NextAuthOptions = {
         username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.username || !credentials?.password) {
           return null;
         }
 
         try {
+          // 🔒 SECURITY FIX: Rate limiting based on username
+          // This prevents brute force attacks even if attacker bypasses /api/admin/auth/login
+          // We use username-based rate limiting (5 attempts per 15 minutes per username)
+          // Note: IP is not available in authorize function, but username-based limiting
+          // is still effective as attacker needs to know username to attack
+          const rateLimitKey = getLoginRateLimitKey('global', credentials.username);
+          const isWithinLimit = await checkRateLimit(rateLimitKey, 5, 15 * 60 * 1000); // 5 attempts / 15 min
+
+          if (!isWithinLimit) {
+            // Rate limit exceeded - return null to deny authentication
+            // NextAuth will return "Invalid credentials" error (doesn't reveal rate limit)
+            console.warn(`[NextAuth] Rate limit exceeded for username: ${credentials.username}`);
+            return null;
+          }
+
           const { adminUsers } = await getCollections();
           
           // Find user by username (for RBAC, we use username instead of email)
           const user = await adminUsers.findOne({ username: credentials.username });
           
           if (!user) {
+            // User not found - rate limit still applies
             return null;
           }
 
@@ -119,8 +136,12 @@ export const authOptions: NextAuthOptions = {
           );
 
           if (!isValidPassword) {
+            // Invalid password - rate limit still applies
             return null;
           }
+
+          // ✅ Successful login - reset rate limit for this username
+          await resetRateLimit(rateLimitKey);
 
           // Update last_login
           await adminUsers.updateOne(

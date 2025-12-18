@@ -22,6 +22,7 @@ const updateUserSchema = z.object({
   role: z.nativeEnum(AdminRole).optional(),
   permissions: z.array(z.string()).optional(),
   is_active: z.boolean().optional(),
+  version: z.number().int().nonnegative().optional(), // Optimistic locking: Version field
 });
 
 /**
@@ -37,6 +38,7 @@ function mapToPublicUser(user: any): any {
     permissions: user.permissions || [],
     is_active: user.is_active,
     must_change_password: user.must_change_password,
+    version: user.version || 0, // Include version for optimistic locking
     last_login: user.last_login,
     created_by: user.created_by?.toString(),
     createdAt: user.createdAt,
@@ -191,7 +193,22 @@ export async function PUT(
         );
       }
 
-      const { full_name, role, permissions, is_active } = validation.data;
+      const { full_name, role, permissions, is_active, version } = validation.data;
+
+      // 🔒 SECURITY FIX: Optimistic Locking - Check version if provided
+      const currentVersion = userBefore.version || 0;
+      const requestVersion = version;
+      
+      if (requestVersion !== undefined && requestVersion !== currentVersion) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'VERSION_MISMATCH',
+            message: 'Người dùng đã được chỉnh sửa bởi người khác. Vui lòng làm mới trang và thử lại.',
+          },
+          { status: 409 }
+        );
+      }
 
       // Validate permissions if provided
       if (permissions && permissions.length > 0) {
@@ -243,7 +260,9 @@ export async function PUT(
       };
 
       if (full_name !== undefined) {
-        updateData.full_name = full_name;
+        // 🔒 SECURITY FIX: Sanitize full_name to prevent XSS
+        // Remove HTML tags and trim whitespace
+        updateData.full_name = full_name.replace(/<[^>]*>/g, '').trim();
       }
       if (role !== undefined) {
         updateData.role = role;
@@ -255,11 +274,21 @@ export async function PUT(
         updateData.is_active = is_active;
       }
 
+      // 🔒 SECURITY FIX: Increment version for optimistic locking
+      updateData.version = (currentVersion || 0) + 1;
+
       // Update user
       await adminUsers.updateOne(
         { _id: userId },
         { $set: updateData }
       );
+
+      // 🔒 SECURITY FIX: Invalidate cache when is_active changes
+      // This ensures user status cache is cleared immediately when account is locked/unlocked
+      if (is_active !== undefined && is_active !== userBefore.is_active) {
+        const { invalidateUserStatusCache } = await import('@/lib/authOptions');
+        invalidateUserStatusCache(id);
+      }
 
       // Get updated user
       const userAfter = await adminUsers.findOne({ _id: userId });
