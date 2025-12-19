@@ -10,13 +10,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { getMediaList, createMedia } from '@/lib/repositories/mediaRepository';
 import { getStorageServiceSingleton } from '@/lib/storage/storageFactory';
-import { 
-  processImage, 
-  getImageMetadata, 
-  isValidImage 
+import {
+  processImage,
+  getImageMetadata,
+  isValidImage
 } from '@/lib/services/imageProcessingService';
-import { 
-  uploadMediaSchema, 
+import {
+  uploadMediaSchema,
   getMediaListSchema,
   FILE_UPLOAD_CONSTRAINTS,
   getAllowedMimeTypes,
@@ -24,6 +24,7 @@ import {
   isValidFileSize
 } from '@/lib/validations/mediaSchema';
 import { handleValidationError } from '@/lib/utils/validation-errors';
+import { checkRateLimit } from '@/lib/utils/rateLimiter';
 import { ObjectId } from '@/lib/db';
 import type { MediaType } from '@/types/media';
 
@@ -145,6 +146,22 @@ export async function POST(request: NextRequest) {
     try {
       // Permission: media:upload (checked by middleware)
       const userId = req.adminUser?._id;
+
+      // V1.3: Rate limit for file uploads - 10 uploads per 10 minutes
+      const rateLimitKey = `admin_sensitive:media_upload:${userId}`;
+      const withinLimit = await checkRateLimit(rateLimitKey, 10, 10 * 60 * 1000); // 10 uploads per 10 minutes
+
+      if (!withinLimit) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Quá nhiều upload. Vui lòng thử lại sau 10 phút',
+            code: 'RATE_LIMIT_EXCEEDED'
+          },
+          { status: 429 }
+        );
+      }
+
       // Parse form data
       const formData = await req.formData();
     const file = formData.get('file') as File;

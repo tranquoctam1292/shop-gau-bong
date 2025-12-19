@@ -12,6 +12,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { hashPassword, validatePasswordStrength } from '@/lib/utils/passwordUtils';
 import { incrementTokenVersion } from '@/lib/utils/tokenRevocation';
 import { logActivity } from '@/lib/utils/auditLogger';
+import { checkRateLimit } from '@/lib/utils/rateLimiter';
 import { AdminAction } from '@/types/admin';
 import { z } from 'zod';
 
@@ -46,6 +47,21 @@ export async function PUT(
           message: 'Chỉ quản trị viên cấp cao mới có quyền reset mật khẩu',
         },
         { status: 403 }
+      );
+    }
+
+    // V1.3: Rate limit for sensitive operation - 3 attempts per 15 minutes
+    const rateLimitKey = `admin_sensitive:reset_password:${req.adminUser._id}`;
+    const withinLimit = await checkRateLimit(rateLimitKey, 3, 15 * 60 * 1000); // 3 attempts per 15 minutes
+
+    if (!withinLimit) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Quá nhiều lần reset mật khẩu. Vui lòng thử lại sau 15 phút',
+        },
+        { status: 429 }
       );
     }
 

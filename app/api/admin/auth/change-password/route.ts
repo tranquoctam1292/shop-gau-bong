@@ -12,6 +12,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { comparePassword, hashPassword, validatePasswordStrength } from '@/lib/utils/passwordUtils';
 import { incrementTokenVersion } from '@/lib/utils/tokenRevocation';
 import { logActivity } from '@/lib/utils/auditLogger';
+import { checkRateLimit } from '@/lib/utils/rateLimiter';
 import { AdminAction } from '@/types/admin';
 import { z } from 'zod';
 
@@ -36,8 +37,23 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      // V1.3: Rate limit for password changes - 5 attempts per hour
+      const rateLimitKey = `admin_sensitive:change_password:${req.adminUser._id}`;
+      const withinLimit = await checkRateLimit(rateLimitKey, 5, 60 * 60 * 1000); // 5 attempts per hour
+
+      if (!withinLimit) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'RATE_LIMIT_EXCEEDED',
+            message: 'Quá nhiều lần thay đổi mật khẩu. Vui lòng thử lại sau 1 giờ',
+          },
+          { status: 429 }
+        );
+      }
+
       const body = await request.json();
-      
+
       // Validate input
       const validation = changePasswordSchema.safeParse(body);
       if (!validation.success) {

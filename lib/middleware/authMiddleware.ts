@@ -11,6 +11,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { AdminUser, Permission } from '@/types/admin';
 import { hasPermission } from '@/lib/utils/permissions';
 import { AdminRole } from '@/types/admin';
+import { checkRateLimit } from '@/lib/utils/rateLimiter';
 
 /**
  * Request with authenticated admin user attached
@@ -21,14 +22,15 @@ export interface AuthenticatedRequest extends NextRequest {
 
 /**
  * Middleware wrapper for admin API routes
- * 
+ *
  * Checks:
  * 1. User is authenticated (has valid session)
  * 2. User exists in database and is active
  * 3. Token version matches (V1.2: token revocation check)
- * 4. User must change password (if required, return 403)
- * 5. User has required permission (if specified)
- * 
+ * 4. Rate limit (prevent DoS and brute force - GET: 60/min, Others: 20/min)
+ * 5. User must change password (if required, return 403)
+ * 6. User has required permission (if specified)
+ *
  * Usage:
  * ```typescript
  * export async function GET(request: NextRequest) {
@@ -113,12 +115,36 @@ export async function withAuthAdmin(
       );
     }
 
-    // 5. Check must_change_password
-    // CRITICAL FIX: Allow bypass for change-password and logout routes to prevent deadlock
+    // 5. Check Rate Limit (prevent DoS and brute force attacks)
     const url = new URL(request.url);
-    const isChangePasswordRoute = url.pathname === '/api/admin/auth/change-password';
-    const isLogoutRoute = url.pathname === '/api/admin/auth/logout';
-    
+    const pathname = url.pathname;
+    const method = request.method.toUpperCase();
+
+    // Determine rate limit thresholds based on HTTP method
+    // GET requests: 60 req/min, Others: 20 req/min
+    const isGetRequest = method === 'GET';
+    const maxAttempts = isGetRequest ? 60 : 20;
+    const windowMs = 60 * 1000; // 1 minute window
+
+    const rateLimitKey = `admin_limit:${userId}:${method}:${pathname}`;
+    const withinLimit = await checkRateLimit(rateLimitKey, maxAttempts, windowMs);
+
+    if (!withinLimit) {
+      return NextResponse.json(
+        {
+          success: false,
+          code: 'RATE_LIMIT_EXCEEDED',
+          message: 'Quá nhiều yêu cầu. Vui lòng thử lại sau ít phút',
+        },
+        { status: 429 }
+      );
+    }
+
+    // 6. Check must_change_password
+    // CRITICAL FIX: Allow bypass for change-password and logout routes to prevent deadlock
+    const isChangePasswordRoute = pathname === '/api/admin/auth/change-password';
+    const isLogoutRoute = pathname === '/api/admin/auth/logout';
+
     if (user.must_change_password === true && !isChangePasswordRoute && !isLogoutRoute) {
       return NextResponse.json(
         {
@@ -130,7 +156,7 @@ export async function withAuthAdmin(
       );
     }
 
-    // 6. Check permission (if required)
+    // 7. Check permission (if required)
     if (requiredPermission) {
       const hasPerm = hasPermission(
         user.role,
@@ -150,7 +176,7 @@ export async function withAuthAdmin(
       }
     }
 
-    // 7. Attach adminUser to request and call handler
+    // 8. Attach adminUser to request and call handler
     (request as AuthenticatedRequest).adminUser = user as AdminUser;
     return await handler(request as AuthenticatedRequest);
   } catch (error) {
