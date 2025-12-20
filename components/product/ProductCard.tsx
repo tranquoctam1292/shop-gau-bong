@@ -215,7 +215,20 @@ export function ProductCard({ product }: ProductCardProps) {
   // Early return sau khi đã gọi tất cả hooks
   if (!product || !product.name) return null;
   
-  const isOutOfStock = product.stockStatus === 'outofstock';
+  // FIX: Check stock at variant level if variation is selected
+  // Variant stock enforcement: If user selects a variant that's out of stock,
+  // disable "Add to Cart" button even if product level shows "in stock"
+  const isOutOfStock = useMemo(() => {
+    // If variation is selected, check variant stock
+    if (selectedVariation) {
+      // MongoVariant has stock field (number)
+      const variantStock = selectedVariation.stock || 0;
+      return variantStock <= 0;
+    }
+    
+    // For simple products or no variation selected, check product level stock
+    return product.stockStatus === 'outofstock';
+  }, [product.stockStatus, selectedVariation]);
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -254,12 +267,14 @@ export function ProductCard({ product }: ProductCardProps) {
     }
     
     await addToCart({
-      productId: typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId,
+      // FIX: Keep productId as string (MongoDB ObjectId) - don't use parseInt on hex string
+      productId: product.databaseId || product.id,
       productName: `${product.name} ${selectedSize ? `(${selectedSize})` : ''}`,
       price: priceToUse || '0',
       image: product.image?.sourceUrl,
       quantity: 1,
-      variationId: selectedVariation?.id ? (typeof selectedVariation.id === 'number' ? selectedVariation.id : parseInt(selectedVariation.id, 10) || undefined) : undefined,
+      // FIX: Keep variationId as string if it's a string (MongoDB variant ID)
+      variationId: selectedVariation?.id || undefined,
       length: product.length || undefined,
       width: product.width || undefined,
       height: product.height || undefined,

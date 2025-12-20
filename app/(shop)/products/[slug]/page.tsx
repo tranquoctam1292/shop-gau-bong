@@ -111,7 +111,8 @@ export default function ProductPage() {
             {/* QuickOrderBox */}
             {product.databaseId && (
               <QuickOrderBox 
-                productId={typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId}
+                // FIX: Keep productId as string (MongoDB ObjectId) - don't use parseInt on hex string
+                productId={product.databaseId || product.id}
                 productName={product.name}
               />
             )}
@@ -151,8 +152,9 @@ export default function ProductPage() {
       {/* Related Products */}
       {product.databaseId && (
         <RelatedProducts
-          productId={typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId}
-          excludeId={typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId}
+          // FIX: Keep productId as string (MongoDB ObjectId) - don't use parseInt on hex string
+          productId={product.databaseId || product.id}
+          excludeId={product.databaseId || product.id}
         />
       )}
       </div>

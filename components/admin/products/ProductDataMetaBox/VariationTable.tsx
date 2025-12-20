@@ -12,7 +12,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ImageIcon, Trash2, Copy, Upload, X } from 'lucide-react';
+import { ImageIcon, Trash2, Copy, Upload, X, Info } from 'lucide-react';
 import Image from 'next/image';
 import { useToastContext } from '@/components/providers/ToastProvider';
 
@@ -413,13 +413,24 @@ export function VariationTable({
                       </div>
                       {/* Live Preview */}
                       {autoGenerateSku && !variation.sku && previewSkus[variation.id] && (
-                        <div className="text-xs text-muted-foreground italic px-2">
+                        <div className="px-2 space-y-1">
                           {hasIncrementToken && previewSkus[variation.id].includes('###') ? (
-                            <span title="Số thứ tự thực tế sẽ được gán khi lưu sản phẩm">
-                              {previewSkus[variation.id]}
-                            </span>
+                            <>
+                              <div className="text-xs text-muted-foreground italic">
+                                Preview: {previewSkus[variation.id]}
+                              </div>
+                              {/* FIX: Warning label for INCREMENT token - make it clear that number is not final */}
+                              <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                                <Info className="h-3 w-3 flex-shrink-0" />
+                                <span>
+                                  <strong>Lưu ý:</strong> Mã số cuối cùng sẽ được cấp phát sau khi lưu thành công
+                                </span>
+                              </div>
+                            </>
                           ) : (
-                            <span>Preview: {previewSkus[variation.id]}</span>
+                            <div className="text-xs text-muted-foreground italic">
+                              Preview: {previewSkus[variation.id]}
+                            </div>
                           )}
                         </div>
                       )}

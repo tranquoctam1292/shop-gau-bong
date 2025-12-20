@@ -4,8 +4,8 @@ import { useProductsREST } from '@/lib/hooks/useProductsREST';
 import { ProductCard } from './ProductCard';
 
 interface RelatedProductsProps {
-  productId: number;
-  excludeId?: number;
+  productId: string | number; // MongoDB ObjectId (string) or legacy number
+  excludeId?: string | number; // MongoDB ObjectId (string) or legacy number
 }
 
 export function RelatedProducts({
@@ -16,8 +16,10 @@ export function RelatedProducts({
   const { products, loading } = useProductsREST(8);
 
   // Filter out current product
+  // FIX: Compare as strings to handle both MongoDB ObjectId (string) and legacy number
+  const excludeIdStr = String(excludeId || productId);
   const filteredProducts = products?.filter(
-    (product) => Number(product.id) !== (excludeId || productId)
+    (product) => String(product.id) !== excludeIdStr && String(product.databaseId) !== excludeIdStr
   ).slice(0, 4) || [];
 
   if (loading) {

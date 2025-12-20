@@ -116,7 +116,8 @@ export function ProductList({ initialCount = 12 }: ProductListProps) {
                       onClick={async () => {
                         if (!isOutOfStock) {
                           await addToCart({
-                            productId: typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId,
+                            // FIX: Keep productId as string (MongoDB ObjectId) - don't use parseInt on hex string
+                            productId: product.databaseId || product.id,
                             productName: product.name,
                             price: product.price || '0',
                             image: product.image?.sourceUrl,

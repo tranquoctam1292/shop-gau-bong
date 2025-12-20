@@ -268,9 +268,23 @@ export function VariantSkuGenerator({
         )}
       </div>
       {autoGenerateEnabled && (
-        <p className="text-xs text-muted-foreground ml-7">
-          SKU sẽ được tự động sinh dựa trên pattern đã cấu hình. Bạn có thể chỉnh sửa thủ công nếu cần.
-        </p>
+        <div className="ml-7 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            SKU sẽ được tự động sinh dựa trên pattern đã cấu hình. Bạn có thể chỉnh sửa thủ công nếu cần.
+          </p>
+          {/* FIX: Warning for INCREMENT token - make it clear that number is not final until save */}
+          {hasIncrementToken && (
+            <div className="flex items-start gap-2 p-2 bg-amber-50 border border-amber-200 rounded-md">
+              <Info className="h-4 w-4 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-amber-800">
+                <strong>Lưu ý:</strong> Pattern có chứa <code className="bg-amber-100 px-1 rounded">{'{INCREMENT}'}</code>. 
+                Số thứ tự trong preview (ví dụ: <code className="bg-amber-100 px-1 rounded">###</code>) chỉ là ước tính. 
+                <strong className="text-amber-900"> Mã số cuối cùng sẽ được cấp phát chính xác sau khi lưu thành công</strong> để đảm bảo không trùng lặp. 
+                Nếu nhiều người cùng tạo SKU, số thực tế có thể khác với preview.
+              </p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

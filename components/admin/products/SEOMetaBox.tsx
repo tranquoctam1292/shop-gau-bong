@@ -75,14 +75,25 @@ function getProgressColor(type: 'title' | 'description', length: number): string
 
 /**
  * Replace template variables in SEO title
+ * 
+ * ⚠️ IMPORTANT: Use raw data (numbers, plain text) for SEO variables
+ * - %price%: Raw number (e.g., "500000") - NOT formatted with currency symbols
+ * - Reason: Google Bot and price comparison tools need plain numbers to parse
+ * - Formatted strings (e.g., "500.000₫" or "Liên hệ") break SEO and price parsing
  */
 function replaceTemplateVariables(template: string, props: SEOMetaBoxProps): string {
+  // FIX: Use raw price number for SEO - no formatting, no currency symbols
+  // Raw price is better for:
+  // 1. Google Bot indexing (can parse numbers easily)
+  // 2. Price comparison tools (can extract numeric values)
+  // 3. Structured data (JSON-LD schema expects numbers)
   const price = props.productSalePrice || props.productPrice || 0;
-  const priceFormatted = price > 0 ? `${(price / 1000).toFixed(0)}k` : '';
+  // Use raw number as string (e.g., "500000") - no formatting, no "k", no currency
+  const priceRaw = price > 0 ? String(price) : '';
   
   return template
     .replace(/%title%/g, props.productName || '')
-    .replace(/%price%/g, priceFormatted)
+    .replace(/%price%/g, priceRaw) // FIX: Use raw price, not formatted
     .replace(/%sku%/g, props.productSku || '')
     .replace(/%category%/g, props.productCategory || '')
     .replace(/%brand%/g, props.productBrand || '')

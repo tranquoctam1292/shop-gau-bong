@@ -131,13 +131,93 @@ export function ProductQuickEditDialog({
   const { showToast } = useToastContext();
   const { quickUpdate, isLoading } = useQuickUpdateProduct({
     onSuccess: (updatedProduct) => {
+      // FIX: Update productWithVariants state with new version from API response
+      // This ensures the form uses the latest version for the next edit
+      // Critical for optimistic locking: version must be synced after each update
+      setProductWithVariants(updatedProduct as ProductWithVariants);
+      
+      // Update parent component state (for product list)
       onSuccess?.(updatedProduct);
+      
+      // Reset form with updated product data (including new version)
+      // This ensures if user opens dialog again, form will use latest version
+      const updatedInitialData: QuickEditFormData = {
+        name: updatedProduct.name || '',
+        sku: updatedProduct.sku || '',
+        status: updatedProduct.status || 'draft',
+        manageStock: updatedProduct.stockQuantity !== null && updatedProduct.stockQuantity !== undefined,
+        regularPrice: (updatedProduct.regularPrice && updatedProduct.regularPrice !== '') 
+          ? (() => {
+              const parsed = parseFloat(updatedProduct.regularPrice);
+              return !isNaN(parsed) ? parsed : 0;
+            })()
+          : 0,
+        salePrice: (updatedProduct.salePrice && updatedProduct.salePrice !== '') 
+          ? (() => {
+              const parsed = parseFloat(updatedProduct.salePrice);
+              return !isNaN(parsed) ? parsed : undefined;
+            })()
+          : undefined,
+        stockQuantity: updatedProduct.stockQuantity || 0,
+        stockStatus: (updatedProduct.stockStatus as 'instock' | 'outofstock' | 'onbackorder') || 'instock',
+        // CRITICAL: Use updated version from API response
+        version: updatedProduct.version || 1,
+        bulkUpdate: false,
+        variants: (updatedProduct as ProductWithVariants).variants?.map((v: any) => ({
+          id: v.id || '',
+          sku: v.sku || '',
+          price: (typeof v.price === 'number' && !isNaN(v.price)) ? v.price : 0,
+          stock: (typeof v.stock === 'number' && !isNaN(v.stock)) 
+            ? v.stock 
+            : (typeof v.stockQuantity === 'number' && !isNaN(v.stockQuantity)) 
+              ? v.stockQuantity 
+              : 0,
+          size: v.size || '',
+          color: v.color || undefined,
+          colorCode: v.colorCode || undefined,
+          image: v.image || undefined,
+        })) || [],
+      };
+      
+      // Reset form with updated data (including new version)
+      reset(updatedInitialData);
+      setSnapshotInitialData(updatedInitialData);
+      
       // Close dialog after successful update
       onClose();
     },
     onError: (error) => {
       if (error.message === 'VERSION_MISMATCH') {
         showToast('Sản phẩm đã được chỉnh sửa bởi người khác. Vui lòng làm mới và thử lại.', 'error');
+        // FIX: Refresh product data when version mismatch occurs
+        // This ensures form gets latest version from server
+        if (product.id) {
+          setLoadingProduct(true);
+          fetch(`/api/admin/products/${product.id}`, {
+            credentials: 'include',
+          })
+            .then(async (res) => {
+              if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+              }
+              const contentType = res.headers.get('content-type');
+              if (!contentType || !contentType.includes('application/json')) {
+                throw new Error('Response is not JSON');
+              }
+              return res.json();
+            })
+            .then((data) => {
+              if (data.product) {
+                setProductWithVariants(data.product as ProductWithVariants);
+              }
+            })
+            .catch((err) => {
+              console.error('[ProductQuickEditDialog] Error refreshing product:', err);
+            })
+            .finally(() => {
+              setLoadingProduct(false);
+            });
+        }
       }
       // Don't close dialog on error - let user fix and retry
     },

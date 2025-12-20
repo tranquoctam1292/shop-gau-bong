@@ -44,6 +44,13 @@ export interface UseProductPriceResult {
  * - Variants only have `price` field (number)
  * - NO `on_sale`, `sale_price`, `regular_price` fields in variants
  * - Product level has salePrice and regularPrice
+ * 
+ * ⚠️ PRICING LOGIC HEURISTIC:
+ * - Variants don't have "On Sale" concept - they just have their own price
+ * - Variant size nhỏ tự nhiên có giá thấp hơn, không phải do giảm giá
+ * - Only product level can be "On Sale" (product.onSale = true)
+ * - Variants will NOT show "On Sale" badge even if product is on sale
+ * - This prevents false positive "Sale" badges on small size variants
  */
 export function useProductPrice(
   product: MappedProduct | null,
@@ -78,11 +85,12 @@ export function useProductPrice(
   const regularPrice = useMemo(() => {
     if (!product) return '0';
     
-    // For variable products, regularPrice should not be used
-    // Use variation price or minPrice instead
+    // FIX: MongoDB variants only have `price` field, no `regularPrice`
+    // For variants, their price IS their regular price (no sale concept)
     if (product.type === 'variable') {
       if (selectedVariation) {
         // For selected variation, use its price as regular price
+        // Variants don't have sale/regular distinction - price is just price
         return String(selectedVariation.price || 0);
       }
       // For variable products without selection, use minPrice
@@ -97,15 +105,12 @@ export function useProductPrice(
   const salePrice = useMemo(() => {
     if (!product) return '';
     
-    // Variations don't have sale_price field
-    // Check if variation price is lower than product regular price
+    // FIX: MongoDB variants only have `price` field, no separate `salePrice` or `regularPrice`
+    // Variants don't have sale price concept - they just have their own price
+    // Only product level can have sale price
     if (selectedVariation) {
-      const variationPrice = selectedVariation.price || 0;
-      const productRegularPrice = parseFloat(product.regularPrice) || 0;
-      
-      if (variationPrice < productRegularPrice && variationPrice > 0) {
-        return String(variationPrice);
-      }
+      // Variants don't have sale_price field - return empty
+      // The variation price is just its regular price
       return '';
     }
     
@@ -117,13 +122,15 @@ export function useProductPrice(
   const isOnSale = useMemo(() => {
     if (!product) return false;
     
-    // For variations
+    // FIX: MongoDB variants don't have `onSale` field
+    // Variants only have `price` field - they don't have sale/regular price distinction
+    // Logic heuristic: Only show "On Sale" at product level, not variant level
+    // Reason: Variant size nhỏ tự nhiên có giá thấp hơn, không phải do giảm giá
     if (selectedVariation) {
-      const variationPrice = selectedVariation.price || 0;
-      const productRegularPrice = parseFloat(product.regularPrice) || 0;
-      
-      // Consider on sale if variation price is lower than product regular price
-      return variationPrice < productRegularPrice && variationPrice > 0;
+      // Variants don't have onSale concept - only product level can be on sale
+      // If product is on sale, we could show it, but variant itself is not "on sale"
+      // For now, we don't show "On Sale" badge for variants
+      return false;
     }
     
     // For product, use onSale field

@@ -9,8 +9,9 @@ import type { CartItem } from '@/lib/store/cartStore';
 
 interface OrderSummarySectionProps {
   items: CartItem[];
-  onUpdateQuantity: (productId: number, quantity: number, variationId?: number) => void;
-  onRemoveItem: (productId: number, variationId?: number) => void;
+  // FIX: productId and variationId can be string | number (MongoDB ObjectId support)
+  onUpdateQuantity: (productId: string | number, quantity: number, variationId?: number | string) => void;
+  onRemoveItem: (productId: string | number, variationId?: number | string) => void;
   className?: string;
 }
 

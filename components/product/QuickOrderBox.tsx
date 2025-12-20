@@ -6,10 +6,10 @@ import { Input } from '@/components/ui/input';
 import { Loader2, Send, Zap } from 'lucide-react';
 
 interface QuickOrderBoxProps {
-  productId?: number;
+  productId?: string | number; // MongoDB ObjectId (string) or legacy number
   productName?: string;
   quantity?: number;
-  variationId?: number;
+  variationId?: number | string; // MongoDB variant ID (string) or legacy number
   onQuickOrder?: (phone: string) => Promise<void>;
 }
 

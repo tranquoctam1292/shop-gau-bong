@@ -153,8 +153,8 @@ export async function POST(request: NextRequest) {
         try {
           validateTransition(currentStatus, 'processing');
           targetStatus = 'processing';
-        } catch (error: any) {
-          console.error('Invalid status transition:', error.message);
+      } catch (error: any) {
+        console.error('Invalid status transition:', error.message);
           // Keep current status if transition fails
           targetStatus = currentStatus;
         }

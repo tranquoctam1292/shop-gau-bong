@@ -44,7 +44,7 @@ export function useCartSync() {
   /**
    * Update item quantity in cart
    */
-  const updateCartItem = (productId: number, quantity: number, variationId?: number) => {
+  const updateCartItem = (productId: string | number, quantity: number, variationId?: number | string) => {
     if (quantity <= 0) {
       removeFromCart(productId, variationId);
     } else {
@@ -55,7 +55,7 @@ export function useCartSync() {
   /**
    * Remove item from cart
    */
-  const removeFromCart = (productId: number, variationId?: number) => {
+  const removeFromCart = (productId: string | number, variationId?: number | string) => {
     removeItem(productId, variationId);
   };
 

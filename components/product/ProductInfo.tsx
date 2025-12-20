@@ -191,9 +191,28 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
     return null;
   }
 
-  const isOutOfStock = product.stockStatus === 'outofstock';
+  // FIX: Check stock at variant level if variation is selected
+  // Variant stock enforcement: If user selects a variant that's out of stock,
+  // disable "Add to Cart" button even if product level shows "in stock"
+  const isOutOfStock = useMemo(() => {
+    // If variation is selected, check variant stock
+    if (selectedVariation) {
+      // MongoVariant has stock field (number)
+      const variantStock = selectedVariation.stock || 0;
+      return variantStock <= 0;
+    }
+    
+    // For simple products or no variation selected, check product level stock
+    return product.stockStatus === 'outofstock';
+  }, [product.stockStatus, selectedVariation]);
 
   const handleAddToCartClick = async (isGift: boolean = false, isQuickCheckout: boolean = false) => {
+    // FIX: Defense in depth - Check stock before adding to cart
+    if (isOutOfStock) {
+      console.warn('[ProductInfo] Cannot add to cart: Product or variant is out of stock');
+      return;
+    }
+
     // FIX: Use local variables to avoid async state update issues
     // If product has variations but no size selected, auto-select first size
     let sizeToUse = selectedSize;
@@ -221,6 +240,14 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
         return false;
       });
 
+      // FIX: Additional stock check for the found variation
+      if (variationToUse && (variationToUse.stock || 0) <= 0) {
+        console.warn('[ProductInfo] Cannot add to cart: Selected variant is out of stock');
+        setIsAdding(false);
+        setAddingType(null);
+        return;
+      }
+
       // Calculate price using the found variation
       // MongoVariant chỉ có price field, không có on_sale, sale_price, regular_price
       const priceToUse = variationToUse 
@@ -229,12 +256,14 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
 
       for (let i = 0; i < quantity; i++) {
         await addToCart({
-          productId: typeof product.databaseId === 'string' ? parseInt(product.databaseId, 10) : product.databaseId,
+          // FIX: Keep productId as string (MongoDB ObjectId) - don't use parseInt on hex string
+          productId: product.databaseId || product.id,
           productName: `${product.name} ${sizeToUse ? `(${sizeToUse})` : ''}`,
           price: priceToUse || '0',
           image: product.image?.sourceUrl,
           quantity: 1,
-          variationId: variationToUse?.id ? (typeof variationToUse.id === 'number' ? variationToUse.id : parseInt(variationToUse.id, 10) || undefined) : undefined,
+          // FIX: Keep variationId as string if it's a string (MongoDB variant ID)
+          variationId: variationToUse?.id || undefined,
           isGift: isGift,
           length: product.length || undefined,
           width: product.width || undefined,
@@ -245,7 +274,8 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
       }
 
       if (onAddToCart) {
-        onAddToCart(variationToUse?.id ? (typeof variationToUse.id === 'number' ? variationToUse.id : parseInt(variationToUse.id, 10) || undefined) : undefined, isGift);
+        // FIX: Pass variationId as-is (string or number) - don't convert
+        onAddToCart(variationToUse?.id as number | undefined, isGift);
       }
 
       // Mở QuickCheckoutModal sau khi thêm vào giỏ
