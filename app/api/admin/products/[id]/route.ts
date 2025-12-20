@@ -342,9 +342,7 @@ export async function GET(
       );
     }
     
-    const mappedProduct = mapMongoProduct(product as unknown as MongoProduct);
-    
-    // Populate categories from categoryId/categories
+    // Populate categories before mapping
     const { categories: categoriesCollection } = await getCollections();
     const categoryIds: string[] = [];
     
@@ -370,13 +368,15 @@ export async function GET(
         }).toArray()
       : [];
     
-    // Map categories to frontend format
-    const mappedCategories = categoryDocs.map((cat: any) => ({
-      id: cat._id.toString(),
-      databaseId: cat._id.toString(),
+    // Map categories to frontend format (use string ID instead of parseInt)
+    const populatedCategories = categoryDocs.map((cat: any) => ({
+      id: cat._id.toString(), // Use ObjectId string directly
       name: cat.name,
       slug: cat.slug,
     }));
+    
+    // Map to frontend format with populated categories
+    const mappedProduct = mapMongoProduct(product as unknown as MongoProduct, populatedCategories);
     
     // Convert productDataMetaBox.variations → variants array if variations exist
     // This is needed for Quick Edit dialog and other frontend components
@@ -531,7 +531,7 @@ export async function GET(
       product: {
         ...mappedProduct,
         // Override categories with populated data
-        categories: mappedCategories,
+        categories: populatedCategories, // Already populated in mappedProduct, but include here for backward compatibility
         // Include raw IDs for frontend to use
         _thumbnail_id: product._thumbnail_id || undefined,
         _product_image_gallery: product._product_image_gallery || undefined,

@@ -54,28 +54,32 @@ export async function GET(
       );
     }
     
-    // Map to frontend format
-    const mappedProduct = mapMongoProduct(product as unknown as MongoProduct);
-    
-    // Populate category if exists
-    if (product.category) {
+    // Populate categories before mapping
+    let populatedCategories: Array<{ id: string | number; name: string; slug: string }> = [];
+    if (product.category || product.categoryId || (product.categories && product.categories.length > 0)) {
       const { categories } = await getCollections();
-      let categoryDoc = null;
+      const categoryIds = product.categories && product.categories.length > 0 
+        ? product.categories 
+        : (product.categoryId ? [product.categoryId] : (product.category ? [product.category] : []));
       
-      if (ObjectId.isValid(product.category)) {
-        categoryDoc = await categories.findOne({ _id: new ObjectId(product.category) });
-      } else {
-        categoryDoc = await categories.findOne({ slug: product.category });
-      }
+      // Fetch all category documents
+      const categoryDocs = await categories.find({
+        $or: [
+          { _id: { $in: categoryIds.filter((id: string) => ObjectId.isValid(id)).map((id: string) => new ObjectId(id)) } },
+          { slug: { $in: categoryIds.filter((id: string) => !ObjectId.isValid(id)) } },
+        ],
+      }).toArray();
       
-      if (categoryDoc) {
-        mappedProduct.categories = [{
-          id: parseInt(categoryDoc._id.toString(), 16) || 0,
-          name: categoryDoc.name,
-          slug: categoryDoc.slug,
-        }];
-      }
+      // Map to frontend format (use string ID instead of parseInt)
+      populatedCategories = categoryDocs.map((cat: any) => ({
+        id: cat._id.toString(), // Use ObjectId string directly
+        name: cat.name,
+        slug: cat.slug,
+      }));
     }
+    
+    // Map to frontend format with populated categories
+    const mappedProduct = mapMongoProduct(product as unknown as MongoProduct, populatedCategories);
     
     return NextResponse.json({ product: mappedProduct });
   } catch (error) {

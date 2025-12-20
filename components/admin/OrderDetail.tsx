@@ -20,7 +20,7 @@ import { ShipmentInfo } from '@/components/admin/orders/ShipmentInfo';
 import { RefundHistory } from '@/components/admin/orders/RefundHistory';
 import { PrintShippingLabel } from '@/components/admin/orders/PrintShippingLabel';
 import { PrintInvoice } from '@/components/admin/orders/PrintInvoice';
-import { getStatusLabel, getStatusColor, type OrderStatus } from '@/lib/utils/orderStateMachine';
+import { getStatusLabel, getStatusColor, getValidNextStatuses, type OrderStatus } from '@/lib/utils/orderStateMachine';
 import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface OrderItem {
@@ -357,15 +357,23 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pending">Chờ xử lý</SelectItem>
-                    <SelectItem value="awaiting_payment">Chờ thanh toán</SelectItem>
-                    <SelectItem value="confirmed">Đã xác nhận</SelectItem>
-                    <SelectItem value="processing">Đang xử lý</SelectItem>
-                    <SelectItem value="shipping">Đang giao hàng</SelectItem>
-                    <SelectItem value="completed">Hoàn thành</SelectItem>
-                    <SelectItem value="cancelled">Đã hủy</SelectItem>
-                    <SelectItem value="refunded">Đã hoàn tiền</SelectItem>
-                    <SelectItem value="failed">Thất bại</SelectItem>
+                    {/* FIX: Only show valid next statuses based on current order status */}
+                    {/* Prevents invalid transitions (e.g., from "completed" back to "pending") */}
+                    {getValidNextStatuses(order.status as OrderStatus).length > 0 ? (
+                      getValidNextStatuses(order.status as OrderStatus).map((nextStatus) => (
+                        <SelectItem key={nextStatus} value={nextStatus}>
+                          {getStatusLabel(nextStatus)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value={order.status} disabled>
+                        {getStatusLabel(order.status as OrderStatus)} (Không thể thay đổi)
+                      </SelectItem>
+                    )}
+                    {/* Always allow keeping current status (no-op transition) */}
+                    <SelectItem value={order.status}>
+                      {getStatusLabel(order.status as OrderStatus)} (Giữ nguyên)
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

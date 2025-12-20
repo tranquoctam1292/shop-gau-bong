@@ -82,7 +82,7 @@ export interface MappedProduct {
   material: string | null;
   origin: string | null;
   categories: Array<{
-    id: number;
+    id: string | number; // MongoDB ObjectId (string) or legacy number
     name: string;
     slug: string;
   }>;
@@ -388,7 +388,22 @@ type MongoDocument = MongoProduct;
  * - Stock: Calculates from variants or productDataMetaBox, returns null if 0
  * - Dimensions: Returns null if missing (shipping calc handles gracefully)
  */
-export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument): MappedProduct {
+/**
+ * Map MongoDB product to frontend format
+ * 
+ * @param mongoProduct - MongoDB product document
+ * @param populatedCategories - Optional: Pre-populated categories array (from API level)
+ *                               If not provided, categories will be empty array
+ * @returns Mapped product cho frontend
+ */
+export function mapMongoProduct(
+  mongoProduct: MongoProduct | MongoDocument,
+  populatedCategories?: Array<{
+    id: string | number;
+    name: string;
+    slug: string;
+  }>
+): MappedProduct {
   const productId = mongoProduct._id.toString();
   
   // Determine product type first
@@ -673,7 +688,10 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument): Map
     volumetricWeight: mongoProduct.volumetricWeight || null,
     material: mongoProduct.material || null,
     origin: mongoProduct.origin || null,
-    categories: [], // TODO: Populate from category reference
+    // FIX: Populate categories from parameter (populated by API level)
+    // If populatedCategories is provided, use it; otherwise return empty array
+    // API routes should fetch categories and pass them to this function
+    categories: populatedCategories || [],
     tags: (mongoProduct.tags || []).map((tag: string, idx: number) => ({
       id: idx + 1,
       name: tag,
@@ -698,8 +716,23 @@ export function mapMongoProduct(mongoProduct: MongoProduct | MongoDocument): Map
  * @param mongoProducts - Array of MongoDB products
  * @returns Array of mapped products
  */
-export function mapMongoProducts(mongoProducts: MongoProduct[]): MappedProduct[] {
-  return mongoProducts.map(mapMongoProduct);
+/**
+ * Map array of MongoDB products
+ * 
+ * @param mongoProducts - Array of MongoDB products
+ * @param populatedCategoriesMap - Optional: Map of product ID to populated categories array
+ *                                  If not provided, categories will be empty arrays
+ * @returns Array of mapped products
+ */
+export function mapMongoProducts(
+  mongoProducts: MongoProduct[],
+  populatedCategoriesMap?: Map<string, Array<{ id: string | number; name: string; slug: string }>>
+): MappedProduct[] {
+  return mongoProducts.map((product) => {
+    const productId = product._id.toString();
+    const populatedCategories = populatedCategoriesMap?.get(productId);
+    return mapMongoProduct(product, populatedCategories);
+  });
 }
 
 /**
@@ -762,7 +795,10 @@ export function mapMongoCategory(mongoCategory: MongoCategory): MappedCategory {
   
   return {
     id: categoryId, // Use MongoDB ObjectId directly as string
-    databaseId: parseInt(categoryId, 16) || 0, // Fallback ID for backward compatibility
+    // FIX: Use categoryId string directly instead of parseInt to avoid precision loss
+    // parseInt(categoryId, 16) on 24-char hex string can cause overflow or incorrect values
+    // Keep as string for consistency with MongoDB ObjectId format
+    databaseId: categoryId, // Use ObjectId string directly (not converted to number)
     name: mongoCategory.name,
     slug: mongoCategory.slug,
     count: mongoCategory.count || null,

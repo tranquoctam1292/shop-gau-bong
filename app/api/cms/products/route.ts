@@ -454,20 +454,27 @@ export async function GET(request: NextRequest) {
       // #region agent log
       fetch('http://127.0.0.1:7242/ingest/b261569c-76a6-4f8c-839c-264dc5457f92',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'route.ts:129',message:'API FULL PRODUCT DOCUMENT',data:{productId:product._id?.toString(),name:product.name,_thumbnail_id:product._thumbnail_id,_product_image_gallery:product._product_image_gallery,images:product.images,imagesLength:product.images?.length,hasVariants:!!product.variants?.length,variantsCount:product.variants?.length,variants:product.variants?.slice(0,2),hasProductDataMetaBox:!!product.productDataMetaBox,productDataMetaBoxAttributes:product.productDataMetaBox?.attributes,productDataMetaBoxVariations:product.productDataMetaBox?.variations,minPrice:product.minPrice,maxPrice:product.maxPrice,regularPrice:product.productDataMetaBox?.regularPrice,salePrice:product.productDataMetaBox?.salePrice},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H1,H2,H3,H4'})}).catch(()=>{});
       // #endregion
-      const mapped = mapMongoProduct(product as unknown as MongoProduct);
+      // Populate categories from categoryMap
+      const populatedCategories: Array<{ id: string | number; name: string; slug: string }> = [];
       
-      // Populate categories
-      if (product.category) {
-        const categoryDoc = categoryMap.get(product.category) || 
-                           categoryMap.get(String(product.category));
+      // Support multiple categories (product.categories) or single category (product.category)
+      const categoryIds = (product.categories && product.categories.length > 0)
+        ? product.categories
+        : (product.categoryId ? [product.categoryId] : (product.category ? [product.category] : []));
+      
+      categoryIds.forEach((catId: string) => {
+        const categoryDoc = categoryMap.get(catId) || categoryMap.get(String(catId));
         if (categoryDoc) {
-          mapped.categories = [{
-            id: parseInt(categoryDoc._id.toString(), 16) || 0,
+          populatedCategories.push({
+            id: categoryDoc._id.toString(), // Use ObjectId string directly (not parseInt)
             name: categoryDoc.name,
             slug: categoryDoc.slug,
-          }];
+          });
         }
-      }
+      });
+      
+      // Map to frontend format with populated categories
+      const mapped = mapMongoProduct(product as unknown as MongoProduct, populatedCategories);
       
       return mapped;
     });
