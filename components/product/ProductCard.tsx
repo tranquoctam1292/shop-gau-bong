@@ -218,11 +218,28 @@ export function ProductCard({ product }: ProductCardProps) {
   // FIX: Check stock at variant level if variation is selected
   // Variant stock enforcement: If user selects a variant that's out of stock,
   // disable "Add to Cart" button even if product level shows "in stock"
+  // SECURITY FIX: Strict stock checking with manageStock validation
+  // If variant stock field is missing (due to MongoDB migration), don't default to "in stock"
+  // Only consider "in stock" if stock is explicitly > 0
   const isOutOfStock = useMemo(() => {
-    // If variation is selected, check variant stock
+    // If variation is selected, check variant stock strictly
     if (selectedVariation) {
-      // MongoVariant has stock field (number)
-      const variantStock = selectedVariation.stock || 0;
+      // MongoVariant has stock field (number) or stockQuantity field (number)
+      // Support both fields for backward compatibility
+      const variantStock = selectedVariation.stockQuantity !== undefined 
+        ? selectedVariation.stockQuantity 
+        : (selectedVariation.stock !== undefined ? selectedVariation.stock : undefined);
+      
+      // Strict check: Only consider "in stock" if stock is explicitly defined and > 0
+      // If stock is undefined/null (missing data from migration), treat as out of stock
+      // This prevents defaulting to "in stock" when data is missing
+      if (variantStock === undefined || variantStock === null) {
+        // Stock field is missing - treat as out of stock for safety
+        // This handles cases where MongoDB data is incomplete after migration
+        return true;
+      }
+      
+      // Stock is defined - check if it's > 0
       return variantStock <= 0;
     }
     

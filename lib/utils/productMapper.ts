@@ -598,35 +598,55 @@ export function mapMongoProduct(
     onSale,
     minPrice: mongoProduct.minPrice,
     maxPrice: mongoProduct.maxPrice,
-    // Map images - try new structure first, fallback to old structure
+    // Map images - FIX: Priority _thumbnail_id first, then fallback to images array
     // ✅ PERFORMANCE: Images từ Vercel Blob được optimize tự động bởi Next.js Image Optimization API
     // Next.js sẽ tự động resize và convert sang WebP/AVIF format dựa trên `sizes` prop trong Image component
     // Đảm bảo tất cả Image components có `sizes` prop để tối ưu LCP (Largest Contentful Paint)
     image: (() => {
-      // Priority 1: Use images array if available (these are already URLs from payload)
+      // FIX: Priority 1: Use _thumbnail_id first (resolveUrl(_thumbnail_id))
+      // This ensures that if Admin updates featured image via Media Library (saved to _thumbnail_id)
+      // but doesn't update images array, Frontend will still show the new image
+      // Logic: resolveUrl(_thumbnail_id) || images[0]
+      // 
+      // When Admin selects image from Media Library:
+      // - _thumbnail_id is saved as URL (from Media Library)
+      // - images array may not be synced immediately (still contains old image)
+      // - This logic ensures _thumbnail_id (new image) takes priority over images[0] (old image)
+      if (mongoProduct._thumbnail_id) {
+        const thumbnailId = mongoProduct._thumbnail_id;
+        // Check if _thumbnail_id is already a full URL (direct URL from Media Library)
+        if (typeof thumbnailId === 'string' && 
+            (thumbnailId.startsWith('http://') || thumbnailId.startsWith('https://'))) {
+          // _thumbnail_id is a URL - use it directly (highest priority)
+          // This handles the case where Admin updated featured image but images array wasn't synced
+          return {
+            id: thumbnailId,
+            sourceUrl: thumbnailId,
+            altText: mongoProduct.name,
+          };
+        }
+        // If _thumbnail_id exists but is not a URL (e.g., media ID or pathname),
+        // fall through to Priority 2 to use images[0] (which may have been synced by API routes)
+        // But we'll still use _thumbnail_id as the id to maintain reference
+      }
+      
+      // Priority 2: Fallback to images array (images[0])
+      // Only use images[0] if _thumbnail_id doesn't exist or is not a valid URL
+      // This handles:
+      // - Backward compatibility (products without _thumbnail_id)
+      // - Cases where images array is the source of truth (synced by API routes)
+      // - Cases where _thumbnail_id is not a URL (media ID that needs resolution)
       if (mongoProduct.images && Array.isArray(mongoProduct.images) && mongoProduct.images.length > 0) {
         const firstImageUrl = mongoProduct.images[0];
         if (firstImageUrl && typeof firstImageUrl === 'string' && firstImageUrl.length > 0) {
           return {
+            // Use _thumbnail_id as id if it exists (even if not a URL), otherwise use image URL
+            // This ensures frontend knows the source of the image
             id: mongoProduct._thumbnail_id || firstImageUrl,
             sourceUrl: firstImageUrl,
             altText: mongoProduct.name,
           };
         }
-      }
-      
-      // Priority 2: Use _thumbnail_id (can be URL or pathname)
-      if (mongoProduct._thumbnail_id) {
-        // Check if _thumbnail_id is already a full URL
-        if (mongoProduct._thumbnail_id.startsWith('http://') || mongoProduct._thumbnail_id.startsWith('https://')) {
-          return {
-            id: mongoProduct._thumbnail_id,
-            sourceUrl: mongoProduct._thumbnail_id,
-            altText: mongoProduct.name,
-          };
-        }
-        // If _thumbnail_id is pathname and images array is empty, we can't resolve it
-        // This should not happen if POST handler populates images array correctly
       }
       
       // No image available - fallback to placeholder

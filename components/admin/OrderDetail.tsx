@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,6 +102,13 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
   const [paymentStatus, setPaymentStatus] = useState<string>('');
   const [adminNote, setAdminNote] = useState('');
   const [showShipmentModal, setShowShipmentModal] = useState(false);
+
+  // SECURITY FIX: Calculate valid next statuses using state machine
+  // Prevents invalid transitions (e.g., from "cancelled" back to "shipping")
+  const validNextStatuses = useMemo(() => {
+    if (!order) return [];
+    return getValidNextStatuses(order.status as OrderStatus);
+  }, [order?.status]);
 
   useEffect(() => {
     async function fetchOrder() {
@@ -357,23 +364,25 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* FIX: Only show valid next statuses based on current order status */}
-                    {/* Prevents invalid transitions (e.g., from "completed" back to "pending") */}
-                    {getValidNextStatuses(order.status as OrderStatus).length > 0 ? (
-                      getValidNextStatuses(order.status as OrderStatus).map((nextStatus) => (
-                        <SelectItem key={nextStatus} value={nextStatus}>
-                          {getStatusLabel(nextStatus)}
-                        </SelectItem>
-                      ))
-                    ) : (
+                    {/* SECURITY FIX: Only show valid next statuses from state machine */}
+                    {/* Prevents invalid transitions (e.g., from "cancelled" back to "shipping") */}
+                    {validNextStatuses.length === 0 ? (
                       <SelectItem value={order.status} disabled>
                         {getStatusLabel(order.status as OrderStatus)} (Không thể thay đổi)
                       </SelectItem>
+                    ) : (
+                      <>
+                        {validNextStatuses.map((nextStatus) => (
+                          <SelectItem key={nextStatus} value={nextStatus}>
+                            {getStatusLabel(nextStatus)}
+                          </SelectItem>
+                        ))}
+                        {/* Allow keeping current status (no-op transition) */}
+                        <SelectItem value={order.status}>
+                          {getStatusLabel(order.status as OrderStatus)} (Giữ nguyên)
+                        </SelectItem>
+                      </>
                     )}
-                    {/* Always allow keeping current status (no-op transition) */}
-                    <SelectItem value={order.status}>
-                      {getStatusLabel(order.status as OrderStatus)} (Giữ nguyên)
-                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>

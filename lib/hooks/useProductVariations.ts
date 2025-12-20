@@ -4,6 +4,9 @@ import { useQuery } from '@tanstack/react-query';
 
 /**
  * MongoDB Variant format (from CMS API)
+ * 
+ * Note: stock and stockQuantity are optional to handle cases where data is missing after migration
+ * If both are undefined/null, treat as out of stock for safety
  */
 export interface MongoVariant {
   id: string;
@@ -11,7 +14,8 @@ export interface MongoVariant {
   color?: string;
   colorCode?: string;
   price: number;
-  stock: number;
+  stock?: number; // Optional: Support both stock and stockQuantity
+  stockQuantity?: number; // Optional: Alternative field name for stock
   image?: string;
   sku?: string;
 }

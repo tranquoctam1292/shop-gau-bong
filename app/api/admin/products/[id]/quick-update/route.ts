@@ -385,7 +385,31 @@ export async function PATCH(
       );
     }
     
-    const mappedProduct = mapMongoProduct(updatedProduct as unknown as MongoProduct);
+    // FIX: Populate categories before mapping
+    let populatedCategories: Array<{ id: string | number; name: string; slug: string }> = [];
+    if (updatedProduct.category || updatedProduct.categoryId || (updatedProduct.categories && updatedProduct.categories.length > 0)) {
+      const { categories } = await getCollections();
+      const categoryIds = updatedProduct.categories && updatedProduct.categories.length > 0 
+        ? updatedProduct.categories 
+        : (updatedProduct.categoryId ? [updatedProduct.categoryId] : (updatedProduct.category ? [updatedProduct.category] : []));
+      
+      // Fetch all category documents
+      const categoryDocs = await categories.find({
+        $or: [
+          { _id: { $in: categoryIds.filter((id: string) => ObjectId.isValid(id)).map((id: string) => new ObjectId(id)) } },
+          { slug: { $in: categoryIds.filter((id: string) => !ObjectId.isValid(id)) } },
+        ],
+      }).toArray();
+      
+      // Map to frontend format (use string ID instead of parseInt)
+      populatedCategories = categoryDocs.map((cat: any) => ({
+        id: cat._id.toString(), // Use ObjectId string directly
+        name: cat.name,
+        slug: cat.slug,
+      }));
+    }
+    
+    const mappedProduct = mapMongoProduct(updatedProduct as unknown as MongoProduct, populatedCategories);
     
     return NextResponse.json({
       success: true,

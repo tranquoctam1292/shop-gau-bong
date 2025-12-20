@@ -72,7 +72,32 @@ export async function PATCH(
     
     // Fetch restored product
     const restoredProduct = await products.findOne({ _id: productId });
-    const mappedProduct = restoredProduct ? mapMongoProduct(restoredProduct as unknown as MongoProduct) : null;
+    
+    // FIX: Populate categories before mapping
+    let populatedCategories: Array<{ id: string | number; name: string; slug: string }> = [];
+    if (restoredProduct && (restoredProduct.category || restoredProduct.categoryId || (restoredProduct.categories && restoredProduct.categories.length > 0))) {
+      const { categories } = await getCollections();
+      const categoryIds = restoredProduct.categories && restoredProduct.categories.length > 0 
+        ? restoredProduct.categories 
+        : (restoredProduct.categoryId ? [restoredProduct.categoryId] : (restoredProduct.category ? [restoredProduct.category] : []));
+      
+      // Fetch all category documents
+      const categoryDocs = await categories.find({
+        $or: [
+          { _id: { $in: categoryIds.filter((id: string) => ObjectId.isValid(id)).map((id: string) => new ObjectId(id)) } },
+          { slug: { $in: categoryIds.filter((id: string) => !ObjectId.isValid(id)) } },
+        ],
+      }).toArray();
+      
+      // Map to frontend format (use string ID instead of parseInt)
+      populatedCategories = categoryDocs.map((cat: any) => ({
+        id: cat._id.toString(), // Use ObjectId string directly
+        name: cat.name,
+        slug: cat.slug,
+      }));
+    }
+    
+    const mappedProduct = restoredProduct ? mapMongoProduct(restoredProduct as unknown as MongoProduct, populatedCategories) : null;
     
     return NextResponse.json({
       success: true,

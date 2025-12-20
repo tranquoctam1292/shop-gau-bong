@@ -50,9 +50,10 @@ const nextConfig = {
   
   // Webpack optimizations for bundle size and tree shaking
   webpack: (config, { isServer, webpack }) => {
-    // Optimize bundle size - external server-only modules
+    // Fix: Exclude OpenTelemetry from client bundle to avoid module resolution issues
+    // OpenTelemetry is only needed on server-side for Next.js tracing
     if (!isServer) {
-      // Client-side: exclude server-only modules
+      // Client-side: exclude server-only modules and OpenTelemetry
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
@@ -68,6 +69,9 @@ const nextConfig = {
         os: false,
         path: false,
       };
+      
+      // Note: OpenTelemetry is handled by Next.js internally
+      // No need to externalize it as it's only used server-side
     }
     
     // Note: Server-side modules (mongodb, sharp) are kept bundled

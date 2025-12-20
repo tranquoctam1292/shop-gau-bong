@@ -461,7 +461,64 @@ export async function GET(request: NextRequest) {
       products.countDocuments({ deletedAt: { $ne: null } }),
     ]);
     
-    const mappedProducts = productsList.map((product) => mapMongoProduct(product as unknown as MongoProduct));
+    // FIX: Populate categories for all products
+    const { categories: categoriesCollection } = await getCollections();
+    
+    // Collect all unique category IDs from products
+    const categoryIdsSet = new Set<string>();
+    productsList.forEach((product: any) => {
+      if (product.categories && Array.isArray(product.categories) && product.categories.length > 0) {
+        product.categories.forEach((catId: string) => {
+          if (catId && ObjectId.isValid(catId)) {
+            categoryIdsSet.add(catId);
+          }
+        });
+      } else if (product.categoryId && ObjectId.isValid(product.categoryId)) {
+        categoryIdsSet.add(product.categoryId);
+      } else if (product.category && ObjectId.isValid(product.category)) {
+        categoryIdsSet.add(product.category);
+      }
+    });
+    
+    // Fetch all categories in one query
+    const categoryIdsArray = Array.from(categoryIdsSet);
+    const categoryDocs = categoryIdsArray.length > 0
+      ? await categoriesCollection.find({
+          _id: { $in: categoryIdsArray.map((id: string) => new ObjectId(id)) },
+        }).toArray()
+      : [];
+    
+    // Create category map for quick lookup
+    const categoryMap = new Map<string, { id: string; name: string; slug: string }>();
+    categoryDocs.forEach((cat: any) => {
+      const catId = cat._id.toString();
+      categoryMap.set(catId, {
+        id: catId,
+        name: cat.name,
+        slug: cat.slug,
+      });
+    });
+    
+    // Map products with populated categories
+    const mappedProducts = productsList.map((product: any) => {
+      const populatedCategories: Array<{ id: string | number; name: string; slug: string }> = [];
+      
+      // Support multiple categories (product.categories) or single category (product.category)
+      const categoryIds = (product.categories && product.categories.length > 0)
+        ? product.categories
+        : (product.categoryId ? [product.categoryId] : (product.category ? [product.category] : []));
+      
+      categoryIds.forEach((catId: string) => {
+        if (catId && ObjectId.isValid(catId)) {
+          const category = categoryMap.get(catId);
+          if (category) {
+            populatedCategories.push(category);
+          }
+        }
+      });
+      
+      return mapMongoProduct(product as unknown as MongoProduct, populatedCategories);
+    });
     const totalPages = Math.ceil(total / perPage);
     
     return NextResponse.json({
@@ -758,7 +815,31 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const mappedProduct = mapMongoProduct(createdProduct as unknown as MongoProduct);
+    // FIX: Populate categories before mapping
+    let populatedCategories: Array<{ id: string | number; name: string; slug: string }> = [];
+    if (createdProduct.category || createdProduct.categoryId || (createdProduct.categories && createdProduct.categories.length > 0)) {
+      const { categories } = await getCollections();
+      const categoryIds = createdProduct.categories && createdProduct.categories.length > 0 
+        ? createdProduct.categories 
+        : (createdProduct.categoryId ? [createdProduct.categoryId] : (createdProduct.category ? [createdProduct.category] : []));
+      
+      // Fetch all category documents
+      const categoryDocs = await categories.find({
+        $or: [
+          { _id: { $in: categoryIds.filter((id: string) => ObjectId.isValid(id)).map((id: string) => new ObjectId(id)) } },
+          { slug: { $in: categoryIds.filter((id: string) => !ObjectId.isValid(id)) } },
+        ],
+      }).toArray();
+      
+      // Map to frontend format (use string ID instead of parseInt)
+      populatedCategories = categoryDocs.map((cat: any) => ({
+        id: cat._id.toString(), // Use ObjectId string directly
+        name: cat.name,
+        slug: cat.slug,
+      }));
+    }
+    
+    const mappedProduct = mapMongoProduct(createdProduct as unknown as MongoProduct, populatedCategories);
     
     return NextResponse.json(
       { product: mappedProduct },
