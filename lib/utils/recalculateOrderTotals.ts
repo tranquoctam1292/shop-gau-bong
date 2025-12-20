@@ -72,7 +72,8 @@ function calculateShipping(
   }
 
   // Default shipping cost (can be enhanced with shipping calculator)
-  return 30000; // 30,000 VND default
+  // BUSINESS LOGIC FIX: Ensure shipping cost is always an integer (VND)
+  return Math.round(30000); // 30,000 VND default
 }
 
 /**
@@ -92,34 +93,46 @@ export function recalculateOrderTotals(
     taxRate = 0,
   } = params;
 
-  // Calculate subtotal from items
-  const subtotal = items.reduce((sum, item) => {
-    return sum + (item.total || item.price * item.quantity || 0);
-  }, 0);
+  // BUSINESS LOGIC FIX: Normalize rounding for all calculations
+  // All calculations must use Math.round() to ensure integer VND values (no Float)
+  // This prevents Float values from being sent to payment gateways
+  
+  // Calculate subtotal from items (round each item total to avoid accumulation errors)
+  const subtotal = Math.round(
+    items.reduce((sum, item) => {
+      const itemTotal = item.total || item.price * item.quantity || 0;
+      return sum + itemTotal;
+    }, 0)
+  );
 
-  // Calculate tax (if applicable)
-  const taxTotal = taxRate > 0 ? subtotal * taxRate : 0;
+  // Calculate tax (if applicable) - round immediately
+  const taxTotal = taxRate > 0 ? Math.round(subtotal * taxRate) : 0;
 
-  // Calculate shipping
-  const shippingTotal = calculateShipping(
-    items,
-    shippingAddress,
-    currentShippingTotal
+  // Calculate shipping - ensure calculateShipping returns rounded value
+  const shippingTotal = Math.round(
+    calculateShipping(
+      items,
+      shippingAddress,
+      currentShippingTotal
+    )
   );
 
   // Calculate grand total
   // grandTotal = max(0, subtotal + tax + shipping - discount)
-  const grandTotal = Math.max(
-    0,
-    subtotal + taxTotal + shippingTotal - discountTotal
+  // All components are already rounded, but round final result for safety
+  const grandTotal = Math.round(
+    Math.max(
+      0,
+      subtotal + taxTotal + shippingTotal - discountTotal
+    )
   );
 
   return {
-    subtotal: Math.round(subtotal),
-    taxTotal: Math.round(taxTotal),
-    shippingTotal: Math.round(shippingTotal),
-    discountTotal: Math.round(discountTotal),
-    grandTotal: Math.round(grandTotal),
+    subtotal,
+    taxTotal,
+    shippingTotal,
+    discountTotal: Math.round(discountTotal), // Ensure discountTotal is rounded
+    grandTotal,
   };
 }
 

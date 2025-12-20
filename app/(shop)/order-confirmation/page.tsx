@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { buttonVariants } from '@/lib/utils/button-variants';
@@ -18,8 +18,63 @@ function OrderConfirmationContent() {
   const paymentMethodFromUrl = searchParams.get('paymentMethod');
 
   // Fetch order details from REST API
-  const { order, loading, error } = useOrderREST(orderId);
+  const { order, loading, error, refetch } = useOrderREST(orderId);
   const paymentMethod = paymentMethodFromUrl || order?.payment_method || 'bacs';
+  
+  // BUSINESS LOGIC FIX: Polling order status for payment verification
+  const [isPolling, setIsPolling] = useState(false);
+  const pollingCountRef = useRef(0);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const MAX_POLLING_ATTEMPTS = 5;
+  const POLLING_INTERVAL = 3000; // 3 seconds
+  
+  // Check if order status requires polling
+  const needsPolling = order?.status === 'awaiting_payment' || order?.status === 'pending';
+  
+  useEffect(() => {
+    // Start polling if order status is awaiting_payment or pending
+    if (needsPolling && !loading && order?.id && pollingCountRef.current < MAX_POLLING_ATTEMPTS) {
+      setIsPolling(true);
+      
+      // Start polling interval
+      pollingIntervalRef.current = setInterval(async () => {
+        pollingCountRef.current += 1;
+        
+        // Refetch order status
+        if (refetch) {
+          await refetch();
+        }
+        
+        // Stop polling if max attempts reached
+        if (pollingCountRef.current >= MAX_POLLING_ATTEMPTS) {
+          setIsPolling(false);
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+        }
+      }, POLLING_INTERVAL);
+    }
+    
+    // Cleanup: Stop polling if order status changes or component unmounts
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [needsPolling, loading, order?.id, order?.status, refetch]);
+  
+  // Stop polling if order status changes to non-pending status
+  useEffect(() => {
+    if (order?.status && order.status !== 'awaiting_payment' && order.status !== 'pending') {
+      setIsPolling(false);
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    }
+  }, [order?.status]);
 
   if (loading) {
     return (
@@ -75,6 +130,12 @@ function OrderConfirmationContent() {
             {(order.grandTotal || order.total) && (
               <p className="text-sm text-text-muted mt-2">
                 Tổng tiền: <span className="font-semibold text-primary">{formatPrice(order.grandTotal || order.total || '0')}</span>
+              </p>
+            )}
+            {/* BUSINESS LOGIC FIX: Show polling status */}
+            {isPolling && (
+              <p className="text-sm text-primary mt-2 animate-pulse">
+                Đang xác thực giao dịch...
               </p>
             )}
           </div>

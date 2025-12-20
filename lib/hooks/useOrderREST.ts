@@ -54,10 +54,35 @@ export function useOrderREST(orderId: string | number | null | undefined) {
     fetchOrder();
   }, [orderId]);
 
+  // BUSINESS LOGIC FIX: Expose refetch function for polling
+  const refetch = async () => {
+    if (!orderId) return;
+    
+    try {
+      setError(null);
+      const orderIdStr = String(orderId);
+      const response = await fetch(`/api/cms/orders/${orderIdStr}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('Order not found');
+        }
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch order');
+      }
+
+      const data = await response.json();
+      setOrder(data.order);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Failed to fetch order'));
+    }
+  };
+
   return {
     order,
     loading,
     error,
+    refetch, // BUSINESS LOGIC FIX: Expose refetch for polling
   };
 }
 

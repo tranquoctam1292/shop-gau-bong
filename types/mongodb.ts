@@ -70,6 +70,8 @@ export interface MongoOrder {
   paidAt?: Date | string;
   completedAt?: Date | string;
   cancelledAt?: Date | string;
+  // SECURITY FIX: Double Stock Restoration - Guard flag to prevent duplicate stock restoration
+  isStockRestored?: boolean; // Default: false. Set to true when stock has been restored (refunded or cancelled)
 }
 
 /**

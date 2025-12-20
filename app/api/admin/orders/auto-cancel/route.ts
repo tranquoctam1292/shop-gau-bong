@@ -60,12 +60,16 @@ export async function POST(request: NextRequest) {
         // Get order items
         const items = await orderItems.find({ orderId }).toArray();
 
-        // SECURITY FIX: Double Restoration Risk
-        // Check reservedStockReleased flag before releasing stock to prevent double release
-        const reservedStockReleased = (order as any).reservedStockReleased === true;
+        // SECURITY FIX: Double Stock Restoration - Check isStockRestored flag before releasing stock
+        // releaseStock() will atomically check and set isStockRestored flag
+        const isStockRestored = (order as any).isStockRestored === true;
         
-        // Release reserved stock (only for pending orders - stock was never deducted, only reserved)
-        if (!reservedStockReleased) {
+        // Defense in depth: Check flag before calling releaseStock
+        if (isStockRestored) {
+          console.warn(`[Auto-Cancel] Stock already restored for order ${orderId}. Skipping stock release to prevent double restoration.`);
+        } else {
+          // Release reserved stock (only for pending orders - stock was never deducted, only reserved)
+          // releaseStock() will atomically check and set isStockRestored flag
           try {
             await releaseStock(
               orderId,
@@ -75,18 +79,10 @@ export async function POST(request: NextRequest) {
                 quantity: item.quantity,
               }))
             );
-            
-            // Mark reserved stock as released to prevent double release
-            await orders.updateOne(
-              { _id: order._id },
-              { $set: { reservedStockReleased: true, updatedAt: new Date() } }
-            );
           } catch (stockError: any) {
             console.error(`[Auto-Cancel] Error releasing stock for order ${orderId}:`, stockError);
             // Continue with cancellation even if stock release fails
           }
-        } else {
-          console.warn(`[Auto-Cancel] Reserved stock already released for order ${orderId}. Skipping stock release to prevent double release.`);
         }
 
         // Update order status

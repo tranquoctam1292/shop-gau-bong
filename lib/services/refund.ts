@@ -115,82 +115,61 @@ export async function processRefund(
 
   await orders.updateOne({ _id: new ObjectId(orderId) }, { $set: updateData });
 
-  // SECURITY FIX: Double Restoration Risk
-  // Prevent stock from being restored multiple times (e.g., refunded then cancelled)
-  // Check stockRestored flag before restoring stock
+  // SECURITY FIX: Double Stock Restoration - Check isStockRestored flag before restoring stock
+  // Defense in depth: Check flag here AND in incrementStock/releaseStock functions
   const orderStatus = order.status as OrderStatus;
   const statusesWithDeductedStock: OrderStatus[] = ['confirmed', 'processing', 'shipping', 'completed'];
-  const stockRestored = (order as any).stockRestored === true; // Check if stock was already restored
+  const isStockRestored = (order as any).isStockRestored === true; // Check if stock was already restored
   
-  if (isFullRefund && statusesWithDeductedStock.includes(orderStatus)) {
+  // If stock already restored, skip stock restoration (defense in depth)
+  if (isStockRestored) {
+    console.warn(`[Refund Service] Stock already restored for order ${orderId}. Skipping stock restoration to prevent double restoration.`);
+    // Note: incrementStock/releaseStock will also check this flag atomically, but we check here for early exit
+  } else if (isFullRefund && statusesWithDeductedStock.includes(orderStatus)) {
     // Full refund + order was already confirmed, stock was deducted - need to restore it
-    // SECURITY FIX: Only restore if not already restored (prevent double restoration)
-    if (!stockRestored) {
-      try {
-        // Fetch order items
-        const { orderItems } = await getCollections();
-        const items = await orderItems.find({ orderId }).toArray();
+    // incrementStock() will atomically check and set isStockRestored flag
+    try {
+      // Fetch order items
+      const { orderItems } = await getCollections();
+      const items = await orderItems.find({ orderId }).toArray();
+      
+      if (items.length > 0) {
+        const itemsForInventory = items.map((item) => ({
+          productId: item.productId as string,
+          variationId: item.variationId as string | undefined,
+          quantity: item.quantity as number,
+        }));
         
-        if (items.length > 0) {
-          const itemsForInventory = items.map((item) => ({
-            productId: item.productId as string,
-            variationId: item.variationId as string | undefined,
-            quantity: item.quantity as number,
-          }));
-          
-          // Restore stock back to inventory
-          await incrementStock(orderId, itemsForInventory);
-          
-          // SECURITY FIX: Mark stock as restored to prevent double restoration
-          await orders.updateOne(
-            { _id: new ObjectId(orderId) },
-            { $set: { stockRestored: true, updatedAt: new Date() } }
-          );
-        }
-      } catch (inventoryError: unknown) {
-        // Log error but don't fail refund (to prevent data inconsistency)
-        console.error('[Refund Service] Stock restoration error:', inventoryError);
-        // Continue with refund processing even if stock restoration fails
-        // This will be logged for manual intervention
+        // Restore stock back to inventory (will atomically check and set isStockRestored)
+        await incrementStock(orderId, itemsForInventory);
       }
-    } else {
-      // Stock was already restored (e.g., from previous refund or cancellation)
-      console.warn(`[Refund Service] Stock already restored for order ${orderId}. Skipping stock restoration to prevent double restoration.`);
+    } catch (inventoryError: unknown) {
+      // Log error but don't fail refund (to prevent data inconsistency)
+      console.error('[Refund Service] Stock restoration error:', inventoryError);
+      // Continue with refund processing even if stock restoration fails
+      // This will be logged for manual intervention
     }
   } else if (orderStatus === 'pending' || orderStatus === 'awaiting_payment') {
     // Order was not confirmed yet, only reserved stock - release reserved quantity
     // This applies to both full and partial refunds for pending orders
-    // SECURITY FIX: Only release if not already released (prevent double release)
-    // Note: For pending orders, we use reservedStockReleased flag instead of stockRestored
-    const reservedStockReleased = (order as any).reservedStockReleased === true;
-    
-    if (!reservedStockReleased) {
-      try {
-        const { orderItems } = await getCollections();
-        const items = await orderItems.find({ orderId }).toArray();
+    // releaseStock() will atomically check and set isStockRestored flag
+    try {
+      const { orderItems } = await getCollections();
+      const items = await orderItems.find({ orderId }).toArray();
+      
+      if (items.length > 0) {
+        const itemsForInventory = items.map((item) => ({
+          productId: item.productId as string,
+          variationId: item.variationId as string | undefined,
+          quantity: item.quantity as number,
+        }));
         
-        if (items.length > 0) {
-          const itemsForInventory = items.map((item) => ({
-            productId: item.productId as string,
-            variationId: item.variationId as string | undefined,
-            quantity: item.quantity as number,
-          }));
-          
-          // Release reserved stock (stock was never deducted, only reserved)
-          await releaseStock(orderId, itemsForInventory);
-          
-          // SECURITY FIX: Mark reserved stock as released to prevent double release
-          await orders.updateOne(
-            { _id: new ObjectId(orderId) },
-            { $set: { reservedStockReleased: true, updatedAt: new Date() } }
-          );
-        }
-      } catch (inventoryError: unknown) {
-        // Log error but don't fail refund
-        console.error('[Refund Service] Stock release error:', inventoryError);
+        // Release reserved stock (will atomically check and set isStockRestored)
+        await releaseStock(orderId, itemsForInventory);
       }
-    } else {
-      console.warn(`[Refund Service] Reserved stock already released for order ${orderId}. Skipping stock release to prevent double release.`);
+    } catch (inventoryError: unknown) {
+      // Log error but don't fail refund
+      console.error('[Refund Service] Stock release error:', inventoryError);
     }
   }
 

@@ -53,6 +53,7 @@ const orderCreateSchema = z.object({
     productName: z.string(),
     quantity: z.number().min(1),
     price: z.number().min(0),
+    thumbnailUrl: z.string().optional(), // Optional: Frontend may send, but backend will override with snapshot
   })).min(1),
   paymentMethod: z.string(),
   paymentMethodTitle: z.string(),
@@ -149,10 +150,47 @@ export async function POST(request: NextRequest) {
         throw new Error(`Invalid price for product ${item.productId}${item.variationId ? ` variant ${item.variationId}` : ''}: ${actualPrice}`);
       }
       
+      // BUSINESS LOGIC FIX: Snapshot thumbnail URL at time of purchase
+      // This prevents 404 errors if product image is deleted/changed in the future
+      // Priority: variant.image > product._thumbnail_id (URL) > product.images[0]
+      let thumbnailUrl: string | undefined = undefined;
+      
+      if (item.variationId && product.productDataMetaBox?.variations) {
+        // Variable product with variation - check variant image first
+        const variant = product.productDataMetaBox.variations.find(
+          (v: any) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
+        );
+        
+        if (variant?.image && typeof variant.image === 'string' && variant.image.length > 0) {
+          // Variant has its own image - use it
+          thumbnailUrl = variant.image;
+        }
+      }
+      
+      // If no variant image, use product featured image
+      if (!thumbnailUrl) {
+        if (product._thumbnail_id) {
+          // Check if _thumbnail_id is already a full URL (from Media Library)
+          if (typeof product._thumbnail_id === 'string' && 
+              (product._thumbnail_id.startsWith('http://') || product._thumbnail_id.startsWith('https://'))) {
+            thumbnailUrl = product._thumbnail_id;
+          }
+        }
+        
+        // Fallback to images array if _thumbnail_id is not a URL
+        if (!thumbnailUrl && product.images && Array.isArray(product.images) && product.images.length > 0) {
+          const firstImage = product.images[0];
+          if (typeof firstImage === 'string' && firstImage.length > 0) {
+            thumbnailUrl = firstImage;
+          }
+        }
+      }
+      
       return {
         ...item,
         price: actualPrice, // Use Database price, NOT Frontend price
         costPrice,
+        thumbnailUrl, // Snapshot image URL at time of purchase
       };
     });
     
@@ -198,7 +236,7 @@ export async function POST(request: NextRequest) {
     const orderResult = await orders.insertOne(orderDoc);
     const orderId = orderResult.insertedId.toString();
     
-    // Step 5: Create order items with Database prices
+    // Step 5: Create order items with Database prices and snapshot data
     const itemsToInsert = validatedLineItems.map((item) => ({
       orderId,
       productId: item.productId,
@@ -207,6 +245,7 @@ export async function POST(request: NextRequest) {
       quantity: item.quantity,
       price: item.price, // Database price (not Frontend price)
       costPrice: item.costPrice, // Snapshot costPrice at time of order
+      thumbnailUrl: item.thumbnailUrl, // BUSINESS LOGIC FIX: Snapshot thumbnail URL at time of purchase
       subtotal: item.price * item.quantity,
       total: item.price * item.quantity,
       createdAt: new Date(),

@@ -216,71 +216,107 @@ export async function deductStock(
       );
 
       if (variant) {
-        // ✅ PERFORMANCE: Use atomic operations with positional operator ($) instead of $set entire array
-        // Deduct from variant stock and release reserved quantity
+        // SECURITY FIX: Race Condition - Use atomic $inc operation
+        // Use $inc with positional operator ($) for atomic update
+        // This ensures only one update can happen at a time for the same variant
+        // We verify stock availability after update and rollback if insufficient
         
-        // Try atomic update with positional operator if variant has id field
-        if (variant.id && variant.id === item.variationId) {
-          const updateResult = await products.updateOne(
-            { 
-              _id: new ObjectId(item.productId),
-              "variants.id": item.variationId,
-            },
-            {
-              $inc: {
-                "variants.$.stock": -item.quantity,
-                "variants.$.stockQuantity": -item.quantity,
-                "variants.$.reservedQuantity": -item.quantity,
-              },
-            }
-          );
-
-          // If update failed, fallback to old method
-          if (updateResult.matchedCount === 0) {
-            const updatedVariants = product.variants.map((v: MongoVariant) => {
-              if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-                return {
-                  ...v,
-                  stock: (v.stock || v.stockQuantity || 0) - item.quantity,
-                  stockQuantity: (v.stockQuantity || v.stock || 0) - item.quantity,
-                  reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
-                };
-              }
-              return v;
-            });
-
-            await products.updateOne(
-              { _id: new ObjectId(item.productId) },
-              {
-                $set: {
-                  variants: updatedVariants,
-                },
-              }
-            );
-          }
-        } else {
-          // Variant doesn't have id field or id doesn't match, use old method
-          const updatedVariants = product.variants.map((v: MongoVariant) => {
-            if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-              return {
-                ...v,
-                stock: (v.stock || v.stockQuantity || 0) - item.quantity,
-                stockQuantity: (v.stockQuantity || v.stock || 0) - item.quantity,
-                reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
-              };
-            }
-            return v;
-          });
-
-          await products.updateOne(
-            { _id: new ObjectId(item.productId) },
-            {
-              $set: {
-                variants: updatedVariants,
-              },
-            }
+        // Check variant stock availability first (for better error message)
+        const variantStock = variant.stock || variant.stockQuantity || 0;
+        const variantReserved = variant.reservedQuantity || 0;
+        const available = variantStock - variantReserved;
+        
+        if (available < item.quantity) {
+          throw new Error(
+            `Insufficient stock for variant ${item.variationId}. Available: ${available}, Required: ${item.quantity}`
           );
         }
+
+        // Atomic increment with positional operator
+        // MongoDB $inc is atomic, so concurrent requests will be serialized
+        const updateResult = await products.updateOne(
+          { 
+            _id: new ObjectId(item.productId),
+            "variants.id": item.variationId,
+          },
+          {
+            $inc: {
+              "variants.$.stock": -item.quantity,
+              "variants.$.stockQuantity": -item.quantity,
+              "variants.$.reservedQuantity": -item.quantity,
+            },
+          }
+        );
+
+        // If update failed, check reason
+        if (updateResult.matchedCount === 0) {
+          // Re-check stock to provide accurate error message
+          const currentProduct = await products.findOne({ _id: new ObjectId(item.productId) });
+          if (!currentProduct) {
+            throw new Error(`Product ${item.productId} not found`);
+          }
+          
+          const currentVariant = currentProduct.variants?.find(
+            (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
+          );
+          
+          if (!currentVariant) {
+            throw new Error(`Variant ${item.variationId} not found for product ${item.productId}`);
+          }
+          
+          // Stock became insufficient (race condition detected)
+          const currentStock = currentVariant.stock || currentVariant.stockQuantity || 0;
+          const currentReserved = currentVariant.reservedQuantity || 0;
+          const currentAvailable = currentStock - currentReserved;
+          
+          throw new Error(
+            `Insufficient stock for variant ${item.variationId}. Available: ${currentAvailable}, Required: ${item.quantity} (Stock was deducted by another order)`
+          );
+        }
+        
+        // Verify update was successful
+        if (updateResult.modifiedCount === 0) {
+          throw new Error(`Failed to deduct stock for variant ${item.variationId}`);
+        }
+        
+        // SECURITY FIX: Double-check stock availability after atomic update
+        // This ensures we didn't oversell due to race condition
+        const updatedProduct = await products.findOne({ _id: new ObjectId(item.productId) });
+        if (updatedProduct) {
+          const updatedVariant = updatedProduct.variants?.find(
+            (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
+          );
+          
+          if (updatedVariant) {
+            const finalStock = updatedVariant.stock || updatedVariant.stockQuantity || 0;
+            const finalReserved = updatedVariant.reservedQuantity || 0;
+            const finalAvailable = finalStock - finalReserved;
+            
+            // If stock became negative or insufficient, rollback the deduction
+            if (finalAvailable < 0) {
+              // Rollback: increment stock back
+              await products.updateOne(
+                { 
+                  _id: new ObjectId(item.productId),
+                  "variants.id": item.variationId,
+                },
+                {
+                  $inc: {
+                    "variants.$.stock": item.quantity,
+                    "variants.$.stockQuantity": item.quantity,
+                    "variants.$.reservedQuantity": item.quantity,
+                  },
+                }
+              );
+              
+              throw new Error(
+                `Insufficient stock for variant ${item.variationId}. Available: ${finalAvailable}, Required: ${item.quantity} (Stock was deducted by another order)`
+              );
+            }
+          }
+        }
+      } else {
+        throw new Error(`Variant ${item.variationId} not found for product ${item.productId}`);
       }
     } else {
       // Simple product - deduct from stock and release reserved quantity
@@ -300,6 +336,9 @@ export async function deductStock(
 /**
  * Increment stock back to inventory (when order is Refunded after stock was deducted)
  * 
+ * SECURITY FIX: Double Stock Restoration - Use atomic findOneAndUpdate to check and set isStockRestored flag
+ * This prevents stock from being restored multiple times (e.g., refunded then cancelled)
+ * 
  * @param orderId - Order ID
  * @param items - Array of items to increment stock for
  */
@@ -307,7 +346,29 @@ export async function incrementStock(
   orderId: string,
   items: Array<{ productId: string; variationId?: string; quantity: number }>
 ): Promise<void> {
-  const { products } = await getCollections();
+  const { products, orders } = await getCollections();
+  
+  // SECURITY FIX: Atomic check-and-set isStockRestored flag
+  // Only proceed with stock restoration if order hasn't been restored yet
+  const orderResult = await orders.findOneAndUpdate(
+    { 
+      _id: new ObjectId(orderId),
+      isStockRestored: { $ne: true } // Only update if not already restored
+    },
+    { 
+      $set: { 
+        isStockRestored: true,
+        updatedAt: new Date()
+      } 
+    },
+    { returnDocument: 'after' }
+  );
+  
+  // If order not found or already restored, exit immediately
+  if (!orderResult) {
+    console.warn(`[Increment Stock] Order ${orderId} not found or stock already restored. Skipping stock restoration.`);
+    return;
+  }
 
   for (const item of items) {
     // Find product
@@ -329,68 +390,48 @@ export async function incrementStock(
       );
 
       if (variant) {
-        // ✅ PERFORMANCE: Use atomic operations with positional operator ($) instead of $set entire array
-        // Increment variant stock back
+        // SECURITY FIX: Race Condition - Use atomic $inc operation
+        // Use $inc with positional operator ($) for atomic update
+        // This ensures only one update can happen at a time for the same variant
         
-        // Try atomic update with positional operator if variant has id field
-        if (variant.id && variant.id === item.variationId) {
-          const updateResult = await products.updateOne(
-            { 
-              _id: new ObjectId(item.productId),
-              "variants.id": item.variationId,
+        // Atomic increment with positional operator
+        // MongoDB $inc is atomic, so concurrent requests will be serialized
+        const updateResult = await products.updateOne(
+          { 
+            _id: new ObjectId(item.productId),
+            "variants.id": item.variationId,
+          },
+          {
+            $inc: {
+              "variants.$.stock": item.quantity,
+              "variants.$.stockQuantity": item.quantity,
             },
-            {
-              $inc: {
-                "variants.$.stock": item.quantity,
-                "variants.$.stockQuantity": item.quantity,
-              },
-            }
-          );
-
-          // If update failed, fallback to old method
-          if (updateResult.matchedCount === 0) {
-            const updatedVariants = product.variants.map((v: MongoVariant) => {
-              if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-                return {
-                  ...v,
-                  stock: (v.stock || v.stockQuantity || 0) + item.quantity,
-                  stockQuantity: (v.stockQuantity || v.stock || 0) + item.quantity,
-                };
-              }
-              return v;
-            });
-
-            await products.updateOne(
-              { _id: new ObjectId(item.productId) },
-              {
-                $set: {
-                  variants: updatedVariants,
-                },
-              }
-            );
           }
-        } else {
-          // Variant doesn't have id field or id doesn't match, use old method
-          const updatedVariants = product.variants.map((v: MongoVariant) => {
-            if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-              return {
-                ...v,
-                stock: (v.stock || v.stockQuantity || 0) + item.quantity,
-                stockQuantity: (v.stockQuantity || v.stock || 0) + item.quantity,
-              };
-            }
-            return v;
-          });
+        );
 
-          await products.updateOne(
-            { _id: new ObjectId(item.productId) },
-            {
-              $set: {
-                variants: updatedVariants,
-              },
-            }
+        // If update failed, check reason
+        if (updateResult.matchedCount === 0) {
+          // Re-check to provide accurate error message
+          const currentProduct = await products.findOne({ _id: new ObjectId(item.productId) });
+          if (!currentProduct) {
+            throw new Error(`Product ${item.productId} not found`);
+          }
+          
+          const currentVariant = currentProduct.variants?.find(
+            (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
           );
+          
+          if (!currentVariant) {
+            throw new Error(`Variant ${item.variationId} not found for product ${item.productId}`);
+          }
         }
+        
+        // Verify update was successful
+        if (updateResult.modifiedCount === 0) {
+          throw new Error(`Failed to increment stock for variant ${item.variationId}`);
+        }
+      } else {
+        throw new Error(`Variant ${item.variationId} not found for product ${item.productId}`);
       }
     } else {
       // Simple product - increment stock back
@@ -409,6 +450,9 @@ export async function incrementStock(
 /**
  * Release reserved stock (when order is Cancelled)
  * 
+ * SECURITY FIX: Double Stock Restoration - Use atomic findOneAndUpdate to check and set isStockRestored flag
+ * This prevents stock from being restored multiple times (e.g., cancelled then refunded)
+ * 
  * @param orderId - Order ID
  * @param items - Array of items to release stock for
  */
@@ -416,7 +460,31 @@ export async function releaseStock(
   orderId: string,
   items: Array<{ productId: string; variationId?: string; quantity: number }>
 ): Promise<void> {
-  const { products } = await getCollections();
+  const { products, orders } = await getCollections();
+  
+  // SECURITY FIX: Atomic check-and-set isStockRestored flag
+  // Only proceed with stock release if order hasn't been restored yet
+  // Note: For pending orders, we use isStockRestored to prevent double release
+  // For confirmed orders that are cancelled, we also use isStockRestored to prevent double restoration
+  const orderResult = await orders.findOneAndUpdate(
+    { 
+      _id: new ObjectId(orderId),
+      isStockRestored: { $ne: true } // Only update if not already restored
+    },
+    { 
+      $set: { 
+        isStockRestored: true,
+        updatedAt: new Date()
+      } 
+    },
+    { returnDocument: 'after' }
+  );
+  
+  // If order not found or already restored, exit immediately
+  if (!orderResult) {
+    console.warn(`[Release Stock] Order ${orderId} not found or stock already restored. Skipping stock release.`);
+    return;
+  }
 
   for (const item of items) {
     // Find product
@@ -438,67 +506,50 @@ export async function releaseStock(
       );
 
       if (variant) {
-        // ✅ PERFORMANCE: Use atomic operations with positional operator ($) instead of $set entire array
-        // Release reserved quantity for variant
+        // SECURITY FIX: Race Condition - Use atomic $inc operation
+        // Use $inc with positional operator ($) for atomic update
+        // This ensures only one update can happen at a time for the same variant
         
-        // Try atomic update with positional operator if variant has id field
-        if (variant.id && variant.id === item.variationId) {
-          // Note: We already checked variant exists above, so we can safely decrement
-          // MongoDB will handle negative values, but we'll use Math.max in fallback if needed
-          const updateResult = await products.updateOne(
-            { 
-              _id: new ObjectId(item.productId),
-              "variants.id": item.variationId,
+        // Atomic decrement with positional operator
+        // MongoDB $inc is atomic, so concurrent requests will be serialized
+        const updateResult = await products.updateOne(
+          { 
+            _id: new ObjectId(item.productId),
+            "variants.id": item.variationId,
+          },
+          {
+            $inc: {
+              "variants.$.reservedQuantity": -item.quantity,
             },
-            {
-              $inc: {
-                "variants.$.reservedQuantity": -item.quantity,
-              },
-            }
-          );
-
-          // If update failed (not enough reserved or variant not found), fallback to old method
-          if (updateResult.matchedCount === 0) {
-            const updatedVariants = product.variants.map((v: MongoVariant) => {
-              if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-                return {
-                  ...v,
-                  reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
-                };
-              }
-              return v;
-            });
-
-            await products.updateOne(
-              { _id: new ObjectId(item.productId) },
-              {
-                $set: {
-                  variants: updatedVariants,
-                },
-              }
-            );
           }
-        } else {
-          // Variant doesn't have id field or id doesn't match, use old method
-          const updatedVariants = product.variants.map((v: MongoVariant) => {
-            if (v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId) {
-              return {
-                ...v,
-                reservedQuantity: Math.max(0, (v.reservedQuantity || 0) - item.quantity),
-              };
-            }
-            return v;
-          });
+        );
 
-          await products.updateOne(
-            { _id: new ObjectId(item.productId) },
-            {
-              $set: {
-                variants: updatedVariants,
-              },
-            }
+        // If update failed, check reason
+        if (updateResult.matchedCount === 0) {
+          // Re-check to provide accurate error message
+          const currentProduct = await products.findOne({ _id: new ObjectId(item.productId) });
+          if (!currentProduct) {
+            throw new Error(`Product ${item.productId} not found`);
+          }
+          
+          const currentVariant = currentProduct.variants?.find(
+            (v: MongoVariant) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
           );
+          
+          if (!currentVariant) {
+            throw new Error(`Variant ${item.variationId} not found for product ${item.productId}`);
+          }
         }
+        
+        // Verify update was successful
+        if (updateResult.modifiedCount === 0) {
+          // Note: This is not necessarily an error for releaseStock
+          // If reservedQuantity was already 0, the update might not modify anything
+          // But we log it for debugging
+          console.warn(`[Release Stock] No modification for variant ${item.variationId}. Reserved quantity may already be 0.`);
+        }
+      } else {
+        throw new Error(`Variant ${item.variationId} not found for product ${item.productId}`);
       }
     } else {
       // Simple product - release reserved quantity

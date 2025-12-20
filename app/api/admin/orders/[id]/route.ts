@@ -234,46 +234,27 @@ export async function PUT(
           quantity: item.quantity,
         }));
 
-        // SECURITY FIX: Double Restoration Risk
-        // Handle stock restoration when order is cancelled
-        // Check stockRestored flag to prevent double restoration
+        // SECURITY FIX: Double Stock Restoration - Handle stock restoration when order is cancelled
+        // incrementStock() and releaseStock() will atomically check and set isStockRestored flag
         if (validatedData.status === 'cancelled' && order.status !== 'cancelled') {
-          const stockRestored = (order as any).stockRestored === true;
-          const reservedStockReleased = (order as any).reservedStockReleased === true;
-          
           // Determine if stock was deducted (confirmed orders) or only reserved (pending orders)
           const statusesWithDeductedStock: OrderStatus[] = ['confirmed', 'processing', 'shipping', 'completed'];
           const wasStockDeducted = statusesWithDeductedStock.includes(order.status as OrderStatus);
           
-          if (wasStockDeducted) {
+          // Defense in depth: Check isStockRestored flag before calling stock functions
+          const isStockRestored = (order as any).isStockRestored === true;
+          
+          if (isStockRestored) {
+            console.warn(`[Order Update] Stock already restored for order ${orderId.toString()}. Skipping stock restoration to prevent double restoration.`);
+          } else if (wasStockDeducted) {
             // Order was confirmed - stock was deducted, need to restore it
-            // SECURITY FIX: Only restore if not already restored (prevent double restoration)
-            if (!stockRestored) {
-              const { incrementStock } = await import('@/lib/services/inventory');
-              await incrementStock(orderId.toString(), itemsForInventory);
-              
-              // Mark stock as restored to prevent double restoration
-              await orders.updateOne(
-                { _id: orderId },
-                { $set: { stockRestored: true, updatedAt: new Date() } }
-              );
-            } else {
-              console.warn(`[Order Update] Stock already restored for order ${orderId.toString()}. Skipping stock restoration to prevent double restoration.`);
-            }
+            // incrementStock() will atomically check and set isStockRestored flag
+            const { incrementStock } = await import('@/lib/services/inventory');
+            await incrementStock(orderId.toString(), itemsForInventory);
           } else {
             // Order was pending - only reserved stock, need to release it
-            // SECURITY FIX: Only release if not already released (prevent double release)
-            if (!reservedStockReleased) {
-              await releaseStock(orderId.toString(), itemsForInventory);
-              
-              // Mark reserved stock as released to prevent double release
-              await orders.updateOne(
-                { _id: orderId },
-                { $set: { reservedStockReleased: true, updatedAt: new Date() } }
-              );
-            } else {
-              console.warn(`[Order Update] Reserved stock already released for order ${orderId.toString()}. Skipping stock release to prevent double release.`);
-            }
+            // releaseStock() will atomically check and set isStockRestored flag
+            await releaseStock(orderId.toString(), itemsForInventory);
           }
         }
 

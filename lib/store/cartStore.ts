@@ -56,6 +56,7 @@ interface CartStore {
   updateQuantity: (productId: string | number, quantity: number, variationId?: number | string) => void;
   removeItem: (productId: string | number, variationId?: number | string) => void;
   clearCart: () => void;
+  setItems: (items: CartItem[]) => void; // BUSINESS LOGIC FIX: Allow setting items directly (for merge)
   getTotalItems: () => number;
   getTotalPrice: () => number;
 }
@@ -147,6 +148,13 @@ export const useCartStore = create<CartStore>()(
 
       clearCart: () => {
         set({ items: [] });
+      },
+
+      setItems: (items: CartItem[]) => {
+        // BUSINESS LOGIC FIX: Allow setting items directly (for merge)
+        // Normalize all items before setting
+        const normalizedItems = items.map((item) => normalizeCartItem(item));
+        set({ items: normalizedItems });
       },
 
       getTotalItems: () => {

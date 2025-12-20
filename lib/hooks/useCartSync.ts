@@ -1,13 +1,93 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useCartStore, type CartItem } from '@/lib/store/cartStore';
 
 /**
- * Hook để quản lý cart (chỉ local - không có authentication)
- * Guest checkout: Tất cả users đều dùng local cart
+ * Helper function to normalize IDs for comparison
+ */
+function normalizeId(id: string | number | undefined | null): string {
+  if (id === null || id === undefined) return '';
+  return String(id);
+}
+
+/**
+ * BUSINESS LOGIC FIX: Merge two cart arrays intelligently
+ * - If same productId + variationId exists in both, sum quantities
+ * - If only in one cart, add to merged result
+ * 
+ * @param localCart - Local cart items
+ * @param serverCart - Server cart items
+ * @returns Merged cart items
+ */
+function mergeCarts(localCart: CartItem[], serverCart: CartItem[]): CartItem[] {
+  const mergedMap = new Map<string, CartItem>();
+  
+  // Helper to generate key for cart item
+  const getItemKey = (item: CartItem): string => {
+    const productId = normalizeId(item.productId);
+    const variationId = normalizeId(item.variationId);
+    return `${productId}_${variationId}`;
+  };
+  
+  // First, add all local items to map
+  localCart.forEach((item) => {
+    const key = getItemKey(item);
+    mergedMap.set(key, { ...item });
+  });
+  
+  // Then, merge server items
+  serverCart.forEach((serverItem) => {
+    const key = getItemKey(serverItem);
+    const existingItem = mergedMap.get(key);
+    
+    if (existingItem) {
+      // Same product + variation exists in both - sum quantities
+      mergedMap.set(key, {
+        ...existingItem,
+        quantity: existingItem.quantity + serverItem.quantity,
+        // Prefer local item data (price, image, etc.) but sum quantities
+      });
+    } else {
+      // Only in server cart - add to merged result
+      mergedMap.set(key, { ...serverItem });
+    }
+  });
+  
+  return Array.from(mergedMap.values());
+}
+
+/**
+ * Hook để quản lý cart với sync logic
+ * - Local cart: Guest checkout (localStorage)
+ * - Server cart: Authenticated users (future implementation)
+ * - Merge logic: When user logs in, merge local + server carts
  */
 export function useCartSync() {
-  const { items: localItems, clearCart, addItem, updateQuantity, removeItem } = useCartStore();
+  const { items: localItems, clearCart, addItem, updateQuantity, removeItem, setItems } = useCartStore();
+  
+  /**
+   * BUSINESS LOGIC FIX: Sync cart when user logs in
+   * Merge local cart with server cart instead of overwriting
+   * 
+   * @param serverCart - Cart items from server (optional, for future server cart implementation)
+   */
+  const syncCartOnLogin = async (serverCart?: CartItem[]) => {
+    if (!serverCart || serverCart.length === 0) {
+      // No server cart - keep local cart as is
+      return;
+    }
+    
+    if (localItems.length === 0) {
+      // No local cart - load server cart
+      setItems(serverCart);
+      return;
+    }
+    
+    // Both have items - merge them
+    const mergedCart = mergeCarts(localItems, serverCart);
+    setItems(mergedCart);
+  };
 
   /**
    * Add item to cart (local only - guest checkout)
@@ -72,6 +152,10 @@ export function useCartSync() {
     updateCartItem,
     removeFromCart,
     clearCart: clearCartItems,
+    syncCartOnLogin, // BUSINESS LOGIC FIX: Expose merge function for login flow
     totalItems: localItems.reduce((sum, item) => sum + item.quantity, 0),
   };
 }
+
+// Export merge function for use in other components
+export { mergeCarts };
