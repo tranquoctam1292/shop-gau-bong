@@ -1,21 +1,41 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
 /**
- * Middleware for Content Security Policy (CSP)
- * 
+ * Middleware for:
+ * 1. Content Security Policy (CSP) - prevents XSS attacks
+ * 2. Authentication - forced password change protection
+ *
  * CSP helps prevent XSS attacks by controlling which resources can be loaded.
- * 
  * External services that may need to be whitelisted:
  * - Google Analytics: https://www.google-analytics.com, https://www.googletagmanager.com
  * - Payment gateways (MoMo, VietQR): Add domains when implemented
  * - CDN/Image hosting: Add domains when configured
  * - Sentry: https://*.sentry.io (if error tracking is added)
  */
-export function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest) {
+  // 🔒 SECURITY FIX: Check if user must change password
+  const pathname = request.nextUrl.pathname;
+
+  // Only check auth for /admin routes
+  if (pathname.startsWith('/admin')) {
+    const token = await getToken({
+      req: request,
+      secret: process.env.NEXTAUTH_SECRET,
+    });
+
+    // If user has mustChangePassword flag and is not on the change-password page, redirect them
+    if (token && token.mustChangePassword && pathname !== '/admin/change-password') {
+      const changePasswordUrl = new URL('/admin/change-password', request.url);
+      changePasswordUrl.searchParams.set('required', 'true');
+      return NextResponse.redirect(changePasswordUrl);
+    }
+  }
+
   // Generate nonce for each request (for inline scripts with nonce)
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
-  
+
   // Build CSP directives
   // Note: 'unsafe-inline' is needed for Tailwind CSS (generated styles) and Next.js scripts
   // Removed 'strict-dynamic' to allow Next.js auto-injected scripts without nonce
@@ -38,10 +58,10 @@ export function middleware(request: NextRequest) {
 
   // Clone request headers
   const requestHeaders = new Headers(request.headers);
-  
+
   // Set nonce header (can be used by client-side code if needed)
   requestHeaders.set('x-nonce', nonce);
-  
+
   // Set Content-Security-Policy header
   requestHeaders.set('Content-Security-Policy', cspHeader);
 

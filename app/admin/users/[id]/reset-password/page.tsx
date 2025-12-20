@@ -11,7 +11,6 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { ObjectId } from 'mongodb';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +19,7 @@ import { PermissionGuard } from '@/components/admin/PermissionGuard';
 import { AdminRole } from '@/types/admin';
 import { useAdminUser } from '@/lib/hooks/useAdminUsers';
 import { useToastContext } from '@/components/providers/ToastProvider';
+import { isValidObjectId } from '@/lib/utils/validation';
 
 const resetPasswordSchema = z.object({
   new_password: z.string().min(8, 'Mật khẩu phải có ít nhất 8 ký tự'),
@@ -39,7 +39,7 @@ export default function ResetPasswordPage() {
   const { showToast } = useToastContext();
   
   // 🔒 SECURITY FIX: Validate userId before fetching
-  const isValidUserId = userId && ObjectId.isValid(userId);
+  const isValidUserId = isValidObjectId(userId);
   
   // Hook will automatically disable if userId is null/undefined/empty
   const { data: userData, isLoading, error } = useAdminUser(isValidUserId ? userId : null);

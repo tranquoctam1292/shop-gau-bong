@@ -41,6 +41,16 @@ export function validateRequired(value: string | undefined | null): boolean {
 }
 
 /**
+ * Validate MongoDB ObjectId format (24-character hex string)
+ * This is a client-safe alternative to MongoDB's ObjectId.isValid()
+ */
+export function isValidObjectId(id: string | undefined | null): boolean {
+  if (!id) return false;
+  // MongoDB ObjectIds are 24 character hex strings
+  return /^[a-f0-9]{24}$/i.test(id);
+}
+
+/**
  * Validate shipping address
  */
 export interface ShippingAddressValidation {

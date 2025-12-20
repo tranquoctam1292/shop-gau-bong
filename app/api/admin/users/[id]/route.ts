@@ -195,10 +195,25 @@ export async function PUT(
 
       const { full_name, role, permissions, is_active, version } = validation.data;
 
+      const { adminUsers } = await getCollections();
+
+      // Get user before update (for audit log and version check)
+      const userBefore = await adminUsers.findOne({ _id: userId });
+      if (!userBefore) {
+        return NextResponse.json(
+          {
+            success: false,
+            code: 'USER_NOT_FOUND',
+            message: 'Người dùng không tồn tại',
+          },
+          { status: 404 }
+        );
+      }
+
       // 🔒 SECURITY FIX: Optimistic Locking - Check version if provided
       const currentVersion = userBefore.version || 0;
       const requestVersion = version;
-      
+
       if (requestVersion !== undefined && requestVersion !== currentVersion) {
         return NextResponse.json(
           {
@@ -237,21 +252,6 @@ export async function PUT(
             { status: 400 }
           );
         }
-      }
-
-      const { adminUsers } = await getCollections();
-
-      // Get user before update (for audit log)
-      const userBefore = await adminUsers.findOne({ _id: userId });
-      if (!userBefore) {
-        return NextResponse.json(
-          {
-            success: false,
-            code: 'USER_NOT_FOUND',
-            message: 'Người dùng không tồn tại',
-          },
-          { status: 404 }
-        );
       }
 
       // Build update object

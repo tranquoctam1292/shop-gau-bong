@@ -42,47 +42,34 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      // V1.2: Use custom login API for rate limiting and audit logging
-      const loginResponse = await fetch('/api/admin/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          username,
-          password,
-        }),
-      });
-
-      const loginData = await loginResponse.json();
-
-      if (!loginResponse.ok) {
-        setError(loginData.message || 'Tên đăng nhập hoặc mật khẩu không đúng');
-        setLoading(false);
-        return;
-      }
-
-      // If login API succeeds, create session with NextAuth
+      // 🔒 SECURITY FIX: Call signIn directly (all auth logic is now in NextAuth)
+      // Rate limiting and password verification are handled by NextAuth authorize function
       const result = await signIn('credentials', {
-        username, // V1.2: Use username instead of email
+        username,
         password,
         redirect: false,
       });
 
       if (result?.error) {
-        setError('Đăng nhập không thành công. Vui lòng thử lại.');
-      } else if (result?.ok) {
-        // V1.2: Check if user must change password
-        if (loginData.data?.requireChangePassword) {
-          // Redirect to change password page
-          router.push('/admin/change-password?required=true');
+        // Handle authentication errors from NextAuth
+        // NextAuth returns 'CredentialsSignin' for invalid credentials or rate limiting
+        if (result.error === 'CredentialsSignin') {
+          setError('Tên đăng nhập hoặc mật khẩu không đúng. Hoặc tài khoản đã bị khóa.');
         } else {
-          // Use window.location for full page reload to ensure session is loaded
-          window.location.href = '/admin';
+          setError('Đăng nhập không thành công. Vui lòng thử lại.');
         }
+        setLoading(false);
+      } else if (result?.ok) {
+        // ✅ Login successful - session is created
+        // Now check user status from session and redirect accordingly
+
+        // Get the current session to check if user must change password
+        // The middleware will handle the redirect if mustChangePassword is true
+        // Use router.push for client-side navigation (stays in app context)
+        router.push('/admin');
       }
     } catch (err: any) {
       setError(err.message || 'Đã xảy ra lỗi. Vui lòng thử lại.');
-    } finally {
       setLoading(false);
     }
   };

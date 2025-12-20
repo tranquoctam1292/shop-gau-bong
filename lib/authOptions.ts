@@ -7,7 +7,6 @@
 import { NextAuthOptions } from 'next-auth';
 import CredentialsProvider from 'next-auth/providers/credentials';
 import { getCollections } from '@/lib/db';
-import bcrypt from 'bcryptjs';
 import { comparePassword } from '@/lib/utils/passwordUtils';
 import { AdminRole } from '@/types/admin';
 import { checkRateLimit, getLoginRateLimitKey, resetRateLimit } from '@/lib/utils/rateLimiter';
@@ -20,16 +19,17 @@ import { checkRateLimit, getLoginRateLimitKey, resetRateLimit } from '@/lib/util
 interface CachedUserStatus {
   token_version: number;
   is_active: boolean;
+  must_change_password: boolean;
   cachedAt: number; // Timestamp
 }
 
 const userStatusCache = new Map<string, CachedUserStatus>();
-const CACHE_TTL_MS = 2 * 60 * 1000; // 2 minutes
+const CACHE_TTL_MS = 30 * 1000; // 30 seconds (reduced from 2 minutes for security)
 
 /**
  * Get cached user status or fetch from database
  */
-async function getUserStatus(userId: string): Promise<{ token_version: number; is_active: boolean } | null> {
+async function getUserStatus(userId: string): Promise<{ token_version: number; is_active: boolean; must_change_password: boolean } | null> {
   const cached = userStatusCache.get(userId);
   const now = Date.now();
 
@@ -38,6 +38,7 @@ async function getUserStatus(userId: string): Promise<{ token_version: number; i
     return {
       token_version: cached.token_version,
       is_active: cached.is_active,
+      must_change_password: cached.must_change_password,
     };
   }
 
@@ -47,7 +48,7 @@ async function getUserStatus(userId: string): Promise<{ token_version: number; i
     const { ObjectId } = await import('mongodb');
     const user = await adminUsers.findOne(
       { _id: new ObjectId(userId) },
-      { projection: { token_version: 1, is_active: 1 } }
+      { projection: { token_version: 1, is_active: 1, must_change_password: 1 } }
     );
 
     if (!user) {
@@ -58,12 +59,14 @@ async function getUserStatus(userId: string): Promise<{ token_version: number; i
     userStatusCache.set(userId, {
       token_version: user.token_version || 0,
       is_active: user.is_active || false,
+      must_change_password: user.must_change_password || false,
       cachedAt: now,
     });
 
     return {
       token_version: user.token_version || 0,
       is_active: user.is_active || false,
+      must_change_password: user.must_change_password || false,
     };
   } catch (error) {
     console.error('[NextAuth] Error fetching user status:', error);
@@ -72,6 +75,7 @@ async function getUserStatus(userId: string): Promise<{ token_version: number; i
       return {
         token_version: cached.token_version,
         is_active: cached.is_active,
+        must_change_password: cached.must_change_password,
       };
     }
     return null;
@@ -93,7 +97,7 @@ export const authOptions: NextAuthOptions = {
         username: { label: 'Username', type: 'text' },
         password: { label: 'Password', type: 'password' },
       },
-      async authorize(credentials, req) {
+      async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
           return null;
         }
@@ -156,6 +160,7 @@ export const authOptions: NextAuthOptions = {
             role: user.role as AdminRole,
             permissions: user.permissions || [],
             tokenVersion: user.token_version || 0, // V1.2: Include token version
+            mustChangePassword: user.must_change_password || false, // 🔒 SECURITY FIX: Force password change requirement
           };
         } catch (error) {
           console.error('[NextAuth] Error:', error);
@@ -171,24 +176,28 @@ export const authOptions: NextAuthOptions = {
         token.role = (user as any).role;
         token.permissions = (user as any).permissions || [];
         token.tokenVersion = (user as any).tokenVersion || 0; // V1.2: Store token version
+        token.mustChangePassword = (user as any).mustChangePassword || false; // 🔒 SECURITY FIX: Include password change requirement
       } else if (token.id) {
         // ✅ PERFORMANCE: Use cached user status instead of querying DB every request
-        // Cache TTL: 2 minutes - reduces DB queries from every request to once per 2 minutes per user
+        // Cache TTL: 30 seconds - reduces DB queries while keeping status fresh for security
         // Full verification still happens in middleware for critical operations
         try {
           const userStatus = await getUserStatus(token.id as string);
-          
+
           if (!userStatus || !userStatus.is_active) {
             // User deleted or inactive - invalidate token
             return { ...token, tokenVersion: -1 };
           }
-          
+
           // Check token version
           if (userStatus.token_version !== token.tokenVersion) {
             // Token revoked - invalidate token and cache
             invalidateUserStatusCache(token.id as string);
             return { ...token, tokenVersion: -1 };
           }
+
+          // Update mustChangePassword status from database
+          token.mustChangePassword = userStatus.must_change_password;
         } catch (error) {
           // On error, don't invalidate token (will be checked in middleware)
           console.error('[NextAuth JWT] Error verifying token version:', error);
@@ -202,6 +211,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).role = token.role;
         (session.user as any).permissions = token.permissions || [];
         (session.user as any).tokenVersion = token.tokenVersion || 0; // V1.2: Include token version
+        (session.user as any).mustChangePassword = token.mustChangePassword || false; // 🔒 SECURITY FIX: Include password change requirement
       }
       return session;
     },

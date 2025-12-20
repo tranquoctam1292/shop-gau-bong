@@ -1,25 +1,21 @@
 /**
  * Admin Auth API - Login
  * POST /api/admin/auth/login
- * 
- * Custom login endpoint with rate limiting and audit logging
- * Note: NextAuth handles actual authentication, this endpoint provides
- * additional features like IP-based rate limiting and activity logging
- * 
- * 🔒 SECURITY NOTE: Rate limiting is enforced at two levels:
- * 1. IP-based rate limiting (this endpoint) - prevents attacks from single IP
- * 2. Username-based rate limiting (in NextAuth authorize function) - prevents attacks on specific username
- * 
- * Rate Limit: 5 attempts per 15 minutes per IP:username
+ *
+ * ⚠️ DEPRECATED: This endpoint is kept for backward compatibility but no longer needed.
+ * New flow: Client calls signIn() directly from next-auth/react
+ * All authentication logic has been moved to NextAuth authorize function
+ *
+ * This endpoint previously handled:
+ * - Password verification (✅ Now in NextAuth authorize)
+ * - Rate limiting (✅ Now in NextAuth authorize)
+ * - User validation (✅ Now in NextAuth authorize)
+ *
+ * Consider removing this endpoint in a future version once all clients are updated
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { signIn } from 'next-auth/react';
-import { getCollections, ObjectId } from '@/lib/db';
-import { comparePassword } from '@/lib/utils/passwordUtils';
-import { checkRateLimit, getLoginRateLimitKey, resetRateLimit } from '@/lib/utils/rateLimiter';
-import { logActivity } from '@/lib/utils/auditLogger';
-import { AdminAction } from '@/types/admin';
+import { getCollections } from '@/lib/db';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -29,20 +25,6 @@ const loginSchema = z.object({
   password: z.string().min(1, 'Mật khẩu không được để trống'),
 });
 
-/**
- * Get client IP address from request
- */
-function getClientIP(request: NextRequest): string {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) {
-    return forwarded.split(',')[0].trim();
-  }
-  const realIP = request.headers.get('x-real-ip');
-  if (realIP) {
-    return realIP;
-  }
-  return 'unknown';
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,30 +44,16 @@ export async function POST(request: NextRequest) {
     }
 
     const { username, password } = validation.data;
-    const clientIP = getClientIP(request);
 
-    // Rate limiting check (MongoDB-based for serverless compatibility)
-    const rateLimitKey = getLoginRateLimitKey(clientIP, username);
-    const isWithinLimit = await checkRateLimit(rateLimitKey, 5, 15 * 60 * 1000); // 5 attempts / 15 min
+    // ⚠️ NOTE: Password verification and rate limiting now handled by NextAuth authorize function
+    // This endpoint is kept only for backward compatibility and metadata retrieval
 
-    if (!isWithinLimit) {
-      return NextResponse.json(
-        {
-          success: false,
-          code: 'RATE_LIMIT_EXCEEDED',
-          message: 'Quá nhiều lần đăng nhập sai. Vui lòng thử lại sau 15 phút',
-        },
-        { status: 429 }
-      );
-    }
-
-    // Authenticate user
+    // Retrieve user info for client-side logic (e.g., checking password change requirement)
     const { adminUsers } = await getCollections();
     const user = await adminUsers.findOne({ username });
 
     if (!user) {
       // Don't reveal if user exists (security best practice)
-      // Rate limit still applies
       return NextResponse.json(
         {
           success: false,
@@ -96,50 +64,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user is active
-    if (!user.is_active) {
-      return NextResponse.json(
-        {
-          success: false,
-          code: 'ACCOUNT_LOCKED',
-          message: 'Tài khoản đã bị khóa',
-        },
-        { status: 403 }
-      );
-    }
-
-    // Verify password
-    const isValidPassword = await comparePassword(password, user.password_hash);
-
-    if (!isValidPassword) {
-      return NextResponse.json(
-        {
-          success: false,
-          code: 'INVALID_CREDENTIALS',
-          message: 'Tên đăng nhập hoặc mật khẩu không đúng',
-        },
-        { status: 401 }
-      );
-    }
-
-    // Reset rate limit on successful login
-    await resetRateLimit(rateLimitKey);
-
-    // Update last_login
-    await adminUsers.updateOne(
-      { _id: user._id },
-      { $set: { last_login: new Date() } }
-    );
-
-    // Log login activity
-    await logActivity(
-      AdminAction.LOGIN,
-      user._id.toString(),
-      undefined,
-      request
-    );
-
-    // Return user info (without sensitive data)
+    // Return user metadata (without sensitive data)
+    // Client will then proceed with signIn() which will validate credentials
     const publicUser = {
       _id: user._id.toString(),
       username: user.username,
@@ -149,7 +75,6 @@ export async function POST(request: NextRequest) {
       permissions: user.permissions || [],
       is_active: user.is_active,
       must_change_password: user.must_change_password,
-      last_login: user.last_login,
     };
 
     return NextResponse.json({
@@ -158,11 +83,8 @@ export async function POST(request: NextRequest) {
         user: publicUser,
         requireChangePassword: user.must_change_password === true,
       },
-      message: 'Đăng nhập thành công',
+      message: 'User info retrieved',
     });
-
-    // Note: Actual session creation is handled by NextAuth
-    // Client should call signIn() from next-auth/react with these credentials
   } catch (error) {
     console.error('[Auth Login] Error:', error);
     return NextResponse.json(
