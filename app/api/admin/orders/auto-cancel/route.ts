@@ -60,19 +60,33 @@ export async function POST(request: NextRequest) {
         // Get order items
         const items = await orderItems.find({ orderId }).toArray();
 
-        // Release reserved stock
-        try {
-          await releaseStock(
-            orderId,
-            items.map((item) => ({
-              productId: item.productId,
-              variationId: item.variationId,
-              quantity: item.quantity,
-            }))
-          );
-        } catch (stockError: any) {
-          console.error(`[Auto-Cancel] Error releasing stock for order ${orderId}:`, stockError);
-          // Continue with cancellation even if stock release fails
+        // SECURITY FIX: Double Restoration Risk
+        // Check reservedStockReleased flag before releasing stock to prevent double release
+        const reservedStockReleased = (order as any).reservedStockReleased === true;
+        
+        // Release reserved stock (only for pending orders - stock was never deducted, only reserved)
+        if (!reservedStockReleased) {
+          try {
+            await releaseStock(
+              orderId,
+              items.map((item) => ({
+                productId: item.productId,
+                variationId: item.variationId,
+                quantity: item.quantity,
+              }))
+            );
+            
+            // Mark reserved stock as released to prevent double release
+            await orders.updateOne(
+              { _id: order._id },
+              { $set: { reservedStockReleased: true, updatedAt: new Date() } }
+            );
+          } catch (stockError: any) {
+            console.error(`[Auto-Cancel] Error releasing stock for order ${orderId}:`, stockError);
+            // Continue with cancellation even if stock release fails
+          }
+        } else {
+          console.warn(`[Auto-Cancel] Reserved stock already released for order ${orderId}. Skipping stock release to prevent double release.`);
         }
 
         // Update order status

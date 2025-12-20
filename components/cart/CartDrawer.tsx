@@ -14,7 +14,10 @@ import { useQuickCheckoutStore } from '@/lib/store/useQuickCheckoutStore';
  * Loại bỏ hoàn toàn Sheet/Drawer logic
  */
 export function CartDrawer() {
-  // Xử lý Hydration: Đảm bảo đồng bộ giữa Server và Client
+  // FIX: Hydration Mismatch - Đảm bảo đồng bộ giữa Server và Client
+  // Server render: mounted = false, không render badge
+  // Client render: mounted = false ban đầu (giống server), sau đó mounted = true và render badge
+  // Điều này đảm bảo không có hydration mismatch
   const [mounted, setMounted] = useState(false);
   
   const { getTotalItems } = useCartStore();
@@ -24,7 +27,9 @@ export function CartDrawer() {
     setMounted(true);
   }, []);
 
-  const totalItems = getTotalItems();
+  // Chỉ tính totalItems sau khi mounted để tránh hydration mismatch
+  // Zustand store với localStorage có thể trả về giá trị khác nhau giữa server và client
+  const totalItems = mounted ? getTotalItems() : 0;
 
   const handleCartButtonClick = () => {
     // Luôn mở QuickCheckoutModal (bất kể giỏ hàng có sản phẩm hay không)

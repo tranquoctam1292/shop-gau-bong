@@ -69,14 +69,105 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = orderCreateSchema.parse(body);
     
-    const { orders, orderItems } = await getCollections();
+    const { orders, orderItems, products } = await getCollections();
     
-    // Generate order number
+    // SECURITY FIX: Price Manipulation Vulnerability
+    // Backend MUST lookup prices from Database and recalculate totals
+    // NEVER trust prices sent from Frontend - they can be manipulated
+    // Step 1: Fetch products from Database
+    const productIds = [...new Set(validatedData.lineItems.map((item) => item.productId))];
+    const productDocs = await products
+      .find({ _id: { $in: productIds.map((id) => new ObjectId(id)) } })
+      .toArray();
+    
+    const productsMap = new Map(
+      productDocs.map((p) => [p._id.toString(), p])
+    );
+    
+    // SECURITY FIX: Lookup prices from Database for each line item
+    // Calculate actual prices from Database (not from Frontend request)
+    // This prevents Price Manipulation Vulnerability - Backend always uses Database prices
+    const validatedLineItems = validatedData.lineItems.map((item) => {
+      const product = productsMap.get(item.productId);
+      
+      if (!product) {
+        throw new Error(`Product not found: ${item.productId}`);
+      }
+      
+      let actualPrice: number = 0;
+      let costPrice: number | undefined = undefined;
+      
+      // Get price from Database based on product type and variation
+      if (item.variationId && product.productDataMetaBox?.variations) {
+        // Variable product with variation - lookup variant price
+        const variant = product.productDataMetaBox.variations.find(
+          (v: any) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
+        );
+        
+        if (!variant) {
+          throw new Error(`Variant not found: ${item.variationId} for product ${item.productId}`);
+        }
+        
+        // Variant price: use salePrice if available and valid, else regularPrice
+        if (variant.salePrice !== undefined && variant.salePrice > 0 && 
+            variant.regularPrice !== undefined && variant.salePrice < variant.regularPrice) {
+          actualPrice = variant.salePrice;
+        } else if (variant.regularPrice !== undefined && variant.regularPrice > 0) {
+          actualPrice = variant.regularPrice;
+        } else {
+          // Fallback: check if variant has direct price field (legacy structure)
+          actualPrice = (variant as any).price || 0;
+        }
+        
+        // Get variant costPrice if available
+        if (variant.costPrice !== undefined) {
+          costPrice = variant.costPrice;
+        }
+      } else {
+        // Simple product or variable product without variation - use product price
+        const productMeta = product.productDataMetaBox;
+        
+        // Product price: use salePrice if on sale, else regularPrice
+        if (productMeta?.salePrice !== undefined && productMeta.salePrice > 0 &&
+            productMeta.regularPrice !== undefined && productMeta.salePrice < productMeta.regularPrice) {
+          actualPrice = productMeta.salePrice;
+        } else if (productMeta?.regularPrice !== undefined && productMeta.regularPrice > 0) {
+          actualPrice = productMeta.regularPrice;
+        } else {
+          // Fallback: use product.price field (legacy structure)
+          actualPrice = (product as any).price || 0;
+        }
+        
+        // Get product costPrice if available
+        if (productMeta?.costPrice !== undefined) {
+          costPrice = productMeta.costPrice;
+        }
+      }
+      
+      // Validate price is valid
+      if (actualPrice <= 0) {
+        throw new Error(`Invalid price for product ${item.productId}${item.variationId ? ` variant ${item.variationId}` : ''}: ${actualPrice}`);
+      }
+      
+      return {
+        ...item,
+        price: actualPrice, // Use Database price, NOT Frontend price
+        costPrice,
+      };
+    });
+    
+    // SECURITY FIX: Recalculate totals from Database prices
+    // Do NOT trust subtotal, shippingTotal, grandTotal from Frontend
+    const recalculatedSubtotal = validatedLineItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    const recalculatedShippingTotal = validatedData.shippingTotal; // Shipping is calculated server-side, can trust
+    const recalculatedGrandTotal = recalculatedSubtotal + recalculatedShippingTotal;
+    
+    // Step 2: Generate order number
     const timestamp = Date.now();
     const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
     const orderNumber = `ORD-${timestamp}-${random}`;
     
-    // Create order document
+    // Step 3: Create order document with recalculated totals from Database prices
     const orderDoc = {
       orderNumber,
       customerName: validatedData.customerName,
@@ -93,9 +184,9 @@ export async function POST(request: NextRequest) {
         ? 'pending'
         : 'pending',
       status: 'pending',
-      subtotal: validatedData.subtotal,
-      shippingTotal: validatedData.shippingTotal,
-      grandTotal: validatedData.grandTotal, // Final total after tax/shipping/discount
+      subtotal: recalculatedSubtotal, // SECURITY FIX: Use Database-calculated subtotal
+      shippingTotal: recalculatedShippingTotal,
+      grandTotal: recalculatedGrandTotal, // SECURITY FIX: Use Database-calculated grand total
       currency: 'VND',
       customerNote: validatedData.customerNote,
       version: 1, // Initialize version for optimistic locking
@@ -103,56 +194,23 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     };
     
+    // Step 4: Insert order document
     const orderResult = await orders.insertOne(orderDoc);
     const orderId = orderResult.insertedId.toString();
     
-    // Fetch products to get costPrice snapshot
-    const { products } = await getCollections();
-    const productIds = [...new Set(validatedData.lineItems.map((item) => item.productId))];
-    const productDocs = await products
-      .find({ _id: { $in: productIds.map((id) => new ObjectId(id)) } })
-      .toArray();
-    
-    const productsMap = new Map(
-      productDocs.map((p) => [p._id.toString(), p])
-    );
-    
-    // Create order items with costPrice snapshot
-    const itemsToInsert = validatedData.lineItems.map((item) => {
-      const product = productsMap.get(item.productId);
-      let costPrice: number | undefined = undefined;
-      
-      // Get costPrice from product or variant
-      if (product) {
-        // For variable products, check variant costPrice first
-        if (item.variationId && product.productDataMetaBox?.variations) {
-          const variant = product.productDataMetaBox.variations.find(
-            (v: any) => v.id === item.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === item.variationId
-          );
-          if (variant && typeof variant.costPrice === 'number') {
-            costPrice = variant.costPrice;
-          }
-        }
-        
-        // Fallback to product costPrice if variant doesn't have it
-        if (costPrice === undefined && product.productDataMetaBox?.costPrice !== undefined) {
-          costPrice = product.productDataMetaBox.costPrice;
-        }
-      }
-      
-      return {
-        orderId,
-        productId: item.productId,
-        variationId: item.variationId,
-        productName: item.productName,
-        quantity: item.quantity,
-        price: item.price,
-        costPrice: costPrice, // Snapshot costPrice at time of order
-        subtotal: item.price * item.quantity,
-        total: item.price * item.quantity,
-        createdAt: new Date(),
-      };
-    });
+    // Step 5: Create order items with Database prices
+    const itemsToInsert = validatedLineItems.map((item) => ({
+      orderId,
+      productId: item.productId,
+      variationId: item.variationId,
+      productName: item.productName,
+      quantity: item.quantity,
+      price: item.price, // Database price (not Frontend price)
+      costPrice: item.costPrice, // Snapshot costPrice at time of order
+      subtotal: item.price * item.quantity,
+      total: item.price * item.quantity,
+      createdAt: new Date(),
+    }));
     
     if (itemsToInsert.length > 0) {
       await orderItems.insertMany(itemsToInsert);
