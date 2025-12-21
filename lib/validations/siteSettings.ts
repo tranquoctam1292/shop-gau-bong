@@ -117,11 +117,48 @@ const footerConfigSchema = z.object({
 }).optional();
 
 /**
+ * Helper function to validate script content
+ * 
+ * ✅ SECURITY: Basic validation to check if HTML tags are properly closed
+ * Prevents Admin from accidentally entering malformed HTML that breaks layout
+ * 
+ * Checks:
+ * - Script tags: <script> must have matching </script>
+ * - Style tags: <style> must have matching </style>
+ * 
+ * Note: This is a simplified validation that checks tag balance.
+ * It does not validate HTML structure or nesting, only ensures tags are closed.
+ */
+const scriptContentSchema = z.string().optional().refine((val) => {
+  if (!val || val.trim() === '') return true; // Empty is valid
+  
+  // Script tag check: count opening and closing tags (case-insensitive)
+  const openScriptCount = (val.match(/<script/gi) || []).length;
+  const closeScriptCount = (val.match(/<\/script>/gi) || []).length;
+  if (openScriptCount !== closeScriptCount) {
+    return false;
+  }
+
+  // Style tag check: count opening and closing tags (case-insensitive)
+  const openStyleCount = (val.match(/<style/gi) || []).length;
+  const closeStyleCount = (val.match(/<\/style>/gi) || []).length;
+  if (openStyleCount !== closeStyleCount) {
+    return false;
+  }
+
+  return true;
+}, {
+  message: "Mã Script hoặc Style không hợp lệ (thiếu thẻ đóng). Vui lòng kiểm tra lại cú pháp.",
+});
+
+/**
  * Scripts configuration schema
+ * 
+ * ✅ VALIDATION: Added script content validation to prevent malformed HTML
  */
 const scriptsConfigSchema = z.object({
-  headerScripts: z.string().optional(),
-  footerScripts: z.string().optional(),
+  headerScripts: scriptContentSchema,
+  footerScripts: scriptContentSchema,
 }).optional();
 
 /**

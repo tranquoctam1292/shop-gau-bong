@@ -21,8 +21,9 @@ interface ScriptsInjectorProps {
  * Injects scripts at the beginning of body (Next.js App Router doesn't allow <head> manipulation)
  * Uses dangerouslySetInnerHTML for raw HTML scripts (GA, FB Pixel, etc.)
  * 
- * ✅ FIX: Use comprehensive styles to prevent "ghost" DOM layout shift
- * The div wrapper is necessary for dangerouslySetInnerHTML, but must not affect layout
+ * ✅ HTML STANDARD: Uses display: 'none' to completely hide container
+ * Note: dangerouslySetInnerHTML requires a real HTML element (cannot use Fragment)
+ * The div wrapper is necessary but completely hidden to avoid layout impact
  */
 export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
   if (!headerScripts) {
@@ -35,21 +36,11 @@ export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
   // This ensures scripts execute as early as possible
   return (
     <div
+      id="header-scripts-container"
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: headerScripts }}
-      style={{
-        display: 'none', // ✅ FIX: Hide from layout
-        position: 'absolute', // ✅ FIX: Remove from document flow
-        visibility: 'hidden', // ✅ FIX: Additional hiding
-        width: 0, // ✅ FIX: Zero width
-        height: 0, // ✅ FIX: Zero height
-        overflow: 'hidden', // ✅ FIX: Hide overflow
-        margin: 0, // ✅ FIX: No margin
-        padding: 0, // ✅ FIX: No padding
-        border: 'none', // ✅ FIX: No border
-      }}
-      data-script-type="header"
-      aria-hidden="true" // ✅ FIX: Hide from screen readers
+      style={{ display: 'none' }}
+      aria-hidden="true"
     />
   );
 }
@@ -59,8 +50,9 @@ export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
  * 
  * Renders before </body>
  * 
- * ✅ FIX: Use comprehensive styles to prevent "ghost" DOM layout shift
- * The div wrapper is necessary for dangerouslySetInnerHTML, but must not affect layout
+ * ✅ HTML STANDARD: Uses display: 'none' to completely hide container
+ * Note: dangerouslySetInnerHTML requires a real HTML element (cannot use Fragment)
+ * The div wrapper is necessary but completely hidden to avoid layout impact
  */
 export function FooterScripts({ footerScripts }: ScriptsInjectorProps) {
   if (!footerScripts) {
@@ -69,21 +61,11 @@ export function FooterScripts({ footerScripts }: ScriptsInjectorProps) {
 
   return (
     <div
+      id="footer-scripts-container"
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: footerScripts }}
-      style={{
-        display: 'none', // ✅ FIX: Hide from layout
-        position: 'absolute', // ✅ FIX: Remove from document flow
-        visibility: 'hidden', // ✅ FIX: Additional hiding
-        width: 0, // ✅ FIX: Zero width
-        height: 0, // ✅ FIX: Zero height
-        overflow: 'hidden', // ✅ FIX: Hide overflow
-        margin: 0, // ✅ FIX: No margin
-        padding: 0, // ✅ FIX: No padding
-        border: 'none', // ✅ FIX: No border
-      }}
-      data-script-type="footer"
-      aria-hidden="true" // ✅ FIX: Hide from screen readers
+      style={{ display: 'none' }}
+      aria-hidden="true"
     />
   );
 }
