@@ -21,6 +21,7 @@
     "test:lighthouse": "node scripts/lighthouse-audit.js",
     "test:performance": "node scripts/performance-test.js",
     "test:bundle-size": "node scripts/analyze-bundle.js",
+    "clean:cache": "node scripts/clean-cache.js",
     "test:phase3": "node scripts/test-phase3-api.js",
     "test:mongodb": "tsx scripts/test-mongodb-connection.ts",
     "db:setup-indexes": "tsx scripts/setup-database-indexes.ts",
