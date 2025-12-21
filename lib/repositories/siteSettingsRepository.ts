@@ -26,6 +26,7 @@ const DEFAULT_SETTINGS: MongoSiteSettings = {
   },
   footer: {
     copyright: `© ${new Date().getFullYear()} Shop Gấu Bông. All rights reserved.`,
+    description: 'Shop Gấu Bông - Nơi bạn tìm thấy những chú gấu bông đáng yêu nhất.',
     socialLinks: [],
   },
   scripts: {},

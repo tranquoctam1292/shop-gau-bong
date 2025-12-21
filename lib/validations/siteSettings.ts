@@ -10,11 +10,14 @@ import { z } from 'zod';
  * Logo validation schema
  * 
  * ✅ SEO: Ensure logo metadata is complete
+ * ✅ FIX: Allow `type` and `thumbnail_url` fields from MediaPicker
  */
 const logoSchema = z.object({
   _id: z.string().min(1, 'Media ID không được để trống'),
   url: z.string().url('URL không hợp lệ'),
   name: z.string().min(1, 'Tên file không được để trống'),
+  type: z.string().optional(), // Media type from MediaPicker (image, video, etc.)
+  thumbnail_url: z.string().url().optional(), // Thumbnail URL from MediaPicker
   alt: z.string().optional(), // Alt text for SEO (optional but recommended)
 }).nullable().optional();
 
@@ -46,6 +49,7 @@ const socialLinkSchema = z.object({
  */
 const headerConfigSchema = z.object({
   logo: logoSchema,
+  siteTitle: z.string().optional(), // Custom site title (optional, falls back to SITE_CONFIG.name)
   announcementBar: announcementBarSchema,
 }).optional();
 
@@ -54,6 +58,7 @@ const headerConfigSchema = z.object({
  */
 const footerConfigSchema = z.object({
   copyright: z.string().optional(),
+  description: z.string().optional(), // Brand description for footer
   address: z.string().optional(),
   email: z.string().email('Email không hợp lệ').optional().or(z.literal('')),
   phone: z.string().optional(),
@@ -72,20 +77,15 @@ const scriptsConfigSchema = z.object({
  * Site settings update schema
  * 
  * Used for POST/PUT requests to update site settings
+ * 
+ * ✅ FIX: Removed .refine() check - form always has at least one section from API
+ * All sections are optional, but at least one will always be present when form is loaded
  */
 export const siteSettingsUpdateSchema = z.object({
   header: headerConfigSchema,
   footer: footerConfigSchema,
   scripts: scriptsConfigSchema,
-}).refine(
-  (data) => {
-    // At least one section must be provided
-    return data.header || data.footer || data.scripts;
-  },
-  {
-    message: 'Phải cung cấp ít nhất một section để cập nhật',
-  }
-);
+});
 
 /**
  * Type inference for site settings update

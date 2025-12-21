@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils/cn';
 import { TopBar } from './TopBar';
 import { topBarConfig } from '@/lib/constants/menuData';
+import { SITE_CONFIG } from '@/lib/constants/config';
 import Image from 'next/image';
 import type { SiteSettings } from '@/types/siteSettings';
 
@@ -82,12 +83,51 @@ export function Header({ siteSettings }: HeaderProps) {
               </div>
             )}
             <div className="flex flex-col">
-              <span className="font-logo text-xl md:text-2xl font-extrabold text-primary leading-none tracking-tight">
-                GấuBông<span className="text-text-main">Shop</span>
-              </span>
+              {/* ✅ BRANDING: Dynamic site title from siteSettings or fallback to SITE_CONFIG */}
+              {(() => {
+                // Use siteTitle from siteSettings if available, otherwise use SITE_CONFIG.name
+                const siteTitle = siteSettings?.header?.siteTitle || SITE_CONFIG.name;
+                
+                // Split site title to maintain color styling (first part in primary color, rest in text-main)
+                // Try to split at "Gấu Bông" or "GấuBông" to maintain brand colors
+                let titleParts: string[] = [];
+                let splitPoint = '';
+                
+                if (siteTitle.includes('Gấu Bông')) {
+                  titleParts = siteTitle.split('Gấu Bông');
+                  splitPoint = 'Gấu Bông';
+                } else if (siteTitle.includes('GấuBông')) {
+                  titleParts = siteTitle.split('GấuBông');
+                  splitPoint = 'GấuBông';
+                } else {
+                  // If no split point found, use first word in primary, rest in text-main
+                  const words = siteTitle.split(' ');
+                  if (words.length > 1) {
+                    titleParts = [words[0], words.slice(1).join(' ')];
+                  } else {
+                    titleParts = [siteTitle];
+                  }
+                }
+                
+                return (
+                  <span className="font-logo text-xl md:text-2xl font-extrabold text-primary leading-none tracking-tight">
+                    {titleParts[0]}
+                    {titleParts.length > 1 && splitPoint && (
+                      <>
+                        {splitPoint}
+                        <span className="text-text-main">{titleParts[1]}</span>
+                      </>
+                    )}
+                    {titleParts.length > 1 && !splitPoint && (
+                      <span className="text-text-main"> {titleParts[1]}</span>
+                    )}
+                    {titleParts.length === 1 && <span className="text-text-main">{titleParts[0]}</span>}
+                  </span>
+                );
+              })()}
               <span className="text-[10px] uppercase tracking-widest text-text-muted font-bold hidden md:block">
                 Soft & Cute
-            </span>
+              </span>
             </div>
           </Link>
 

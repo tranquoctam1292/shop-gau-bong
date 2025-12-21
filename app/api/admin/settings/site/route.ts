@@ -31,6 +31,7 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
             alt: mongoSettings.header.logo.alt || mongoSettings.header.logo.name, // ✅ FALLBACK: Use name if alt is missing
           }
         : null,
+      siteTitle: mongoSettings.header?.siteTitle, // ✅ BRANDING: Custom site title
       announcementBar: {
         enabled: mongoSettings.header?.announcementBar?.enabled ?? false,
         text: mongoSettings.header?.announcementBar?.text,
@@ -40,6 +41,7 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
     },
     footer: {
       copyright: mongoSettings.footer?.copyright,
+      description: mongoSettings.footer?.description, // Brand description
       address: mongoSettings.footer?.address,
       email: mongoSettings.footer?.email,
       phone: mongoSettings.footer?.phone,
@@ -134,10 +136,12 @@ export async function POST(request: NextRequest) {
         // Update settings
         const updated = await updateSiteSettings(validation.data, userId);
         
-        // ✅ CACHE INVALIDATION: Revalidate layout to ensure immediate update
+        // ✅ CACHE INVALIDATION: Revalidate layout and homepage to ensure immediate update
+        // This ensures Logo and Footer changes appear immediately on homepage
         try {
-          revalidatePath('/', 'layout');
-          revalidatePath('/api/cms/site-settings');
+          revalidatePath('/', 'layout'); // Revalidate layout (includes Header/Footer components)
+          revalidatePath('/'); // Revalidate homepage specifically
+          revalidatePath('/api/cms/site-settings'); // Revalidate public API cache
         } catch (revalidateError) {
           // Log error but don't fail request if revalidation fails
           console.warn('[Cache Invalidation] Failed to revalidate paths:', revalidateError);

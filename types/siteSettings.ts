@@ -20,6 +20,7 @@ export interface MongoSiteSettings {
       name: string;
       alt?: string;
     } | null;
+    siteTitle?: string; // Custom site title (optional, falls back to SITE_CONFIG.name)
     announcementBar: {
       enabled: boolean;
       text?: string;
@@ -31,6 +32,7 @@ export interface MongoSiteSettings {
   // Footer Configuration
   footer: {
     copyright?: string;
+    description?: string; // Brand description for footer
     address?: string;
     email?: string;
     phone?: string;
@@ -66,6 +68,7 @@ export interface SiteSettings {
       name: string;
       alt?: string;
     } | null;
+    siteTitle?: string; // Custom site title (optional, falls back to SITE_CONFIG.name)
     announcementBar: {
       enabled: boolean;
       text?: string;
@@ -76,6 +79,7 @@ export interface SiteSettings {
   
   footer: {
     copyright?: string;
+    description?: string; // Brand description for footer
     address?: string;
     email?: string;
     phone?: string;
@@ -106,6 +110,7 @@ export interface SiteSettingsInput {
       name: string;
       alt?: string;
     } | null;
+    siteTitle?: string; // Custom site title (optional, falls back to SITE_CONFIG.name)
     announcementBar?: {
       enabled?: boolean;
       text?: string;
@@ -116,6 +121,7 @@ export interface SiteSettingsInput {
   
   footer?: {
     copyright?: string;
+    description?: string; // Brand description for footer
     address?: string;
     email?: string;
     phone?: string;

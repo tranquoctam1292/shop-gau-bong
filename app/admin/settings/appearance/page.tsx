@@ -9,11 +9,13 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useSession } from 'next-auth/react';
+import Image from 'next/image';
+import { Moon, Sun } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -21,6 +23,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { SITE_CONFIG } from '@/lib/constants/config';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -46,6 +58,7 @@ interface AppearanceFormData {
   header: {
     logo: MediaPickerValue | null;
     logoAlt?: string; // Alt text for logo (SEO)
+    siteTitle?: string; // Custom site title (optional, falls back to SITE_CONFIG.name)
     announcementBar: {
       enabled: boolean;
       text?: string;
@@ -55,6 +68,7 @@ interface AppearanceFormData {
   };
   footer: {
     copyright?: string;
+    description?: string; // Brand description for footer
     address?: string;
     email?: string;
     phone?: string;
@@ -81,6 +95,8 @@ export default function AppearanceSettingsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [initialData, setInitialData] = useState<SiteSettings | null>(null);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [previewDarkMode, setPreviewDarkMode] = useState(false); // ✅ LIVE PREVIEW: Dark/Light background toggle
   
   // Check if user is SUPER_ADMIN (only SUPER_ADMIN can update scripts)
   const isSuperAdmin = (session?.user as any)?.role === AdminRole.SUPER_ADMIN;
@@ -88,7 +104,7 @@ export default function AppearanceSettingsPage() {
   const {
     register,
     handleSubmit,
-    formState: { errors },
+    formState: { errors, isDirty },
     setValue,
     watch,
     reset,
@@ -112,6 +128,32 @@ export default function AppearanceSettingsPage() {
   const watchedHeader = watch('header');
   const watchedFooter = watch('footer');
   const watchedScripts = watch('scripts');
+  
+  // ✅ UNSAVED CHANGES WARNING: Track form dirty state for beforeunload warning
+  const isDirtyRef = useRef(false);
+  
+  useEffect(() => {
+    isDirtyRef.current = isDirty;
+  }, [isDirty]);
+  
+  // ✅ UNSAVED CHANGES WARNING: Warn user before leaving page with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirtyRef.current) {
+        // Standard way to show browser warning
+        e.preventDefault();
+        // Modern browsers ignore custom message, but we set it anyway
+        e.returnValue = 'Bạn có thay đổi chưa lưu. Bạn có chắc muốn rời trang?';
+        return e.returnValue;
+      }
+    };
+    
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
 
   // Fetch current settings
   useEffect(() => {
@@ -142,10 +184,12 @@ export default function AppearanceSettingsPage() {
                   }
                 : null,
               logoAlt: data.header.logo?.alt || '', // Separate field for alt text
+              siteTitle: data.header.siteTitle || '', // Custom site title
               announcementBar: data.header.announcementBar,
             },
             footer: {
               copyright: data.footer.copyright,
+              description: data.footer.description,
               address: data.footer.address,
               email: data.footer.email,
               phone: data.footer.phone,
@@ -167,6 +211,7 @@ export default function AppearanceSettingsPage() {
 
   // Handle form submission
   const onSubmit = async (data: AppearanceFormData) => {
+    console.log('[Appearance Settings] onSubmit called with data:', data);
     setSaving(true);
     try {
       // Map form data to API format
@@ -183,10 +228,12 @@ export default function AppearanceSettingsPage() {
                 alt: data.header.logoAlt || data.header.logo.name, // Use logoAlt from form or fallback to name
               }
             : null,
+          siteTitle: data.header.siteTitle || undefined, // Custom site title (optional)
           announcementBar: data.header.announcementBar,
         },
         footer: {
           copyright: data.footer.copyright,
+          description: data.footer.description,
           address: data.footer.address,
           email: data.footer.email,
           phone: data.footer.phone,
@@ -210,6 +257,37 @@ export default function AppearanceSettingsPage() {
         throw new Error(error.error || 'Không thể cập nhật cấu hình');
       }
 
+      const result = await response.json();
+      if (result.success && result.data) {
+        // ✅ FIX: Reset form with new data to clear dirty state
+        const updatedData = result.data as SiteSettings;
+        reset({
+          header: {
+            logo: updatedData.header.logo
+              ? {
+                  _id: updatedData.header.logo.id, // ✅ FIX: API returns `id`, form needs `_id`
+                  url: updatedData.header.logo.url,
+                  name: updatedData.header.logo.name,
+                  type: 'image', // ✅ FIX: Add type field for MediaPicker compatibility
+                  thumbnail_url: updatedData.header.logo.url, // Use url as thumbnail
+                }
+              : null,
+            logoAlt: updatedData.header.logo?.alt || '',
+            siteTitle: updatedData.header.siteTitle || '',
+            announcementBar: updatedData.header.announcementBar,
+          },
+          footer: {
+            copyright: updatedData.footer.copyright,
+            description: updatedData.footer.description,
+            address: updatedData.footer.address,
+            email: updatedData.footer.email,
+            phone: updatedData.footer.phone,
+            socialLinks: updatedData.footer.socialLinks,
+          },
+          scripts: updatedData.scripts,
+        });
+      }
+
       showToast('Cập nhật cấu hình thành công!', 'success');
     } catch (error) {
       console.error('[Appearance Settings] Save error:', error);
@@ -228,14 +306,15 @@ export default function AppearanceSettingsPage() {
     setValue('footer.socialLinks', [
       ...currentLinks,
       { platform: 'facebook', url: '', label: '' },
-    ]);
+    ], { shouldDirty: true }); // ✅ FIX: Mark form as dirty when adding social link
   };
 
   const removeSocialLink = (index: number) => {
     const currentLinks = watchedFooter?.socialLinks || [];
     setValue(
       'footer.socialLinks',
-      currentLinks.filter((_, i) => i !== index)
+      currentLinks.filter((_, i) => i !== index),
+      { shouldDirty: true } // ✅ FIX: Mark form as dirty when removing social link
     );
   };
 
@@ -243,16 +322,77 @@ export default function AppearanceSettingsPage() {
     const currentLinks = watchedFooter?.socialLinks || [];
     const updated = [...currentLinks];
     updated[index] = { ...updated[index], [field]: value };
-    setValue('footer.socialLinks', updated);
+    setValue('footer.socialLinks', updated, { shouldDirty: true }); // ✅ FIX: Mark form as dirty when updating social link
   };
 
+  // ✅ LOADING STATE: Show skeleton loader while fetching initial data
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center">Đang tải...</div>
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="space-y-2">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-96" />
+        </div>
+        
+        <div className="space-y-4">
+          <Skeleton className="h-10 w-full" /> {/* Tabs */}
+          
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-32" />
+              <Skeleton className="h-4 w-48" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Skeleton className="h-32 w-full" />
+              <Skeleton className="h-10 w-full" />
+              <Skeleton className="h-10 w-full" />
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
+  
+  // ✅ TAB ERROR INDICATOR: Check if each tab has errors
+  const hasHeaderErrors = Boolean(
+    errors.header?.logo || 
+    errors.header?.announcementBar?.text || 
+    errors.header?.announcementBar?.link
+  );
+  
+  const hasFooterErrors = Boolean(
+    errors.footer?.copyright ||
+    errors.footer?.email ||
+    errors.footer?.socialLinks
+  );
+  
+  const hasScriptsErrors = Boolean(
+    errors.scripts?.headerScripts ||
+    errors.scripts?.footerScripts
+  );
+  
+  // ✅ RESTORE DEFAULTS: Default form values
+  const defaultFormValues: AppearanceFormData = {
+    header: {
+      logo: null,
+      logoAlt: '',
+      announcementBar: {
+        enabled: false,
+      },
+    },
+    footer: {
+      copyright: `© ${new Date().getFullYear()} Shop Gấu Bông. All rights reserved.`,
+      description: 'Shop Gấu Bông - Nơi bạn tìm thấy những chú gấu bông đáng yêu nhất.',
+      socialLinks: [],
+    },
+    scripts: {},
+  };
+  
+  const handleRestoreDefaults = () => {
+    reset(defaultFormValues);
+    setShowRestoreDialog(false);
+    showToast('Đã khôi phục về giá trị mặc định', 'success');
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -263,16 +403,194 @@ export default function AppearanceSettingsPage() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit(onSubmit, (errors) => {
+        // ✅ FIX: Handle validation errors with detailed logging
+        console.error('[Appearance Settings] Validation errors:', errors);
+        console.error('[Appearance Settings] Form data:', watch());
+        
+        if (Object.keys(errors).length > 0) {
+          // Find first error message
+          const firstError = Object.values(errors)[0];
+          const errorMessage = firstError?.message || 'Vui lòng kiểm tra lại các trường có lỗi';
+          showToast(errorMessage, 'error');
+          
+          // Scroll to first error field
+          const firstErrorField = Object.keys(errors)[0];
+          const element = document.querySelector(`[name="${firstErrorField}"]`) || 
+                         document.querySelector(`#${firstErrorField}`) ||
+                         document.querySelector(`[id*="${firstErrorField}"]`);
+          if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }
+      })}>
         <Tabs defaultValue="header" className="space-y-6">
           <TabsList>
-            <TabsTrigger value="header">Header</TabsTrigger>
-            <TabsTrigger value="footer">Footer</TabsTrigger>
-            <TabsTrigger value="scripts">Scripts</TabsTrigger>
+            {/* ✅ TAB ERROR INDICATOR: Show error indicator on tabs with validation errors */}
+            <TabsTrigger 
+              value="header"
+              className={hasHeaderErrors ? 'text-destructive' : ''}
+            >
+              Header
+              {hasHeaderErrors && <span className="ml-1">●</span>}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="footer"
+              className={hasFooterErrors ? 'text-destructive' : ''}
+            >
+              Footer
+              {hasFooterErrors && <span className="ml-1">●</span>}
+            </TabsTrigger>
+            <TabsTrigger 
+              value="scripts"
+              className={hasScriptsErrors ? 'text-destructive' : ''}
+            >
+              Scripts
+              {hasScriptsErrors && <span className="ml-1">●</span>}
+            </TabsTrigger>
           </TabsList>
 
           {/* Header Tab */}
           <TabsContent value="header" className="space-y-6">
+            {/* ✅ LIVE PREVIEW: Header Preview Component */}
+            {(() => {
+              // HeaderPreview Component - Real-time preview of Logo and Branding
+              const previewLogo = watchedHeader?.logo;
+              const previewSiteTitle = watchedHeader?.siteTitle || SITE_CONFIG.name;
+              const previewLogoAlt = watchedHeader?.logoAlt || previewLogo?.name || 'Logo';
+              
+              // Split site title to maintain color styling (same logic as Header.tsx)
+              let titleParts: string[] = [];
+              let splitPoint = '';
+              
+              if (previewSiteTitle.includes('Gấu Bông')) {
+                titleParts = previewSiteTitle.split('Gấu Bông');
+                splitPoint = 'Gấu Bông';
+              } else if (previewSiteTitle.includes('GấuBông')) {
+                titleParts = previewSiteTitle.split('GấuBông');
+                splitPoint = 'GấuBông';
+              } else {
+                const words = previewSiteTitle.split(' ');
+                if (words.length > 1) {
+                  titleParts = [words[0], words.slice(1).join(' ')];
+                } else {
+                  titleParts = [previewSiteTitle];
+                }
+              }
+              
+              return (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <CardTitle>Xem trước giao diện Header</CardTitle>
+                        <CardDescription>
+                          Xem trước cách Logo và thương hiệu hiển thị trên Header
+                        </CardDescription>
+                      </div>
+                      {/* Dark/Light Background Toggle */}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPreviewDarkMode(!previewDarkMode)}
+                        className="flex items-center gap-2"
+                      >
+                        {previewDarkMode ? (
+                          <>
+                            <Sun className="w-4 h-4" />
+                            Nền sáng
+                          </>
+                        ) : (
+                          <>
+                            <Moon className="w-4 h-4" />
+                            Nền tối
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    {/* Preview Container - Simulates Header Layout */}
+                    <div 
+                      className={`
+                        relative border-2 border-dashed rounded-lg p-6 transition-colors duration-300
+                        ${previewDarkMode ? 'bg-gray-900 border-gray-700' : 'bg-white border-gray-200'}
+                      `}
+                    >
+                      {/* Simulated Header Bar */}
+                      <div className={`
+                        py-4 border-b transition-colors duration-300
+                        ${previewDarkMode ? 'border-gray-700' : 'border-primary/5'}
+                      `}>
+                        <div className="flex items-center gap-4 md:gap-8">
+                          {/* Logo Preview - Copy exact layout from Header.tsx */}
+                          <div className="flex items-center gap-2 flex-shrink-0 group">
+                            {previewLogo?.url ? (
+                              <div className="relative w-10 h-10 md:w-12 md:h-12 flex-shrink-0 max-h-12">
+                                <Image
+                                  src={previewLogo.url}
+                                  alt={previewLogoAlt}
+                                  fill
+                                  className="object-contain transition-transform group-hover:scale-110"
+                                  sizes="(max-width: 768px) 40px, 48px"
+                                />
+                              </div>
+                            ) : (
+                              <div className={`
+                                w-10 h-10 md:w-12 md:h-12 bg-primary/20 rounded-full 
+                                flex items-center justify-center text-2xl transition-transform group-hover:rotate-12
+                                ${previewDarkMode ? 'text-primary' : 'text-primary'}
+                              `}>
+                                🧸
+                              </div>
+                            )}
+                            <div className="flex flex-col">
+                              <span className={`
+                                font-logo text-xl md:text-2xl font-extrabold leading-none tracking-tight
+                                ${previewDarkMode ? 'text-white' : 'text-primary'}
+                              `}>
+                                {titleParts[0]}
+                                {titleParts.length > 1 && splitPoint && (
+                                  <>
+                                    {splitPoint}
+                                    <span className={previewDarkMode ? 'text-gray-300' : 'text-text-main'}>
+                                      {titleParts[1]}
+                                    </span>
+                                  </>
+                                )}
+                                {titleParts.length > 1 && !splitPoint && (
+                                  <span className={previewDarkMode ? 'text-gray-300' : 'text-text-main'}>
+                                    {' '}{titleParts[1]}
+                                  </span>
+                                )}
+                                {titleParts.length === 1 && (
+                                  <span className={previewDarkMode ? 'text-gray-300' : 'text-text-main'}>
+                                    {titleParts[0]}
+                                  </span>
+                                )}
+                              </span>
+                              <span className={`
+                                text-[10px] uppercase tracking-widest font-bold hidden md:block
+                                ${previewDarkMode ? 'text-gray-400' : 'text-text-muted'}
+                              `}>
+                                Soft & Cute
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* Preview Info */}
+                      <div className="mt-4 text-xs text-muted-foreground">
+                        <p>💡 Preview này cập nhật theo thời gian thực khi bạn thay đổi Logo hoặc Tên thương hiệu</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })()}
+            
             <Card>
               <CardHeader>
                 <CardTitle>Logo</CardTitle>
@@ -282,10 +600,10 @@ export default function AppearanceSettingsPage() {
                 <MediaPicker
                   value={watchedHeader?.logo || undefined}
                   onChange={(value) => {
-                    setValue('header.logo', (value as MediaPickerValue) || null);
+                    setValue('header.logo', (value as MediaPickerValue) || null, { shouldDirty: true }); // ✅ FIX: Mark form as dirty when changing logo
                     // Clear alt text if logo is removed
                     if (!value) {
-                      setValue('header.logoAlt', '');
+                      setValue('header.logoAlt', '', { shouldDirty: true });
                     }
                   }}
                   type="image"
@@ -306,13 +624,26 @@ export default function AppearanceSettingsPage() {
                       {...register('header.logoAlt')}
                       placeholder="Mô tả logo cho SEO (ví dụ: Logo Shop Gấu Bông)"
                       value={watchedHeader.logoAlt || ''}
-                      onChange={(e) => setValue('header.logoAlt', e.target.value)}
+                      onChange={(e) => setValue('header.logoAlt', e.target.value, { shouldDirty: true })} // ✅ FIX: Mark form as dirty when changing alt text
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       Mô tả ngắn gọn về logo để tối ưu SEO và accessibility
                     </p>
                   </div>
                 )}
+
+                {/* ✅ BRANDING: Site Title Input */}
+                <div>
+                  <Label htmlFor="site-title">Tên thương hiệu</Label>
+                  <Input
+                    id="site-title"
+                    {...register('header.siteTitle')}
+                    placeholder={SITE_CONFIG.name}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Để trống sẽ sử dụng tên mặc định của website ({SITE_CONFIG.name})
+                  </p>
+                </div>
               </CardContent>
             </Card>
 
@@ -328,7 +659,7 @@ export default function AppearanceSettingsPage() {
                     id="announcement-enabled"
                     checked={watchedHeader?.announcementBar?.enabled || false}
                     onCheckedChange={(checked) => {
-                      setValue('header.announcementBar.enabled', checked);
+                      setValue('header.announcementBar.enabled', checked, { shouldDirty: true }); // ✅ FIX: Mark form as dirty when toggling announcement
                     }}
                   />
                 </div>
@@ -382,6 +713,19 @@ export default function AppearanceSettingsPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
+                  <Label htmlFor="footer-description">Mô tả thương hiệu</Label>
+                  <Textarea
+                    id="footer-description"
+                    {...register('footer.description')}
+                    placeholder="Shop Gấu Bông - Nơi bạn tìm thấy những chú gấu bông đáng yêu nhất."
+                    rows={3}
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Mô tả ngắn gọn về thương hiệu hiển thị ở cột đầu tiên của footer
+                  </p>
+                </div>
+
+                <div>
                   <Label htmlFor="footer-copyright">Bản quyền</Label>
                   <Input
                     id="footer-copyright"
@@ -401,7 +745,7 @@ export default function AppearanceSettingsPage() {
                 </div>
 
                 <div>
-                  <Label htmlFor="footer-email">Email</Label>
+                  <Label htmlFor="footer-email">Email liên hệ</Label>
                   <Input
                     id="footer-email"
                     {...register('footer.email')}
@@ -563,13 +907,78 @@ export default function AppearanceSettingsPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Submit Button */}
-        <div className="flex justify-end gap-4 pt-6 border-t">
-          <Button type="submit" disabled={saving}>
-            {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+        {/* Submit Buttons */}
+        <div className="flex justify-between items-center gap-4 pt-6 border-t">
+          {/* ✅ RESTORE DEFAULTS: Button to restore default values */}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setShowRestoreDialog(true)}
+            disabled={saving || !isDirty}
+          >
+            Khôi phục mặc định
           </Button>
+          
+          <div className="flex gap-4 items-center">
+            {/* Debug info (only in development) */}
+            {process.env.NODE_ENV === 'development' && (
+              <span className="text-xs text-muted-foreground">
+                isDirty: {isDirty ? 'true' : 'false'} | saving: {saving ? 'true' : 'false'}
+              </span>
+            )}
+            <Button 
+              type="submit" 
+              disabled={saving || !isDirty}
+              onClick={(e) => {
+                // ✅ DEBUG: Log form state when button is clicked
+                console.log('[Appearance Settings] Submit button clicked:', {
+                  isDirty,
+                  saving,
+                  errors: Object.keys(errors).length > 0 ? errors : 'No errors',
+                  formData: watch(),
+                  buttonDisabled: saving || !isDirty,
+                });
+                
+                // Prevent default if disabled (shouldn't happen, but just in case)
+                if (saving || !isDirty) {
+                  console.warn('[Appearance Settings] Button clicked but disabled:', { saving, isDirty });
+                  e.preventDefault();
+                  return;
+                }
+              }}
+            >
+              {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </Button>
+          </div>
         </div>
       </form>
+      
+      {/* ✅ RESTORE DEFAULTS: Confirmation Dialog */}
+      <Dialog open={showRestoreDialog} onOpenChange={setShowRestoreDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Khôi phục giá trị mặc định?</DialogTitle>
+            <DialogDescription>
+              Bạn có chắc muốn khôi phục tất cả cài đặt về giá trị mặc định? 
+              Tất cả thay đổi chưa lưu sẽ bị mất.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowRestoreDialog(false)}
+            >
+              Hủy
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleRestoreDefaults}
+            >
+              Khôi phục
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
