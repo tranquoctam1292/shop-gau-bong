@@ -99,7 +99,7 @@ export default function AppearanceSettingsPage() {
   const [previewDarkMode, setPreviewDarkMode] = useState(false); // ✅ LIVE PREVIEW: Dark/Light background toggle
   
   // Check if user is SUPER_ADMIN (only SUPER_ADMIN can update scripts)
-  const isSuperAdmin = (session?.user as any)?.role === AdminRole.SUPER_ADMIN;
+  const isSuperAdmin = (session?.user as { role?: AdminRole })?.role === AdminRole.SUPER_ADMIN;
 
   const {
     register,
@@ -114,14 +114,26 @@ export default function AppearanceSettingsPage() {
       header: {
         logo: null,
         logoAlt: '',
+        siteTitle: '',
         announcementBar: {
           enabled: false,
+          text: undefined,
+          link: undefined,
+          linkText: undefined,
         },
       },
       footer: {
+        copyright: '',
+        description: '',
+        address: '',
+        email: '',
+        phone: '',
         socialLinks: [],
       },
-      scripts: {},
+      scripts: {
+        headerScripts: undefined,
+        footerScripts: undefined,
+      },
     },
   });
 
@@ -177,29 +189,38 @@ export default function AppearanceSettingsPage() {
             header: {
               logo: data.header.logo
                 ? {
-                    _id: data.header.logo.id,
+                    _id: data.header.logo.id, // ✅ FIX: Map `id` from API to `_id` for MediaPicker compatibility
                     url: data.header.logo.url,
                     name: data.header.logo.name,
                     type: 'image',
+                    thumbnail_url: data.header.logo.url, // Use url as thumbnail
                   }
                 : null,
               logoAlt: data.header.logo?.alt || '', // Separate field for alt text
               siteTitle: data.header.siteTitle || '', // Custom site title
-              announcementBar: data.header.announcementBar,
+              announcementBar: {
+                enabled: data.header.announcementBar?.enabled ?? false,
+                text: data.header.announcementBar?.text || undefined,
+                link: data.header.announcementBar?.link || undefined,
+                linkText: data.header.announcementBar?.linkText || undefined,
+              },
             },
             footer: {
-              copyright: data.footer.copyright,
-              description: data.footer.description,
-              address: data.footer.address,
-              email: data.footer.email,
-              phone: data.footer.phone,
-              socialLinks: data.footer.socialLinks,
+              copyright: data.footer.copyright || '', // ✅ FIX: Convert null/undefined to empty string for form
+              description: data.footer.description || '', // ✅ FIX: Convert null/undefined to empty string for form
+              address: data.footer.address || '',
+              email: data.footer.email || '',
+              phone: data.footer.phone || '',
+              socialLinks: data.footer.socialLinks || [],
             },
-            scripts: data.scripts,
+            scripts: data.scripts || {},
           });
         }
       } catch (error) {
-        console.error('[Appearance Settings] Fetch error:', error);
+        // Log error in development only
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[Appearance Settings] Fetch error:', error);
+        }
         showToast('Không thể tải cấu hình. Vui lòng thử lại.', 'error');
       } finally {
         setLoading(false);
@@ -211,7 +232,10 @@ export default function AppearanceSettingsPage() {
 
   // Handle form submission
   const onSubmit = async (data: AppearanceFormData) => {
-    console.log('[Appearance Settings] onSubmit called with data:', data);
+    // Log in development only
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Appearance Settings] onSubmit called with data:', data);
+    }
     setSaving(true);
     try {
       // Map form data to API format
@@ -222,21 +246,26 @@ export default function AppearanceSettingsPage() {
           // Frontend needs URL directly to render image
           logo: data.header.logo && data.header.logo.url
             ? {
-                _id: data.header.logo._id,
+                _id: data.header.logo._id, // ✅ FIX: Use `_id` from MediaPicker (MediaPickerValue always has `_id`)
                 url: data.header.logo.url, // Ensure URL is saved
                 name: data.header.logo.name,
                 alt: data.header.logoAlt || data.header.logo.name, // Use logoAlt from form or fallback to name
               }
             : null,
           siteTitle: data.header.siteTitle || undefined, // Custom site title (optional)
-          announcementBar: data.header.announcementBar,
+          announcementBar: {
+            enabled: data.header.announcementBar?.enabled ?? false,
+            text: data.header.announcementBar?.text || undefined,
+            link: data.header.announcementBar?.link || undefined,
+            linkText: data.header.announcementBar?.linkText || undefined,
+          },
         },
         footer: {
-          copyright: data.footer.copyright,
-          description: data.footer.description,
-          address: data.footer.address,
-          email: data.footer.email,
-          phone: data.footer.phone,
+          copyright: data.footer.copyright?.trim() || undefined, // ✅ FIX: Trim and convert null/empty to undefined
+          description: data.footer.description?.trim() || undefined, // ✅ FIX: Convert null/empty to undefined
+          address: data.footer.address?.trim() || undefined,
+          email: data.footer.email?.trim() || undefined,
+          phone: data.footer.phone?.trim() || undefined,
           // ✅ UX FIX: Filter out social links with empty URL before saving
           socialLinks: data.footer.socialLinks.filter((link) => link.url.trim() !== ''),
         },
@@ -274,15 +303,20 @@ export default function AppearanceSettingsPage() {
               : null,
             logoAlt: updatedData.header.logo?.alt || '',
             siteTitle: updatedData.header.siteTitle || '',
-            announcementBar: updatedData.header.announcementBar,
+            announcementBar: {
+              enabled: updatedData.header.announcementBar?.enabled ?? false,
+              text: updatedData.header.announcementBar?.text || undefined,
+              link: updatedData.header.announcementBar?.link || undefined,
+              linkText: updatedData.header.announcementBar?.linkText || undefined,
+            },
           },
           footer: {
-            copyright: updatedData.footer.copyright,
-            description: updatedData.footer.description,
-            address: updatedData.footer.address,
-            email: updatedData.footer.email,
-            phone: updatedData.footer.phone,
-            socialLinks: updatedData.footer.socialLinks,
+            copyright: updatedData.footer.copyright || '',
+            description: updatedData.footer.description || '', // ✅ FIX: Convert null/undefined to empty string for form
+            address: updatedData.footer.address || '',
+            email: updatedData.footer.email || '',
+            phone: updatedData.footer.phone || '',
+            socialLinks: updatedData.footer.socialLinks || [],
           },
           scripts: updatedData.scripts,
         });
@@ -290,7 +324,10 @@ export default function AppearanceSettingsPage() {
 
       showToast('Cập nhật cấu hình thành công!', 'success');
     } catch (error) {
-      console.error('[Appearance Settings] Save error:', error);
+      // Log error in development only
+      if (process.env.NODE_ENV === 'development') {
+        console.error('[Appearance Settings] Save error:', error);
+      }
       showToast(
         error instanceof Error ? error.message : 'Không thể cập nhật cấu hình',
         'error'
@@ -376,6 +413,7 @@ export default function AppearanceSettingsPage() {
     header: {
       logo: null,
       logoAlt: '',
+      siteTitle: '', // ✅ FIX: Include siteTitle in default values
       announcementBar: {
         enabled: false,
       },
@@ -404,14 +442,73 @@ export default function AppearanceSettingsPage() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit, (errors) => {
-        // ✅ FIX: Handle validation errors with detailed logging
-        console.error('[Appearance Settings] Validation errors:', errors);
-        console.error('[Appearance Settings] Form data:', watch());
+        // ✅ FIX: Handle validation errors with detailed logging (development only)
+        // ✅ FIX: Sanitize errors before stringify to avoid circular reference errors
+        if (process.env.NODE_ENV === 'development') {
+          // Helper to safely stringify objects with circular references
+          const safeStringify = (obj: unknown, space?: number): string => {
+            const seen = new WeakSet();
+            return JSON.stringify(obj, (key, value) => {
+              // Skip DOM elements and React refs
+              if (value && typeof value === 'object') {
+                if (value instanceof HTMLElement || value instanceof Element) {
+                  return '[HTMLElement]';
+                }
+                if (seen.has(value)) {
+                  return '[Circular]';
+                }
+                seen.add(value);
+              }
+              return value;
+            }, space);
+          };
+          
+          try {
+            console.error('[Appearance Settings] Validation errors:', safeStringify(errors, 2));
+            // Only log form values, not refs
+            const formValues = watch();
+            const sanitizedValues = {
+              header: {
+                logo: formValues.header?.logo ? { _id: formValues.header.logo._id, url: formValues.header.logo.url, name: formValues.header.logo.name } : null,
+                logoAlt: formValues.header?.logoAlt,
+                siteTitle: formValues.header?.siteTitle,
+                announcementBar: formValues.header?.announcementBar,
+              },
+              footer: {
+                copyright: formValues.footer?.copyright,
+                description: formValues.footer?.description,
+                address: formValues.footer?.address,
+                email: formValues.footer?.email,
+                phone: formValues.footer?.phone,
+                socialLinks: formValues.footer?.socialLinks,
+              },
+              scripts: formValues.scripts,
+            };
+            console.error('[Appearance Settings] Form data:', safeStringify(sanitizedValues, 2));
+          } catch (e) {
+            console.error('[Appearance Settings] Error logging:', e);
+          }
+        }
         
         if (Object.keys(errors).length > 0) {
-          // Find first error message
-          const firstError = Object.values(errors)[0];
-          const errorMessage = firstError?.message || 'Vui lòng kiểm tra lại các trường có lỗi';
+          // Find first error message with detailed path
+          const getFirstError = (errs: Record<string, unknown>): string => {
+            for (const key in errs) {
+              const error = errs[key];
+              // Check if error has message property
+              if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') {
+                return `${key}: ${error.message}`;
+              }
+              // Recursively check nested errors
+              if (typeof error === 'object' && error !== null && !Array.isArray(error)) {
+                const nested = getFirstError(error as Record<string, unknown>);
+                if (nested) return nested;
+              }
+            }
+            return 'Vui lòng kiểm tra lại các trường có lỗi';
+          };
+          
+          const errorMessage = getFirstError(errors as Record<string, unknown>);
           showToast(errorMessage, 'error');
           
           // Scroll to first error field
@@ -930,18 +1027,32 @@ export default function AppearanceSettingsPage() {
               type="submit" 
               disabled={saving || !isDirty}
               onClick={(e) => {
-                // ✅ DEBUG: Log form state when button is clicked
-                console.log('[Appearance Settings] Submit button clicked:', {
-                  isDirty,
-                  saving,
-                  errors: Object.keys(errors).length > 0 ? errors : 'No errors',
-                  formData: watch(),
-                  buttonDisabled: saving || !isDirty,
-                });
+                // ✅ DEBUG: Log form state when button is clicked (development only)
+                // ✅ FIX: Only log simple values to avoid circular reference errors
+                if (process.env.NODE_ENV === 'development') {
+                  try {
+                    const formValues = watch();
+                    console.log('[Appearance Settings] Submit button clicked:', {
+                      isDirty,
+                      saving,
+                      hasErrors: Object.keys(errors).length > 0,
+                      errorCount: Object.keys(errors).length,
+                      buttonDisabled: saving || !isDirty,
+                      // Only log simple form values, not refs
+                      hasLogo: !!formValues.header?.logo,
+                      siteTitle: formValues.header?.siteTitle,
+                      hasSocialLinks: (formValues.footer?.socialLinks?.length ?? 0) > 0,
+                    });
+                  } catch (e) {
+                    console.log('[Appearance Settings] Submit button clicked:', { isDirty, saving, buttonDisabled: saving || !isDirty });
+                  }
+                }
                 
                 // Prevent default if disabled (shouldn't happen, but just in case)
                 if (saving || !isDirty) {
-                  console.warn('[Appearance Settings] Button clicked but disabled:', { saving, isDirty });
+                  if (process.env.NODE_ENV === 'development') {
+                    console.warn('[Appearance Settings] Button clicked but disabled:', { saving, isDirty });
+                  }
                   e.preventDefault();
                   return;
                 }

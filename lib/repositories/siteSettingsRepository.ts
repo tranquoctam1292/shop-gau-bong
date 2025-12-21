@@ -88,6 +88,7 @@ export async function updateSiteSettings(
     if (data.header) {
       updateData.header = {
         logo: data.header.logo ?? null,
+        siteTitle: data.header.siteTitle, // ✅ FIX: Save siteTitle to MongoDB
         announcementBar: {
           enabled: data.header.announcementBar?.enabled ?? false,
           text: data.header.announcementBar?.text,
@@ -107,6 +108,7 @@ export async function updateSiteSettings(
     if (data.footer) {
       updateData.footer = {
         copyright: data.footer.copyright,
+        description: data.footer.description, // ✅ FIX: Save description to MongoDB
         address: data.footer.address,
         email: data.footer.email,
         phone: data.footer.phone,
@@ -124,6 +126,7 @@ export async function updateSiteSettings(
     if (data.header) {
       updateData.header = {
         logo: data.header.logo !== undefined ? data.header.logo : existing.header.logo,
+        siteTitle: data.header.siteTitle !== undefined ? data.header.siteTitle : existing.header.siteTitle, // ✅ FIX: Save siteTitle to MongoDB
         announcementBar: {
           enabled: data.header.announcementBar?.enabled ?? existing.header.announcementBar.enabled,
           text: data.header.announcementBar?.text ?? existing.header.announcementBar.text,
@@ -137,6 +140,7 @@ export async function updateSiteSettings(
     if (data.footer) {
       updateData.footer = {
         copyright: data.footer.copyright ?? existing.footer.copyright,
+        description: data.footer.description ?? existing.footer.description, // ✅ FIX: Save description to MongoDB
         address: data.footer.address ?? existing.footer.address,
         email: data.footer.email ?? existing.footer.email,
         phone: data.footer.phone ?? existing.footer.phone,

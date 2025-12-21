@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
         // 🔒 SECURITY: Check if user is trying to update scripts
         // Only SUPER_ADMIN can update scripts (XSS protection)
         if (body.scripts && (body.scripts.headerScripts || body.scripts.footerScripts)) {
-          const userRole = (req.adminUser as any)?.role;
+          const userRole = req.adminUser?.role;
           if (userRole !== AdminRole.SUPER_ADMIN) {
             return NextResponse.json(
               {
@@ -131,17 +131,17 @@ export async function POST(request: NextRequest) {
           );
         }
         
-        const userId = (req.adminUser as any)?._id?.toString();
+        const userId = req.adminUser?._id?.toString();
         
         // Update settings
         const updated = await updateSiteSettings(validation.data, userId);
         
         // ✅ CACHE INVALIDATION: Revalidate layout and homepage to ensure immediate update
-        // This ensures Logo and Footer changes appear immediately on homepage
+        // This ensures Logo, SiteTitle, and Footer changes appear immediately on frontend
         try {
           revalidatePath('/', 'layout'); // Revalidate layout (includes Header/Footer components)
           revalidatePath('/'); // Revalidate homepage specifically
-          revalidatePath('/api/cms/site-settings'); // Revalidate public API cache
+          revalidatePath('/api/cms/site-settings', 'page'); // ✅ FIX: Revalidate public API cache with 'page' type
         } catch (revalidateError) {
           // Log error but don't fail request if revalidation fails
           console.warn('[Cache Invalidation] Failed to revalidate paths:', revalidateError);

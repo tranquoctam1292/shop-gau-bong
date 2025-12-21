@@ -21,12 +21,14 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const isAdminRoute = pathname?.startsWith('/admin');
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
 
-  // Fetch site settings once
+  // Fetch site settings once (and refetch when pathname changes to get fresh data)
   useEffect(() => {
     if (!isAdminRoute) {
-      fetchSiteSettings().then(setSiteSettings);
+      fetchSiteSettings().then(setSiteSettings).catch((error) => {
+        console.error('[LayoutWrapper] Failed to fetch site settings:', error);
+      });
     }
-  }, [isAdminRoute]);
+  }, [isAdminRoute, pathname]); // ✅ FIX: Refetch when pathname changes to get fresh data after admin updates
 
   if (isAdminRoute) {
     // Admin routes - no Header/Footer, just render children

@@ -25,6 +25,7 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
             alt: mongoSettings.header.logo.alt,
           }
         : null,
+      siteTitle: mongoSettings.header?.siteTitle, // ✅ FIX: Map siteTitle to frontend
       announcementBar: {
         enabled: mongoSettings.header?.announcementBar?.enabled ?? false,
         text: mongoSettings.header?.announcementBar?.text,
@@ -34,6 +35,7 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
     },
     footer: {
       copyright: mongoSettings.footer?.copyright,
+      description: mongoSettings.footer?.description, // ✅ FIX: Map description to frontend
       address: mongoSettings.footer?.address,
       email: mongoSettings.footer?.email,
       phone: mongoSettings.footer?.phone,
