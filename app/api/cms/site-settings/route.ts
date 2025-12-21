@@ -7,8 +7,10 @@
  */
 
 import { NextResponse } from 'next/server';
+import { unstable_cache } from 'next/cache';
 import { getSiteSettings } from '@/lib/repositories/siteSettingsRepository';
 import type { SiteSettings } from '@/types/siteSettings';
+import { safeToISOString } from '@/lib/utils/dateUtils';
 
 /**
  * Map MongoDB document to frontend format
@@ -45,22 +47,40 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
       headerScripts: mongoSettings.scripts?.headerScripts,
       footerScripts: mongoSettings.scripts?.footerScripts,
     },
-    createdAt: mongoSettings.createdAt?.toISOString() ?? new Date().toISOString(),
-    updatedAt: mongoSettings.updatedAt?.toISOString() ?? new Date().toISOString(),
+    createdAt: safeToISOString(mongoSettings.createdAt) ?? new Date().toISOString(),
+    updatedAt: safeToISOString(mongoSettings.updatedAt) ?? new Date().toISOString(),
   };
 }
+
+/**
+ * Cached function to get site settings
+ * 
+ * ✅ FIX: Use unstable_cache with tags for better cache invalidation control
+ * Tag 'site-settings' allows instant invalidation via revalidateTag()
+ */
+const getCachedSiteSettings = unstable_cache(
+  async () => {
+    return await getSiteSettings();
+  },
+  ['site-settings'], // Cache key
+  {
+    tags: ['site-settings'], // ✅ FIX: Tag for revalidateTag() invalidation
+    revalidate: 3600, // Cache for 1 hour
+  }
+);
 
 /**
  * GET /api/cms/site-settings
  * 
  * Get public site settings
  * 
- * Cache: 1 hour (3600 seconds)
+ * ✅ FIX: Cache with tag 'site-settings' for instant invalidation when admin updates
+ * Cache: 1 hour (3600 seconds), but can be invalidated immediately via revalidateTag('site-settings')
  */
 export async function GET() {
   try {
-    // getSiteSettings() now returns DEFAULT_SETTINGS instead of null
-    const settings = await getSiteSettings();
+    // ✅ FIX: Use cached function with tag for better cache control
+    const settings = await getCachedSiteSettings();
     
     return NextResponse.json({
       success: true,
@@ -81,7 +101,4 @@ export async function GET() {
     );
   }
 }
-
-// Revalidate cache every hour
-export const revalidate = 3600;
 

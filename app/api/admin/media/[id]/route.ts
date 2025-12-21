@@ -16,6 +16,7 @@ import {
   deleteMedia 
 } from '@/lib/repositories/mediaRepository';
 import { getStorageServiceSingleton } from '@/lib/storage/storageFactory';
+import { safeToISOString } from '@/lib/utils/dateUtils';
 import { 
   getMediaDetailSchema,
   updateMediaParamsSchema,
@@ -82,8 +83,8 @@ export async function GET(
         caption: media.caption,
         description: media.description,
         uploadedBy: media.uploadedBy?.toString(),
-        createdAt: media.createdAt.toISOString(),
-        updatedAt: media.updatedAt.toISOString(),
+        createdAt: safeToISOString(media.createdAt) ?? new Date().toISOString(),
+        updatedAt: safeToISOString(media.updatedAt) ?? new Date().toISOString(),
       },
     });
   } catch (error) {
@@ -186,8 +187,8 @@ export async function PUT(
         caption: updated.caption,
         description: updated.description,
         uploadedBy: updated.uploadedBy?.toString(),
-        createdAt: updated.createdAt.toISOString(),
-        updatedAt: updated.updatedAt.toISOString(),
+        createdAt: safeToISOString(updated.createdAt) ?? new Date().toISOString(),
+        updatedAt: safeToISOString(updated.updatedAt) ?? new Date().toISOString(),
       },
     });
   } catch (error) {

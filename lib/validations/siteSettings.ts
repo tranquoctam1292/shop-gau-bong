@@ -83,7 +83,7 @@ const announcementBarSchema = z.object({
  */
 const socialLinkSchema = z.object({
   platform: z.enum(['facebook', 'instagram', 'youtube', 'zalo', 'tiktok', 'twitter'], {
-    errorMap: () => ({ message: 'Platform không hợp lệ' }),
+    errorMap: () => ({ message: 'Vui lòng chọn platform' }),
   }),
   url: z.string().url('URL không hợp lệ').or(z.literal('')), // Allow empty string
   label: z.string().optional(),

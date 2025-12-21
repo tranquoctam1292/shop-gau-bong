@@ -41,6 +41,10 @@ const fredoka = Fredoka({
 import { getDefaultMetadata, generateOpenGraphTags, generateTwitterCardTags } from '@/lib/utils/metadata';
 import { SITE_CONFIG } from '@/lib/constants/config';
 import { getSiteScripts, HeaderScripts, FooterScripts } from '@/components/layout/ScriptsInjector';
+import { getSiteSettings } from '@/lib/repositories/siteSettingsRepository';
+import { unstable_cache } from 'next/cache';
+import type { SiteSettings } from '@/types/siteSettings';
+import { safeToISOString } from '@/lib/utils/dateUtils';
 
 const defaultMetadata = getDefaultMetadata();
 const ogTags = generateOpenGraphTags(defaultMetadata);
@@ -96,12 +100,72 @@ export const metadata: Metadata = {
   },
 };
 
+/**
+ * Map MongoDB document to frontend format
+ */
+function mapSiteSettings(mongoSettings: any): SiteSettings {
+  return {
+    id: mongoSettings._id,
+    header: {
+      logo: mongoSettings.header?.logo
+        ? {
+            id: mongoSettings.header.logo._id,
+            url: mongoSettings.header.logo.url,
+            name: mongoSettings.header.logo.name,
+            alt: mongoSettings.header.logo.alt || mongoSettings.header.logo.name,
+          }
+        : null,
+      siteTitle: mongoSettings.header?.siteTitle,
+      announcementBar: {
+        enabled: mongoSettings.header?.announcementBar?.enabled ?? false,
+        text: mongoSettings.header?.announcementBar?.text,
+        link: mongoSettings.header?.announcementBar?.link,
+        linkText: mongoSettings.header?.announcementBar?.linkText,
+      },
+    },
+    footer: {
+      copyright: mongoSettings.footer?.copyright,
+      description: mongoSettings.footer?.description,
+      address: mongoSettings.footer?.address,
+      email: mongoSettings.footer?.email,
+      phone: mongoSettings.footer?.phone,
+      socialLinks: mongoSettings.footer?.socialLinks ?? [],
+    },
+    scripts: {
+      headerScripts: mongoSettings.scripts?.headerScripts,
+      footerScripts: mongoSettings.scripts?.footerScripts,
+    },
+    createdAt: safeToISOString(mongoSettings.createdAt) ?? new Date().toISOString(),
+    updatedAt: safeToISOString(mongoSettings.updatedAt) ?? new Date().toISOString(),
+  };
+}
+
+/**
+ * Cached function to get site settings for layout
+ * 
+ * ✅ FIX: Use unstable_cache with tags for better cache invalidation control
+ * Tag 'site-settings' allows instant invalidation via revalidateTag()
+ */
+const getCachedSiteSettingsForLayout = unstable_cache(
+  async () => {
+    return await getSiteSettings();
+  },
+  ['site-settings-layout'], // Cache key
+  {
+    tags: ['site-settings'], // ✅ FIX: Same tag as API route for coordinated invalidation
+    revalidate: 3600, // Cache for 1 hour
+  }
+);
+
 export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Fetch site settings for scripts injection
+  // ✅ FIX: Fetch site settings on server-side to prevent hydration mismatch
+  // Use cached function with tag for better cache control and instant invalidation
+  const mongoSettings = await getCachedSiteSettingsForLayout();
+  const siteSettings = mapSiteSettings(mongoSettings);
   const { headerScripts, footerScripts } = await getSiteScripts();
 
   return (
@@ -112,7 +176,7 @@ export default async function RootLayout({
         <QueryProvider>
           <ToastProvider>
             <CategoriesProvider>
-              <LayoutWrapper>
+              <LayoutWrapper siteSettings={siteSettings}>
                 {children}
               </LayoutWrapper>
               {/* Floating Contact Widget - Render sau cùng, client-side only */}

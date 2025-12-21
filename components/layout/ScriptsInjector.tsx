@@ -21,9 +21,8 @@ interface ScriptsInjectorProps {
  * Injects scripts at the beginning of body (Next.js App Router doesn't allow <head> manipulation)
  * Uses dangerouslySetInnerHTML for raw HTML scripts (GA, FB Pixel, etc.)
  * 
- * ✅ OPTIMIZATION: Rendered at highest position in body for early execution
- * Note: Next.js Script component doesn't support dangerouslySetInnerHTML for raw HTML,
- * so we use div with dangerouslySetInnerHTML as the best approach for custom scripts
+ * ✅ FIX: Use comprehensive styles to prevent "ghost" DOM layout shift
+ * The div wrapper is necessary for dangerouslySetInnerHTML, but must not affect layout
  */
 export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
   if (!headerScripts) {
@@ -38,8 +37,19 @@ export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
     <div
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: headerScripts }}
-      style={{ display: 'none' }}
+      style={{
+        display: 'none', // ✅ FIX: Hide from layout
+        position: 'absolute', // ✅ FIX: Remove from document flow
+        visibility: 'hidden', // ✅ FIX: Additional hiding
+        width: 0, // ✅ FIX: Zero width
+        height: 0, // ✅ FIX: Zero height
+        overflow: 'hidden', // ✅ FIX: Hide overflow
+        margin: 0, // ✅ FIX: No margin
+        padding: 0, // ✅ FIX: No padding
+        border: 'none', // ✅ FIX: No border
+      }}
       data-script-type="header"
+      aria-hidden="true" // ✅ FIX: Hide from screen readers
     />
   );
 }
@@ -48,6 +58,9 @@ export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
  * Footer Scripts Component
  * 
  * Renders before </body>
+ * 
+ * ✅ FIX: Use comprehensive styles to prevent "ghost" DOM layout shift
+ * The div wrapper is necessary for dangerouslySetInnerHTML, but must not affect layout
  */
 export function FooterScripts({ footerScripts }: ScriptsInjectorProps) {
   if (!footerScripts) {
@@ -58,7 +71,19 @@ export function FooterScripts({ footerScripts }: ScriptsInjectorProps) {
     <div
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: footerScripts }}
-      style={{ display: 'none' }}
+      style={{
+        display: 'none', // ✅ FIX: Hide from layout
+        position: 'absolute', // ✅ FIX: Remove from document flow
+        visibility: 'hidden', // ✅ FIX: Additional hiding
+        width: 0, // ✅ FIX: Zero width
+        height: 0, // ✅ FIX: Zero height
+        overflow: 'hidden', // ✅ FIX: Hide overflow
+        margin: 0, // ✅ FIX: No margin
+        padding: 0, // ✅ FIX: No padding
+        border: 'none', // ✅ FIX: No border
+      }}
+      data-script-type="footer"
+      aria-hidden="true" // ✅ FIX: Hide from screen readers
     />
   );
 }

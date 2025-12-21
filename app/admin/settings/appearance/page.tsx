@@ -266,8 +266,11 @@ export default function AppearanceSettingsPage() {
           address: data.footer.address?.trim() || undefined,
           email: data.footer.email?.trim() || undefined,
           phone: data.footer.phone?.trim() || undefined,
-          // ✅ UX FIX: Filter out social links with empty URL before saving
-          socialLinks: data.footer.socialLinks.filter((link) => link.url.trim() !== ''),
+          // ✅ UX FIX: Filter out social links with empty URL or invalid platform before saving
+          // Only save links that have both platform and URL filled
+          socialLinks: data.footer.socialLinks.filter((link) => 
+            link.platform && link.url.trim() !== ''
+          ),
         },
         scripts: data.scripts,
       };
@@ -400,7 +403,11 @@ export default function AppearanceSettingsPage() {
   const hasFooterErrors = Boolean(
     errors.footer?.copyright ||
     errors.footer?.email ||
-    errors.footer?.socialLinks
+    errors.footer?.socialLinks ||
+    // ✅ FIX: Check if any social link item has errors
+    (errors.footer?.socialLinks && 
+     Array.isArray(errors.footer.socialLinks) && 
+     errors.footer.socialLinks.some((linkError: any) => linkError !== undefined && linkError !== null))
   );
   
   const hasScriptsErrors = Boolean(
@@ -718,11 +725,15 @@ export default function AppearanceSettingsPage() {
                     <Label htmlFor="logo-alt">Alt Text (SEO)</Label>
                     <Input
                       id="logo-alt"
-                      {...register('header.logoAlt')}
                       placeholder="Mô tả logo cho SEO (ví dụ: Logo Shop Gấu Bông)"
                       value={watchedHeader.logoAlt || ''}
-                      onChange={(e) => setValue('header.logoAlt', e.target.value, { shouldDirty: true })} // ✅ FIX: Mark form as dirty when changing alt text
+                      onChange={(e) => setValue('header.logoAlt', e.target.value, { shouldDirty: true })} // ✅ FIX: Use controlled input with setValue (removed register to avoid dual-control conflict)
                     />
+                    {errors.header?.logoAlt && (
+                      <p className="text-sm text-destructive mt-1">
+                        {errors.header.logoAlt.message}
+                      </p>
+                    )}
                     <p className="text-xs text-muted-foreground mt-1">
                       Mô tả ngắn gọn về logo để tối ưu SEO và accessibility
                     </p>
@@ -873,59 +884,84 @@ export default function AppearanceSettingsPage() {
                 <CardDescription>Thêm các liên kết mạng xã hội</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {(watchedFooter?.socialLinks || []).map((link, index) => (
-                  <div key={index} className="flex gap-2 items-start p-4 border rounded-lg">
-                    <div className="flex-1 space-y-2">
-                      <div>
-                        <Label>Platform</Label>
-                        {/* ✅ UX: Use Shadcn Select instead of native select */}
-                        <Select
-                          value={link.platform}
-                          onValueChange={(value) =>
-                            updateSocialLink(index, 'platform', value as SocialPlatform)
-                          }
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Chọn platform" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {socialPlatforms.map((platform) => (
-                              <SelectItem key={platform.value} value={platform.value}>
-                                {platform.label}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div>
-                        <Label>URL</Label>
-                        <Input
-                          value={link.url}
-                          onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
-                          placeholder="https://..."
-                          type="url"
-                        />
-                      </div>
-                      <div>
-                        <Label>Label (tùy chọn)</Label>
-                        <Input
-                          value={link.label || ''}
-                          onChange={(e) => updateSocialLink(index, 'label', e.target.value)}
-                          placeholder="Facebook"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeSocialLink(index)}
-                      className="mt-6"
+                {(watchedFooter?.socialLinks || []).map((link, index) => {
+                  // ✅ FIX: Get validation errors for this specific social link
+                  const linkErrors = errors.footer?.socialLinks?.[index];
+                  const hasLinkErrors = Boolean(linkErrors);
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className={`flex gap-2 items-start p-4 border rounded-lg ${
+                        hasLinkErrors ? 'border-destructive bg-destructive/5' : ''
+                      }`}
                     >
-                      ×
-                    </Button>
-                  </div>
-                ))}
+                      <div className="flex-1 space-y-2">
+                        <div>
+                          <Label>Platform *</Label>
+                          {/* ✅ UX: Use Shadcn Select instead of native select */}
+                          <Select
+                            value={link.platform}
+                            onValueChange={(value) =>
+                              updateSocialLink(index, 'platform', value as SocialPlatform)
+                            }
+                          >
+                            <SelectTrigger className={linkErrors?.platform ? 'border-destructive' : ''}>
+                              <SelectValue placeholder="Chọn platform" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {socialPlatforms.map((platform) => (
+                                <SelectItem key={platform.value} value={platform.value}>
+                                  {platform.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          {/* ✅ FIX: Display error for platform field */}
+                          {linkErrors?.platform && (
+                            <p className="text-sm text-destructive mt-1">
+                              {linkErrors.platform.message}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label>URL</Label>
+                          <Input
+                            value={link.url}
+                            onChange={(e) => updateSocialLink(index, 'url', e.target.value)}
+                            placeholder="https://..."
+                            type="url"
+                            className={linkErrors?.url ? 'border-destructive' : ''}
+                          />
+                          {/* ✅ FIX: Display error for URL field */}
+                          {linkErrors?.url && (
+                            <p className="text-sm text-destructive mt-1">
+                              {linkErrors.url.message}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label>Label (tùy chọn)</Label>
+                          <Input
+                            value={link.label || ''}
+                            onChange={(e) => updateSocialLink(index, 'label', e.target.value)}
+                            placeholder="Facebook"
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeSocialLink(index)}
+                        className="mt-6"
+                        aria-label="Xóa liên kết"
+                      >
+                        ×
+                      </Button>
+                    </div>
+                  );
+                })}
 
                 <Button type="button" variant="outline" onClick={addSocialLink}>
                   + Thêm liên kết

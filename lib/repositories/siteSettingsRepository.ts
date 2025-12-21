@@ -35,22 +35,39 @@ const DEFAULT_SETTINGS: MongoSiteSettings = {
 };
 
 /**
- * Get site settings
+ * Get site settings (raw - returns null if not found)
  * 
- * @returns Site settings document or DEFAULT_SETTINGS if not found
+ * Internal function to check if document actually exists in DB
+ * 
+ * @returns Site settings document or null if not found
  */
-export async function getSiteSettings(): Promise<MongoSiteSettings> {
+async function getSiteSettingsRaw(): Promise<MongoSiteSettings | null> {
   const { siteSettings } = await getCollections();
   
   // MongoDB allows string _id for custom IDs
   const settings = await siteSettings.findOne({ _id: GLOBAL_CONFIG_ID as any });
   
   if (!settings) {
+    return null;
+  }
+  
+  return settings as unknown as MongoSiteSettings;
+}
+
+/**
+ * Get site settings
+ * 
+ * @returns Site settings document or DEFAULT_SETTINGS if not found
+ */
+export async function getSiteSettings(): Promise<MongoSiteSettings> {
+  const settings = await getSiteSettingsRaw();
+  
+  if (!settings) {
     // Return default settings instead of null
     return DEFAULT_SETTINGS;
   }
   
-  return settings as unknown as MongoSiteSettings;
+  return settings;
 }
 
 /**
@@ -70,8 +87,9 @@ export async function updateSiteSettings(
   
   const now = new Date();
   
-  // Get existing settings or create default
-  const existing = await getSiteSettings();
+  // ✅ FIX: Check if document actually exists in DB (not just DEFAULT_SETTINGS)
+  // Use getSiteSettingsRaw() to get null if not found, instead of DEFAULT_SETTINGS
+  const existing = await getSiteSettingsRaw();
   
   // Build update data with proper types
   const updateData: Partial<MongoSiteSettings> = {
@@ -79,7 +97,7 @@ export async function updateSiteSettings(
     updatedBy,
   };
   
-  // If creating new, set createdAt
+  // ✅ FIX: If document doesn't exist in DB, set createdAt and _id for initial creation
   if (!existing) {
     (updateData as any)._id = GLOBAL_CONFIG_ID;
     updateData.createdAt = now;

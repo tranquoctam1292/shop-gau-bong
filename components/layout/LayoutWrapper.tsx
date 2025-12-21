@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { QuickCheckoutModal } from '@/components/checkout/QuickCheckoutModal';
@@ -14,21 +14,37 @@ import type { SiteSettings } from '@/types/siteSettings';
  * 
  * Conditionally renders Header/Footer based on route
  * Admin routes (/admin/*) don't get Header/Footer
- * Fetches site settings and passes to Header/Footer
+ * 
+ * ✅ FIX: Receives siteSettings from Server Component (app/layout.tsx) to prevent hydration mismatch
+ * Optionally refetches on client-side when pathname changes to get fresh data after admin updates
  */
-export function LayoutWrapper({ children }: { children: React.ReactNode }) {
+export function LayoutWrapper({ 
+  children,
+  siteSettings: initialSiteSettings,
+}: { 
+  children: React.ReactNode;
+  siteSettings?: SiteSettings | null;
+}) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith('/admin');
-  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
+  
+  // ✅ FIX: Use server-provided siteSettings as initial value to prevent hydration mismatch
+  // Only refetch on client-side when pathname changes (for fresh data after admin updates)
+  const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(initialSiteSettings || null);
 
-  // Fetch site settings once (and refetch when pathname changes to get fresh data)
+  // ✅ FIX: Optional refetch on pathname change to get fresh data after admin updates
+  // This runs after initial render, so it won't cause hydration mismatch
   useEffect(() => {
-    if (!isAdminRoute) {
+    if (!isAdminRoute && pathname) {
+      // Refetch to get fresh data after admin updates (runs after hydration)
       fetchSiteSettings().then(setSiteSettings).catch((error) => {
-        console.error('[LayoutWrapper] Failed to fetch site settings:', error);
+        // Log error but don't break UI - fallback to initial server-provided data
+        if (process.env.NODE_ENV === 'development') {
+          console.error('[LayoutWrapper] Failed to refetch site settings:', error);
+        }
       });
     }
-  }, [isAdminRoute, pathname]); // ✅ FIX: Refetch when pathname changes to get fresh data after admin updates
+  }, [isAdminRoute, pathname]); // Only refetch when pathname changes
 
   if (isAdminRoute) {
     // Admin routes - no Header/Footer, just render children
@@ -36,6 +52,7 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   }
 
   // Regular routes - with Header/Footer
+  // ✅ FIX: siteSettings is now available from server-side, preventing hydration mismatch
   return (
     <>
       <Header siteSettings={siteSettings} />

@@ -11,6 +11,7 @@ import { searchMedia } from '@/lib/repositories/mediaRepository';
 import { getMediaListSchema } from '@/lib/validations/mediaSchema';
 import { handleValidationError } from '@/lib/utils/validation-errors';
 import { ObjectId } from '@/lib/db';
+import { safeToISOString } from '@/lib/utils/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -103,8 +104,8 @@ export async function GET(request: NextRequest) {
       caption: media.caption,
       description: media.description,
       uploadedBy: media.uploadedBy?.toString(),
-      createdAt: media.createdAt.toISOString(),
-      updatedAt: media.updatedAt.toISOString(),
+      createdAt: safeToISOString(media.createdAt) ?? new Date().toISOString(),
+      updatedAt: safeToISOString(media.updatedAt) ?? new Date().toISOString(),
     }));
 
     return NextResponse.json({
@@ -117,8 +118,8 @@ export async function GET(request: NextRequest) {
           type: type || null,
           folder: folder || null,
           uploadedBy: uploadedBy || null,
-          dateFrom: dateFrom?.toISOString() || null,
-          dateTo: dateTo?.toISOString() || null,
+          dateFrom: safeToISOString(dateFrom, null) || null,
+          dateTo: safeToISOString(dateTo, null) || null,
           minSize: minSize || null,
           maxSize: maxSize || null,
         },

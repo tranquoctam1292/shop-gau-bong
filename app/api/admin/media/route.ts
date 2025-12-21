@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { getMediaList, createMedia } from '@/lib/repositories/mediaRepository';
 import { getStorageServiceSingleton } from '@/lib/storage/storageFactory';
+import { safeToISOString } from '@/lib/utils/dateUtils';
 import {
   processImage,
   getImageMetadata,
@@ -110,8 +111,8 @@ export async function GET(request: NextRequest) {
       caption: media.caption,
       description: media.description,
       uploadedBy: media.uploadedBy?.toString(),
-      createdAt: media.createdAt.toISOString(),
-      updatedAt: media.updatedAt.toISOString(),
+      createdAt: safeToISOString(media.createdAt) ?? new Date().toISOString(),
+      updatedAt: safeToISOString(media.updatedAt) ?? new Date().toISOString(),
     }));
 
     return NextResponse.json({
@@ -317,8 +318,8 @@ export async function POST(request: NextRequest) {
         caption: media.caption,
         description: media.description,
         uploadedBy: media.uploadedBy?.toString(),
-        createdAt: media.createdAt.toISOString(),
-        updatedAt: media.updatedAt.toISOString(),
+        createdAt: safeToISOString(media.createdAt) ?? new Date().toISOString(),
+        updatedAt: safeToISOString(media.updatedAt) ?? new Date().toISOString(),
       },
     });
   } catch (error) {

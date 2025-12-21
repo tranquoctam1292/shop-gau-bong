@@ -90,16 +90,20 @@ export function Footer({ siteSettings }: FooterProps) {
   const { menu: footerMenu1 } = useMenu('footer-1');
   const { menu: footerMenu2 } = useMenu('footer-2');
 
-  // Extract data from siteSettings with fallbacks
+  // ✅ FIX: Defensive programming - Always use optional chaining and safe fallbacks
+  // Extract data from siteSettings with comprehensive fallbacks
   const logo = siteSettings?.header?.logo || null;
   const description = siteSettings?.footer?.description || 
     'Shop Gấu Bông - Nơi bạn tìm thấy những chú gấu bông đáng yêu nhất.';
-  const copyright = siteSettings?.footer.copyright || 
+  const copyright = siteSettings?.footer?.copyright || 
     `© ${new Date().getFullYear()} Shop Gấu Bông. All rights reserved.`;
-  const address = siteSettings?.footer.address;
-  const email = siteSettings?.footer.email;
-  const phone = siteSettings?.footer.phone;
-  const socialLinks = siteSettings?.footer.socialLinks || [];
+  const address = siteSettings?.footer?.address || null;
+  const email = siteSettings?.footer?.email || null;
+  const phone = siteSettings?.footer?.phone || null;
+  // ✅ FIX: Safe array access with fallback to empty array
+  const socialLinks = Array.isArray(siteSettings?.footer?.socialLinks) 
+    ? siteSettings?.footer?.socialLinks 
+    : [];
 
   return (
     <footer className="border-t bg-[#FFF9FA]">
@@ -108,11 +112,11 @@ export function Footer({ siteSettings }: FooterProps) {
           {/* ✅ COLUMN 1: Branding - Logo, Description, Social Icons */}
           <div>
             {/* Logo */}
-            {logo ? (
+            {logo && logo.url ? (
               <div className="relative w-24 h-24 mb-4">
                 <Image
                   src={logo.url}
-                  alt={logo.alt || logo.name || 'Logo'}
+                  alt={logo?.alt || logo?.name || 'Logo'}
                   fill
                   className="object-contain"
                   sizes="96px"
@@ -130,41 +134,55 @@ export function Footer({ siteSettings }: FooterProps) {
             </p>
             
             {/* Social Links */}
+            {/* ✅ FIX: Defensive programming - Filter out invalid links before rendering */}
             {socialLinks && socialLinks.length > 0 && (
               <div className="flex gap-3">
-                {socialLinks.map((link, index) => {
-                  const getSocialIcon = () => {
-                    switch (link.platform) {
-                      case 'facebook':
-                        return <Facebook className="w-5 h-5" />;
-                      case 'instagram':
-                        return <Instagram className="w-5 h-5" />;
-                      case 'youtube':
-                        return <Youtube className="w-5 h-5" />;
-                      case 'twitter':
-                        return <Twitter className="w-5 h-5" />;
-                      case 'tiktok':
-                        return <Music2 className="w-5 h-5" />;
-                      case 'zalo':
-                        return <MessageCircle className="w-5 h-5" style={{ color: '#0068FF' }} />;
-                      default:
-                        return null;
+                {socialLinks
+                  .filter((link) => link && link.platform && link.url && link.url.trim() !== '')
+                  .map((link, index) => {
+                    // ✅ FIX: Safe access to link properties
+                    const platform = link?.platform || '';
+                    const url = link?.url || '#';
+                    const label = link?.label || link?.platform || 'Social link';
+                    
+                    const getSocialIcon = () => {
+                      switch (platform) {
+                        case 'facebook':
+                          return <Facebook className="w-5 h-5" />;
+                        case 'instagram':
+                          return <Instagram className="w-5 h-5" />;
+                        case 'youtube':
+                          return <Youtube className="w-5 h-5" />;
+                        case 'twitter':
+                          return <Twitter className="w-5 h-5" />;
+                        case 'tiktok':
+                          return <Music2 className="w-5 h-5" />;
+                        case 'zalo':
+                          return <MessageCircle className="w-5 h-5" style={{ color: '#0068FF' }} />;
+                        default:
+                          return null;
+                      }
+                    };
+                    
+                    const icon = getSocialIcon();
+                    // ✅ FIX: Only render if icon exists (valid platform)
+                    if (!icon) {
+                      return null;
                     }
-                  };
-                  
-                  return (
-                    <a
-                      key={index}
-                      href={link.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-text-muted hover:text-primary transition-colors"
-                      aria-label={link.label || link.platform}
-                    >
-                      {getSocialIcon()}
-                    </a>
-                  );
-                })}
+                    
+                    return (
+                      <a
+                        key={`${platform}-${index}`}
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-text-muted hover:text-primary transition-colors"
+                        aria-label={label}
+                      >
+                        {icon}
+                      </a>
+                    );
+                  })}
               </div>
             )}
           </div>
@@ -187,24 +205,25 @@ export function Footer({ siteSettings }: FooterProps) {
               Liên hệ
             </h3>
             <ul className="space-y-3 text-sm text-text-muted">
-              {address && (
+              {/* ✅ FIX: Safe string check before rendering */}
+              {address && typeof address === 'string' && address.trim() !== '' && (
                 <li className="flex items-start gap-2">
                   <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>{address}</span>
                 </li>
               )}
-              {phone && (
+              {phone && typeof phone === 'string' && phone.trim() !== '' && (
                 <li className="flex items-center gap-2">
                   <Phone className="w-4 h-4 flex-shrink-0" />
-                  <a href={`tel:${phone}`} className="hover:text-primary transition-colors">
+                  <a href={`tel:${phone.trim()}`} className="hover:text-primary transition-colors">
                     {phone}
                   </a>
                 </li>
               )}
-              {email && (
+              {email && typeof email === 'string' && email.trim() !== '' && (
                 <li className="flex items-center gap-2">
                   <Mail className="w-4 h-4 flex-shrink-0" />
-                  <a href={`mailto:${email}`} className="hover:text-primary transition-colors">
+                  <a href={`mailto:${email.trim()}`} className="hover:text-primary transition-colors">
                     {email}
                   </a>
                 </li>

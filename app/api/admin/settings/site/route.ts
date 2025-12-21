@@ -8,13 +8,14 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, revalidateTag } from 'next/cache';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { getSiteSettings, updateSiteSettings } from '@/lib/repositories/siteSettingsRepository';
 import { siteSettingsUpdateSchema } from '@/lib/validations/siteSettings';
 import { handleValidationError } from '@/lib/utils/validation-errors';
 import { AdminRole } from '@/types/admin';
 import type { SiteSettings } from '@/types/siteSettings';
+import { safeToISOString } from '@/lib/utils/dateUtils';
 
 /**
  * Map MongoDB document to frontend format
@@ -51,8 +52,8 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
       headerScripts: mongoSettings.scripts?.headerScripts,
       footerScripts: mongoSettings.scripts?.footerScripts,
     },
-    createdAt: mongoSettings.createdAt?.toISOString() ?? new Date().toISOString(),
-    updatedAt: mongoSettings.updatedAt?.toISOString() ?? new Date().toISOString(),
+    createdAt: safeToISOString(mongoSettings.createdAt) ?? new Date().toISOString(),
+    updatedAt: safeToISOString(mongoSettings.updatedAt) ?? new Date().toISOString(),
   };
 }
 
@@ -136,15 +137,22 @@ export async function POST(request: NextRequest) {
         // Update settings
         const updated = await updateSiteSettings(validation.data, userId);
         
-        // ✅ CACHE INVALIDATION: Revalidate layout and homepage to ensure immediate update
+        // ✅ CACHE INVALIDATION: Revalidate layout, homepage, and API cache
         // This ensures Logo, SiteTitle, and Footer changes appear immediately on frontend
         try {
+          // Revalidate pages
           revalidatePath('/', 'layout'); // Revalidate layout (includes Header/Footer components)
           revalidatePath('/'); // Revalidate homepage specifically
-          revalidatePath('/api/cms/site-settings', 'page'); // ✅ FIX: Revalidate public API cache with 'page' type
+          
+          // ✅ FIX: Use revalidateTag to invalidate Route Handler cache with revalidate = 3600
+          // This is more reliable than revalidatePath for Route Handlers
+          revalidateTag('site-settings'); // Invalidate all cached responses with this tag
+          
+          // Also revalidate path as fallback
+          revalidatePath('/api/cms/site-settings', 'page');
         } catch (revalidateError) {
           // Log error but don't fail request if revalidation fails
-          console.warn('[Cache Invalidation] Failed to revalidate paths:', revalidateError);
+          console.warn('[Cache Invalidation] Failed to revalidate:', revalidateError);
         }
         
         return NextResponse.json({
