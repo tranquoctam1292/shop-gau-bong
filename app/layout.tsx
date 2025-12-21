@@ -40,6 +40,7 @@ const fredoka = Fredoka({
 
 import { getDefaultMetadata, generateOpenGraphTags, generateTwitterCardTags } from '@/lib/utils/metadata';
 import { SITE_CONFIG } from '@/lib/constants/config';
+import { getSiteScripts, HeaderScripts, FooterScripts } from '@/components/layout/ScriptsInjector';
 
 const defaultMetadata = getDefaultMetadata();
 const ogTags = generateOpenGraphTags(defaultMetadata);
@@ -95,14 +96,19 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Fetch site settings for scripts injection
+  const { headerScripts, footerScripts } = await getSiteScripts();
+
   return (
     <html lang="vi" className={`${inter.variable} ${nunito.variable} ${fredoka.variable}`}>
       <body className="min-h-screen bg-background flex flex-col">
+        {/* Header Scripts - Injected at beginning of body (Next.js App Router limitation) */}
+        <HeaderScripts headerScripts={headerScripts} />
         <QueryProvider>
           <ToastProvider>
             <CategoriesProvider>
@@ -114,6 +120,8 @@ export default function RootLayout({
             </CategoriesProvider>
           </ToastProvider>
         </QueryProvider>
+        {/* Footer Scripts - Injected before closing body */}
+        <FooterScripts footerScripts={footerScripts} />
       </body>
     </html>
   );

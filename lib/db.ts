@@ -154,6 +154,8 @@ export interface Collections {
   skuHistory: Collection;
   // Contact Widget Settings
   contactWidgetSettings: Collection;
+  // Site Settings (Global Configuration)
+  siteSettings: Collection;
 }
 
 /**
@@ -212,6 +214,8 @@ export async function getCollections(): Promise<Collections> {
     skuHistory: db.collection('sku_history'),
     // Contact Widget Settings
     contactWidgetSettings: db.collection('contact_widget_settings'),
+    // Site Settings (Global Configuration)
+    siteSettings: db.collection('site_settings'),
   };
 }
 

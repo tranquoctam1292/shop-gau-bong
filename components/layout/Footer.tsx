@@ -1,8 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import type { SiteSettings } from '@/types/siteSettings';
 
-export function Footer() {
+interface FooterProps {
+  siteSettings?: SiteSettings | null;
+}
+
+export function Footer({ siteSettings }: FooterProps) {
+  const copyright = siteSettings?.footer.copyright || `© ${new Date().getFullYear()} Shop Gấu Bông. All rights reserved.`;
+  const address = siteSettings?.footer.address;
+  const email = siteSettings?.footer.email;
+  const phone = siteSettings?.footer.phone;
+  const socialLinks = siteSettings?.footer.socialLinks || [];
   return (
     <footer className="border-t bg-background">
       <div className="container-mobile py-8 md:py-12">
@@ -61,16 +71,39 @@ export function Footer() {
           <div>
             <h3 className="font-heading text-lg font-semibold mb-4">Liên hệ</h3>
             <ul className="space-y-2 text-sm text-text-muted">
-              <li>📧 Email: info@shopgaubong.com</li>
-              <li>📞 Hotline: 1900-xxxx</li>
-              <li>📍 Địa chỉ: Hà Nội, Việt Nam</li>
+              {email && <li>📧 Email: <a href={`mailto:${email}`} className="hover:text-primary transition-colors">{email}</a></li>}
+              {phone && <li>📞 Hotline: <a href={`tel:${phone}`} className="hover:text-primary transition-colors">{phone}</a></li>}
+              {address && <li>📍 Địa chỉ: {address}</li>}
             </ul>
+            
+            {/* Social Links */}
+            {socialLinks.length > 0 && (
+              <div className="mt-4 flex gap-3">
+                {socialLinks.map((link, index) => (
+                  <a
+                    key={index}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-text-muted hover:text-primary transition-colors"
+                    aria-label={link.label || link.platform}
+                  >
+                    {link.platform === 'facebook' && '📘'}
+                    {link.platform === 'instagram' && '📷'}
+                    {link.platform === 'youtube' && '📺'}
+                    {link.platform === 'zalo' && '💬'}
+                    {link.platform === 'tiktok' && '🎵'}
+                    {link.platform === 'twitter' && '🐦'}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
         {/* Copyright */}
         <div className="mt-8 pt-8 border-t text-center text-sm text-text-muted">
-          <p>© {new Date().getFullYear()} Shop Gấu Bông. All rights reserved.</p>
+          <p>{copyright}</p>
         </div>
       </div>
     </footer>

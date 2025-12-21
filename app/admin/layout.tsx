@@ -32,6 +32,7 @@ import {
   Users,
   Shield,
   Hash,
+  Palette,
 } from 'lucide-react';
 import { AdminRole } from '@/types/admin';
 
@@ -205,6 +206,7 @@ function AdminLayoutContent({
       label: 'Cài đặt',
       icon: Shield,
       submenu: [
+        { href: '/admin/settings/appearance', label: 'Cài đặt Giao diện', icon: Palette },
         { href: '/admin/settings/security', label: 'Bảo mật', icon: Shield },
         { href: '/admin/settings/sku', label: 'Cài đặt SKU', icon: Hash },
         { href: '/admin/settings/contact-widget', label: 'Nút Liên hệ Nổi', icon: MessageSquare },

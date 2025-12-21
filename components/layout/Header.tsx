@@ -9,6 +9,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils/cn';
 import { TopBar } from './TopBar';
 import { topBarConfig } from '@/lib/constants/menuData';
+import Image from 'next/image';
+import type { SiteSettings } from '@/types/siteSettings';
 
 // Dynamic imports for heavy components
 const CartDrawer = lazy(() => import('@/components/cart/CartDrawer').then(mod => ({ default: mod.CartDrawer })));
@@ -21,7 +23,11 @@ const DynamicMobileMenu = lazy(mobileMenuImport);
 
 const SearchModal = lazy(() => import('@/components/search/SearchModal').then(mod => ({ default: mod.SearchModal })));
 
-export function Header() {
+interface HeaderProps {
+  siteSettings?: SiteSettings | null;
+}
+
+export function Header({ siteSettings }: HeaderProps) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSticky, setIsSticky] = useState(false);
   const mobileMenuPreloadedRef = useRef(false);
@@ -49,8 +55,9 @@ export function Header() {
     <>
       {/* TẦNG 1: TOP BAR */}
       <TopBar 
-        leftText={topBarConfig.left}
-        rightItems={topBarConfig.right}
+        announcementBar={siteSettings?.header.announcementBar}
+        fallbackLeftText={topBarConfig.left}
+        fallbackRightItems={topBarConfig.right}
       />
 
       {/* TẦNG 2: LOGO - SEARCH - ACTIONS (NOT STICKY) */}
@@ -59,9 +66,21 @@ export function Header() {
           
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 flex-shrink-0 group">
-            <div className="w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center text-2xl transition-transform group-hover:rotate-12">
-              🧸
-            </div>
+            {siteSettings?.header.logo ? (
+              <div className="relative w-10 h-10 md:w-12 md:h-12 flex-shrink-0">
+                <Image
+                  src={siteSettings.header.logo.url}
+                  alt={siteSettings.header.logo.alt || siteSettings.header.logo.name}
+                  fill
+                  className="object-contain transition-transform group-hover:scale-110"
+                  sizes="(max-width: 768px) 40px, 48px"
+                />
+              </div>
+            ) : (
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-primary/20 text-primary rounded-full flex items-center justify-center text-2xl transition-transform group-hover:rotate-12">
+                🧸
+              </div>
+            )}
             <div className="flex flex-col">
               <span className="font-logo text-xl md:text-2xl font-extrabold text-primary leading-none tracking-tight">
                 GấuBông<span className="text-text-main">Shop</span>

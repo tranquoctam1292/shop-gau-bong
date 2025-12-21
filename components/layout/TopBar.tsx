@@ -5,8 +5,14 @@ import { Phone } from 'lucide-react';
 import { cn } from '@/lib/utils/cn';
 
 interface TopBarProps {
-  leftText?: string;
-  rightItems?: Array<{
+  announcementBar?: {
+    enabled: boolean;
+    text?: string;
+    link?: string;
+    linkText?: string;
+  };
+  fallbackLeftText?: string;
+  fallbackRightItems?: Array<{
     type: 'hotline' | 'link';
     label: string;
     href: string;
@@ -21,8 +27,9 @@ interface TopBarProps {
  * Chiều cao: 30px - 40px
  */
 export function TopBar({ 
-  leftText = "Chào mừng đến với thế giới gấu bông!",
-  rightItems = [
+  announcementBar,
+  fallbackLeftText = "Chào mừng đến với thế giới gấu bông!",
+  fallbackRightItems = [
     {
       type: 'hotline',
       label: 'Hotline',
@@ -36,11 +43,34 @@ export function TopBar({
     }
   ]
 }: TopBarProps) {
+  // Use announcement bar if enabled, otherwise use fallback
+  const showAnnouncement = announcementBar?.enabled && announcementBar?.text;
+  const leftText = showAnnouncement ? announcementBar.text : fallbackLeftText;
+  const rightItems = fallbackRightItems;
+
+  if (!showAnnouncement && !fallbackLeftText) {
+    return null;
+  }
+
   return (
     <div className="hidden md:flex items-center justify-between h-8 md:h-10 px-4 bg-white border-b border-border/50 text-sm">
-      {/* Left: Welcome Text */}
-      <div className="text-text-muted">
-        {leftText}
+      {/* Left: Announcement Text */}
+      <div className="text-text-muted flex-1">
+        {showAnnouncement && announcementBar.link ? (
+          <Link 
+            href={announcementBar.link}
+            className="hover:text-primary transition-colors"
+          >
+            {announcementBar.text}
+            {announcementBar.linkText && (
+              <span className="ml-2 text-primary font-medium">
+                {announcementBar.linkText} →
+              </span>
+            )}
+          </Link>
+        ) : (
+          <span>{leftText}</span>
+        )}
       </div>
 
       {/* Right: Hotline & Order Tracking */}
