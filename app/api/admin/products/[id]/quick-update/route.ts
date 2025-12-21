@@ -99,14 +99,16 @@ export async function PATCH(
     const unsetFields: Record<string, number> = {};
     const incFields: Record<string, number> = {};
     
-    // CRITICAL: Validate version for optimistic locking
+    // BUSINESS LOGIC FIX: Version Enforcement - Kiểm tra version nghiêm ngặt
+    // Nếu request có gửi version, phải khớp với version hiện tại
     if (validatedData.version !== undefined) {
-      if (product.version !== validatedData.version) {
+      const currentVersion = product.version || 0;
+      if (currentVersion !== validatedData.version) {
         return NextResponse.json(
           { 
-            error: 'VERSION_MISMATCH',
-            message: 'Product has been modified by another user. Please refresh and try again.',
-            currentVersion: product.version,
+            error: 'Dữ liệu đã được cập nhật bởi một Admin khác, vui lòng tải lại trang',
+            code: 'VERSION_MISMATCH',
+            currentVersion,
             providedVersion: validatedData.version,
           },
           { status: 409 }
@@ -292,11 +294,33 @@ export async function PATCH(
       finalUpdateOperation.$inc = incFields;
     }
     
+    // BUSINESS LOGIC FIX: Optimistic Locking - Thêm version vào filter
+    const updateFilter: any = { _id: productId };
+    if (validatedData.version !== undefined) {
+      updateFilter.version = validatedData.version;
+    }
+    
     // Execute update
-    await products.updateOne(
-      { _id: productId },
+    const updateResult = await products.updateOne(
+      updateFilter,
       finalUpdateOperation
     );
+    
+    // BUSINESS LOGIC FIX: Kiểm tra modifiedCount để phát hiện version conflict
+    if (updateResult.modifiedCount === 0 && validatedData.version !== undefined) {
+      // Không có document nào được update - có thể do version mismatch
+      const currentProduct = await products.findOne({ _id: productId });
+      if (currentProduct && currentProduct.version !== validatedData.version) {
+        return NextResponse.json(
+          { 
+            error: 'Dữ liệu đã được cập nhật bởi một Admin khác, vui lòng tải lại trang',
+            code: 'VERSION_MISMATCH',
+            currentVersion: currentProduct.version || 0,
+          },
+          { status: 409 }
+        );
+      }
+    }
     
     // After successful update, create audit log using existing adminActivityLogs collection
     const { createAuditLog } = await import('@/lib/utils/auditLogger');

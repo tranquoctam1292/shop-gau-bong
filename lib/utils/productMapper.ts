@@ -596,8 +596,95 @@ export function mapMongoProduct(
     regularPrice,
     salePrice,
     onSale,
-    minPrice: mongoProduct.minPrice,
-    maxPrice: mongoProduct.maxPrice,
+    // BUSINESS LOGIC FIX: Robust Price Logic - Fallback từ variants nếu minPrice/maxPrice bị null/0
+    minPrice: (() => {
+      // Nếu minPrice có giá trị hợp lệ (> 0), sử dụng nó
+      if (mongoProduct.minPrice !== undefined && mongoProduct.minPrice !== null && mongoProduct.minPrice > 0) {
+        return mongoProduct.minPrice;
+      }
+      
+      // Fallback: Tính từ variants nếu có
+      if (hasVariants) {
+        if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+          const variantPrices = mongoProduct.variants
+            .map((v: MongoVariant) => {
+              // Ưu tiên price, fallback về regularPrice hoặc salePrice
+              return v.price || (v as any).regularPrice || (v as any).salePrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variantPrices.length > 0) {
+            return Math.min(...variantPrices);
+          }
+        } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+          const variationPrices = mongoProduct.productDataMetaBox.variations
+            .map((v: ProductDataMetaBoxVariation) => {
+              // Ưu tiên salePrice nếu < regularPrice, fallback về regularPrice
+              if (v.salePrice && v.regularPrice && v.salePrice < v.regularPrice) {
+                return v.salePrice;
+              }
+              return v.regularPrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variationPrices.length > 0) {
+            return Math.min(...variationPrices);
+          }
+        }
+      }
+      
+      // Fallback cuối cùng: Sử dụng regularPrice từ productDataMetaBox
+      if (mongoProduct.productDataMetaBox?.regularPrice !== undefined && mongoProduct.productDataMetaBox.regularPrice > 0) {
+        return mongoProduct.productDataMetaBox.regularPrice;
+      }
+      
+      // Trả về undefined nếu không tìm thấy giá hợp lệ
+      return undefined;
+    })(),
+    maxPrice: (() => {
+      // Nếu maxPrice có giá trị hợp lệ (> 0), sử dụng nó
+      if (mongoProduct.maxPrice !== undefined && mongoProduct.maxPrice !== null && mongoProduct.maxPrice > 0) {
+        return mongoProduct.maxPrice;
+      }
+      
+      // Fallback: Tính từ variants nếu có
+      if (hasVariants) {
+        if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+          const variantPrices = mongoProduct.variants
+            .map((v: MongoVariant) => {
+              // Ưu tiên price, fallback về regularPrice hoặc salePrice
+              return v.price || (v as any).regularPrice || (v as any).salePrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variantPrices.length > 0) {
+            return Math.max(...variantPrices);
+          }
+        } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+          const variationPrices = mongoProduct.productDataMetaBox.variations
+            .map((v: ProductDataMetaBoxVariation) => {
+              // Ưu tiên salePrice nếu < regularPrice, fallback về regularPrice
+              if (v.salePrice && v.regularPrice && v.salePrice < v.regularPrice) {
+                return v.salePrice;
+              }
+              return v.regularPrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variationPrices.length > 0) {
+            return Math.max(...variationPrices);
+          }
+        }
+      }
+      
+      // Fallback cuối cùng: Sử dụng regularPrice từ productDataMetaBox (simple product)
+      if (mongoProduct.productDataMetaBox?.regularPrice !== undefined && mongoProduct.productDataMetaBox.regularPrice > 0) {
+        return mongoProduct.productDataMetaBox.regularPrice;
+      }
+      
+      // Trả về undefined nếu không tìm thấy giá hợp lệ
+      return undefined;
+    })(),
     // Map images - FIX: Priority _thumbnail_id first, then fallback to images array
     // ✅ PERFORMANCE: Images từ Vercel Blob được optimize tự động bởi Next.js Image Optimization API
     // Next.js sẽ tự động resize và convert sang WebP/AVIF format dựa trên `sizes` prop trong Image component

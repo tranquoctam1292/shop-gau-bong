@@ -13,6 +13,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { normalizeSku } from '@/lib/utils/skuGenerator';
+import { escapeRegExp } from '@/lib/utils/escapeRegExp';
 import { cleanHtmlForStorage } from '@/lib/utils/sanitizeHtml';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
@@ -324,6 +325,15 @@ export async function GET(
       id = id.replace('gid://shop-gau-bong/Product/', '');
     }
     
+    // BUSINESS LOGIC FIX: ID Validation (Security) - Ngăn chặn NoSQL Injection
+    // Nếu id không phải ObjectId hợp lệ và không phải slug, trả về lỗi 400 ngay lập tức
+    if (!ObjectId.isValid(id) && !id.match(/^[a-z0-9-]+$/)) {
+      return NextResponse.json(
+        { error: 'ID sản phẩm không hợp lệ' },
+        { status: 400 }
+      );
+    }
+    
     // Find by ObjectId or slug
     let product = null;
     
@@ -595,8 +605,26 @@ export async function PUT(
       id = id.replace('gid://shop-gau-bong/Product/', '');
     }
     
+    // BUSINESS LOGIC FIX: ID Validation (Security) - Ngăn chặn NoSQL Injection
+    // Nếu id không phải ObjectId hợp lệ và không phải slug, trả về lỗi 400 ngay lập tức
+    if (!ObjectId.isValid(id) && !id.match(/^[a-z0-9-]+$/)) {
+      return NextResponse.json(
+        { error: 'ID sản phẩm không hợp lệ' },
+        { status: 400 }
+      );
+    }
+    
     // Validate input - Schema already has passthrough
     const validatedData = productUpdateSchema.parse(body);
+    
+    // BUSINESS LOGIC FIX: Giới hạn số lượng biến thể để tránh overload database và treo trình duyệt
+    const variationsCount = validatedData.productDataMetaBox?.variations?.length || validatedData.variants?.length || 0;
+    if (variationsCount > 100) {
+      return NextResponse.json(
+        { error: 'Số lượng biến thể không được vượt quá 100. Vui lòng giảm số lượng biến thể.' },
+        { status: 400 }
+      );
+    }
     
     // Map category to categoryId if category is provided
     let categoryId: string | undefined = undefined;
@@ -690,8 +718,8 @@ export async function PUT(
     }
     
     updateData.updatedAt = new Date();
-    // Increment version for optimistic locking
-    updateData.version = (currentVersion || 0) + 1;
+    // BUSINESS LOGIC FIX: Auto Version Increment - Sử dụng $inc thay vì $set để đảm bảo atomicity
+    // Version sẽ được increment trong updateOperation.$inc, không set trong updateData
     
     // Handle scheduledDate - convert ISO string to Date if provided
     if (validatedData.scheduledDate) {
@@ -755,6 +783,59 @@ export async function PUT(
     // IMPORTANT: Set mergedProductDataMetaBox back to updateData to ensure it's saved to database
     if (mergedProductDataMetaBox && Object.keys(mergedProductDataMetaBox).length > 0) {
       updateData.productDataMetaBox = mergedProductDataMetaBox;
+    }
+    
+    // BUSINESS LOGIC FIX: Ghost Data Cleanup - Xóa variants khi chuyển từ variable sang simple
+    const currentProductType = product.productDataMetaBox?.productType || 'simple';
+    const newProductType = mergedProductDataMetaBox?.productType || currentProductType;
+    
+    if (currentProductType === 'variable' && newProductType === 'simple') {
+      // Chuyển từ variable sang simple - xóa sạch variants và variations
+      updateData.variants = [];
+      if (updateData.productDataMetaBox) {
+        updateData.productDataMetaBox.variations = [];
+        // Cũng xóa attributes nếu không còn cần thiết
+        // (giữ lại attributes nếu có thể dùng lại sau này)
+      }
+    }
+    
+    // BUSINESS LOGIC FIX: Price Range Re-calculation - Tính lại minPrice/maxPrice từ variants cho variable products
+    if (newProductType === 'variable' && updateData.variants && updateData.variants.length > 0) {
+      // Tính toán lại minPrice và maxPrice từ variants
+      const variantPrices = updateData.variants
+        .map((v: any) => {
+          // Ưu tiên price, fallback về regularPrice hoặc salePrice
+          return v.price || v.regularPrice || v.salePrice || 0;
+        })
+        .filter((price: number) => price > 0 && !isNaN(price));
+      
+      if (variantPrices.length > 0) {
+        updateData.minPrice = Math.min(...variantPrices);
+        updateData.maxPrice = Math.max(...variantPrices);
+      } else {
+        // Nếu không có giá hợp lệ, set về 0
+        updateData.minPrice = 0;
+        updateData.maxPrice = undefined;
+      }
+      
+      // BUSINESS LOGIC FIX: Stock Integrity - Tự động tính lại tổng tồn kho từ variants
+      // Đảm bảo stockQuantity cha = tổng stockQuantity các biến thể con
+      const totalStockFromVariants = updateData.variants.reduce((sum: number, v: any) => {
+        const variantStock = v.stock || v.stockQuantity || 0;
+        return sum + (variantStock || 0);
+      }, 0);
+      
+      // Cập nhật stockQuantity của product cha
+      if (updateData.productDataMetaBox) {
+        updateData.productDataMetaBox.stockQuantity = totalStockFromVariants;
+      }
+      // Cũng cập nhật ở top-level nếu có
+      updateData.stockQuantity = totalStockFromVariants;
+    } else if (newProductType === 'simple' && mergedProductDataMetaBox?.regularPrice !== undefined) {
+      // Simple product: minPrice = maxPrice = regularPrice
+      const regularPrice = mergedProductDataMetaBox.regularPrice;
+      updateData.minPrice = regularPrice;
+      updateData.maxPrice = regularPrice;
     }
     
     // Auto-generate alt text for images (Auto-Alt Text feature)
@@ -844,9 +925,36 @@ export async function PUT(
     // Sparse unique index doesn't allow multiple null values, so we must $unset the field instead
     let unsetSkuNormalized = false;
     
+    // BUSINESS LOGIC FIX: SKU Protection - Chặn đổi SKU khi có đơn hàng đang chờ xử lý
+    const oldSku = product.productDataMetaBox?.sku || product.sku;
+    const newSku = updateData.productDataMetaBox?.sku ?? updateData.sku;
+    
+    // Kiểm tra nếu SKU đang được thay đổi
+    if (oldSku && newSku && oldSku !== newSku) {
+      const { orders } = await getCollections();
+      
+      // Tìm đơn hàng có SKU này ở trạng thái đang chờ xử lý
+      const pendingOrders = await orders.countDocuments({
+        status: { $in: ['pending', 'awaiting_payment', 'confirmed'] },
+        'items.sku': oldSku, // Check trong items array
+      });
+      
+      if (pendingOrders > 0) {
+        return NextResponse.json(
+          { 
+            error: 'Không thể đổi SKU khi có đơn hàng đang chờ xử lý. Vui lòng hoàn tất hoặc hủy các đơn hàng liên quan trước.',
+            pendingOrdersCount: pendingOrders,
+          },
+          { status: 400 }
+        );
+      }
+    }
+    
     // Normalize SKU for duplicate checking (according to SMART_SKU_IMPLEMENTATION_PLAN.md)
     // Only normalize if SKU is actually being updated
     // Priority: productDataMetaBox.sku > top-level sku
+    // BUSINESS LOGIC FIX: Empty SKU Handling - sku_normalized phải là undefined (không phải null hoặc "")
+    // để tận dụng cơ chế sparse index của MongoDB
     if ('sku' in updateData || (updateData.productDataMetaBox && 'sku' in updateData.productDataMetaBox)) {
       const skuToNormalize = updateData.productDataMetaBox?.sku ?? updateData.sku;
       if (skuToNormalize && typeof skuToNormalize === 'string' && skuToNormalize.trim()) {
@@ -861,7 +969,45 @@ export async function PUT(
     }
     
     // Normalize variant SKUs if variants are being updated
+    // BUSINESS LOGIC FIX: SKU Protection - Chặn đổi Variation ID/SKU khi có đơn hàng đang chờ
     if ('variants' in updateData && updateData.variants && Array.isArray(updateData.variants)) {
+      const { orders } = await getCollections();
+      
+      // Kiểm tra từng variant có thay đổi ID hoặc SKU không
+      for (const newVariant of updateData.variants) {
+        if (!newVariant.id) continue;
+        
+        // Tìm variant cũ trong product hiện tại
+        const oldVariant = product.variants?.find((v: any) => v.id === newVariant.id);
+        
+        if (oldVariant) {
+          // Kiểm tra SKU có thay đổi không
+          const oldVariantSku = oldVariant.sku;
+          const newVariantSku = newVariant.sku;
+          
+          if (oldVariantSku && newVariantSku && oldVariantSku !== newVariantSku) {
+            // SKU đang được thay đổi - kiểm tra đơn hàng
+            const pendingOrders = await orders.countDocuments({
+              status: { $in: ['pending', 'awaiting_payment', 'confirmed'] },
+              'items.variationId': newVariant.id, // Check variationId trong items
+              'items.sku': oldVariantSku,
+            });
+            
+            if (pendingOrders > 0) {
+              return NextResponse.json(
+                { 
+                  error: `Không thể đổi SKU của biến thể "${newVariant.id}" khi có đơn hàng đang chờ xử lý. Vui lòng hoàn tất hoặc hủy các đơn hàng liên quan trước.`,
+                  pendingOrdersCount: pendingOrders,
+                  variantId: newVariant.id,
+                },
+                { status: 400 }
+              );
+            }
+          }
+        }
+      }
+      
+      // Normalize SKUs sau khi đã kiểm tra
       updateData.variants = updateData.variants.map((variant: any) => {
         if (variant.sku && typeof variant.sku === 'string' && variant.sku.trim()) {
           variant.sku_normalized = normalizeSku(variant.sku.trim());
@@ -899,6 +1045,9 @@ export async function PUT(
     // Prepare update operation
     const updateOperation: any = { $set: updateData };
     
+    // BUSINESS LOGIC FIX: Auto Version Increment - Sử dụng $inc để tăng version atomically
+    updateOperation.$inc = { version: 1 };
+    
     // CRITICAL: Handle removal of sku_normalized when SKU is cleared
     // Use $unset instead of setting to null to avoid duplicate key error with sparse unique index
     if (unsetSkuNormalized) {
@@ -917,11 +1066,75 @@ export async function PUT(
       if (!updateOperation.$unset) updateOperation.$unset = {};
       updateOperation.$unset.password = '';
     }
-    // Update product
-    await products.updateOne(
-      { _id: productId },
-      updateOperation
-    );
+    
+    // BUSINESS LOGIC FIX: Optimistic Locking - Thêm version vào filter để đảm bảo không bị Lost Update
+    // Nếu version không khớp, modifiedCount sẽ = 0 và trả về lỗi 409
+    const updateFilter: any = { 
+      _id: productId,
+    };
+    
+    // Chỉ thêm version vào filter nếu request có gửi version
+    if (requestVersion !== undefined) {
+      updateFilter.version = requestVersion;
+    }
+    
+    // BUSINESS LOGIC FIX: Xử lý Duplicate Key Error với message cụ thể
+    try {
+      const updateResult = await products.updateOne(
+        updateFilter,
+        updateOperation
+      );
+      
+      // BUSINESS LOGIC FIX: Kiểm tra modifiedCount để phát hiện version conflict
+      if (updateResult.modifiedCount === 0) {
+        // Không có document nào được update - có thể do version mismatch hoặc document không tồn tại
+        // Fetch lại để kiểm tra version hiện tại
+        const currentProduct = await products.findOne({ _id: productId });
+        if (!currentProduct) {
+          return NextResponse.json(
+            { error: 'Sản phẩm không tồn tại' },
+            { status: 404 }
+          );
+        }
+        
+        // Kiểm tra version conflict
+        if (requestVersion !== undefined && currentProduct.version !== requestVersion) {
+          return NextResponse.json(
+            { 
+              error: 'Dữ liệu đã được cập nhật bởi một Admin khác, vui lòng tải lại trang',
+              code: 'VERSION_MISMATCH',
+              currentVersion: currentProduct.version || 0,
+            },
+            { status: 409 }
+          );
+        }
+        
+        // Nếu không phải version conflict, có thể là không có thay đổi nào
+        // (tất cả fields đều giống nhau) - vẫn trả về success nhưng không update
+      }
+    } catch (error: any) {
+      // MongoDB duplicate key error (code 11000)
+      if (error.code === 11000) {
+        // Parse error.keyPattern để xác định field bị trùng
+        const keyPattern = error.keyPattern || {};
+        let errorMessage = 'Dữ liệu đã tồn tại';
+        
+        if (keyPattern.sku_normalized) {
+          errorMessage = 'Mã SKU này đã tồn tại. Vui lòng sử dụng SKU khác.';
+        } else if (keyPattern.slug) {
+          errorMessage = 'Slug này đã bị trùng. Vui lòng sử dụng slug khác.';
+        } else if (keyPattern['variants.sku_normalized']) {
+          errorMessage = 'Mã SKU của biến thể này đã tồn tại. Vui lòng kiểm tra lại.';
+        }
+        
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: 409 }
+        );
+      }
+      // Re-throw other errors
+      throw error;
+    }
     
     // Fetch updated product
     const updatedProduct = await products.findOne({ _id: productId });
@@ -1024,6 +1237,15 @@ export async function DELETE(
     // Format: gid://shop-gau-bong/Product/OBJECT_ID
     if (id.startsWith('gid://shop-gau-bong/Product/')) {
       id = id.replace('gid://shop-gau-bong/Product/', '');
+    }
+    
+    // BUSINESS LOGIC FIX: ID Validation (Security) - Ngăn chặn NoSQL Injection
+    // Nếu id không phải ObjectId hợp lệ và không phải slug, trả về lỗi 400 ngay lập tức
+    if (!ObjectId.isValid(id) && !id.match(/^[a-z0-9-]+$/)) {
+      return NextResponse.json(
+        { error: 'ID sản phẩm không hợp lệ' },
+        { status: 400 }
+      );
     }
     
     // Find product

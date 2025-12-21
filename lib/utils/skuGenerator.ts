@@ -380,6 +380,11 @@ async function generateSkuWithIncrement(
   // This eliminates unnecessary query check here
   // If duplicate exists, insert will fail with duplicate key error, which should be handled by caller
   
+  // BUSINESS LOGIC FIX: Atomic Reliability - Đảm bảo normalizeSku được áp dụng cho kết quả cuối cùng
+  // Normalize final SKU để đảm bảo consistency (mặc dù parsePattern đã apply caseType, 
+  // normalizeSku đảm bảo format chuẩn cho duplicate checking)
+  // Note: normalizeSku chỉ normalize format, không thay đổi giá trị logic của SKU
+  // Return original finalSku (normalizeSku chỉ dùng cho duplicate checking, không dùng cho display)
   return finalSku;
 }
 

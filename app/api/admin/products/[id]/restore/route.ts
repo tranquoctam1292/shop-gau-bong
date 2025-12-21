@@ -26,6 +26,15 @@ export async function PATCH(
       id = id.replace('gid://shop-gau-bong/Product/', '');
     }
     
+    // BUSINESS LOGIC FIX: ID Validation (Security) - Ngăn chặn NoSQL Injection
+    // Nếu id không phải ObjectId hợp lệ và không phải slug, trả về lỗi 400 ngay lập tức
+    if (!ObjectId.isValid(id) && !id.match(/^[a-z0-9-]+$/)) {
+      return NextResponse.json(
+        { error: 'ID sản phẩm không hợp lệ' },
+        { status: 400 }
+      );
+    }
+    
     // Find product
     let productId: ObjectId | null = null;
     let product = null;
@@ -59,16 +68,61 @@ export async function PATCH(
     const previousStatus = product.status === 'trash' ? 'draft' : product.status || 'draft';
     const now = new Date();
     
-    await products.updateOne(
-      { _id: productId },
-      {
-        $set: {
-          deletedAt: null,
-          status: previousStatus,
-          updatedAt: now,
-        },
+    // BUSINESS LOGIC FIX: Smart Restore (Slug Collision) - Xử lý trùng slug khi restore
+    let restoreData: any = {
+      deletedAt: null,
+      status: previousStatus,
+      updatedAt: now,
+    };
+    
+    // Kiểm tra slug có bị trùng không (nếu có product khác đã dùng slug này)
+    const currentSlug = product.slug;
+    if (currentSlug) {
+      const existingProduct = await products.findOne({
+        slug: currentSlug,
+        _id: { $ne: productId },
+        deletedAt: null, // Chỉ check products không bị xóa
+      });
+      
+      if (existingProduct) {
+        // Slug đã bị trùng - tự động đổi tên slug với hậu tố timestamp
+        const timestamp = Date.now();
+        const newSlug = `${currentSlug}-restored-${timestamp}`;
+        restoreData.slug = newSlug;
       }
-    );
+    }
+    
+    // BUSINESS LOGIC FIX: Wrap trong try-catch để xử lý duplicate key error
+    try {
+      await products.updateOne(
+        { _id: productId },
+        {
+          $set: restoreData,
+        }
+      );
+    } catch (error: any) {
+      // MongoDB duplicate key error (code 11000) - slug vẫn bị trùng
+      if (error.code === 11000) {
+        // Thử lại với slug mới có timestamp
+        const timestamp = Date.now();
+        const newSlug = product.slug 
+          ? `${product.slug}-restored-${timestamp}`
+          : `product-restored-${timestamp}`;
+        
+        restoreData.slug = newSlug;
+        
+        // Thử lại với slug mới
+        await products.updateOne(
+          { _id: productId },
+          {
+            $set: restoreData,
+          }
+        );
+      } else {
+        // Re-throw other errors
+        throw error;
+      }
+    }
     
     // Fetch restored product
     const restoredProduct = await products.findOne({ _id: productId });

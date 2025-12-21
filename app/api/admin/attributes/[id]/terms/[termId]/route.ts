@@ -267,6 +267,145 @@ export async function PUT(
         { status: 500 }
       );
     }
+    
+    // BUSINESS LOGIC FIX: Attribute Sync - Cập nhật tất cả products khi đổi tên attribute term
+    // Nếu tên term thay đổi, cần sync lại trong tất cả products đang sử dụng term này
+    if (validatedData.name && validatedData.name !== term.name) {
+      const { products } = await getCollections();
+      const oldTermName = term.name;
+      const newTermName = validatedData.name;
+      const attributeName = attribute.name;
+      
+      // Tìm tất cả products có sử dụng term này
+      const productsToUpdate = await products.find({
+        $or: [
+          // Check trong productDataMetaBox.attributes.values
+          {
+            'productDataMetaBox.attributes': {
+              $elemMatch: {
+                name: attributeName,
+                values: oldTermName,
+              },
+            },
+          },
+          // Check trong productDataMetaBox.variations.attributes
+          {
+            'productDataMetaBox.variations.attributes': {
+              $exists: true,
+            },
+            [`productDataMetaBox.variations.attributes.${attributeName}`]: oldTermName,
+          },
+          // Check trong variants array (converted format)
+          {
+            $or: [
+              { 'variants.size': oldTermName },
+              { 'variants.color': oldTermName },
+            ],
+          },
+        ],
+      }).toArray();
+      
+      if (productsToUpdate.length > 0) {
+        // Sử dụng bulkWrite để update hiệu quả
+        const bulkOps: any[] = [];
+        
+        for (const product of productsToUpdate) {
+          const updateOps: any = {};
+          let hasChanges = false;
+          
+          // Update productDataMetaBox.attributes.values
+          if (product.productDataMetaBox?.attributes) {
+            const updatedAttributes = product.productDataMetaBox.attributes.map((attr: any) => {
+              if (attr.name === attributeName && attr.values && Array.isArray(attr.values)) {
+                const updatedValues = attr.values.map((val: string) => 
+                  val === oldTermName ? newTermName : val
+                );
+                if (JSON.stringify(updatedValues) !== JSON.stringify(attr.values)) {
+                  hasChanges = true;
+                  return { ...attr, values: updatedValues };
+                }
+              }
+              return attr;
+            });
+            
+            if (hasChanges) {
+              updateOps['productDataMetaBox.attributes'] = updatedAttributes;
+            }
+          }
+          
+          // Update productDataMetaBox.variations.attributes
+          if (product.productDataMetaBox?.variations) {
+            let variationsChanged = false;
+            const updatedVariations = product.productDataMetaBox.variations.map((variation: any) => {
+              if (variation.attributes && variation.attributes[attributeName] === oldTermName) {
+                variationsChanged = true;
+                hasChanges = true;
+                return {
+                  ...variation,
+                  attributes: {
+                    ...variation.attributes,
+                    [attributeName]: newTermName,
+                  },
+                };
+              }
+              return variation;
+            });
+            
+            if (variationsChanged) {
+              updateOps['productDataMetaBox.variations'] = updatedVariations;
+            }
+          }
+          
+          // Update variants array (converted format)
+          const isSizeAttribute = attributeName.toLowerCase().includes('size') || 
+                                 attributeName.toLowerCase() === 'pa_size' ||
+                                 attributeName.toLowerCase().includes('kích thước');
+          const isColorAttribute = attributeName.toLowerCase().includes('color') || 
+                                  attributeName.toLowerCase() === 'pa_color' ||
+                                  attributeName.toLowerCase().includes('màu');
+          
+          if (product.variants && Array.isArray(product.variants)) {
+            let variantsChanged = false;
+            const updatedVariants = product.variants.map((variant: any) => {
+              if (isSizeAttribute && variant.size === oldTermName) {
+                variantsChanged = true;
+                hasChanges = true;
+                return { ...variant, size: newTermName };
+              } else if (isColorAttribute && variant.color === oldTermName) {
+                variantsChanged = true;
+                hasChanges = true;
+                return { ...variant, color: newTermName };
+              }
+              return variant;
+            });
+            
+            if (variantsChanged) {
+              updateOps.variants = updatedVariants;
+            }
+          }
+          
+          // Thêm vào bulk operations nếu có thay đổi
+          if (hasChanges && Object.keys(updateOps).length > 0) {
+            bulkOps.push({
+              updateOne: {
+                filter: { _id: product._id },
+                update: {
+                  $set: {
+                    ...updateOps,
+                    updatedAt: new Date(),
+                  },
+                },
+              },
+            });
+          }
+        }
+        
+        // Execute bulk update nếu có operations
+        if (bulkOps.length > 0) {
+          await products.bulkWrite(bulkOps);
+        }
+      }
+    }
 
     return NextResponse.json({
       term: {

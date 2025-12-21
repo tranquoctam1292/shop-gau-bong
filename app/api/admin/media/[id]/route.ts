@@ -9,6 +9,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { getCollections } from '@/lib/db';
 import { 
   getMediaById, 
   updateMedia, 
@@ -265,6 +266,115 @@ export async function DELETE(
       // (orphaned file in storage is better than orphaned DB record)
     }
 
+    // BUSINESS LOGIC FIX: Referential Integrity - Xóa imageId khỏi tất cả products trước khi xóa media
+    const { products } = await getCollections();
+    const mediaId = id;
+    const mediaUrl = media.url; // Cũng cần check URL nếu media ID được lưu dưới dạng URL
+    
+    // Tìm tất cả products có reference đến media này
+    // Sử dụng exact match cho _thumbnail_id và array fields
+    // Với _product_image_gallery (comma-separated), cần tìm products có chứa mediaId trong string
+    const productsWithMedia = await products.find({
+      $or: [
+        { _thumbnail_id: mediaId },
+        { _thumbnail_id: mediaUrl },
+        // Tìm trong _product_image_gallery (comma-separated string)
+        // Sử dụng $regex với word boundary để tránh match partial IDs
+        { _product_image_gallery: { $regex: `(^|,)${mediaId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(,|$)` } },
+        { _product_image_gallery: { $regex: `(^|,)${mediaUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(,|$)` } },
+        { 'productDataMetaBox.variations.image': mediaId },
+        { 'productDataMetaBox.variations.image': mediaUrl },
+        { 'variants.image': mediaId },
+        { 'variants.image': mediaUrl },
+      ],
+    }).toArray();
+    
+    // Cập nhật từng product để xóa reference
+    if (productsWithMedia.length > 0) {
+      const bulkOps: any[] = [];
+      
+      for (const product of productsWithMedia) {
+        const updateOps: any = {};
+        let needsUpdate = false;
+        
+        // Xóa _thumbnail_id nếu trùng
+        if (product._thumbnail_id === mediaId || product._thumbnail_id === mediaUrl) {
+          updateOps.$unset = { _thumbnail_id: '' };
+          needsUpdate = true;
+        }
+        
+        // Xóa khỏi _product_image_gallery (comma-separated string)
+        if (product._product_image_gallery) {
+          const galleryIds = product._product_image_gallery.split(',').map((id: string) => id.trim());
+          const filteredIds = galleryIds.filter((galleryId: string) => 
+            galleryId !== mediaId && galleryId !== mediaUrl
+          );
+          
+          if (filteredIds.length !== galleryIds.length) {
+            if (!updateOps.$set) updateOps.$set = {};
+            updateOps.$set._product_image_gallery = filteredIds.length > 0 ? filteredIds.join(',') : null;
+            needsUpdate = true;
+          }
+        }
+        
+        // Xóa khỏi variants.image
+        if (product.variants && Array.isArray(product.variants)) {
+          const updatedVariants = product.variants.map((variant: any) => {
+            if (variant.image === mediaId || variant.image === mediaUrl) {
+              const { image, ...rest } = variant;
+              return rest;
+            }
+            return variant;
+          });
+          
+          // Chỉ update nếu có thay đổi
+          if (updatedVariants.some((v: any, idx: number) => 
+            !product.variants[idx] || v.image !== product.variants[idx].image
+          )) {
+            if (!updateOps.$set) updateOps.$set = {};
+            updateOps.$set.variants = updatedVariants;
+            needsUpdate = true;
+          }
+        }
+        
+        // Xóa khỏi productDataMetaBox.variations.image
+        if (product.productDataMetaBox?.variations && Array.isArray(product.productDataMetaBox.variations)) {
+          const updatedVariations = product.productDataMetaBox.variations.map((variation: any) => {
+            if (variation.image === mediaId || variation.image === mediaUrl) {
+              const { image, ...rest } = variation;
+              return rest;
+            }
+            return variation;
+          });
+          
+          // Chỉ update nếu có thay đổi
+          if (updatedVariations.some((v: any, idx: number) => 
+            !product.productDataMetaBox.variations[idx] || v.image !== product.productDataMetaBox.variations[idx].image
+          )) {
+            if (!updateOps.$set) updateOps.$set = {};
+            if (!updateOps.$set.productDataMetaBox) updateOps.$set.productDataMetaBox = { ...product.productDataMetaBox };
+            updateOps.$set.productDataMetaBox.variations = updatedVariations;
+            needsUpdate = true;
+          }
+        }
+        
+        // Thêm vào bulk operations nếu có thay đổi
+        if (needsUpdate) {
+          bulkOps.push({
+            updateOne: {
+              filter: { _id: product._id },
+              update: updateOps,
+            },
+          });
+        }
+      }
+      
+      // Execute bulk update nếu có operations
+      if (bulkOps.length > 0) {
+        await products.bulkWrite(bulkOps);
+      }
+    }
+    
     // Delete from database
     const deleted = await deleteMedia(id);
     if (!deleted) {
@@ -278,6 +388,7 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       message: 'Media deleted successfully',
+      affectedProducts: productsWithMedia.length,
     });
   } catch (error) {
     console.error('Error deleting media:', error);

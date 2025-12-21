@@ -45,6 +45,7 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
 
   // ✅ PERFORMANCE: Maximum variations limit to prevent browser freeze
   const MAX_VARIATIONS = 100; // Maximum allowed variations to prevent browser freeze
+  const CARTESIAN_WARNING_THRESHOLD = 50; // BUSINESS LOGIC FIX: Cảnh báo nếu số biến thể > 50
   
   // Calculate total possible variations (Cartesian product)
   const totalPossibleVariations = useMemo(() => {
@@ -54,6 +55,8 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
   
   // Check if variations exceed limit
   const exceedsLimit = totalPossibleVariations > MAX_VARIATIONS;
+  // BUSINESS LOGIC FIX: Cartesian Protection - Cảnh báo nếu số biến thể > 50
+  const showCartesianWarning = totalPossibleVariations > CARTESIAN_WARNING_THRESHOLD && totalPossibleVariations <= MAX_VARIATIONS;
 
   /**
    * Generate all possible variations using Cartesian Product
@@ -234,6 +237,19 @@ export function VariationsTab({ state, onUpdate, productName, categoryId }: Vari
             </Button>
           </div>
 
+          {/* BUSINESS LOGIC FIX: Cartesian Protection - Cảnh báo nếu số biến thể > 50 */}
+          {showCartesianWarning && (
+            <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+              <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-1">
+                ⚠️ Cảnh báo: Số lượng biến thể lớn
+              </p>
+              <p className="text-xs text-yellow-700 dark:text-yellow-300">
+                Sẽ tạo {totalPossibleVariations} biến thể, có thể làm chậm trình duyệt khi render. 
+                Khuyến nghị: Giảm số lượng giá trị thuộc tính để tối ưu hiệu suất.
+              </p>
+            </div>
+          )}
+          
           {/* Variation Attributes Info */}
           <div className="mt-3 pt-3 border-t border-border">
             <p className="text-xs text-muted-foreground mb-2">Thuộc tính được sử dụng:</p>

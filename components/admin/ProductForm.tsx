@@ -584,9 +584,11 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
 
     // Populate images array for backward compatibility and frontend display
     // This ensures ProductCard can display images even if _thumbnail_id is pathname
+    // BUSINESS LOGIC FIX: Đồng bộ Hình ảnh - Nếu _thumbnail_id thay đổi, cập nhật images[0]
     const imagesArray: string[] = [];
     
-    // Add featured image URL if available
+    // Priority 1: Add featured image URL (from thumbnailUrl state or _thumbnail_id)
+    // Đảm bảo images[0] luôn sync với _thumbnail_id
     if (thumbnailUrl) {
       imagesArray.push(thumbnailUrl);
     } else if (formData._thumbnail_id && (formData._thumbnail_id.startsWith('http://') || formData._thumbnail_id.startsWith('https://'))) {
@@ -594,7 +596,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       imagesArray.push(formData._thumbnail_id);
     }
     
-    // Add gallery image URLs if available
+    // Priority 2: Add gallery image URLs if available
     if (galleryImages && galleryImages.length > 0) {
       galleryImages.forEach((img) => {
         if (img.thumbnail_url && !imagesArray.includes(img.thumbnail_url)) {
@@ -612,6 +614,7 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     }
     
     // Set images array if we have URLs (for backward compatibility)
+    // BUSINESS LOGIC FIX: Đảm bảo images[0] luôn là featured image (_thumbnail_id)
     if (imagesArray.length > 0) {
       payload.images = imagesArray;
     } else {

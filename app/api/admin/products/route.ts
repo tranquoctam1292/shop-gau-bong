@@ -11,6 +11,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { normalizeSku } from '@/lib/utils/skuGenerator';
+import { escapeRegExp } from '@/lib/utils/escapeRegExp';
 import { z } from 'zod';
 import { handleValidationError } from '@/lib/utils/validation-errors';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
@@ -345,15 +346,17 @@ export async function GET(request: NextRequest) {
     }
     
     // Search: name, SKU, barcode
+    // BUSINESS LOGIC FIX: Sanitize search input to prevent ReDoS attacks
     if (search) {
+      const sanitizedSearch = escapeRegExp(search);
       query.$and = query.$and || [];
       query.$and.push({
         $or: [
-          { name: { $regex: search, $options: 'i' } },
-          { description: { $regex: search, $options: 'i' } },
-          { sku: { $regex: search, $options: 'i' } },
+          { name: { $regex: sanitizedSearch, $options: 'i' } },
+          { description: { $regex: sanitizedSearch, $options: 'i' } },
+          { sku: { $regex: sanitizedSearch, $options: 'i' } },
           // Search in productDataMetaBox.sku if exists
-          { 'productDataMetaBox.sku': { $regex: search, $options: 'i' } },
+          { 'productDataMetaBox.sku': { $regex: sanitizedSearch, $options: 'i' } },
         ],
       });
     }
@@ -371,7 +374,9 @@ export async function GET(request: NextRequest) {
         );
       } catch {
         // If category is not a valid ObjectId, search by name
-        query.category = { $regex: category, $options: 'i' };
+        // BUSINESS LOGIC FIX: Sanitize category search to prevent ReDoS
+        const sanitizedCategory = escapeRegExp(category);
+        query.category = { $regex: sanitizedCategory, $options: 'i' };
       }
     }
     
@@ -558,6 +563,15 @@ export async function POST(request: NextRequest) {
     
     // Validate input - Schema already has passthrough
     const validatedData = productSchema.parse(body);
+    
+    // BUSINESS LOGIC FIX: Giới hạn số lượng biến thể để tránh overload database và treo trình duyệt
+    const variationsCount = validatedData.productDataMetaBox?.variations?.length || validatedData.variants?.length || 0;
+    if (variationsCount > 100) {
+      return NextResponse.json(
+        { error: 'Số lượng biến thể không được vượt quá 100. Vui lòng giảm số lượng biến thể.' },
+        { status: 400 }
+      );
+    }
     
     const { products, categories } = await getCollections();
     
@@ -772,9 +786,15 @@ export async function POST(request: NextRequest) {
     
     // Normalize SKU for duplicate checking (according to SMART_SKU_IMPLEMENTATION_PLAN.md)
     // Priority: productDataMetaBox.sku > top-level sku
+    // BUSINESS LOGIC FIX: Empty SKU Handling - sku_normalized phải là undefined (không phải null hoặc "")
+    // để tận dụng cơ chế sparse index của MongoDB
     const skuToNormalize = productDoc.productDataMetaBox?.sku || productDoc.sku;
     if (skuToNormalize && typeof skuToNormalize === 'string' && skuToNormalize.trim()) {
       productDoc.sku_normalized = normalizeSku(skuToNormalize.trim());
+    } else {
+      // Không set sku_normalized nếu SKU rỗng (undefined) để sparse index bỏ qua
+      // Không set = undefined, không phải null hoặc ""
+      delete productDoc.sku_normalized;
     }
     
     // Normalize variant SKUs
@@ -803,7 +823,33 @@ export async function POST(request: NextRequest) {
     if (productJsonLdSchema) {
       productDoc._productSchema = productJsonLdSchema; // Save schema to database
     }
-    const result = await products.insertOne(productDoc);
+    // BUSINESS LOGIC FIX: Xử lý Duplicate Key Error với message cụ thể
+    let result;
+    try {
+      result = await products.insertOne(productDoc);
+    } catch (error: any) {
+      // MongoDB duplicate key error (code 11000)
+      if (error.code === 11000) {
+        // Parse error.keyPattern để xác định field bị trùng
+        const keyPattern = error.keyPattern || {};
+        let errorMessage = 'Dữ liệu đã tồn tại';
+        
+        if (keyPattern.sku_normalized) {
+          errorMessage = 'Mã SKU này đã tồn tại. Vui lòng sử dụng SKU khác.';
+        } else if (keyPattern.slug) {
+          errorMessage = 'Slug này đã bị trùng. Vui lòng sử dụng slug khác.';
+        } else if (keyPattern['variants.sku_normalized']) {
+          errorMessage = 'Mã SKU của biến thể này đã tồn tại. Vui lòng kiểm tra lại.';
+        }
+        
+        return NextResponse.json(
+          { error: errorMessage },
+          { status: 409 }
+        );
+      }
+      // Re-throw other errors
+      throw error;
+    }
     
     // Fetch created product
     const createdProduct = await products.findOne({ _id: result.insertedId });
