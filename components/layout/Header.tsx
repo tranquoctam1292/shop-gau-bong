@@ -33,7 +33,9 @@ export function Header({ siteSettings }: HeaderProps) {
   const [isSticky, setIsSticky] = useState(false);
   const mobileMenuPreloadedRef = useRef(false);
 
-  // Sticky Logic: Only Menu Ngang (Tầng 3) sticky when scroll > 100px
+  // Sticky Logic: 
+  // - Desktop: Tầng 3 (Navigation Menu) sticky when scroll > 100px
+  // - Mobile: Tầng 2 (Logo - Search - Actions) sticky when scroll > 100px
   useEffect(() => {
     const handleScroll = () => {
       setIsSticky(window.scrollY > 100);
@@ -61,8 +63,19 @@ export function Header({ siteSettings }: HeaderProps) {
         fallbackRightItems={topBarConfig.right}
       />
 
-      {/* TẦNG 2: LOGO - SEARCH - ACTIONS (NOT STICKY) */}
-      <div className="bg-background py-4 md:py-6 border-b border-primary/5 relative z-30">
+      {/* TẦNG 2: LOGO - SEARCH - ACTIONS (STICKY ON MOBILE ONLY, NOT STICKY ON DESKTOP) */}
+      <div 
+        className={cn(
+          "bg-background border-b border-primary/5 z-30 transition-all duration-300",
+          // Base: always relative
+          "relative",
+          // Mobile: sticky when scroll > 100px
+          // Desktop: always relative (lg:relative overrides fixed)
+          isSticky 
+            ? "fixed lg:relative top-0 left-0 right-0 lg:top-auto lg:left-auto lg:right-auto py-3 lg:py-4 md:py-6 bg-background/100 backdrop-blur-md shadow-md lg:shadow-none lg:backdrop-blur-none"
+            : "py-4 md:py-6"
+        )}
+      >
         <div className="container mx-auto px-4 flex items-center justify-between gap-4 md:gap-8">
           
           {/* Logo */}
@@ -177,8 +190,8 @@ export function Header({ siteSettings }: HeaderProps) {
           className={cn(
             "hidden lg:block w-full z-40 transition-all duration-300 border-b border-border",
             isSticky 
-              ? "fixed top-0 bg-white/95 backdrop-blur-md shadow-md py-2" 
-              : "relative bg-white py-0 border-t border-primary/10"
+              ? "fixed top-0 bg-background/100 backdrop-blur-md shadow-md py-2" 
+              : "relative bg-background py-0 border-t border-primary/10"
           )}
       >
         <div className="container mx-auto px-4 flex justify-center">
