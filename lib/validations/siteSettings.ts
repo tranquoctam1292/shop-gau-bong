@@ -8,12 +8,14 @@ import { z } from 'zod';
 
 /**
  * Logo validation schema
+ * 
+ * ✅ SEO: Ensure logo metadata is complete
  */
 const logoSchema = z.object({
   _id: z.string().min(1, 'Media ID không được để trống'),
   url: z.string().url('URL không hợp lệ'),
   name: z.string().min(1, 'Tên file không được để trống'),
-  alt: z.string().optional(),
+  alt: z.string().optional(), // Alt text for SEO (optional but recommended)
 }).nullable().optional();
 
 /**
@@ -28,12 +30,14 @@ const announcementBarSchema = z.object({
 
 /**
  * Social link validation schema
+ * 
+ * ✅ UX FIX: Allow empty URL to prevent validation errors when Admin just adds new link
  */
 const socialLinkSchema = z.object({
   platform: z.enum(['facebook', 'instagram', 'youtube', 'zalo', 'tiktok', 'twitter'], {
     errorMap: () => ({ message: 'Platform không hợp lệ' }),
   }),
-  url: z.string().url('URL không hợp lệ'),
+  url: z.string().url('URL không hợp lệ').or(z.literal('')), // Allow empty string
   label: z.string().optional(),
 });
 

@@ -57,33 +57,8 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
  */
 export async function GET() {
   try {
+    // getSiteSettings() now returns DEFAULT_SETTINGS instead of null
     const settings = await getSiteSettings();
-    
-    if (!settings) {
-      // Return default structure if not exists
-      return NextResponse.json({
-        success: true,
-        data: {
-          id: 'global_config',
-          header: {
-            logo: null,
-            announcementBar: {
-              enabled: false,
-            },
-          },
-          footer: {
-            socialLinks: [],
-          },
-          scripts: {},
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      }, {
-        headers: {
-          'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
-        },
-      });
-    }
     
     return NextResponse.json({
       success: true,

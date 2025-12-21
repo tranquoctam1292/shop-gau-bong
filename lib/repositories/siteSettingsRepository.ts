@@ -12,18 +12,41 @@ import type { MongoSiteSettings, SiteSettingsInput } from '@/types/siteSettings'
 const GLOBAL_CONFIG_ID = 'global_config';
 
 /**
+ * Default Site Settings
+ * 
+ * Used as fallback when no settings exist in database
+ */
+const DEFAULT_SETTINGS: MongoSiteSettings = {
+  _id: GLOBAL_CONFIG_ID,
+  header: {
+    logo: null,
+    announcementBar: {
+      enabled: false,
+    },
+  },
+  footer: {
+    copyright: `© ${new Date().getFullYear()} Shop Gấu Bông. All rights reserved.`,
+    socialLinks: [],
+  },
+  scripts: {},
+  createdAt: new Date(),
+  updatedAt: new Date(),
+};
+
+/**
  * Get site settings
  * 
- * @returns Site settings document or null if not found
+ * @returns Site settings document or DEFAULT_SETTINGS if not found
  */
-export async function getSiteSettings(): Promise<MongoSiteSettings | null> {
+export async function getSiteSettings(): Promise<MongoSiteSettings> {
   const { siteSettings } = await getCollections();
   
   // MongoDB allows string _id for custom IDs
   const settings = await siteSettings.findOne({ _id: GLOBAL_CONFIG_ID as any });
   
   if (!settings) {
-    return null;
+    // Return default settings instead of null
+    return DEFAULT_SETTINGS;
   }
   
   return settings as unknown as MongoSiteSettings;
@@ -143,10 +166,8 @@ export async function updateSiteSettings(
   }
   
   // Return updated document
+  // getSiteSettings() now always returns a value (DEFAULT_SETTINGS if not exists)
   const updated = await getSiteSettings();
-  if (!updated) {
-    throw new Error('Failed to retrieve updated site settings');
-  }
   
   return updated;
 }

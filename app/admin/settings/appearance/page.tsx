@@ -13,6 +13,7 @@ import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,9 +21,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { MediaPicker, type MediaPickerValue } from '@/components/admin/media/MediaPicker';
 import { useToastContext } from '@/components/providers/ToastProvider';
 import { siteSettingsUpdateSchema, type SiteSettingsUpdateInput } from '@/lib/validations/siteSettings';
+import { AdminRole } from '@/types/admin';
 import type { SiteSettings } from '@/types/siteSettings';
 
 type SocialPlatform = 'facebook' | 'instagram' | 'youtube' | 'zalo' | 'tiktok' | 'twitter';
@@ -36,6 +45,7 @@ interface SocialLink {
 interface AppearanceFormData {
   header: {
     logo: MediaPickerValue | null;
+    logoAlt?: string; // Alt text for logo (SEO)
     announcementBar: {
       enabled: boolean;
       text?: string;
@@ -66,10 +76,14 @@ const socialPlatforms: Array<{ value: SocialPlatform; label: string }> = [
 ];
 
 export default function AppearanceSettingsPage() {
+  const { data: session } = useSession();
   const { showToast } = useToastContext();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [initialData, setInitialData] = useState<SiteSettings | null>(null);
+  
+  // Check if user is SUPER_ADMIN (only SUPER_ADMIN can update scripts)
+  const isSuperAdmin = (session?.user as any)?.role === AdminRole.SUPER_ADMIN;
 
   const {
     register,
@@ -83,6 +97,7 @@ export default function AppearanceSettingsPage() {
     defaultValues: {
       header: {
         logo: null,
+        logoAlt: '',
         announcementBar: {
           enabled: false,
         },
@@ -126,6 +141,7 @@ export default function AppearanceSettingsPage() {
                     type: 'image',
                   }
                 : null,
+              logoAlt: data.header.logo?.alt || '', // Separate field for alt text
               announcementBar: data.header.announcementBar,
             },
             footer: {
@@ -156,12 +172,15 @@ export default function AppearanceSettingsPage() {
       // Map form data to API format
       const apiData: SiteSettingsUpdateInput = {
         header: {
-          logo: data.header.logo
+          // ✅ IMAGE DATA FIX: Ensure URL is always saved (not just _id)
+          // MediaPicker returns object with _id, url, name, type
+          // Frontend needs URL directly to render image
+          logo: data.header.logo && data.header.logo.url
             ? {
                 _id: data.header.logo._id,
-                url: data.header.logo.url,
+                url: data.header.logo.url, // Ensure URL is saved
                 name: data.header.logo.name,
-                alt: data.header.logo.name,
+                alt: data.header.logoAlt || data.header.logo.name, // Use logoAlt from form or fallback to name
               }
             : null,
           announcementBar: data.header.announcementBar,
@@ -171,7 +190,8 @@ export default function AppearanceSettingsPage() {
           address: data.footer.address,
           email: data.footer.email,
           phone: data.footer.phone,
-          socialLinks: data.footer.socialLinks,
+          // ✅ UX FIX: Filter out social links with empty URL before saving
+          socialLinks: data.footer.socialLinks.filter((link) => link.url.trim() !== ''),
         },
         scripts: data.scripts,
       };
@@ -263,6 +283,10 @@ export default function AppearanceSettingsPage() {
                   value={watchedHeader?.logo || undefined}
                   onChange={(value) => {
                     setValue('header.logo', (value as MediaPickerValue) || null);
+                    // Clear alt text if logo is removed
+                    if (!value) {
+                      setValue('header.logoAlt', '');
+                    }
                   }}
                   type="image"
                   label="Logo"
@@ -271,6 +295,23 @@ export default function AppearanceSettingsPage() {
                   <p className="text-sm text-destructive">
                     {errors.header.logo.message as string}
                   </p>
+                )}
+                
+                {/* ✅ SEO: Alt Text Input for Logo */}
+                {watchedHeader?.logo && (
+                  <div>
+                    <Label htmlFor="logo-alt">Alt Text (SEO)</Label>
+                    <Input
+                      id="logo-alt"
+                      {...register('header.logoAlt')}
+                      placeholder="Mô tả logo cho SEO (ví dụ: Logo Shop Gấu Bông)"
+                      value={watchedHeader.logoAlt || ''}
+                      onChange={(e) => setValue('header.logoAlt', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Mô tả ngắn gọn về logo để tối ưu SEO và accessibility
+                    </p>
+                  </div>
                 )}
               </CardContent>
             </Card>
@@ -396,19 +437,24 @@ export default function AppearanceSettingsPage() {
                     <div className="flex-1 space-y-2">
                       <div>
                         <Label>Platform</Label>
-                        <select
-                          className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        {/* ✅ UX: Use Shadcn Select instead of native select */}
+                        <Select
                           value={link.platform}
-                          onChange={(e) =>
-                            updateSocialLink(index, 'platform', e.target.value as SocialPlatform)
+                          onValueChange={(value) =>
+                            updateSocialLink(index, 'platform', value as SocialPlatform)
                           }
                         >
-                          {socialPlatforms.map((platform) => (
-                            <option key={platform.value} value={platform.value}>
-                              {platform.label}
-                            </option>
-                          ))}
-                        </select>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn platform" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {socialPlatforms.map((platform) => (
+                              <SelectItem key={platform.value} value={platform.value}>
+                                {platform.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
                       <div>
                         <Label>URL</Label>
@@ -449,6 +495,26 @@ export default function AppearanceSettingsPage() {
 
           {/* Scripts Tab */}
           <TabsContent value="scripts" className="space-y-6">
+            {/* 🔒 SECURITY WARNING: Only SUPER_ADMIN can update scripts */}
+            {!isSuperAdmin && (
+              <Card className="border-yellow-200 bg-yellow-50">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-3">
+                    <div className="text-yellow-600 text-lg">⚠️</div>
+                    <div className="flex-1">
+                      <p className="font-semibold text-yellow-900 mb-1">
+                        Chỉ SUPER_ADMIN mới được cập nhật scripts
+                      </p>
+                      <p className="text-sm text-yellow-800">
+                        Bạn không có quyền cập nhật Header Scripts và Footer Scripts. 
+                        Chỉ SUPER_ADMIN mới có thể thêm các scripts như Google Analytics, Facebook Pixel, v.v.
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle>Header Scripts</CardTitle>
@@ -462,7 +528,13 @@ export default function AppearanceSettingsPage() {
                   placeholder='<script>...</script>'
                   rows={10}
                   className="font-mono text-sm"
+                  disabled={!isSuperAdmin}
                 />
+                {!isSuperAdmin && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Bạn cần quyền SUPER_ADMIN để chỉnh sửa scripts này
+                  </p>
+                )}
               </CardContent>
             </Card>
 
@@ -479,7 +551,13 @@ export default function AppearanceSettingsPage() {
                   placeholder='<script>...</script>'
                   rows={10}
                   className="font-mono text-sm"
+                  disabled={!isSuperAdmin}
                 />
+                {!isSuperAdmin && (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Bạn cần quyền SUPER_ADMIN để chỉnh sửa scripts này
+                  </p>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

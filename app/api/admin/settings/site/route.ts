@@ -8,10 +8,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidatePath } from 'next/cache';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { getSiteSettings, updateSiteSettings } from '@/lib/repositories/siteSettingsRepository';
 import { siteSettingsUpdateSchema } from '@/lib/validations/siteSettings';
 import { handleValidationError } from '@/lib/utils/validation-errors';
+import { AdminRole } from '@/types/admin';
 import type { SiteSettings } from '@/types/siteSettings';
 
 /**
@@ -23,10 +25,10 @@ function mapSiteSettings(mongoSettings: any): SiteSettings {
     header: {
       logo: mongoSettings.header?.logo
         ? {
-            id: mongoSettings.header.logo._id,
+            id: mongoSettings.header.logo._id, // ✅ ID SYNC: Map _id from MongoDB to id for frontend
             url: mongoSettings.header.logo.url,
             name: mongoSettings.header.logo.name,
-            alt: mongoSettings.header.logo.alt,
+            alt: mongoSettings.header.logo.alt || mongoSettings.header.logo.name, // ✅ FALLBACK: Use name if alt is missing
           }
         : null,
       announcementBar: {
@@ -64,27 +66,8 @@ export async function GET(request: NextRequest) {
       try {
         const settings = await getSiteSettings();
         
-        if (!settings) {
-          // Return default structure if not exists
-          return NextResponse.json({
-            success: true,
-            data: {
-              id: 'global_config',
-              header: {
-                logo: null,
-                announcementBar: {
-                  enabled: false,
-                },
-              },
-              footer: {
-                socialLinks: [],
-              },
-              scripts: {},
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString(),
-            },
-          });
-        }
+        // getSiteSettings() now returns DEFAULT_SETTINGS instead of null
+        // So settings will always be available
         
         return NextResponse.json({
           success: true,
@@ -118,6 +101,22 @@ export async function POST(request: NextRequest) {
       try {
         const body = await request.json();
         
+        // 🔒 SECURITY: Check if user is trying to update scripts
+        // Only SUPER_ADMIN can update scripts (XSS protection)
+        if (body.scripts && (body.scripts.headerScripts || body.scripts.footerScripts)) {
+          const userRole = (req.adminUser as any)?.role;
+          if (userRole !== AdminRole.SUPER_ADMIN) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: 'Chỉ SUPER_ADMIN mới được cập nhật scripts',
+                code: 'PERMISSION_DENIED',
+              },
+              { status: 403 }
+            );
+          }
+        }
+        
         // Validate input
         const validation = siteSettingsUpdateSchema.safeParse(body);
         if (!validation.success) {
@@ -134,6 +133,15 @@ export async function POST(request: NextRequest) {
         
         // Update settings
         const updated = await updateSiteSettings(validation.data, userId);
+        
+        // ✅ CACHE INVALIDATION: Revalidate layout to ensure immediate update
+        try {
+          revalidatePath('/', 'layout');
+          revalidatePath('/api/cms/site-settings');
+        } catch (revalidateError) {
+          // Log error but don't fail request if revalidation fails
+          console.warn('[Cache Invalidation] Failed to revalidate paths:', revalidateError);
+        }
         
         return NextResponse.json({
           success: true,

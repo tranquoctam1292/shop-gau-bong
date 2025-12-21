@@ -20,6 +20,10 @@ interface ScriptsInjectorProps {
  * 
  * Injects scripts at the beginning of body (Next.js App Router doesn't allow <head> manipulation)
  * Uses dangerouslySetInnerHTML for raw HTML scripts (GA, FB Pixel, etc.)
+ * 
+ * ✅ OPTIMIZATION: Rendered at highest position in body for early execution
+ * Note: Next.js Script component doesn't support dangerouslySetInnerHTML for raw HTML,
+ * so we use div with dangerouslySetInnerHTML as the best approach for custom scripts
  */
 export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
   if (!headerScripts) {
@@ -29,11 +33,13 @@ export function HeaderScripts({ headerScripts }: ScriptsInjectorProps) {
   // Inject raw HTML scripts (GA, FB Pixel, etc.)
   // Note: In Next.js App Router, we inject at the beginning of body
   // as we cannot directly manipulate <head>
+  // This ensures scripts execute as early as possible
   return (
     <div
       suppressHydrationWarning
       dangerouslySetInnerHTML={{ __html: headerScripts }}
       style={{ display: 'none' }}
+      data-script-type="header"
     />
   );
 }
@@ -64,10 +70,11 @@ export function FooterScripts({ footerScripts }: ScriptsInjectorProps) {
  */
 export async function getSiteScripts() {
   try {
+    // getSiteSettings() now always returns a value (DEFAULT_SETTINGS if not exists)
     const settings = await getSiteSettings();
     return {
-      headerScripts: settings?.scripts?.headerScripts,
-      footerScripts: settings?.scripts?.footerScripts,
+      headerScripts: settings.scripts?.headerScripts,
+      footerScripts: settings.scripts?.footerScripts,
     };
   } catch (error) {
     console.error('[ScriptsInjector] Error fetching site settings:', error);
