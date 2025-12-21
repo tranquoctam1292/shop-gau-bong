@@ -26,13 +26,13 @@ export function BigsizeProducts() {
 
   if (loading) {
     return (
-      <section className="container-mobile py-8 md:py-16">
+      <section className="w-full px-2 md:container-mobile md:px-8 py-8 md:py-16">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-heading text-xl md:text-3xl">
             🐻 Gấu Bông Bigsize
           </h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
           {[...Array(8)].map((_, i) => (
             <Skeleton key={i} className="aspect-square rounded-2xl" />
           ))}
@@ -46,7 +46,7 @@ export function BigsizeProducts() {
   }
 
   return (
-    <section className="container-mobile py-8 md:py-16">
+    <section className="w-full px-2 md:container-mobile md:px-8 py-8 md:py-16">
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-heading text-xl md:text-3xl">
           🐻 Gấu Bông Bigsize
@@ -59,7 +59,7 @@ export function BigsizeProducts() {
         </Link>
       </div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
         {bigsizeProducts.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}

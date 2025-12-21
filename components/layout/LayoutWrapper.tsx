@@ -8,6 +8,7 @@ import { QuickCheckoutModal } from '@/components/checkout/QuickCheckoutModal';
 import { MobileHotlineButton } from '@/components/layout/MobileHotlineButton';
 import { fetchSiteSettings } from '@/lib/utils/siteSettingsClient';
 import type { SiteSettings } from '@/types/siteSettings';
+import type { Menu } from '@/lib/utils/menuServer';
 
 /**
  * Layout Wrapper
@@ -21,9 +22,11 @@ import type { SiteSettings } from '@/types/siteSettings';
 export function LayoutWrapper({ 
   children,
   siteSettings: initialSiteSettings,
+  menu,
 }: { 
   children: React.ReactNode;
   siteSettings?: SiteSettings | null;
+  menu?: Menu | null;
 }) {
   const pathname = usePathname();
   const isAdminRoute = pathname?.startsWith('/admin');
@@ -52,10 +55,10 @@ export function LayoutWrapper({
   }
 
   // Regular routes - with Header/Footer
-  // ✅ FIX: siteSettings is now available from server-side, preventing hydration mismatch
+  // ✅ FIX: siteSettings and menu are now available from server-side, preventing hydration mismatch
   return (
     <>
-      <Header siteSettings={siteSettings} />
+      <Header siteSettings={siteSettings} menu={menu} />
       <main className="flex-1 relative z-0 pb-16 md:pb-0">
         {children}
       </main>

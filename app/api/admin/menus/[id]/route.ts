@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { resolveMenuItemLink } from '@/lib/utils/menuUtils';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { Permission } from '@/types/admin';
+import { revalidateTag } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -270,29 +271,11 @@ export async function PUT(
     
     await menus.updateOne({ _id: menuId }, { $set: updateData });
     
-    // Clear cache for both old and new locations (if location changed)
-    const locationsToInvalidate = new Set<string>();
-    if (existingMenu.location) {
-      locationsToInvalidate.add(existingMenu.location);
-    }
-    if (finalLocation) {
-      locationsToInvalidate.add(finalLocation);
-    }
-    
-    // Invalidate cache for all affected locations
-    for (const location of locationsToInvalidate) {
-      try {
-        await fetch(`${request.nextUrl.origin}/api/cms/menus/location/${location}`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        }).catch(() => {
-          // Ignore errors - cache will be stale until next request
-        });
-      } catch {
-        // Ignore cache invalidation errors
-      }
+    // ✅ PERFORMANCE: Invalidate menu cache using revalidateTag
+    try {
+      revalidateTag('menu'); // Invalidate all menu caches
+    } catch (revalidateError) {
+      console.warn('[Cache Invalidation] Failed to revalidate menu cache:', revalidateError);
     }
     
     // Get updated menu

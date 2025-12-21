@@ -2,49 +2,36 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useMenu, type MenuItem } from '@/lib/hooks/useMenu';
 import { MenuDropdown, type MenuDropdownItem } from './MenuDropdown';
 import { ProductsMegaMenu } from './ProductsMegaMenu';
 import { ShopMegaMenu } from './ShopMegaMenu';
 import { cn } from '@/lib/utils/cn';
-import { Skeleton } from '@/components/ui/skeleton';
 import { mainNavigation } from '@/lib/constants/menuData';
 import type { MenuItem as ConfigMenuItem } from '@/types/menu';
 import { getMenuItemColor } from '@/types/menu';
+import type { MenuItem, Menu } from '@/lib/utils/menuServer';
 
 interface DynamicNavigationMenuProps {
-  location?: string;
+  menu: Menu | null;
   fallbackToHardcoded?: boolean;
 }
 
 /**
- * Dynamic Navigation Menu Component
+ * Dynamic Navigation Menu Component (Client Component)
  * 
- * Renders navigation menu from CMS API
+ * Renders navigation menu from server-fetched data
  * Falls back to hardcoded menu if no menu found or if fallbackToHardcoded is true
  * Desktop: Horizontal menu với hover dropdowns và mega menu
  * Mobile: Hidden (use DynamicMobileMenu instead)
+ * 
+ * ✅ PERFORMANCE: Menu data is fetched server-side to prevent render blocking
  */
 export function DynamicNavigationMenu({
-  location = 'primary',
+  menu,
   fallbackToHardcoded = true,
 }: DynamicNavigationMenuProps) {
-  const { menu, isLoading, error } = useMenu(location);
-
-  // Show skeleton while loading
-  if (isLoading) {
-    return (
-      <nav className="hidden lg:flex items-center space-x-1 relative z-50 overflow-visible">
-        <Skeleton className="h-10 w-20" />
-        <Skeleton className="h-10 w-24" />
-        <Skeleton className="h-10 w-28" />
-        <Skeleton className="h-10 w-20" />
-      </nav>
-    );
-  }
-
   // If error or no menu, fallback to hardcoded menu
-  if (error || !menu || !menu.items || menu.items.length === 0) {
+  if (!menu || !menu.items || menu.items.length === 0) {
     if (fallbackToHardcoded) {
       return <HardcodedNavigationMenu />;
     }
@@ -52,9 +39,18 @@ export function DynamicNavigationMenu({
   }
 
   // Render menu from API
+  // Filter out ghost links (items with url === '#' or invalid references)
+  const validItems = menu.items.filter((item) => {
+    // Skip items with invalid URLs (ghost links from deleted references)
+    if (!item.url || item.url === '#') {
+      return false;
+    }
+    return true;
+  });
+
   return (
     <nav className="hidden lg:flex items-center space-x-1 relative z-50 overflow-visible">
-      {menu.items.map((item) => (
+      {validItems.map((item) => (
         <MenuItemRenderer key={item.id} item={item} />
       ))}
     </nav>

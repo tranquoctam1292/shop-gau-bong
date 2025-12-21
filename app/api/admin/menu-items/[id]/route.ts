@@ -12,6 +12,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { Permission } from '@/types/admin';
+import { revalidateTag } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -218,23 +219,25 @@ export async function PUT(
     }
     if (validatedData.order !== undefined) updateData.order = validatedData.order;
     
-    await menuItems.updateOne({ _id: itemId }, { $set: updateData });
+    // ✅ SECURITY FIX: Include menuId in filter to prevent ID spoofing
+    // Ensure the item belongs to the menu it claims to belong to
+    const updateResult = await menuItems.updateOne(
+      { _id: itemId, menuId: existingItem.menuId },
+      { $set: updateData }
+    );
     
-    // Clear cache for the menu's location
-    const menu = await menus.findOne({ _id: existingItem.menuId });
-    if (menu?.location) {
-      try {
-        await fetch(`${req.nextUrl.origin}/api/cms/menus/location/${menu.location}`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        }).catch(() => {
-          // Ignore errors
-        });
-      } catch {
-        // Ignore cache invalidation errors
-      }
+    if (updateResult.matchedCount === 0) {
+      return NextResponse.json(
+        { error: 'Menu item not found or does not belong to the specified menu' },
+        { status: 404 }
+      );
+    }
+    
+    // ✅ PERFORMANCE: Invalidate menu cache using revalidateTag
+    try {
+      revalidateTag('menu'); // Invalidate all menu caches
+    } catch (revalidateError) {
+      console.warn('[Cache Invalidation] Failed to revalidate menu cache:', revalidateError);
     }
     
     // Get updated item
@@ -305,8 +308,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Menu item not found' }, { status: 404 });
     }
     
-    // Check if item has children
-    const childrenCount = await menuItems.countDocuments({ parentId: itemId });
+    // Check if item has children (only count children in the same menu)
+    const childrenCount = await menuItems.countDocuments({
+      parentId: itemId,
+      menuId: item.menuId, // ✅ SECURITY: Only count children in same menu
+    });
     if (childrenCount > 0) {
       return NextResponse.json(
         {
@@ -317,24 +323,25 @@ export async function DELETE(
       );
     }
     
-    // Delete menu item
-    await menuItems.deleteOne({ _id: itemId });
+    // ✅ SECURITY FIX: Include menuId in filter to prevent ID spoofing
+    // Ensure the item belongs to the menu it claims to belong to
+    const deleteResult = await menuItems.deleteOne({
+      _id: itemId,
+      menuId: item.menuId,
+    });
     
-    // Clear cache for the menu's location
-    const menu = await menus.findOne({ _id: item.menuId });
-    if (menu?.location) {
-      try {
-        await fetch(`${request.nextUrl.origin}/api/cms/menus/location/${menu.location}`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        }).catch(() => {
-          // Ignore errors
-        });
-      } catch {
-        // Ignore cache invalidation errors
-      }
+    if (deleteResult.deletedCount === 0) {
+      return NextResponse.json(
+        { error: 'Menu item not found or does not belong to the specified menu' },
+        { status: 404 }
+      );
+    }
+    
+    // ✅ PERFORMANCE: Invalidate menu cache using revalidateTag
+    try {
+      revalidateTag('menu'); // Invalidate all menu caches
+    } catch (revalidateError) {
+      console.warn('[Cache Invalidation] Failed to revalidate menu cache:', revalidateError);
     }
     
     return NextResponse.json({

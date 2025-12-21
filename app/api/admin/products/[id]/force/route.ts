@@ -58,6 +58,13 @@ export async function DELETE(
         productId: productIdStr,
       });
       
+      // Clean up menu items that reference this product (prevent ghost links)
+      const { menuItems } = await getCollections();
+      await menuItems.deleteMany({
+        type: 'product',
+        referenceId: productId,
+      });
+      
       // Force Delete: Permanently delete from database
       // Note: This deletes the product regardless of deletedAt status (trash or not)
       const result = await products.deleteOne({ _id: productId });

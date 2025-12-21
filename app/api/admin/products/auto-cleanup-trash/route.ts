@@ -33,6 +33,16 @@ export async function POST(request: NextRequest) {
     const deletedProductIds: string[] = [];
     const errors: Array<{ productId: string; error: string }> = [];
 
+    // Clean up menu items that reference these products (prevent ghost links)
+    const { menuItems } = await getCollections();
+    const productIdsToDelete = productsToDelete.map(p => p._id);
+    if (productIdsToDelete.length > 0) {
+      await menuItems.deleteMany({
+        type: 'product',
+        referenceId: { $in: productIdsToDelete },
+      });
+    }
+    
     // Delete products permanently
     for (const product of productsToDelete) {
       try {

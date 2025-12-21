@@ -45,6 +45,7 @@ import { getSiteSettings } from '@/lib/repositories/siteSettingsRepository';
 import { unstable_cache } from 'next/cache';
 import type { SiteSettings } from '@/types/siteSettings';
 import { safeToISOString } from '@/lib/utils/dateUtils';
+import { getCachedMenu } from '@/lib/utils/menuServer';
 
 const defaultMetadata = getDefaultMetadata();
 const ogTags = generateOpenGraphTags(defaultMetadata);
@@ -167,16 +168,19 @@ export default async function RootLayout({
   const mongoSettings = await getCachedSiteSettingsForLayout();
   const siteSettings = mapSiteSettings(mongoSettings);
   const { headerScripts, footerScripts } = await getSiteScripts();
+  
+  // ✅ PERFORMANCE: Fetch menu data server-side to prevent render blocking
+  const menu = await getCachedMenu('primary');
 
   return (
-    <html lang="vi" className={`${inter.variable} ${nunito.variable} ${fredoka.variable}`}>
-      <body className="min-h-screen bg-background flex flex-col">
+    <html lang="vi" className={`${inter.variable} ${nunito.variable} ${fredoka.variable} overflow-x-hidden`}>
+      <body className="min-h-screen bg-background flex flex-col overflow-x-hidden">
         {/* Header Scripts - Injected at beginning of body (Next.js App Router limitation) */}
         <HeaderScripts headerScripts={headerScripts} />
         <QueryProvider>
           <ToastProvider>
             <CategoriesProvider>
-              <LayoutWrapper siteSettings={siteSettings}>
+              <LayoutWrapper siteSettings={siteSettings} menu={menu}>
                 {children}
               </LayoutWrapper>
               {/* Floating Contact Widget - Render sau cùng, client-side only */}

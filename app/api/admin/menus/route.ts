@@ -7,6 +7,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
@@ -160,19 +161,12 @@ export async function POST(request: NextRequest) {
     
     const result = await menus.insertOne(newMenu);
     
-    // Clear cache if location is set and status is active
+    // ✅ PERFORMANCE: Invalidate menu cache using revalidateTag
     if (validatedData.location && validatedData.status === 'active') {
       try {
-        await fetch(`${request.nextUrl.origin}/api/cms/menus/location/${validatedData.location}`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        }).catch(() => {
-          // Ignore errors
-        });
-      } catch {
-        // Ignore cache invalidation errors
+        revalidateTag('menu'); // Invalidate all menu caches
+      } catch (revalidateError) {
+        console.warn('[Cache Invalidation] Failed to revalidate menu cache:', revalidateError);
       }
     }
     

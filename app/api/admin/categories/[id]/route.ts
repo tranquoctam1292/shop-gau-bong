@@ -299,6 +299,13 @@ export async function DELETE(
       );
     }
     
+    // Clean up menu items that reference this category (prevent ghost links)
+    const { menuItems } = await getCollections();
+    await menuItems.deleteMany({
+      type: 'category',
+      referenceId: categoryId,
+    });
+    
     // Soft delete: Set deletedAt instead of deleting
     await categories.updateOne(
       { _id: categoryId },

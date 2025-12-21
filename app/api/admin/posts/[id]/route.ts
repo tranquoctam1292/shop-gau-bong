@@ -208,6 +208,23 @@ export async function DELETE(
       );
     }
     
+    // Get post type before deleting (to determine menu item type)
+    const post = await posts.findOne({ _id: postId });
+    if (!post) {
+      return NextResponse.json(
+        { error: 'Post not found' },
+        { status: 404 }
+      );
+    }
+    
+    // Clean up menu items that reference this post/page (prevent ghost links)
+    const { menuItems } = await getCollections();
+    const menuItemType = post.type === 'page' ? 'page' : 'post';
+    await menuItems.deleteMany({
+      type: menuItemType,
+      referenceId: postId,
+    });
+    
     // Delete post
     await posts.deleteOne({ _id: postId });
     

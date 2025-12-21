@@ -10,6 +10,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { Permission } from '@/types/admin';
+import { revalidateTag } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,20 +131,11 @@ export async function POST(request: NextRequest) {
     
     const result = await menuItems.insertOne(newMenuItem);
     
-    // Clear cache for the menu's location
-    if (menu.location) {
-      try {
-        await fetch(`${req.nextUrl.origin}/api/cms/menus/location/${menu.location}`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        }).catch(() => {
-          // Ignore errors
-        });
-      } catch {
-        // Ignore cache invalidation errors
-      }
+    // ✅ PERFORMANCE: Invalidate menu cache using revalidateTag
+    try {
+      revalidateTag('menu'); // Invalidate all menu caches
+    } catch (revalidateError) {
+      console.warn('[Cache Invalidation] Failed to revalidate menu cache:', revalidateError);
     }
     
     return NextResponse.json(

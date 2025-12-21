@@ -148,8 +148,9 @@ export default function ProductPage() {
           </div>
         )}
       </div>
+      </div>
 
-      {/* Related Products */}
+      {/* Related Products - Render outside container để có padding riêng */}
       {product.databaseId && (
         <RelatedProducts
           // FIX: Keep productId as string (MongoDB ObjectId) - don't use parseInt on hex string
@@ -157,7 +158,6 @@ export default function ProductPage() {
           excludeId={product.databaseId || product.id}
         />
       )}
-      </div>
     </>
   );
 }

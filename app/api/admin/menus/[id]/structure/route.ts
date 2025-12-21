@@ -10,6 +10,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 import { Permission } from '@/types/admin';
+import { revalidateTag } from 'next/cache';
 
 export const dynamic = 'force-dynamic';
 
@@ -210,20 +211,13 @@ export async function POST(
       await menuItems.bulkWrite(bulkOps);
     }
     
-    // Clear cache for this menu location (if exists)
-    if (existingMenu.location) {
-      try {
-        await fetch(`${request.nextUrl.origin}/api/cms/menus/location/${existingMenu.location}`, {
-          method: 'GET',
-          headers: {
-            'Cache-Control': 'no-cache',
-          },
-        }).catch(() => {
-          // Ignore errors - cache will be stale until next request
-        });
-      } catch {
-        // Ignore cache invalidation errors
-      }
+    // ✅ PERFORMANCE: Invalidate menu cache using revalidateTag
+    // This invalidates both API route cache and unstable_cache cache
+    try {
+      revalidateTag('menu'); // Invalidate all menu caches
+    } catch (revalidateError) {
+      // Log error but don't fail request if revalidation fails
+      console.warn('[Cache Invalidation] Failed to revalidate menu cache:', revalidateError);
     }
     
     // Get updated menu structure (tree format)

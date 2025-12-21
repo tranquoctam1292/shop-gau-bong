@@ -12,11 +12,12 @@ import { topBarConfig } from '@/lib/constants/menuData';
 import { SITE_CONFIG } from '@/lib/constants/config';
 import Image from 'next/image';
 import type { SiteSettings } from '@/types/siteSettings';
+import { DynamicNavigationMenu } from './DynamicNavigationMenu';
+import type { Menu as MenuData } from '@/lib/utils/menuServer';
 
 // Dynamic imports for heavy components
 const CartDrawer = lazy(() => import('@/components/cart/CartDrawer').then(mod => ({ default: mod.CartDrawer })));
 const EnhancedSearchBar = lazy(() => import('@/components/search/EnhancedSearchBar').then(mod => ({ default: mod.EnhancedSearchBar })));
-const DynamicNavigationMenu = lazy(() => import('@/components/layout/DynamicNavigationMenu').then(mod => ({ default: mod.DynamicNavigationMenu })));
 
 // MobileMenu lazy import - can be pre-loaded
 const mobileMenuImport = () => import('@/components/layout/DynamicMobileMenu').then(mod => ({ default: mod.DynamicMobileMenu }));
@@ -26,9 +27,10 @@ const SearchModal = lazy(() => import('@/components/search/SearchModal').then(mo
 
 interface HeaderProps {
   siteSettings?: SiteSettings | null;
+  menu?: MenuData | null;
 }
 
-export function Header({ siteSettings }: HeaderProps) {
+export function Header({ siteSettings, menu }: HeaderProps) {
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
   const [isSticky, setIsSticky] = useState(false);
   const mobileMenuPreloadedRef = useRef(false);
@@ -68,7 +70,7 @@ export function Header({ siteSettings }: HeaderProps) {
         className={cn(
           "bg-background border-b border-primary/5 z-30 transition-all duration-300",
           // Base: always relative
-          "relative",
+          "relative w-full overflow-x-hidden",
           // Mobile: sticky when scroll > 100px
           // Desktop: always relative (lg:relative overrides fixed)
           isSticky 
@@ -76,10 +78,10 @@ export function Header({ siteSettings }: HeaderProps) {
             : "py-4 md:py-6"
         )}
       >
-        <div className="container mx-auto px-4 flex items-center justify-between gap-4 md:gap-8">
+        <div className="container mx-auto px-3 sm:px-4 flex items-center justify-between gap-2 md:gap-4 lg:gap-8 min-w-0 max-w-[100vw]">
           
           {/* Logo */}
-          <Link href="/" className="flex items-center gap-2 flex-shrink-0 group">
+          <Link href="/" className="flex items-center gap-2 flex-shrink group min-w-0">
             {siteSettings?.header.logo ? (
               <div className="relative w-10 h-10 md:w-12 md:h-12 flex-shrink-0">
                 <Image
@@ -95,7 +97,7 @@ export function Header({ siteSettings }: HeaderProps) {
                 🧸
               </div>
             )}
-            <div className="flex flex-col">
+            <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
               {/* ✅ BRANDING: Dynamic site title from siteSettings or fallback to SITE_CONFIG */}
               {(() => {
                 // Use siteTitle from siteSettings if available, otherwise use SITE_CONFIG.name
@@ -123,7 +125,7 @@ export function Header({ siteSettings }: HeaderProps) {
                 }
                 
                 return (
-                  <span className="font-logo text-xl md:text-2xl font-extrabold text-primary leading-none tracking-tight">
+                  <span className="font-logo text-lg sm:text-xl md:text-2xl font-extrabold text-primary leading-none tracking-tight truncate block">
                     {titleParts[0]}
                     {titleParts.length > 1 && splitPoint && (
                       <>
@@ -152,11 +154,11 @@ export function Header({ siteSettings }: HeaderProps) {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+          <div className="flex items-center gap-1.5 md:gap-4 flex-shrink-0 min-w-0">
             {/* Mobile Search */}
             <button
               onClick={() => setIsSearchModalOpen(true)}
-              className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'md:hidden text-text-main')}
+              className={cn(buttonVariants({ variant: 'ghost', size: 'icon' }), 'md:hidden text-text-main w-10 h-10 flex-shrink-0')}
               aria-label="Tìm kiếm"
             >
               <Search className="w-5 h-5" />
@@ -173,7 +175,7 @@ export function Header({ siteSettings }: HeaderProps) {
             
             {/* Mobile Menu Trigger */}
             <div 
-              className="lg:hidden ml-2" 
+              className="lg:hidden" 
               onMouseEnter={handleMobileMenuHover} 
               onTouchStart={handleMobileMenuHover}
             >
@@ -195,9 +197,8 @@ export function Header({ siteSettings }: HeaderProps) {
           )}
       >
         <div className="container mx-auto px-4 flex justify-center">
-          <Suspense fallback={<div className="w-full h-12 bg-gray-50 rounded animate-pulse" />}>
-            <DynamicNavigationMenu location="primary" fallbackToHardcoded={true} />
-          </Suspense>
+          {/* ✅ PERFORMANCE: Menu data passed from Server Component */}
+          <DynamicNavigationMenu menu={menu ?? null} fallbackToHardcoded={true} />
         </div>
       </header>
 

@@ -129,13 +129,21 @@ export function DynamicMobileMenu({
           </nav>
         ) : (
           <nav className="space-y-1 pt-2">
-            {menu.items.map((item) => (
-              <MobileMenuItemRenderer
-                key={item.id}
-                item={item}
-                onItemClick={closeMenu}
-              />
-            ))}
+            {menu.items
+              .filter((item) => {
+                // Filter out ghost links (items with url === '#' or invalid references)
+                if (!item.url || item.url === '#') {
+                  return false;
+                }
+                return true;
+              })
+              .map((item) => (
+                <MobileMenuItemRenderer
+                  key={item.id}
+                  item={item}
+                  onItemClick={closeMenu}
+                />
+              ))}
           </nav>
         )}
       </SheetContent>

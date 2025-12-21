@@ -81,6 +81,13 @@ export async function POST(request: NextRequest) {
       }
       
       case 'force_delete': {
+        // Clean up menu items that reference these products (prevent ghost links)
+        const { menuItems } = await getCollections();
+        await menuItems.deleteMany({
+          type: 'product',
+          referenceId: { $in: productIds },
+        });
+        
         // Force delete: Permanently delete from database
         const result = await products.deleteMany({ _id: { $in: productIds } });
         updated = result.deletedCount;

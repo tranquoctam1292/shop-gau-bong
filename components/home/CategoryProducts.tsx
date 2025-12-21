@@ -43,13 +43,13 @@ export function CategoryProducts({
 
   if (loading) {
     return (
-      <section className="container-mobile py-8 md:py-16">
+      <section className="w-full px-2 md:container-mobile md:px-8 py-8 md:py-16">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-heading text-xl md:text-3xl">
             {emoji} {categoryName}
           </h2>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
           {[...Array(8)].map((_, i) => (
             <Skeleton key={i} className="aspect-square rounded-2xl" />
           ))}
@@ -63,7 +63,7 @@ export function CategoryProducts({
   }
 
   return (
-    <section className="container-mobile py-8 md:py-16">
+    <section className="w-full px-2 md:container-mobile md:px-8 py-8 md:py-16">
       <div className="flex items-center justify-between mb-6">
         <h2 className="font-heading text-xl md:text-3xl">
           {emoji} {categoryName}
@@ -76,7 +76,7 @@ export function CategoryProducts({
         </Link>
       </div>
       
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
         {categoryProducts.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}

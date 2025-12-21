@@ -24,11 +24,11 @@ export function RelatedProducts({
 
   if (loading) {
     return (
-      <div className="container-mobile py-8">
+      <div className="w-full px-2 md:container-mobile md:px-8 py-8">
         <h2 className="font-heading text-2xl font-semibold mb-6">
           Sản phẩm liên quan
         </h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="animate-pulse">
               <div className="aspect-square bg-muted rounded-2xl mb-4" />
@@ -46,11 +46,11 @@ export function RelatedProducts({
   }
 
   return (
-    <div className="container-mobile py-8">
+    <div className="w-full px-2 md:container-mobile md:px-8 py-8">
       <h2 className="font-heading text-2xl font-semibold mb-6">
         Sản phẩm liên quan
       </h2>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
         {filteredProducts.map((product) => (
           <ProductCard
             key={product.id}

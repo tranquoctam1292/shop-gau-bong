@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, memo } from 'react';
+import { useState, useCallback, useEffect, useRef, memo, useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -101,15 +101,64 @@ function getItemDepth(item: MenuItem, items: MenuItem[], depth: number = 0): num
 }
 
 /**
+ * Calculate maximum depth of a menu item's subtree (relative to itself)
+ * 
+ * Returns the maximum depth of all descendants relative to the item itself.
+ * - If item has no children, returns 0
+ * - If item has children, returns 1 + max depth of children
+ * 
+ * Example:
+ * - Item with no children: 0
+ * - Item with direct children only: 1
+ * - Item with grandchildren: 2
+ * 
+ * @param item - Menu item with children structure
+ * @returns Maximum depth of subtree (0 = no children, 1 = has direct children, etc.)
+ */
+function getMaxSubtreeDepth(item: MenuItem): number {
+  if (!item.children || item.children.length === 0) {
+    return 0;
+  }
+  return 1 + Math.max(...item.children.map(getMaxSubtreeDepth));
+}
+
+/**
+ * Find an item in the tree structure (with children) by ID
+ * 
+ * @param items - Tree structure of menu items
+ * @param itemId - ID of item to find
+ * @returns Found item with children structure, or null if not found
+ */
+function findItemInTree(items: MenuItem[], itemId: string): MenuItem | null {
+  for (const item of items) {
+    if (item.id === itemId) {
+      return item;
+    }
+    if (item.children && item.children.length > 0) {
+      const found = findItemInTree(item.children, itemId);
+      if (found) {
+        return found;
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * Convert flat items array to nested tree structure
+ * 
+ * ✅ FIX: Preserve ALL properties of MenuItem when building tree
  */
 function buildTree(items: MenuItem[]): MenuItem[] {
   const itemMap = new Map<string, MenuItem>();
   const rootItems: MenuItem[] = [];
 
-  // Create map of all items
+  // ✅ FIX: Create map of all items preserving ALL properties
   items.forEach((item) => {
-    itemMap.set(item.id, { ...item, children: [] });
+    // Destructure to separate children (will be rebuilt) from other properties
+    const { children, ...itemWithoutChildren } = item;
+    // Preserve ALL properties and initialize children array
+    itemMap.set(item.id, { ...itemWithoutChildren, children: [] });
   });
 
   // Build tree
@@ -131,12 +180,12 @@ function buildTree(items: MenuItem[]): MenuItem[] {
     }
   });
 
-  // Sort by order
+  // ✅ FIX: Sort by order preserving ALL properties
   const sortByOrder = (items: MenuItem[]): MenuItem[] => {
     return items
       .sort((a, b) => a.order - b.order)
       .map((item) => ({
-        ...item,
+        ...item, // ✅ PRESERVE ALL PROPERTIES
         children: item.children ? sortByOrder(item.children) : [],
       }));
   };
@@ -146,13 +195,31 @@ function buildTree(items: MenuItem[]): MenuItem[] {
 
 /**
  * Flatten tree structure to flat array
+ * 
+ * ✅ FIX: Preserve ALL properties of MenuItem when flattening
+ * Separates children to avoid circular references in flat list
  */
-function flattenTree(items: MenuItem[]): MenuItem[] {
+function flattenTree(items: MenuItem[], parentId: string | null = null): MenuItem[] {
   const result: MenuItem[] = [];
   items.forEach((item) => {
-    result.push(item);
-    if (item.children && item.children.length > 0) {
-      result.push(...flattenTree(item.children));
+    // ✅ FIX: Destructure children out to avoid circular references
+    // Preserve ALL other properties using spread operator
+    const { children, ...itemWithoutChildren } = item;
+    
+    // Create flat item with ALL original data + structure metadata
+    // ✅ FIX: Preserve parentId from item if exists (from flat structure), otherwise use passed parentId (from tree structure)
+    const flatItem: MenuItem = {
+      ...itemWithoutChildren, // ✅ PRESERVE ALL DATA (id, title, type, url, target, iconClass, cssClass, order, referenceId, etc.)
+      parentId: item.parentId ?? parentId, // Use item's parentId if exists, otherwise use passed parentId
+      // Note: children is optional in MenuItem interface, so we don't need to set it explicitly
+      // The spread operator already excludes it from itemWithoutChildren
+    };
+    
+    result.push(flatItem);
+    
+    // Recursively flatten children
+    if (children && children.length > 0) {
+      result.push(...flattenTree(children, item.id));
     }
   });
   return result;
@@ -479,12 +546,6 @@ function NestedMenuItems({
         const isHoveringOverItem = projectedPosition?.overId === item.id;
         const projectedDepth = projectedPosition?.depth ?? -1;
         
-        // #region agent log
-        if (isHoveringOverItem) {
-          fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:476',message:'Placeholder check',data:{itemId:item.id,itemTitle:item.title,depth,projectedDepth,isExpanded,isHoveringOverItem},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
-        }
-        // #endregion
-        
         // Show placeholder if:
         // 1. Hovering over this item AND projected depth equals current depth (same level - reorder)
         // FIX: When projectedDepth === depth + 1, placeholder should be shown in CHILD AREA, not at parent item
@@ -497,31 +558,17 @@ function NestedMenuItems({
         const showPlaceholderAtItem = isHoveringOverItem && 
           projectedDepth === depth &&
           !isParentRenderingPlaceholderInChildren;
-        
-        // #region agent log
-        if (isHoveringOverItem) {
-          fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:490',message:'Placeholder decision',data:{showPlaceholderAtItem,projectedDepth,depth,isExpanded,condition1:projectedDepth===depth,condition2:projectedDepth===depth+1&&isExpanded,condition3:projectedDepth>depth&&depth===projectedDepth-1&&isExpanded},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-        }
-        // #endregion
 
         return (
           <div key={item.id} className="relative">
             {/* Show placeholder before item if this is the target position */}
             {/* FIX: Always use projectedDepth for placeholder indentation (now updated immediately) */}
             {showPlaceholderAtItem && projectedPosition && (
-              <>
-                {/* #region agent log */}
-                {(() => {
-                  fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:504',message:'Rendering DragPlaceholder at item',data:{itemId:item.id,itemTitle:item.title,depth,projectedDepth:projectedPosition.depth,isHoveringOverItem,showPlaceholderAtItem},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
-                  return null;
-                })()}
-                {/* #endregion */}
-                <DragPlaceholder 
-                  depth={projectedPosition.depth} 
-                  isInvalid={projectedPosition.isInvalid}
-                  itemHeight={placeholderHeight}
-                />
-              </>
+              <DragPlaceholder 
+                depth={projectedPosition.depth} 
+                isInvalid={projectedPosition.isInvalid}
+                itemHeight={placeholderHeight}
+              />
             )}
             <SortableMenuItem
               item={item}
@@ -541,19 +588,11 @@ function NestedMenuItems({
                 {projectedPosition && 
                  projectedPosition.overId === item.id && 
                  projectedPosition.depth === depth + 1 && (
-                  <>
-                    {/* #region agent log */}
-                    {(() => {
-                      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:533',message:'Rendering DragPlaceholder in children area',data:{parentItemId:item.id,parentItemTitle:item.title,depth,projectedDepth:projectedPosition.depth,overId:projectedPosition.overId,condition1:projectedPosition.overId===item.id,condition2:projectedPosition.depth===depth+1},timestamp:Date.now(),sessionId:'debug-session',runId:'run2',hypothesisId:'H'})}).catch(()=>{});
-                      return null;
-                    })()}
-                    {/* #endregion */}
-                    <DragPlaceholder 
-                      depth={projectedPosition.depth} 
-                      isInvalid={projectedPosition.isInvalid}
-                      itemHeight={activeItemHeight}
-                    />
-                  </>
+                  <DragPlaceholder 
+                    depth={projectedPosition.depth} 
+                    isInvalid={projectedPosition.isInvalid}
+                    itemHeight={activeItemHeight}
+                  />
                 )}
                 <NestedMenuItems
                   items={item.children!}
@@ -634,11 +673,25 @@ export function MenuStructurePanel({
     isInvalid: boolean;
   } | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number } | null>(null);
-  const [autoScrollInterval, setAutoScrollInterval] = useState<NodeJS.Timeout | null>(null);
+  // ✅ FIX: Use useRef instead of useState for scroll interval to prevent memory leaks
+  // State can be lost on re-render, but ref persists across renders
+  const scrollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [activeItemHeight, setActiveItemHeight] = useState<number>(60); // Default height
 
-  // Build tree structure from flat items
+  // ✅ FIX: Build tree structure from flat items with deep comparison
+  // Use ref to track previous items and only update when actually changed
+  const previousItemsRef = useRef<string>('');
+  
   useEffect(() => {
+    // Deep comparison using JSON.stringify to prevent unnecessary updates
+    const itemsKey = JSON.stringify(items.map(item => ({ id: item.id, parentId: item.parentId, order: item.order })));
+    
+    // Only rebuild tree if items actually changed
+    if (previousItemsRef.current === itemsKey) {
+      return;
+    }
+    
+    previousItemsRef.current = itemsKey;
     const tree = buildTree(items);
     setTreeItems(tree);
     // Auto-expand all items by default
@@ -673,10 +726,6 @@ export function MenuStructurePanel({
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over, delta } = event;
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:628',message:'handleDragOver entry',data:{activeId:active.id,overId:over?.id||null,deltaX:delta?.x||null,deltaY:delta?.y||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     if (!over || !delta) {
       setProjectedPosition(null);
       projectedPositionRef.current = null;
@@ -696,10 +745,6 @@ export function MenuStructurePanel({
     const overItem = allFlatItems.find((item) => item.id === over.id);
     const activeItem = allFlatItems.find((item) => item.id === active.id);
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:650',message:'Items found',data:{overItemFound:!!overItem,activeItemFound:!!activeItem,overItemId:overItem?.id||null,activeItemId:activeItem?.id||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     if (!overItem || !activeItem) {
       setProjectedPosition(null);
       projectedPositionRef.current = null;
@@ -713,44 +758,43 @@ export function MenuStructurePanel({
     const overDepth = getItemDepth(overItem, allFlatItems);
     const activeDepth = getItemDepth(activeItem, allFlatItems);
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:660',message:'Depths calculated',data:{overDepth,activeDepth,overItemId:overItem.id,activeItemId:activeItem.id,overItemTitle:overItem.title,activeItemTitle:activeItem.title},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    // ✅ FIX: Calculate subtree depth of active item to account for children
+    // Find active item in tree structure (with children) to calculate subtree depth
+    const activeItemInTree = findItemInTree(treeItems, active.id as string);
+    const subtreeDepth = activeItemInTree ? getMaxSubtreeDepth(activeItemInTree) : 0;
     
-    // FIX: Calculate projected depth based on activeDepth (item being dragged) instead of overDepth
+    // ✅ FIX: Calculate projected depth based on activeDepth (item being dragged) instead of overDepth
     // This prevents "jumpy" behavior when mouse moves over items with different depths
     // The depth should only change based on horizontal movement (delta X), not which item is under cursor
     const levelChange = Math.round(delta.x / INDENTATION_WIDTH);
     let projectedDepth = activeDepth + levelChange;
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:666',message:'Before clamp',data:{levelChange,projectedDepthBeforeClamp:projectedDepth,deltaX:delta.x,indentationWidth:INDENTATION_WIDTH},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
-    
     // Clamp projected depth with constraints
     // 1. Cannot be less than 0 (root level)
     projectedDepth = Math.max(0, projectedDepth);
     
-    // 2. Cannot exceed MAX_DEPTH
-    projectedDepth = Math.min(MAX_DEPTH - 1, projectedDepth);
+    // ✅ FIX: Dynamic max depth constraint based on subtree depth
+    // MAX_DEPTH = 3 means max depth index = 2 (levels: 0, 1, 2)
+    // If active item has subtree depth of 1 (has direct children), then:
+    // - Max allowed depth = 2 - 1 = 1 (so children won't exceed depth 2)
+    // - If active item has subtree depth of 0 (no children), max allowed depth = 2
+    const ABSOLUTE_MAX_DEPTH = MAX_DEPTH - 1; // Max depth index (2 for 3 levels)
+    const maxAllowedDepth = ABSOLUTE_MAX_DEPTH - subtreeDepth;
+    projectedDepth = Math.min(projectedDepth, maxAllowedDepth);
     
     // 3. Cannot be greater than (over item's depth + 1)
     // This ensures we can't create orphaned items - item can't be deeper than child of item under cursor
-    const maxDepth = overDepth + 1;
-    const projectedDepthBeforeMaxClamp = projectedDepth;
-    projectedDepth = Math.min(projectedDepth, maxDepth);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:678',message:'After clamp',data:{projectedDepthBeforeMaxClamp,maxDepth,projectedDepthAfterClamp:projectedDepth,overDepth},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
-    // #endregion
+    const maxDepthByOverItem = overDepth + 1;
+    projectedDepth = Math.min(projectedDepth, maxDepthByOverItem);
     
     // 4. If moving left (un-nesting), cannot go below 0
     if (levelChange < 0) {
       projectedDepth = Math.max(0, projectedDepth);
     }
 
-    // Check if projected position is invalid (exceeds max depth)
-    const isInvalid = projectedDepth >= MAX_DEPTH;
+    // ✅ FIX: Check if projected position is invalid (exceeds max depth or would push children too deep)
+    // Invalid if: projectedDepth exceeds absolute max OR projectedDepth + subtreeDepth would exceed absolute max
+    const isInvalid = projectedDepth >= MAX_DEPTH || (projectedDepth + subtreeDepth) > ABSOLUTE_MAX_DEPTH;
     
     // FIX: Update state immediately (no throttle) so placeholder always uses correct depth
     // React.memo on SortableMenuItem will prevent unnecessary re-renders
@@ -781,15 +825,8 @@ export function MenuStructurePanel({
 
     // Auto-expand collapsed parent if hovering for delay
     if (projectedDepth > overDepth && !expandedItems.has(over.id as string)) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:735',message:'Auto-expand trigger',data:{projectedDepth,overDepth,overItemId:over.id,isExpanded:expandedItems.has(over.id as string),delay:COLLAPSED_EXPAND_DELAY},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-      // #endregion
-      
       setTimeout(() => {
         if (activeId === active.id) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:740',message:'Auto-expand executed',data:{overItemId:over.id,stillActive:activeId === active.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-          // #endregion
           setExpandedItems((prev) => new Set([...prev, over.id as string]));
         }
       }, COLLAPSED_EXPAND_DELAY);
@@ -799,14 +836,21 @@ export function MenuStructurePanel({
     handleAutoScroll(event);
   };
   
-  // Auto-scroll handler
+  // ✅ FIX: Auto-scroll handler using useRef for stable interval reference
   const handleAutoScroll = useCallback((event: DragOverEvent) => {
-    if (!event.delta) return;
+    if (!event.delta) {
+      // Stop scrolling if no delta (not dragging)
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+      return;
+    }
     
-    // Clear existing interval
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-      setAutoScrollInterval(null);
+    // ✅ FIX: Clear existing interval before starting new one (defensive programming)
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
     }
 
     const viewport = {
@@ -822,39 +866,54 @@ export function MenuStructurePanel({
     const distanceFromTop = pointerY - viewport.top;
     const distanceFromBottom = viewport.bottom - pointerY;
 
-    let scrollInterval: NodeJS.Timeout | null = null;
-
+    // ✅ FIX: Store interval ID in ref instead of state
     if (distanceFromTop < AUTO_SCROLL_THRESHOLD && viewport.top > 0) {
       // Scroll up
-      scrollInterval = setInterval(() => {
+      scrollIntervalRef.current = setInterval(() => {
         if (window.scrollY > 0) {
           window.scrollBy(0, -AUTO_SCROLL_SPEED);
         } else {
-          clearInterval(scrollInterval!);
+          // Reached top, stop scrolling
+          if (scrollIntervalRef.current) {
+            clearInterval(scrollIntervalRef.current);
+            scrollIntervalRef.current = null;
+          }
         }
       }, 16); // ~60fps
-      setAutoScrollInterval(scrollInterval);
     } else if (distanceFromBottom < AUTO_SCROLL_THRESHOLD) {
       // Scroll down
-      scrollInterval = setInterval(() => {
+      scrollIntervalRef.current = setInterval(() => {
         const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
         if (window.scrollY < maxScroll) {
           window.scrollBy(0, AUTO_SCROLL_SPEED);
         } else {
-          clearInterval(scrollInterval!);
+          // Reached bottom, stop scrolling
+          if (scrollIntervalRef.current) {
+            clearInterval(scrollIntervalRef.current);
+            scrollIntervalRef.current = null;
+          }
         }
       }, 16);
-      setAutoScrollInterval(scrollInterval);
     }
-  }, [autoScrollInterval]);
+    // If not near edges, interval is already cleared above (defensive)
+  }, []);
   
-  // Cleanup auto-scroll on drag end
+  // ✅ FIX: Cleanup auto-scroll on drag end or unmount
   useEffect(() => {
-    if (!activeId && autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-      setAutoScrollInterval(null);
+    // Cleanup when drag ends (activeId becomes null)
+    if (!activeId && scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
     }
-  }, [activeId, autoScrollInterval]);
+    
+    // Cleanup on unmount (defensive programming)
+    return () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+    };
+  }, [activeId]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -878,19 +937,14 @@ export function MenuStructurePanel({
       projectedPositionUpdateTimeout.current = null;
     }
     setDragOffset(null);
-    if (autoScrollInterval) {
-      clearInterval(autoScrollInterval);
-      setAutoScrollInterval(null);
+    
+    // ✅ FIX: Clear auto-scroll interval using ref (stable reference)
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:703',message:'handleDragEnd entry',data:{activeId:active.id,overIdFromEvent:over?.id||null,projectedOverId:savedProjectedPosition?.overId||null,targetOverId,projectedDepth:savedProjectedPosition?.depth||null,savedDragOffsetX:savedDragOffset?.x||null},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'K'})}).catch(()=>{});
-    // #endregion
-
     if (!targetOverId || !savedProjectedPosition) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:715',message:'Early return: no over or no projected position',data:{targetOverId,activeId:active.id,hasProjectedPosition:!!savedProjectedPosition},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       return;
     }
 
@@ -935,32 +989,20 @@ export function MenuStructurePanel({
         // Check if we can create a child (activeDepth < MAX_DEPTH - 1)
         const itemAboveDepth = getItemDepth(itemAbove, allFlatItems);
         if (activeDepth < MAX_DEPTH - 1 && itemAboveDepth < MAX_DEPTH - 1) {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:900',message:'Adjusting target item - dragging at current position, using item above',data:{originalOverItemId:targetOverId,originalOverItemTitle:overItem?.title||'N/A',newOverItemId:itemAbove.id,newOverItemTitle:itemAbove.title,activeItemIndex,activeDepth,itemAboveDepth,dragOffsetX:savedDragOffset.x,projectedDepth:savedProjectedPosition?.depth||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
           overItem = itemAbove;
           // Force targetDepth to be activeDepth + 1 (create child)
           // We'll set this later after calculating targetDepth from savedProjectedPosition
         } else {
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:900',message:'Cannot create child - max depth reached',data:{activeItemId:active.id,activeItemIndex,activeDepth,itemAboveDepth,dragOffsetX:savedDragOffset.x},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'K'})}).catch(()=>{});
-          // #endregion
           // Cannot create child - return early
           return;
         }
       } else {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:900',message:'No item above found - cannot create child at current position',data:{activeItemId:active.id,activeItemIndex,activeDepth,dragOffsetX:savedDragOffset.x,projectedDepth:savedProjectedPosition?.depth||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'K'})}).catch(()=>{});
-        // #endregion
         // If no item above found, cannot create child - return early
         return;
       }
     } else if (active.id === targetOverId) {
       // If dragging at current position but not creating child (dragOffsetX <= 0),
       // return early (no action needed)
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:900',message:'Early return: dragging at current position but not creating child',data:{activeId:active.id,projectedDepth:savedProjectedPosition?.depth||0,dragOffsetX:savedDragOffset?.x||0},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
       return;
     }
     // FIX: When dragging right (deltaX > 0) to create a child (projectedDepth > 0),
@@ -982,38 +1024,44 @@ export function MenuStructurePanel({
         // If there's a root item above, use it as target (user likely wants to drop on it)
         if (currentRootIndex > 0) {
           const targetRootItem = rootItems[currentRootIndex - 1];
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:900',message:'Adjusting target item - using root item above',data:{originalOverItemId:targetOverId,originalOverItemTitle:overItem.title,newOverItemId:targetRootItem.id,newOverItemTitle:targetRootItem.title,activeItemIndex,overItemIndex,currentRootIndex},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'J'})}).catch(()=>{});
-          // #endregion
           overItem = targetRootItem;
         }
       }
     }
 
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:543',message:'Found items',data:{activeItem:activeItem?{id:activeItem.id,parentId:activeItem.parentId,title:activeItem.title}:null,overItem:overItem?{id:overItem.id,parentId:overItem.parentId,title:overItem.title}:null,allFlatItemsCount:allFlatItems.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
-
     if (!activeItem || !overItem) {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:545',message:'Early return: items not found',data:{},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
       return;
     }
 
-    // Check depth limits
+    // ✅ FIX: Check depth limits accounting for subtree depth
     const activeDepth = getItemDepth(activeItem, allFlatItems);
     const overDepth = getItemDepth(overItem, allFlatItems);
-
-    // Don't allow moving into level 3 (depth >= 2)
-    if (overDepth >= 2) {
+    
+    // Find active item in tree structure to calculate subtree depth
+    const activeItemInTree = findItemInTree(treeItems, active.id as string);
+    const subtreeDepth = activeItemInTree ? getMaxSubtreeDepth(activeItemInTree) : 0;
+    
+    // ✅ FIX: Dynamic max depth constraint based on subtree depth
+    const ABSOLUTE_MAX_DEPTH = MAX_DEPTH - 1; // Max depth index (2 for 3 levels)
+    const maxAllowedDepth = ABSOLUTE_MAX_DEPTH - subtreeDepth;
+    
+    // Don't allow moving into level that would exceed max depth
+    if (overDepth >= ABSOLUTE_MAX_DEPTH) {
       showToast('Không thể di chuyển vào cấp này (đã đạt độ sâu tối đa)', 'error');
       return;
     }
 
-    // Don't allow moving level 3 items (depth >= 2)
-    if (activeDepth >= 2) {
-      showToast('Không thể di chuyển item ở cấp này (đã đạt độ sâu tối đa)', 'error');
+    // ✅ FIX: Don't allow moving item if its subtree would exceed max depth
+    // Check if active item's depth + subtree depth would exceed absolute max
+    if (activeDepth + subtreeDepth > ABSOLUTE_MAX_DEPTH) {
+      showToast('Không thể di chuyển item này (cây con sẽ vượt quá độ sâu tối đa)', 'error');
+      return;
+    }
+    
+    // ✅ FIX: Check if target depth would exceed max allowed depth
+    // This check uses savedProjectedPosition.depth which was calculated in handleDragOver
+    if (savedProjectedPosition && savedProjectedPosition.depth > maxAllowedDepth) {
+      showToast('Không thể di chuyển đến vị trí này (cây con sẽ vượt quá độ sâu tối đa)', 'error');
       return;
     }
 
@@ -1038,9 +1086,6 @@ export function MenuStructurePanel({
     if (targetOverId === active.id && savedDragOffset && savedDragOffset.x > 0 && overItem && overItem.id !== active.id) {
       const activeDepthForCheck = getItemDepth(activeItem, allFlatItems);
       targetDepth = activeDepthForCheck + 1;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:1029',message:'Force targetDepth to create child at current position',data:{originalTargetDepth:savedProjectedPosition.depth,newTargetDepth:targetDepth,activeDepth:activeDepthForCheck,overItemId:overItem.id,overItemTitle:overItem.title},timestamp:Date.now(),sessionId:'debug-session',runId:'run4',hypothesisId:'K'})}).catch(()=>{});
-      // #endregion
     }
     
     // FIX: When dragging a child item (activeDepth > 0) onto its current parent (overItem.id === activeItem.parentId),
@@ -1049,9 +1094,6 @@ export function MenuStructurePanel({
     // This check must happen BEFORE the dragOffset check to ensure it takes priority
     if (overDepth === 0 && activeDepth > 0 && overItem.id === activeItem.parentId) {
       targetDepth = 0;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:909',message:'Force move to root - dragging child onto its parent',data:{originalTargetDepth:savedProjectedPosition.depth,newTargetDepth:0,overDepth,activeDepth,overItemId:overItem.id,activeItemParentId:activeItem.parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
     }
     // FIX: When dragging a child item (activeDepth > 0) onto a different root item (overDepth === 0),
     // and projectedDepth is 1 (would become child), but user likely wants to move to root (sibling of overItem)
@@ -1061,15 +1103,8 @@ export function MenuStructurePanel({
       const dragOffsetX = savedDragOffset?.x ?? 0;
       if (dragOffsetX < 15) {
         targetDepth = 0;
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:920',message:'Force move to root - dragging child onto different root with left movement',data:{originalTargetDepth:savedProjectedPosition.depth,newTargetDepth:0,dragOffsetX,overDepth,activeDepth,overItemId:overItem.id,activeItemParentId:activeItem.parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-        // #endregion
       }
     }
-    
-    // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:936',message:'Target parent calculation start',data:{targetDepth,overDepth,activeDepth,overItemId:overItem.id,overItemTitle:overItem.title,activeItemId:activeItem.id,activeItemTitle:activeItem.title,overItemParentId:overItem.parentId,activeItemParentId:activeItem.parentId,dragOffsetX:savedDragOffset?.x??null,projectedDepth:savedProjectedPosition.depth},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'I'})}).catch(()=>{});
-    // #endregion
     
     // FIX: Use tree structure and depth comparison instead of look-back in flat array
     // This is more reliable during drag operations
@@ -1078,21 +1113,12 @@ export function MenuStructurePanel({
     if (targetDepth === 0) {
       // Moving to root level
       targetParentId = null;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:870',message:'Moving to root',data:{targetParentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
     } else if (targetDepth > overDepth) {
       // Item will become a child of overItem
       targetParentId = overItem.id;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:873',message:'Becoming child of overItem',data:{targetParentId,targetDepth,overDepth,overItemId:overItem.id,overItemTitle:overItem.title,activeItemId:activeItem.id,activeItemTitle:activeItem.title},timestamp:Date.now(),sessionId:'debug-session',runId:'run3',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
     } else if (targetDepth === overDepth) {
       // Item will be a sibling of overItem, same parent
       targetParentId = overItem.parentId;
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:877',message:'Same level sibling',data:{targetParentId,overItemParentId:overItem.parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
     } else {
       // targetDepth < overDepth: Item will be a child of an ancestor of overItem
       // Find the parent at targetDepth - 1 by traversing up the tree from overItem
@@ -1126,22 +1152,11 @@ export function MenuStructurePanel({
       const parentAtTargetDepth = findParentAtDepth(overItem, targetDepth - 1, allItemsFlat);
       targetParentId = parentAtTargetDepth?.id || null;
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:910',message:'Finding ancestor parent',data:{targetDepth,targetParentDepth:targetDepth-1,parentAtTargetDepthFound:!!parentAtTargetDepth,parentAtTargetDepthId:parentAtTargetDepth?.id||null,overItemId:overItem.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-      // #endregion
-      
       // Fallback: if still not found, use overItem's parent
       if (!targetParentId && overItem.parentId) {
         targetParentId = overItem.parentId;
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:913',message:'Using fallback parent',data:{targetParentId,overItemParentId:overItem.parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-        // #endregion
       }
     }
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:916',message:'Target parent final',data:{targetParentId,targetDepth,overDepth},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
-    // #endregion
     
     // Determine action based on target depth and current state
     const activeParentId = activeItem.parentId;
@@ -1150,10 +1165,6 @@ export function MenuStructurePanel({
     const isAlreadyChild = activeParentId === targetParentId;
     const shouldMoveToRoot = targetDepth === 0 && activeParentId !== null;
     const shouldReorder = areSiblings || (isAlreadyChild && targetParentId !== null);
-
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:920',message:'Action decision',data:{activeParentId,overParentId,targetDepth,targetParentId,areSiblings,isAlreadyChild,shouldMoveToRoot,shouldReorder,activeItemId:activeItem.id,activeItemTitle:activeItem.title,overItemId:overItem.id,overItemTitle:overItem.title,action:shouldReorder?'reorder':shouldMoveToRoot?'moveToRoot':'addAsChild'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-    // #endregion
     
     // Helper: Find item in tree and get its siblings
     const findItemAndSiblings = (items: MenuItem[], itemId: string, parentId: string | null): { item: MenuItem | null; siblings: MenuItem[]; parent: MenuItem | null } => {
@@ -1181,12 +1192,12 @@ export function MenuStructurePanel({
       return { item: null, siblings: [], parent: null };
     };
 
-    // Remove active item from old location
+    // ✅ FIX: Remove active item from old location preserving ALL properties
     const removeItem = (items: MenuItem[]): MenuItem[] => {
       return items
         .filter((item) => item.id !== active.id)
         .map((item) => ({
-          ...item,
+          ...item, // ✅ PRESERVE ALL PROPERTIES
           children: item.children ? removeItem(item.children) : [],
         }));
     };
@@ -1219,7 +1230,13 @@ export function MenuStructurePanel({
         }
         
         const newRootItems = [...rootItems];
-        newRootItems.splice(insertIndex, 0, { ...itemToInsert, parentId: null, children: activeItem.children || [] });
+        // ✅ FIX: Preserve ALL properties from itemToInsert (which is activeItem)
+        // Only update parentId and children structure
+        newRootItems.splice(insertIndex, 0, { 
+          ...itemToInsert, // ✅ PRESERVE ALL PROPERTIES (id, title, type, url, target, iconClass, cssClass, etc.)
+          parentId: null, 
+          children: activeItem.children || [] 
+        });
         
         return [...newRootItems, ...otherItems];
       } else {
@@ -1236,48 +1253,50 @@ export function MenuStructurePanel({
               }
               
               const newChildren = [...item.children];
-              newChildren.splice(insertIndex, 0, { ...itemToInsert, parentId, children: activeItem.children || [] });
+              // ✅ FIX: Preserve ALL properties from itemToInsert (which is activeItem)
+              newChildren.splice(insertIndex, 0, { 
+                ...itemToInsert, // ✅ PRESERVE ALL PROPERTIES
+                parentId, 
+                children: activeItem.children || [] 
+              });
               return { ...item, children: newChildren };
             }
           }
           return {
-            ...item,
+            ...item, // ✅ PRESERVE ALL PROPERTIES
             children: item.children ? reorderInParent(item.children, parentId, itemToInsert) : [],
           };
         });
       }
     };
 
-    // Add active item as child of over item
+    // ✅ FIX: Add active item as child of over item preserving ALL properties
     const addItemAsChild = (items: MenuItem[], targetId: string): MenuItem[] => {
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:1069',message:'addItemAsChild entry',data:{targetId,activeItemId:activeItem.id,activeItemTitle:activeItem.title,activeItemParentId:activeItem.parentId,itemsCount:items.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
-      
       return items.map((item) => {
         if (item.id === targetId) {
-          const oldChildrenCount = item.children?.length || 0;
-          const newChildren = item.children ? [...item.children, { ...activeItem, parentId: targetId, children: activeItem.children || [] }] : [{ ...activeItem, parentId: targetId, children: activeItem.children || [] }];
-          
-          // #region agent log
-          fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:1076',message:'addItemAsChild found target',data:{targetId,itemId:item.id,itemTitle:item.title,oldChildrenCount,newChildrenCount:newChildren.length,activeItemId:activeItem.id,activeItemTitle:activeItem.title,activeItemNewParentId:targetId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-          // #endregion
+          // ✅ FIX: Preserve ALL properties from activeItem
+          const newChild: MenuItem = { 
+            ...activeItem, // ✅ PRESERVE ALL PROPERTIES (id, title, type, url, target, iconClass, cssClass, order, referenceId, etc.)
+            parentId: targetId, 
+            children: activeItem.children || [] 
+          };
+          const newChildren = item.children ? [...item.children, newChild] : [newChild];
           
           return {
-            ...item,
+            ...item, // ✅ PRESERVE ALL PROPERTIES
             children: newChildren,
           };
         }
         // FIX: Only recurse into children if they exist and are not empty
         // This prevents unnecessary recursive calls with empty arrays
         return {
-          ...item,
+          ...item, // ✅ PRESERVE ALL PROPERTIES
           children: item.children && item.children.length > 0 ? addItemAsChild(item.children, targetId) : (item.children || []),
         };
       });
     };
 
-    // Move active item to root level (as sibling of over item)
+    // ✅ FIX: Move active item to root level preserving ALL properties
     const moveToRoot = (items: MenuItem[], siblingId: string): MenuItem[] => {
       // Filter root items (items with no parentId)
       const rootItems = items.filter((item) => !item.parentId);
@@ -1286,9 +1305,9 @@ export function MenuStructurePanel({
       
       const siblingIndex = rootItems.findIndex((item) => item.id === siblingId);
       
-      // Create new root item with parentId = null and preserve its children
+      // ✅ FIX: Create new root item preserving ALL properties
       const newRootItem: MenuItem = {
-        ...activeItem,
+        ...activeItem, // ✅ PRESERVE ALL PROPERTIES (id, title, type, url, target, iconClass, cssClass, order, referenceId, etc.)
         parentId: null,
         children: activeItem.children || [],
       };
@@ -1308,31 +1327,15 @@ export function MenuStructurePanel({
     // Step 1: Remove active item from old location
     let newTree = removeItem(treeItems);
     
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:706',message:'After removeItem',data:{treeItemsCount:treeItems.length,newTreeCount:newTree.length,removedItemId:active.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
-    // #endregion
-    
     // Step 2: Reorder, move to root, or move to child
     if (shouldReorder) {
       // Reorder: Insert active item at over item's position
       // Use targetParentId from projected depth calculation
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:1150',message:'Before reorderInParent',data:{targetParentId,overItemId:overItem.id,activeItemId:activeItem.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
       newTree = reorderInParent(newTree, targetParentId, activeItem);
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:1153',message:'After reorderInParent',data:{newTreeCount:newTree.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
-      // #endregion
     } else if (shouldMoveToRoot) {
       // Move to root: Make active item a root item (sibling of over item)
       // Use overItem.id as reference for positioning
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:1157',message:'Before moveToRoot',data:{overItemId:overItem.id,overItemTitle:overItem.title,overItemParentId:overItem.parentId,activeItemId:activeItem.id,activeItemTitle:activeItem.title,activeItemParentId:activeItem.parentId},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
       newTree = moveToRoot(newTree, overItem.id);
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:1160',message:'After moveToRoot',data:{newTreeCount:newTree.length,flattenedCount:flattenTree(newTree).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'F'})}).catch(()=>{});
-      // #endregion
     } else {
       // Move active item to be a child of target parent (create parent-child relationship)
       // Use targetParentId from projected depth calculation
@@ -1347,18 +1350,10 @@ export function MenuStructurePanel({
         }
       }
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:960',message:'Before addItemAsChild',data:{targetParentId,targetDepth,overItemId:overItem.id,overItemTitle:overItem.title,activeItemId:activeItem.id,activeItemTitle:activeItem.title,treeItemsCount:newTree.length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
-      
       newTree = addItemAsChild(newTree, targetParentId);
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:968',message:'After addItemAsChild',data:{newTreeCount:newTree.length,flattenedCount:flattenTree(newTree).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'G'})}).catch(()=>{});
-      // #endregion
     }
     
-    // Step 3: Recalculate order for all items
+    // ✅ FIX: Recalculate order for all items preserving ALL properties
     // IMPORTANT: Order is relative to parent, not global
     // Each parent's children start at order 0
     const recalculateOrder = (items: MenuItem[], startOrder: number = 0): { items: MenuItem[]; nextOrder: number } => {
@@ -1369,24 +1364,16 @@ export function MenuStructurePanel({
         const result = recalculateOrder(item.children || [], 0);
         // Don't increment currentOrder for children - they have their own sequence
         return {
-          ...item,
-          order,
+          ...item, // ✅ PRESERVE ALL PROPERTIES
+          order, // Only update order field
           children: result.items,
         };
       });
-      
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:777',message:'recalculateOrder result',data:{itemsCount:orderedItems.length,startOrder,nextOrder:currentOrder,itemsOrders:orderedItems.map(i=>({id:i.id.substring(0,8),order:i.order,childrenCount:i.children?.length||0}))},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-      // #endregion
       
       return { items: orderedItems, nextOrder: currentOrder };
     };
 
     const { items: orderedTree } = recalculateOrder(newTree);
-    
-    // #region agent log
-    fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:737',message:'Before setTreeItems',data:{orderedTreeCount:orderedTree.length,orderedTreeFlatCount:flattenTree(orderedTree).length},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'H'})}).catch(()=>{});
-    // #endregion
     
     // FIX: Save snapshot before optimistic update for rollback on failure
     previousTreeSnapshot.current = JSON.parse(JSON.stringify(treeItems));
@@ -1410,10 +1397,6 @@ export function MenuStructurePanel({
     try {
       const structure = treeToStructure(tree);
       
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:755',message:'Before API call',data:{structureCount:structure.length,structureJSON:JSON.stringify(structure).substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
-      
       const response = await fetch(`/api/admin/menus/${menuId}/structure`, {
         method: 'POST',
         headers: {
@@ -1422,15 +1405,8 @@ export function MenuStructurePanel({
         body: JSON.stringify(structure),
       });
 
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:765',message:'API response',data:{ok:response.ok,status:response.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
-
       if (!response.ok) {
         const errorData = await response.json();
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:768',message:'API error',data:{error:errorData.error,status:response.status},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-        // #endregion
         throw new Error(errorData.error || 'Failed to save structure');
       }
 
@@ -1438,9 +1414,6 @@ export function MenuStructurePanel({
       await onRefresh?.();
     } catch (err: any) {
       console.error('Error saving structure:', err);
-      // #region agent log
-      fetch('http://127.0.0.1:7243/ingest/e2483124-0963-404f-9f5e-ae93dae6b718',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'MenuStructurePanel.tsx:775',message:'Save error caught',data:{error:err.message,stack:err.stack?.substring(0,200)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'I'})}).catch(()=>{});
-      // #endregion
       
       // FIX: Rollback to previous state on API failure
       if (previousTreeSnapshot.current.length > 0) {
@@ -1526,12 +1499,30 @@ export function MenuStructurePanel({
     );
   }
 
+  // ✅ FIX: Memoize flattened items to prevent infinite re-renders
+  // Use ref to track previous treeItems and only recalculate when actually changed
+  const previousTreeItemsRef = useRef<string>('');
+  const allFlatItemsRef = useRef<MenuItem[]>([]);
+  
+  // Calculate items key for comparison (only structure, not full object)
+  const treeItemsKey = treeItems.length > 0 
+    ? treeItems.map(item => ({ id: item.id, parentId: item.parentId, order: item.order })).join('|')
+    : '';
+  
+  // Only recalculate if treeItems actually changed
+  if (previousTreeItemsRef.current !== treeItemsKey) {
+    previousTreeItemsRef.current = treeItemsKey;
+    allFlatItemsRef.current = flattenTree(treeItems);
+  }
+  
+  const allFlatItems = allFlatItemsRef.current;
+  
   const activeItem = activeId
-    ? flattenTree(treeItems).find((item) => item.id === activeId)
+    ? allFlatItems.find((item) => item.id === activeId)
     : null;
 
   // Get all item IDs for SortableContext (must include all nested items)
-  const allItemIds = flattenTree(treeItems).map((item) => item.id);
+  const allItemIds = useMemo(() => allFlatItems.map((item) => item.id), [allFlatItems]);
 
   return (
     <div className="space-y-4">
@@ -1559,7 +1550,7 @@ export function MenuStructurePanel({
         <SortableContext items={allItemIds} strategy={verticalListSortingStrategy}>
         <NestedMenuItems
           items={treeItems}
-          allItems={flattenTree(treeItems)}
+          allItems={allFlatItems}
           expandedItems={expandedItems}
           onToggleExpand={toggleExpand}
           onDelete={handleDelete}
@@ -1582,7 +1573,14 @@ export function MenuStructurePanel({
               </Badge>
               {activeItem.children && activeItem.children.length > 0 && (
                 <Badge variant="outline" className="text-xs">
-                  +{flattenTree([activeItem]).length - 1} items
+                  +{(() => {
+                    // Count all descendants recursively without creating new array
+                    const countDescendants = (item: MenuItem): number => {
+                      if (!item.children || item.children.length === 0) return 0;
+                      return item.children.length + item.children.reduce((sum, child) => sum + countDescendants(child), 0);
+                    };
+                    return countDescendants(activeItem);
+                  })()} items
                 </Badge>
               )}
             </div>
