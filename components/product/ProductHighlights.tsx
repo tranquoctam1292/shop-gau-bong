@@ -150,11 +150,6 @@ export function ProductHighlights({
           </div>
         </div>
       )}
-
-      {/* Note */}
-      <p className="text-xs text-text-muted italic">
-        Tất cả hình ảnh SP đều là Hình Thật Shop tự chụp.
-      </p>
     </div>
   );
 }

@@ -242,7 +242,7 @@ export function CategoriesBox({
                 {debouncedSearch ? 'Không tìm thấy danh mục' : 'Chưa có danh mục'}
               </p>
             ) : (
-              <div className="space-y-2 max-h-[300px] overflow-y-auto">
+              <div className="space-y-2 max-h-[300px] overflow-y-auto overflow-x-visible pr-2">
                 {filteredCategories.map((category) => (
                   <CategoryItem
                     key={category.id}

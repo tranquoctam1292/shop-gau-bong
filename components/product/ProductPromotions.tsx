@@ -1,6 +1,6 @@
 'use client';
 
-import { Gift, Package, Truck, Shield, Star } from 'lucide-react';
+import { Gift, Package, Truck } from 'lucide-react';
 
 interface ProductPromotionsProps {
   promotions?: {
@@ -18,8 +18,6 @@ export function ProductPromotions({ promotions }: ProductPromotionsProps) {
     freeGift: true,
     freeCard: true,
     freeShip: true,
-    warranty: true,
-    rewardPoints: true,
   };
 
   const activePromotions = promotions || defaultPromotions;
@@ -28,9 +26,7 @@ export function ProductPromotions({ promotions }: ProductPromotionsProps) {
   const hasActivePromotions =
     activePromotions.freeGift ||
     activePromotions.freeCard ||
-    activePromotions.freeShip ||
-    activePromotions.warranty ||
-    activePromotions.rewardPoints;
+    activePromotions.freeShip;
 
   if (!hasActivePromotions) return null;
 
@@ -55,19 +51,7 @@ export function ProductPromotions({ promotions }: ProductPromotionsProps) {
         {activePromotions.freeShip && (
           <li className="flex items-center gap-2 text-sm text-text-main">
             <Truck className="w-4 h-4 text-primary" />
-            <span>Hỏa Tốc: Giao hàng trong 45-60 phút tại HCM</span>
-          </li>
-        )}
-        {activePromotions.warranty && (
-          <li className="flex items-center gap-2 text-sm text-text-main">
-            <Shield className="w-4 h-4 text-primary" />
-            <span>Bảo Hành: Bảo hành trọn đời đường may tại cửa hàng</span>
-          </li>
-        )}
-        {activePromotions.rewardPoints && (
-          <li className="flex items-center gap-2 text-sm text-text-main">
-            <Star className="w-4 h-4 text-primary" />
-            <span>Tích Điểm: Tích 3% giá trị đơn hàng</span>
+            <span>Hỏa Tốc: Giao hàng trong 45-60 phút tại TP Nam Định</span>
           </li>
         )}
       </ul>

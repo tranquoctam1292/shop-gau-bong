@@ -276,6 +276,10 @@ export async function PATCH(
     // Increment version for optimistic locking
     incFields.version = 1;
     
+    // ✅ CRITICAL FIX: Remove version from updateData to prevent MongoDB conflict
+    // Version will be incremented using $inc, not $set
+    delete updateData.version;
+    
     // Build final update operation combining $set, $unset, and $inc
     const finalUpdateOperation: Record<string, unknown> = {};
     

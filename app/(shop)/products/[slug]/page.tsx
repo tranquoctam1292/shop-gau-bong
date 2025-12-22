@@ -11,6 +11,7 @@ import { QuickOrderBox } from '@/components/product/QuickOrderBox';
 import { ProductHighlights } from '@/components/product/ProductHighlights';
 import { ProductDescription } from '@/components/product/ProductDescription';
 import { ProductPromotions } from '@/components/product/ProductPromotions';
+import { ProductFeatures } from '@/components/product/ProductFeatures';
 
 export default function ProductPage() {
   const params = useParams();
@@ -117,14 +118,15 @@ export default function ProductPage() {
               />
             )}
             
+            {/* Product Features */}
+            <ProductFeatures />
+            
             {/* Product Promotions */}
             <ProductPromotions 
               promotions={{
                 freeGift: true,
                 freeCard: true,
                 freeShip: true,
-                warranty: true,
-                rewardPoints: true,
               }}
             />
           </div>

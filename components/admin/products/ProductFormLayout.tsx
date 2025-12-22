@@ -34,7 +34,7 @@ export function ProductFormLayout({ children, sidebar, header }: ProductFormLayo
         {/* Sidebar (Right Column - 30% on desktop) */}
         <div className="space-y-6">
           {/* Sticky sidebar on desktop */}
-          <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem-2rem)] lg:overflow-y-auto lg:pb-8 lg:pr-2">
+          <div className="lg:sticky lg:top-6 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto lg:overflow-x-visible lg:pb-8 lg:pr-4">
             <div className="space-y-6">
               {sidebar}
             </div>

@@ -1042,6 +1042,11 @@ export async function PUT(
       updateData._productSchema = productJsonLdSchema; // Update schema in database
     }
     
+    // ✅ CRITICAL FIX: Remove version from updateData to prevent MongoDB conflict
+    // Version will be incremented using $inc, not $set
+    // If version exists in updateData, it will conflict with $inc operation
+    delete updateData.version;
+    
     // Prepare update operation
     const updateOperation: any = { $set: updateData };
     

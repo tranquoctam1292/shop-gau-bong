@@ -1001,13 +1001,6 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         }}
       />
 
-      {/* Tags Box */}
-      <TagsBox
-        tags={formData.tags}
-        onTagsChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
-        onFetchPopularTags={fetchPopularTags}
-      />
-
       {/* Featured Image Box */}
       <FeaturedImageBox
         thumbnailId={formData._thumbnail_id}
@@ -1100,6 +1093,13 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
         productId={productId}
         status={formData.status}
         onSlugChange={(slug) => setFormData((prev) => ({ ...prev, slug }))}
+      />
+
+      {/* Tags Box - Moved to bottom */}
+      <TagsBox
+        tags={formData.tags}
+        onTagsChange={(tags) => setFormData((prev) => ({ ...prev, tags }))}
+        onFetchPopularTags={fetchPopularTags}
       />
     </>
   );
