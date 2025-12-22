@@ -79,15 +79,17 @@ export interface MediaInput {
  * 
  * Only updatable fields
  * 
- * Note: folder is NOT updatable to prevent broken links.
- * Moving files between folders would change URLs and break all existing references.
+ * Note: When folder is updated, the physical file will be moved in storage
+ * and path/url will be updated accordingly.
  */
 export interface MediaUpdate {
   name?: string;
   altText?: string;
   caption?: string;
   description?: string;
-  // folder?: string; // REMOVED: Not updatable to prevent broken links
+  folder?: string; // ✅ UPDATABLE: File will be physically moved when folder changes
+  path?: string; // ✅ UPDATABLE: Updated automatically when folder changes
+  url?: string; // ✅ UPDATABLE: Updated automatically when folder changes
 }
 
 /**

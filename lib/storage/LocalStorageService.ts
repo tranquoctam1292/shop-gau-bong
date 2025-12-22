@@ -174,4 +174,59 @@ export class LocalStorageService implements IStorageService {
     const fullPath = join(this.baseDir, path);
     return existsSync(fullPath);
   }
+
+  /**
+   * Move a file from one path to another
+   * 
+   * For local storage, this uses fs.rename which is atomic
+   */
+  async move(fromPath: string, toPath: string): Promise<StorageResult | null> {
+    try {
+      const fromFullPath = join(this.baseDir, fromPath);
+      const toFullPath = join(this.baseDir, toPath);
+
+      // Check if source file exists
+      if (!existsSync(fromFullPath)) {
+        console.error(`LocalStorageService.move: Source file not found: ${fromPath}`);
+        return null;
+      }
+
+      // Ensure destination directory exists
+      const toDir = join(toFullPath, '..');
+      await this.ensureDirectory(toDir);
+
+      // Move file (atomic operation)
+      await fs.rename(fromFullPath, toFullPath);
+
+      // Get file stats for metadata
+      const stats = await fs.stat(toFullPath);
+      
+      // Generate new URL
+      const url = this.getUrl(toPath);
+
+      // Try to infer content type from extension
+      const ext = toPath.split('.').pop()?.toLowerCase();
+      const contentTypeMap: Record<string, string> = {
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        png: 'image/png',
+        gif: 'image/gif',
+        webp: 'image/webp',
+        mp4: 'video/mp4',
+        pdf: 'application/pdf',
+      };
+      const contentType = ext ? contentTypeMap[ext] || 'application/octet-stream' : 'application/octet-stream';
+
+      return {
+        url,
+        path: toPath,
+        size: stats.size,
+        contentType,
+        uploadedAt: stats.birthtime,
+      };
+    } catch (error) {
+      console.error('LocalStorageService.move error:', error);
+      return null;
+    }
+  }
 }

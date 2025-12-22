@@ -35,15 +35,15 @@ export const uploadMediaSchema = z.object({
  * 
  * Only updatable fields
  * 
- * Note: folder is NOT updatable to prevent broken links.
- * Moving files between folders would change URLs and break all existing references.
+ * Note: When folder is updated, the physical file will be moved in storage
+ * and path/url will be updated accordingly.
  */
 export const updateMediaSchema = z.object({
   name: z.string().min(1, 'Tên không được để trống').max(255, 'Tên không được vượt quá 255 ký tự').optional(),
   altText: z.string().max(500, 'Alt text không được vượt quá 500 ký tự').optional(),
   caption: z.string().max(1000, 'Caption không được vượt quá 1000 ký tự').optional(),
   description: z.string().max(5000, 'Mô tả không được vượt quá 5000 ký tự').optional(),
-  // folder: z.string().max(255, 'Folder path không được vượt quá 255 ký tự').optional(), // REMOVED: Not updatable
+  folder: z.string().max(255, 'Folder path không được vượt quá 255 ký tự').optional(), // ✅ UPDATABLE: File will be physically moved
 }).refine(
   (data) => Object.keys(data).length > 0,
   {

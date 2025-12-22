@@ -8,9 +8,9 @@
 ## 📊 TỔNG QUAN
 
 ### Hiện trạng:
-- ✅ **Đã có toast:** ProductForm, ProductActionMenu, MenuStructurePanel, MenuItemEditor, CategoriesBox, MenuItemsSourcePanel, SKUCell, BulkActionsBar (products), ClassicEditor
+- ✅ **Đã có toast:** ProductForm, ProductActionMenu, CategoriesBox, SKUCell, BulkActionsBar (products), ClassicEditor
 - ❌ **Đang dùng alert():** CategoryForm, AuthorForm, UserForm, OrderActionBar, BulkActionsBar (orders), OrderDetail, PostEditor, QuickEditCategory, AttributeForm, TermForm, TemplateSelector, ProductReviews, và nhiều component khác
-- ❌ **Không có thông báo:** AttributeListTable, TermListTable, MenuListTable, và các button actions khác
+- ❌ **Không có thông báo:** AttributeListTable, TermListTable, và các button actions khác
 
 ### Pattern hiện tại:
 ```typescript
@@ -134,25 +134,7 @@ showToast('Không có thay đổi', 'info');
 
 ---
 
-### 5. MENUS MODULE
-
-#### ✅ Đã có toast:
-- `MenuStructurePanel.tsx` - Lưu cấu trúc, xóa, cập nhật, nhân bản item
-- `MenuItemEditor.tsx` - Cập nhật menu item
-- `MenuEditorHeader.tsx` - Lưu menu
-- `MenuItemsSourcePanel.tsx` - Thêm items vào menu
-
-#### ❌ Cần thêm toast:
-
-| File | Button/Action | Thông báo cần thêm | Priority |
-|------|---------------|-------------------|----------|
-| `MenuListTable.tsx` | Xóa menu | "Đã xóa menu" / "Có lỗi" | **HIGH** |
-| `DeleteMenuConfirmDialog.tsx` | Xác nhận xóa | (Toast sẽ hiển thị sau khi xóa thành công) | - |
-| `MenuFilters.tsx` | Clear filters | "Đã xóa bộ lọc" | Low |
-
----
-
-### 6. AUTHORS MODULE
+### 5. AUTHORS MODULE
 
 #### ❌ Cần thêm toast:
 
@@ -225,7 +207,6 @@ showToast('Không có thay đổi', 'info');
 3. **Delete Actions:**
    - ❌ `AttributeListTable.tsx` - **CẦN SỬA**
    - ❌ `TermListTable.tsx` - **CẦN SỬA**
-   - ❌ `MenuListTable.tsx` - **CẦN SỬA**
    - ❌ `SortableCategoryRow.tsx` - **CẦN SỬA**
    - ❌ `ProductReviews.tsx` - **CẦN SỬA**
    - ❌ `MediaGrid.tsx` - **CẦN SỬA**
@@ -271,7 +252,6 @@ showToast('Không có thay đổi', 'info');
    - ❌ `GiftFeaturesSection.tsx` - Toggle features
    - ❌ `CollectionComboSection.tsx` - Add/remove
    - ❌ `MediaFilterBar.tsx` - Clear filters
-   - ❌ `MenuFilters.tsx` - Clear filters
    - ❌ `SearchableCategorySelect.tsx` - Clear selection
 
 **Ước tính:** ~7 files cần sửa
@@ -348,7 +328,6 @@ showToast('Đã xóa thành công', 'success');
 - [x] EditShippingAddress.tsx ✅
 - [x] AttributeListTable.tsx ✅ (via app/admin/attributes/page.tsx)
 - [x] TermListTable.tsx ✅ (via app/admin/attributes/[id]/terms/page.tsx)
-- [x] MenuListTable.tsx ✅ (via app/admin/menus/page.tsx - đã có toast)
 - [x] SortableCategoryRow.tsx ✅ (via app/admin/categories/page.tsx - đã có toast)
 - [x] ProductReviews.tsx ✅
 - [x] MediaGrid.tsx ✅ (via app/admin/media/page.tsx)
@@ -373,7 +352,6 @@ showToast('Đã xóa thành công', 'success');
 - [ ] GiftFeaturesSection.tsx
 - [ ] CollectionComboSection.tsx
 - [ ] MediaFilterBar.tsx
-- [ ] MenuFilters.tsx
 - [ ] SearchableCategorySelect.tsx
 
 ---
@@ -442,11 +420,10 @@ Sau khi hoàn thành:
 12. ✅ `CreateShipmentModal.tsx` - Thêm toast cho create shipment
 13. ✅ `EditShippingAddress.tsx` - Thêm toast cho update address
 
-#### ✅ Delete Actions (6/6):
+#### ✅ Delete Actions (5/5):
 14. ✅ `AttributeListTable.tsx` - Thêm toast trong page component
 15. ✅ `TermListTable.tsx` - Thêm toast trong page component
-16. ✅ `MenuListTable.tsx` - Đã có toast trong page component
-17. ✅ `SortableCategoryRow.tsx` - Đã có toast trong page component (app/admin/categories/page.tsx)
+16. ✅ `SortableCategoryRow.tsx` - Đã có toast trong page component (app/admin/categories/page.tsx)
 18. ✅ `ProductReviews.tsx` - Thêm toast cho status change và delete
 19. ✅ `MediaGrid.tsx` - Thêm toast trong page component (app/admin/media/page.tsx)
 
@@ -492,7 +469,6 @@ Sau khi hoàn thành:
 #### ⚪ Filters & Selectors (0/4 - Không cần toast):
 - ⚪ `ProductFilters.tsx` - Chỉ là filter UI, không có actions cần toast
 - ⚪ `MediaFilterBar.tsx` - Chỉ là filter UI, không có actions cần toast
-- ⚪ `MenuFilters.tsx` - Chỉ là filter UI, không có actions cần toast
 - ⚪ `SearchableCategorySelect.tsx` - Chỉ là selector UI, không có actions cần toast
 
 **Tổng cộng:** 3/3 files có actions ✅ **100% COMPLETE**  
@@ -541,7 +517,6 @@ Sau khi hoàn thành:
 ### Phase 3 Files không cần sửa (chỉ là UI controls):
 - ⚪ **ProductFilters.tsx** - Filter UI, không có actions cần toast
 - ⚪ **MediaFilterBar.tsx** - Filter UI, không có actions cần toast
-- ⚪ **MenuFilters.tsx** - Filter UI, không có actions cần toast
 - ⚪ **SearchableCategorySelect.tsx** - Selector UI, không có actions cần toast
 
 ### Pattern đã áp dụng:
@@ -553,7 +528,6 @@ Sau khi hoàn thành:
 
 ### Files không cần sửa (đã có toast):
 - ✅ `app/admin/categories/page.tsx` - Đã có toast cho delete và toggle status
-- ✅ `app/admin/menus/page.tsx` - Đã có toast cho delete menu
 
 ---
 

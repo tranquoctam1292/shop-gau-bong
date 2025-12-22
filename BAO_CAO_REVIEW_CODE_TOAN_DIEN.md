@@ -133,11 +133,9 @@ Comprehensive code review performed on the entire codebase to identify and fix e
 - `app/admin/categories/page.tsx`
 - `app/admin/products/page.tsx`
 - `app/admin/comments/page.tsx`
-- `app/admin/menus/page.tsx`
 - `app/admin/posts/page.tsx`
 - `app/admin/users/page.tsx`
 - `app/admin/products/bulk/page.tsx`
-- `app/admin/menus/[id]/page.tsx`
 
 **Solution:** Wrapped fetch functions in `useCallback` and added to dependency arrays
 
@@ -174,13 +172,10 @@ Comprehensive code review performed on the entire codebase to identify and fix e
 - `app/api/cms/products/route.ts` - Used `Record<string, unknown>` (5 instances)
 - `app/api/cms/products/[id]/route.ts` - Proper error handling
 - `components/admin/products/MediaExtendedSection.tsx` - Generic types
-- `components/admin/menus/tabs/ProductsTab.tsx` - Added proper product type
 - `components/admin/products/ProductDataMetaBox/ProductSearchInput.tsx` - Added `ProductResponse` type
 - `components/admin/products/SmartValueInput.tsx` - Removed `as any` assertion
 - `lib/api/woocommerce.ts` - Used `WooCommerceOrder` types
 - `lib/utils/productMapper.ts` - Replaced `unknown` with proper types
-- `app/admin/menus/[id]/page.tsx` - Fixed error handling
-- `app/admin/menus/page.tsx` - Fixed error handling
 
 **Remaining:** ~171 instances (many in framework types or edge cases)
 

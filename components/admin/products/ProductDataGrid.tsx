@@ -149,6 +149,25 @@ export function ProductDataGrid({
     toggleAll(productIds);
   }, [toggleAll, productIds]);
 
+  // ✅ FIX: Use useRef and useEffect for indeterminate state to prevent infinite loop
+  // Ref callback in render loop causes infinite re-renders
+  // CRITICAL: Must use useRef + useEffect instead of callback ref to prevent infinite updates
+  const headerCheckboxRef = useRef<HTMLInputElement>(null);
+
+  // ✅ FIX: Memoize indeterminate value to prevent unnecessary updates
+  const isIndeterminate = useMemo(
+    () => someSelected && !allSelected,
+    [someSelected, allSelected]
+  );
+
+  useEffect(() => {
+    if (headerCheckboxRef.current) {
+      // Set indeterminate state: true when some (but not all) are selected
+      // Reset to false when allSelected is true or when nothing is selected
+      headerCheckboxRef.current.indeterminate = isIndeterminate;
+    }
+  }, [isIndeterminate]); // Only update when indeterminate state actually changes
+
   // Error state
   if (error) {
     return (
@@ -248,9 +267,7 @@ export function ProductDataGrid({
               <input
                 type="checkbox"
                 checked={allSelected}
-                ref={(input) => {
-                  if (input) input.indeterminate = someSelected;
-                }}
+                ref={headerCheckboxRef} // ✅ FIX: Use ref object instead of callback to prevent infinite loop
                 onChange={handleSelectAll}
                 className="w-4 h-4"
               />

@@ -27,7 +27,6 @@ import {
   ChevronRight,
   Plus,
   List,
-  Menu,
   Image,
   Users,
   Shield,
@@ -53,9 +52,6 @@ function AdminLayoutContent({
   const isProductsPath = pathname.startsWith('/admin/products') || 
                          pathname.startsWith('/admin/attributes') || 
                          pathname.startsWith('/admin/categories');
-  
-  // Check if menus path
-  const isMenusPath = pathname.startsWith('/admin/menus');
   
   // Check if posts submenu should be expanded
   const isPostsPath = pathname.startsWith('/admin/posts') || 
@@ -179,7 +175,6 @@ function AdminLayoutContent({
     },
     { href: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
     { href: '/admin/media', label: 'Media', icon: Image },
-    { href: '/admin/menus', label: 'Menu', icon: Menu },
     {
       href: '/admin/posts',
       label: 'Bài viết',

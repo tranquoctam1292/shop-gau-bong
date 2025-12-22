@@ -120,8 +120,14 @@ export async function getMediaList(
   }
 
   // Text search (if provided)
+  // ✅ RUNTIME SAFETY: Handle case where text index may not exist
+  // If text index is missing, fallback to regex search (slower but safe)
+  let useTextSearch = false;
   if (filters.search && filters.search.trim()) {
+    // Try to use $text query (requires text index)
+    // If index doesn't exist, MongoDB will throw error - we'll catch and fallback
     query.$text = { $search: filters.search.trim() };
+    useTextSearch = true;
   }
 
   // Build sort
@@ -144,20 +150,66 @@ export async function getMediaList(
   }
 
   // If text search is used, sort by text score first
-  if (filters.search && filters.search.trim()) {
+  if (useTextSearch) {
     sortOption = { score: { $meta: 'textScore' }, ...sortOption };
   }
 
-  // Execute query
-  const [data, total] = await Promise.all([
-    media
-      .find(query)
-      .sort(sortOption)
-      .skip(skip)
-      .limit(limit)
-      .toArray(),
-    media.countDocuments(query),
-  ]);
+  // Execute query with fallback for missing text index
+  let data: any[];
+  let total: number;
+  
+  try {
+    // Try to execute with $text query
+    [data, total] = await Promise.all([
+      media
+        .find(query)
+        .sort(sortOption)
+        .skip(skip)
+        .limit(limit)
+        .toArray(),
+      media.countDocuments(query),
+    ]);
+  } catch (error) {
+    // ✅ FALLBACK: If text index doesn't exist, use regex search instead
+    if (
+      useTextSearch && 
+      error instanceof Error && 
+      (error.message.includes('text index') || error.message.includes('$text'))
+    ) {
+      console.warn('⚠️ Text index not found for media collection. Falling back to regex search.');
+      console.warn('💡 Run "npm run db:setup-indexes" to create text index for better performance.');
+      
+      // Remove $text query and use regex instead
+      const searchTerm = filters.search!.trim();
+      const regexQuery = {
+        ...query,
+        $or: [
+          { name: { $regex: searchTerm, $options: 'i' } },
+          { altText: { $regex: searchTerm, $options: 'i' } },
+          { filename: { $regex: searchTerm, $options: 'i' } },
+        ],
+      };
+      delete regexQuery.$text;
+      
+      // Remove textScore from sort (not available with regex)
+      const regexSortOption = { ...sortOption };
+      delete regexSortOption.score;
+      
+      // Execute with regex query
+      [data, total] = await Promise.all([
+        media
+          .find(regexQuery)
+          .sort(regexSortOption)
+          .skip(skip)
+          .limit(limit)
+          .toArray(),
+        media.countDocuments(regexQuery),
+      ]);
+    } else {
+      // Re-throw if it's a different error
+      throw error;
+    }
+  }
 
   const pages = Math.ceil(total / limit);
 

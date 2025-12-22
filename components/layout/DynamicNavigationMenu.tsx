@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useMemo, memo } from 'react';
 import { MenuDropdown, type MenuDropdownItem } from './MenuDropdown';
 import { ProductsMegaMenu } from './ProductsMegaMenu';
 import { ShopMegaMenu } from './ShopMegaMenu';
@@ -25,8 +26,9 @@ interface DynamicNavigationMenuProps {
  * Mobile: Hidden (use DynamicMobileMenu instead)
  * 
  * ✅ PERFORMANCE: Menu data is fetched server-side to prevent render blocking
+ * ✅ FIX: Memoized to prevent infinite re-renders
  */
-export function DynamicNavigationMenu({
+export const DynamicNavigationMenu = memo(function DynamicNavigationMenu({
   menu,
   fallbackToHardcoded = true,
 }: DynamicNavigationMenuProps) {
@@ -40,13 +42,17 @@ export function DynamicNavigationMenu({
 
   // Render menu from API
   // Filter out ghost links (items with url === '#' or invalid references)
-  const validItems = menu.items.filter((item) => {
-    // Skip items with invalid URLs (ghost links from deleted references)
-    if (!item.url || item.url === '#') {
-      return false;
-    }
-    return true;
-  });
+  // ✅ FIX: Memoize validItems with stable key based on item IDs
+  const itemsKey = menu.items.map(item => item.id).join(',');
+  const validItems = useMemo(() => {
+    return menu.items.filter((item) => {
+      // Skip items with invalid URLs (ghost links from deleted references)
+      if (!item.url || item.url === '#') {
+        return false;
+      }
+      return true;
+    });
+  }, [itemsKey]); // Use stable string key instead of array reference
 
   return (
     <nav className="hidden lg:flex items-center space-x-1 relative z-50 overflow-visible">
@@ -55,23 +61,54 @@ export function DynamicNavigationMenu({
       ))}
     </nav>
   );
-}
+}, (prevProps, nextProps) => {
+  // Simple comparison: only re-render if menu reference or structure changes
+  if (prevProps.menu === nextProps.menu) return true; // Same reference, skip re-render
+  if (!prevProps.menu && !nextProps.menu) return true; // Both null, skip re-render
+  if (!prevProps.menu || !nextProps.menu) return false; // One is null, re-render
+  if (prevProps.menu.id !== nextProps.menu.id) return false; // Different menu, re-render
+  if (prevProps.fallbackToHardcoded !== nextProps.fallbackToHardcoded) return false; // Different fallback, re-render
+  
+  // Compare items length and IDs
+  const prevItems = prevProps.menu.items || [];
+  const nextItems = nextProps.menu.items || [];
+  if (prevItems.length !== nextItems.length) return false;
+  
+  // Compare item IDs
+  for (let i = 0; i < prevItems.length; i++) {
+    if (prevItems[i].id !== nextItems[i].id) return false;
+  }
+  
+  return true; // Props are equal, skip re-render
+});
 
 /**
  * Render individual menu item (recursive for nested items)
+ * ✅ FIX: Memoize component to prevent infinite re-renders
  */
-function MenuItemRenderer({ item }: { item: MenuItem }) {
+const MenuItemRenderer = memo(function MenuItemRenderer({ item }: { item: MenuItem }) {
   const pathname = usePathname();
   const hasChildren = item.children && item.children.length > 0;
   const isActive = pathname === item.url || (item.url !== '/' && pathname?.startsWith(item.url));
 
-  // If item has children, render as dropdown
-  if (hasChildren) {
-    const dropdownItems: MenuDropdownItem[] = item.children!.map((child) => ({
+  // ✅ FIX: Memoize dropdownItems to prevent infinite re-renders
+  // Calculate stable key from children IDs (computed once per render)
+  const childrenIdsKey = item.children?.map(c => c.id).join(',') || '';
+  const childrenLength = item.children?.length || 0;
+  
+  const dropdownItems: MenuDropdownItem[] = useMemo(() => {
+    if (!hasChildren || !item.children) {
+      return [];
+    }
+    return item.children.map((child) => ({
       id: child.id,
       label: child.title,
       href: child.url,
     }));
+  }, [hasChildren, childrenIdsKey, childrenLength]); // Use stable string key and length
+
+  // If item has children, render as dropdown
+  if (hasChildren) {
 
     // Check if this is a products mega menu
     // If label contains "Sản phẩm" or "Products", use ProductsMegaMenu with config from menuData
@@ -137,7 +174,25 @@ function MenuItemRenderer({ item }: { item: MenuItem }) {
       {item.title}
     </Link>
   );
-}
+}, (prevProps, nextProps) => {
+  // Simple comparison: only re-render if item structure actually changes
+  if (prevProps.item.id !== nextProps.item.id) return false;
+  if (prevProps.item.url !== nextProps.item.url) return false;
+  if (prevProps.item.title !== nextProps.item.title) return false;
+  if (prevProps.item.cssClass !== nextProps.item.cssClass) return false;
+  
+  // Compare children arrays by length and IDs (shallow comparison)
+  const prevChildren = prevProps.item.children || [];
+  const nextChildren = nextProps.item.children || [];
+  if (prevChildren.length !== nextChildren.length) return false;
+  
+  // Compare children IDs only (not full object comparison to avoid infinite loop)
+  const prevChildrenIds = prevChildren.map(c => c.id).join(',');
+  const nextChildrenIds = nextChildren.map(c => c.id).join(',');
+  if (prevChildrenIds !== nextChildrenIds) return false;
+  
+  return true; // Props are equal, skip re-render
+});
 
 /**
  * Hardcoded Navigation Menu (Fallback)

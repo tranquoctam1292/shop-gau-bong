@@ -147,7 +147,10 @@ export async function PUT(
     }
 
     const { id } = paramsValidation.data;
-    const updates = bodyValidation.data;
+    const userUpdates = bodyValidation.data;
+
+    // ✅ FIX: Create a mutable object for all updates including computed path/url
+    const updates: typeof userUpdates & { path?: string; url?: string } = { ...userUpdates };
 
     // Check if media exists
     const existing = await getMediaById(id);
@@ -158,7 +161,65 @@ export async function PUT(
       );
     }
 
-    // Update media
+    // ✅ CRITICAL FIX: Move physical file if folder is being updated
+    let newPath: string | undefined;
+    let newUrl: string | undefined;
+    
+    if (updates.folder !== undefined && updates.folder !== existing.folder) {
+      const storageService = getStorageServiceSingleton();
+      
+      // Calculate new path based on new folder and existing filename
+      // Extract filename from existing path (e.g., "old-folder/filename.jpg" -> "filename.jpg")
+      const currentPath = existing.path;
+      const filename = currentPath.split('/').pop() || existing.filename;
+      const newFolder = updates.folder || 'media'; // Default to 'media' if empty
+      const calculatedNewPath = `${newFolder}/${filename}`;
+      
+      // Move file in storage
+      try {
+        // Determine source path/URL based on storage type
+        // For Vercel Blob: use URL (required for move operation)
+        // For Local Storage: use path (relative path from baseDir)
+        // Priority: Use URL if it's a blob URL, otherwise use path
+        const isVercelBlob = existing.url && (
+          existing.url.includes('blob.vercel-storage.com') || 
+          existing.url.includes('public.blob.vercel-storage.com')
+        );
+        const sourcePath = isVercelBlob ? existing.url! : existing.path;
+        
+        const moveResult = await storageService.move(sourcePath, calculatedNewPath);
+        
+        if (!moveResult) {
+          return NextResponse.json(
+            { 
+              success: false, 
+              error: 'Failed to move file in storage. File may not exist or storage operation failed.' 
+            },
+            { status: 500 }
+          );
+        }
+        
+        // Update path and URL from move result
+        newPath = moveResult.path;
+        newUrl = moveResult.url;
+        
+        // Add path and url to updates
+        updates.path = newPath;
+        updates.url = newUrl;
+      } catch (moveError) {
+        console.error('Error moving file in storage:', moveError);
+        return NextResponse.json(
+          { 
+            success: false, 
+            error: 'Failed to move file in storage',
+            details: moveError instanceof Error ? moveError.message : 'Unknown error'
+          },
+          { status: 500 }
+        );
+      }
+    }
+
+    // Update media (including new path/url if folder was changed)
     const updated = await updateMedia(id, updates);
     if (!updated) {
       return NextResponse.json(
@@ -245,26 +306,37 @@ export async function DELETE(
       );
     }
 
-    // Delete from storage
+    // ✅ CRITICAL FIX: Delete physical file from storage BEFORE deleting DB document
+    // This prevents orphaned files in storage (Vercel Blob or Local Storage)
     const storageService = getStorageServiceSingleton();
+    let storageDeleted = false;
+    
     try {
-      // Try to delete by URL first (Vercel Blob requires URL)
+      // Priority 1: Delete by URL (required for Vercel Blob)
       if (media.url) {
-        // For Vercel Blob, we need to use deleteByUrl if available
-        if ('deleteByUrl' in storageService && typeof storageService.deleteByUrl === 'function') {
-          await (storageService as any).deleteByUrl(media.url);
+        // Check if service has deleteByUrl method (VercelBlobStorageService)
+        if ('deleteByUrl' in storageService && typeof (storageService as any).deleteByUrl === 'function') {
+          storageDeleted = await (storageService as any).deleteByUrl(media.url);
         } else {
-          // Fallback: try to delete by path
-          await storageService.delete(media.path);
+          // Fallback: Use delete() method (it accepts URL if isBlobUrl check passes)
+          storageDeleted = await storageService.delete(media.url);
         }
-      } else {
-        // Fallback: delete by path
-        await storageService.delete(media.path);
+      }
+      
+      // Priority 2: Delete by path (for Local Storage or if URL not available)
+      if (!storageDeleted && media.path) {
+        storageDeleted = await storageService.delete(media.path);
+      }
+      
+      if (!storageDeleted) {
+        console.warn(`Media file not found in storage (may have been deleted already): ID=${id}, URL=${media.url}, Path=${media.path}`);
       }
     } catch (storageError) {
-      console.error('Error deleting from storage:', storageError);
-      // Continue with DB deletion even if storage deletion fails
-      // (orphaned file in storage is better than orphaned DB record)
+      // Log error but continue with DB deletion
+      // Rationale: Orphaned file in storage is better than orphaned DB record
+      // Admin can manually clean up orphaned files later if needed
+      console.error('Error deleting physical file from storage:', storageError);
+      console.error('Media details:', { id, url: media.url, path: media.path });
     }
 
     // BUSINESS LOGIC FIX: Referential Integrity - Xóa imageId khỏi tất cả products trước khi xóa media

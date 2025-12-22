@@ -93,7 +93,6 @@
 CÃ¡c routes sau Ä‘Ã£ cÃ³ Zod validation nhÆ°ng váº«n dÃ¹ng "Validation error" (tiáº¿ng Anh):
 - `/api/admin/orders/[id]/refund`
 - `/api/admin/orders/bulk-*`
-- `/api/admin/menus/*`
 - `/api/admin/products/[id]/*`
 - `/api/admin/attributes/*`
 - VÃ  nhiá»u routes khÃ¡c

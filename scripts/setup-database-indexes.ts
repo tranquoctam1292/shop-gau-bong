@@ -238,21 +238,6 @@ async function setupIndexes() {
     await collections.refunds.createIndex({ orderId: 1, status: 1 });
     console.log('   ✅ Refunds indexes created');
 
-    // Menus indexes (Menu Management Phase 1)
-    console.log('📦 Setting up menus indexes...');
-    await collections.menus.createIndex({ location: 1 }, { unique: true, sparse: true }); // Unique location (1 location = 1 active menu)
-    await collections.menus.createIndex({ status: 1 });
-    await collections.menus.createIndex({ createdAt: -1 });
-    console.log('   ✅ Menus indexes created');
-
-    // Menu Items indexes (Menu Management Phase 1)
-    console.log('📦 Setting up menu_items indexes...');
-    await collections.menuItems.createIndex({ menuId: 1, order: 1 }); // Optimize query by menu and sorting
-    await collections.menuItems.createIndex({ menuId: 1, parentId: 1 }); // Optimize tree queries
-    await collections.menuItems.createIndex({ referenceId: 1, type: 1 }); // Optimize reference resolution
-    await collections.menuItems.createIndex({ parentId: 1 }); // For finding children
-    console.log('   ✅ Menu items indexes created');
-
     // Media Library indexes (Media Library Phase 1)
     console.log('📦 Setting up media indexes...');
     await collections.media.createIndex({ name: 'text', altText: 'text' }); // Text search
@@ -356,8 +341,6 @@ async function setupIndexes() {
       { name: 'product_analytics', collection: collections.productAnalytics },
       { name: 'shipments', collection: collections.shipments },
       { name: 'refunds', collection: collections.refunds },
-      { name: 'menus', collection: collections.menus },
-      { name: 'menu_items', collection: collections.menuItems },
       { name: 'media', collection: collections.media },
       { name: 'product_attributes', collection: collections.productAttributes },
       { name: 'product_attribute_terms', collection: collections.productAttributeTerms },

@@ -178,4 +178,66 @@ export class VercelBlobStorageService implements IStorageService {
   getPathname(url: string): string | null {
     return getBlobPathname(url);
   }
+
+  /**
+   * Move a file from one path to another
+   * 
+   * Note: Vercel Blob doesn't support move/rename directly.
+   * This implementation downloads the file and re-uploads it to the new path,
+   * then deletes the old file.
+   * 
+   * @param fromPath - Current storage path or URL
+   * @param toPath - New storage path (e.g., "new-folder/filename.jpg")
+   * @returns Storage result with new URL and path, or null if failed
+   */
+  async move(fromPath: string, toPath: string): Promise<StorageResult | null> {
+    try {
+      // Get file URL (if fromPath is already a URL, use it; otherwise construct from path)
+      let sourceUrl: string;
+      if (isBlobUrl(fromPath)) {
+        sourceUrl = fromPath;
+      } else {
+        // Can't move without URL - this is a limitation
+        console.error('VercelBlobStorageService.move: Cannot move file without URL. fromPath must be a full URL.');
+        return null;
+      }
+
+      // Download file from source URL
+      const response = await fetch(sourceUrl);
+      if (!response.ok) {
+        console.error(`VercelBlobStorageService.move: Failed to download file from ${sourceUrl}`);
+        return null;
+      }
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      const contentType = response.headers.get('content-type') || 'application/octet-stream';
+
+      // Upload to new path
+      const blobFile = await uploadToBlob(buffer, toPath, {
+        access: 'public',
+        addRandomSuffix: false,
+        contentType,
+        cacheControlMaxAge: 31536000, // 1 year
+      });
+
+      // Delete old file
+      try {
+        await deleteFromBlob(sourceUrl);
+      } catch (deleteError) {
+        // Log but don't fail - file is already in new location
+        console.warn(`VercelBlobStorageService.move: Failed to delete old file ${sourceUrl}:`, deleteError);
+      }
+
+      return {
+        url: blobFile.url,
+        path: blobFile.pathname,
+        size: blobFile.size,
+        contentType: blobFile.contentType,
+        uploadedAt: blobFile.uploadedAt,
+      };
+    } catch (error) {
+      console.error('VercelBlobStorageService.move error:', error);
+      return null;
+    }
+  }
 }

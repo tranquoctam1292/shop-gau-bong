@@ -62,4 +62,13 @@ export interface IStorageService {
    * @returns true if exists, false otherwise
    */
   exists(path: string): Promise<boolean>;
+
+  /**
+   * Move a file from one path to another
+   * 
+   * @param fromPath - Current storage path/key
+   * @param toPath - New storage path/key
+   * @returns Storage result with new URL and path, or null if failed
+   */
+  move(fromPath: string, toPath: string): Promise<StorageResult | null>;
 }
