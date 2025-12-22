@@ -230,23 +230,36 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
       return;
     }
 
-    // FIX: Use local variables to avoid async state update issues
-    // If product has variations but no size selected, auto-select first size
+    // ✅ CRITICAL FIX: Use local variables to avoid async state update race condition
+    // If product has variations but no size selected, auto-select from variations (not availableSizes)
     let sizeToUse = selectedSize;
     let colorToUse = selectedColor;
     
-    if (product.type === 'variable' && availableSizes.length > 0 && !selectedSize) {
-      sizeToUse = availableSizes[0];
+    // FIX: If no size selected, choose from variations (not availableSizes) to ensure variation exists
+    if (product.type === 'variable' && variations.length > 0 && !selectedSize) {
+      // Priority 1: Use smallestSize (lowest price) if available
+      if (smallestSize) {
+        sizeToUse = smallestSize;
+      } else {
+        // Priority 2: Use first variation's size
+        const firstVariation = variations[0];
+        if (firstVariation?.size) {
+          sizeToUse = firstVariation.size;
+        }
+      }
       // Update UI state (async) but use local variable for immediate logic
-      setSelectedSize(sizeToUse);
+      if (sizeToUse) {
+        setSelectedSize(sizeToUse);
+      }
     }
 
     setIsAdding(true);
     setAddingType(isGift ? 'gift' : isQuickCheckout ? 'quick' : 'buy');
 
     try {
-      // Find variation using local variables (not state) to ensure accuracy
+      // ✅ CRITICAL FIX: Find variation using local variables (not state) to ensure accuracy
       // MongoVariant structure: { id, size, color, price, stock, ... }
+      // Must use sizeToUse (local variable) not selectedSize (state) to avoid race condition
       const variationToUse = variations.find((variation) => {
         if (variation.size && variation.size === sizeToUse) {
           if (colorToUse) {
@@ -256,6 +269,19 @@ export function ProductInfo({ product, onAddToCart, onGiftOrder, onVariationChan
         }
         return false;
       });
+
+      // ✅ CRITICAL FIX: For variable products, variation must be found
+      // If no variation found, it means size/color combination doesn't exist
+      if (product.type === 'variable' && !variationToUse) {
+        console.warn('[ProductInfo] Cannot add to cart: Variation not found for selected size/color', {
+          sizeToUse,
+          colorToUse,
+          availableVariations: variations.map((v) => ({ size: v.size, color: v.color })),
+        });
+        setIsAdding(false);
+        setAddingType(null);
+        return;
+      }
 
       // FIX: Additional stock check for the found variation (strict validation)
       // Support both stock and stockQuantity fields

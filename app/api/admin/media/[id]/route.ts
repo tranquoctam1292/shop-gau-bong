@@ -297,46 +297,13 @@ export async function DELETE(
 
     const { id } = validationResult.data;
 
-    // Get media to get storage path/URL
+    // Get media to get URL for referential integrity check
     const media = await getMediaById(id);
     if (!media) {
       return NextResponse.json(
         { success: false, error: 'Media not found' },
         { status: 404 }
       );
-    }
-
-    // ✅ CRITICAL FIX: Delete physical file from storage BEFORE deleting DB document
-    // This prevents orphaned files in storage (Vercel Blob or Local Storage)
-    const storageService = getStorageServiceSingleton();
-    let storageDeleted = false;
-    
-    try {
-      // Priority 1: Delete by URL (required for Vercel Blob)
-      if (media.url) {
-        // Check if service has deleteByUrl method (VercelBlobStorageService)
-        if ('deleteByUrl' in storageService && typeof (storageService as any).deleteByUrl === 'function') {
-          storageDeleted = await (storageService as any).deleteByUrl(media.url);
-        } else {
-          // Fallback: Use delete() method (it accepts URL if isBlobUrl check passes)
-          storageDeleted = await storageService.delete(media.url);
-        }
-      }
-      
-      // Priority 2: Delete by path (for Local Storage or if URL not available)
-      if (!storageDeleted && media.path) {
-        storageDeleted = await storageService.delete(media.path);
-      }
-      
-      if (!storageDeleted) {
-        console.warn(`Media file not found in storage (may have been deleted already): ID=${id}, URL=${media.url}, Path=${media.path}`);
-      }
-    } catch (storageError) {
-      // Log error but continue with DB deletion
-      // Rationale: Orphaned file in storage is better than orphaned DB record
-      // Admin can manually clean up orphaned files later if needed
-      console.error('Error deleting physical file from storage:', storageError);
-      console.error('Media details:', { id, url: media.url, path: media.path });
     }
 
     // BUSINESS LOGIC FIX: Referential Integrity - Xóa imageId khỏi tất cả products trước khi xóa media
@@ -448,8 +415,10 @@ export async function DELETE(
       }
     }
     
-    // Delete from database
-    const deleted = await deleteMedia(id);
+    // ✅ CRITICAL FIX: Delete physical file from storage BEFORE deleting DB document
+    // This is now handled in repository.deleteMedia() to prevent orphaned files
+    const storageService = getStorageServiceSingleton();
+    const deleted = await deleteMedia(id, storageService);
     if (!deleted) {
       return NextResponse.json(
         { success: false, error: 'Failed to delete media' },

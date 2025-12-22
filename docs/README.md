@@ -23,11 +23,15 @@
 
 ## 🎯 QUICK NAVIGATION
 
+### System Meta-Documentation
+- [Schema Context](./SCHEMA_CONTEXT.md) - Database schema reference (includes RBAC collections)
+- [Design System](./DESIGN_SYSTEM.md) - UI/UX design guidelines
+- [Product Module Reference](./PRODUCT_MODULE_REFERENCE.md) - Complete product module documentation
+- [Admin RBAC Complete](./ADMIN_ACCOUNT_RBAC_COMPLETE.md) - RBAC system documentation
+
 ### Setup & Configuration
 - [MongoDB Setup Guide](./MONGODB_SETUP_GUIDE.md) - Setup MongoDB connection
-- [Vercel Environment Setup](./VERCEL_ENV_SETUP.md) - Configure environment variables
-- [Schema Context](./SCHEMA_CONTEXT.md) - Database schema reference
-- [Design System](./DESIGN_SYSTEM.md) - UI/UX design guidelines
+- [Vercel Environment Setup](./deployment/VERCEL_ENV_SETUP.md) - Configure environment variables
 
 ### Migration & CMS
 - [Plans Directory](./plans/README.md) - Project plans and specifications

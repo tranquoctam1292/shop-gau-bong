@@ -103,11 +103,11 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          // 🔒 SECURITY FIX: Rate limiting based on username
+          // 🔒 SECURITY FIX: Username-based rate limiting (Layer 2 of defense in depth)
+          // Layer 1: IP-based rate limiting in NextAuth route handler (10 attempts / 15 min per IP)
+          // Layer 2: Username-based rate limiting here (5 attempts / 15 min per username)
           // This prevents brute force attacks even if attacker bypasses /api/admin/auth/login
-          // We use username-based rate limiting (5 attempts per 15 minutes per username)
-          // Note: IP is not available in authorize function, but username-based limiting
-          // is still effective as attacker needs to know username to attack
+          // Combined with IP-based limiting, this provides comprehensive protection
           const rateLimitKey = getLoginRateLimitKey('global', credentials.username);
           const isWithinLimit = await checkRateLimit(rateLimitKey, 5, 15 * 60 * 1000); // 5 attempts / 15 min
 

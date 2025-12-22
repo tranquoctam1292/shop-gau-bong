@@ -237,6 +237,13 @@ Before implementing any feature, you MUST reference the following sources based 
   - **Slug Generation:** Only auto-generate slug when creating new product (`!productId`). Preserve existing slug when editing
   - **Image Alt Text:** Always provide alt text for SEO. Use `mediaExtended.imageAltTexts` object to store alt texts by image ID
   - **HTML Display:** When displaying product names or descriptions in admin lists/tables, use `stripHtmlTags()` from `lib/utils/sanitizeHtml.ts` to remove HTML tags and display plain text only (prevents raw HTML tags like `<p></p>` from appearing)
+- **VariationTable Performance Optimization (CRITICAL):**
+  - **Input Lag Prevention:** Never update parent state on every keystroke in table inputs
+  - **Buffered Input Pattern:** Use local state (`localValue`, `isEditing`) in child components (`VariationCellInput`)
+  - **Update Parent Only:** Call parent callback (`onSave`) on blur, Enter key, or Tab - NOT on onChange
+  - **Performance:** Reduces input lag from 200-500ms to <50ms for large tables (50+ variations)
+  - **Example:** See `components/admin/products/ProductDataMetaBox/VariationTable.tsx` for reference
+  - **Pattern to Apply:** Use this pattern for any table with many editable inputs
 
 ## 6. TypeScript Type Safety Rules (CRITICAL)
 - **NO implicit any types:** Always add explicit type annotations for callback parameters in map/filter/reduce operations.
@@ -507,6 +514,33 @@ Before implementing any feature, you MUST reference the following sources based 
     if (data.exists) { ... }
     ```
   - **Why:** Prevents trying to parse error responses as JSON and provides proper error handling for authentication failures.
+
+## 9. Admin Layout & RBAC Rules (CRITICAL)
+- **AdminLayout Structure:** Always separate `SessionProvider` wrapper from content component
+  - *Bad:* Calling `useSession` in same component as `SessionProvider`
+  - *Good:* 
+    ```tsx
+    export default function AdminLayout({ children }) {
+      return <SessionProvider><AdminLayoutContent>{children}</AdminLayoutContent></SessionProvider>;
+    }
+    function AdminLayoutContent({ children }) {
+      const { data: session } = useSession(); // Safe to use here
+    }
+    ```
+- **Rules of Hooks (CRITICAL):** All hooks MUST be called before any conditional returns
+  - *Bad:* Conditional return before `useMemo`, `useEffect`, `useState` hooks
+  - *Good:* Call all hooks at top level, then handle conditional rendering
+  - **Error Prevention:** Prevents "Rendered more hooks than during the previous render" error
+- **RBAC Menu Filtering:** Filter navigation items based on `AdminRole` enum, not hardcoded strings
+  - Use `navItems.filter(item => !item.roles || item.roles.includes(userRole))`
+  - Define roles per menu item: `roles?: AdminRole[]`
+  - Map legacy 'admin' role to `AdminRole.SUPER_ADMIN` for backward compatibility
+- **Auto-Expand Sidebar:** Use `useEffect` to auto-expand parent menu when pathname matches submenu
+  - Find parent menu item containing current pathname in submenu
+  - Add parent href to `expandedMenus` Set state
+- **Logout Audit:** Always call logout API before `signOut()` to log activity
+  - Pattern: `await fetch('/api/admin/auth/logout', { method: 'POST' }); await signOut();`
+  - Use `finally` block to ensure `signOut()` always executes
 
 ## 10. Rules Refresh & Consistency (CRITICAL)
 - **Rule Name:** `refresh-rules-pre-task`

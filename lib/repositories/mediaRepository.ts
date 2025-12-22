@@ -17,6 +17,7 @@ import type {
   MediaPagination,
   MediaListResponse 
 } from '@/types/media';
+import type { IStorageService } from '@/lib/storage/StorageService';
 
 /**
  * Create a new media document
@@ -259,15 +260,64 @@ export async function updateMedia(
 }
 
 /**
- * Delete media document
+ * Delete media document and physical file
+ * 
+ * ✅ CRITICAL FIX: Deletes physical file from storage BEFORE deleting DB record
+ * This prevents orphaned files in storage (Vercel Blob or Local Storage)
  * 
  * @param id - Media ID (ObjectId string)
+ * @param storageService - Optional storage service to delete physical file
  * @returns true if deleted, false if not found
  */
-export async function deleteMedia(id: string): Promise<boolean> {
+export async function deleteMedia(
+  id: string,
+  storageService?: IStorageService
+): Promise<boolean> {
   const { media } = await getCollections();
   
   try {
+    // Get media document to retrieve storage path/URL
+    const mediaDoc = await media.findOne({ _id: new ObjectId(id) });
+    
+    if (!mediaDoc) {
+      return false;
+    }
+
+    // ✅ CRITICAL FIX: Delete physical file from storage BEFORE deleting DB document
+    // This prevents orphaned files in storage (Vercel Blob or Local Storage)
+    if (storageService) {
+      let storageDeleted = false;
+      
+      try {
+        // Priority 1: Delete by URL (required for Vercel Blob)
+        if (mediaDoc.url) {
+          // Check if service has deleteByUrl method (VercelBlobStorageService)
+          if ('deleteByUrl' in storageService && typeof (storageService as any).deleteByUrl === 'function') {
+            storageDeleted = await (storageService as any).deleteByUrl(mediaDoc.url);
+          } else {
+            // Fallback: Use delete() method (it accepts URL if isBlobUrl check passes)
+            storageDeleted = await storageService.delete(mediaDoc.url);
+          }
+        }
+        
+        // Priority 2: Delete by path (for Local Storage or if URL not available)
+        if (!storageDeleted && mediaDoc.path) {
+          storageDeleted = await storageService.delete(mediaDoc.path);
+        }
+        
+        if (!storageDeleted) {
+          console.warn(`Media file not found in storage (may have been deleted already): ID=${id}, URL=${mediaDoc.url}, Path=${mediaDoc.path}`);
+        }
+      } catch (storageError) {
+        // Log error but continue with DB deletion
+        // Rationale: Orphaned file in storage is better than orphaned DB record
+        // Admin can manually clean up orphaned files later if needed
+        console.error('Error deleting physical file from storage:', storageError);
+        console.error('Media details:', { id, url: mediaDoc.url, path: mediaDoc.path });
+      }
+    }
+
+    // Delete from database
     const result = await media.deleteOne({ _id: new ObjectId(id) });
     return result.deletedCount > 0;
   } catch (error) {

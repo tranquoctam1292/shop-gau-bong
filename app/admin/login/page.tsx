@@ -55,6 +55,8 @@ function LoginForm() {
         // NextAuth returns 'CredentialsSignin' for invalid credentials or rate limiting
         if (result.error === 'CredentialsSignin') {
           setError('Tên đăng nhập hoặc mật khẩu không đúng. Hoặc tài khoản đã bị khóa.');
+        } else if (result.error.includes('Too many') || result.error.includes('rate limit') || result.error === 'TooManyRequests') {
+          setError('Quá nhiều lần đăng nhập. Vui lòng thử lại sau 15 phút.');
         } else {
           setError('Đăng nhập không thành công. Vui lòng thử lại.');
         }
@@ -67,9 +69,21 @@ function LoginForm() {
         // The middleware will handle the redirect if mustChangePassword is true
         // Use router.push for client-side navigation (stays in app context)
         router.push('/admin');
+      } else {
+        // No result - this shouldn't happen, but handle it gracefully
+        setError('Đăng nhập không thành công. Vui lòng thử lại.');
+        setLoading(false);
       }
-    } catch (err: any) {
-      setError(err.message || 'Đã xảy ra lỗi. Vui lòng thử lại.');
+    } catch (err: unknown) {
+      // ✅ CRITICAL FIX: Better error handling for rate limit and other errors
+      const errorMessage = err instanceof Error ? err.message : 'Đã xảy ra lỗi. Vui lòng thử lại.';
+      
+      // Check if error is related to rate limiting
+      if (errorMessage.includes('429') || errorMessage.includes('Too many') || errorMessage.includes('rate limit')) {
+        setError('Quá nhiều lần đăng nhập. Vui lòng thử lại sau 15 phút.');
+      } else {
+        setError(errorMessage);
+      }
       setLoading(false);
     }
   };

@@ -176,7 +176,14 @@ describe('Media Repository', () => {
     it('should delete media', async () => {
       const { getCollections } = require('@/lib/db');
       const mediaId = new ObjectId();
+      const mockMediaDoc = {
+        _id: mediaId,
+        ...mockMedia,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       const mockCollection = {
+        findOne: jest.fn().mockResolvedValue(mockMediaDoc),
         deleteOne: jest.fn().mockResolvedValue({ deletedCount: 1 }),
       };
 
@@ -186,6 +193,9 @@ describe('Media Repository', () => {
 
       const result = await deleteMedia(mediaId.toString());
 
+      expect(mockCollection.findOne).toHaveBeenCalledWith({
+        _id: mediaId,
+      });
       expect(mockCollection.deleteOne).toHaveBeenCalledWith({
         _id: mediaId,
       });
@@ -196,7 +206,8 @@ describe('Media Repository', () => {
       const { getCollections } = require('@/lib/db');
       const mediaId = new ObjectId();
       const mockCollection = {
-        deleteOne: jest.fn().mockResolvedValue({ deletedCount: 0 }),
+        findOne: jest.fn().mockResolvedValue(null),
+        deleteOne: jest.fn(),
       };
 
       getCollections.mockResolvedValue({
@@ -205,6 +216,10 @@ describe('Media Repository', () => {
 
       const result = await deleteMedia(mediaId.toString());
 
+      expect(mockCollection.findOne).toHaveBeenCalledWith({
+        _id: mediaId,
+      });
+      expect(mockCollection.deleteOne).not.toHaveBeenCalled();
       expect(result).toBe(false);
     });
   });

@@ -897,8 +897,14 @@ PhiÃªn báº£n 1.2 bá»• sung cÃ¡c tÃ­nh nÄƒng báº£o máº­t qua
 - âœ… `app/admin/users/[id]/reset-password/page.tsx` - Reset password page
 - âœ… `app/admin/change-password/page.tsx` - Change password page vá»›i warning (V1.2)
 - âœ… `app/admin/settings/security/page.tsx` - Security settings vá»›i force logout (V1.2)
-- âœ… `app/admin/layout.tsx` - Updated vá»›i Users menu (SUPER_ADMIN only) vÃ  Security menu
-- âœ… `app/admin/login/page.tsx` - Updated Ä‘á»ƒ dÃ¹ng username, handle must_change_password
+- âœ… `app/admin/layout.tsx` - Updated vá»›i Users menu (SUPER_ADMIN only) vÃ  Security menu
+  - **Recent Updates (2025-01-XX):**
+    - âœ… RBAC Menu Filtering: Menu items Ä'Æ°á»£c filter theo AdminRole enum
+    - âœ… Auto-Expand Sidebar: Menu cha tá»± Ä'á»™ng má»Ÿ khi vÃ o child routes
+    - âœ… Logout Audit: Gá»i API logout trÆ°á»›c khi signOut Ä'á»ƒ ghi log
+    - âœ… Rules of Hooks Fix: Sá»a lá»—i hooks violation
+    - âœ… Loading State: Cáº£i thiá»‡n loading UI vá»›i Loader2
+- âœ… `app/admin/login/page.tsx` - Updated Ä'á»ƒ dÃ¹ng username, handle must_change_password
 
 ---
 
@@ -1121,8 +1127,14 @@ npm run test:admin-rbac
   - Created Change password vÃ  Reset password pages vá»›i warnings (V1.2)
   - Created Security settings page vá»›i force logout all devices (V1.2)
   - Updated Admin Layout vá»›i Users menu (SUPER_ADMIN only)
-  - Updated Login page Ä‘á»ƒ dÃ¹ng username vÃ  handle must_change_password
+  - Updated Login page Ä'á»ƒ dÃ¹ng username vÃ  handle must_change_password
   - Type-check passed âœ…
+- **2025-01-XX:** âœ… **Admin Layout Improvements**
+  - âœ… **RBAC Menu Filtering:** Implement role-based menu filtering vá»›i AdminRole enum
+  - âœ… **Auto-Expand Sidebar:** Menu cha tá»± Ä'á»™ng má»Ÿ khi vÃ o child routes
+  - âœ… **Logout Audit:** Gá»i API logout trÆ°á»›c khi signOut Ä'á»ƒ ghi log há»‡ thá»'ng
+  - âœ… **Rules of Hooks Fix:** Sá»a lá»—i "Rendered more hooks than during the previous render"
+  - âœ… **Loading State:** Cáº£i thiá»‡n loading UI vá»›i Loader2 component
 - **2025-01-11:** âœ… **Phase 5 Completed** - User Management APIs
   - Created full CRUD APIs cho admin users (chá»‰ SUPER_ADMIN)
   - GET /api/admin/users - List vá»›i pagination, search, filters

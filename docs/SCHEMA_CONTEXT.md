@@ -631,3 +631,79 @@ media.createIndex({ createdAt: -1 });
 - **Impact:** All variation matching logic updated to use `variation.size` and `variation.color` directly
 - **Removed:** "Mua ngay" (Quick checkout) button from ProductInfo component - only "Thêm giỏ hàng" and "GỬI TẶNG" remain
 - **Fixed:** Runtime error `Cannot read properties of undefined (reading 'find')` in ProductInfo by updating variation matching logic
+
+## 🔐 Admin Account Management (RBAC) - Collections
+
+### Admin Users Collection (`admin_users`)
+
+**Purpose:** Store admin user accounts with role-based access control (RBAC)
+
+```typescript
+interface AdminUser {
+  _id: ObjectId;
+  username: string;                    // Unique username for login
+  email: string;                       // Email address
+  password_hash: string;                // Bcrypt hashed password
+  full_name: string;                   // Display name
+  role: AdminRole;                     // Role enum: SUPER_ADMIN, PRODUCT_MANAGER, ORDER_MANAGER, CONTENT_EDITOR, VIEWER
+  permissions?: Permission[];          // Optional custom permissions (override role defaults)
+  is_active: boolean;                  // Account active status
+  must_change_password: boolean;       // Force password change on next login
+  token_version: number;               // Token revocation version (increment to force logout all devices)
+  version?: number;                     // Optimistic locking version
+  last_login?: Date;                   // Last login timestamp
+  created_by?: ObjectId;               // Reference to AdminUser._id (who created this account)
+  createdAt: Date;
+  updatedAt: Date;
+}
+```
+
+**Indexes:**
+- `{ username: 1 }` - Unique index
+- `{ email: 1 }` - Unique index
+- `{ role: 1 }` - For role-based queries
+- `{ is_active: 1 }` - For filtering active users
+- `{ token_version: 1 }` - For token revocation checks
+
+**AdminRole Enum:**
+- `SUPER_ADMIN` - Full access including user management
+- `PRODUCT_MANAGER` - Product and category management
+- `ORDER_MANAGER` - Order viewing and updates
+- `CONTENT_EDITOR` - Blog posts, pages, media management
+- `VIEWER` - Read-only access
+
+### Admin Activity Logs Collection (`admin_activity_logs`)
+
+**Purpose:** Audit trail for all admin actions
+
+```typescript
+interface AdminActivityLog {
+  _id: ObjectId;
+  admin_id: ObjectId;                  // Reference to AdminUser._id
+  action: AdminAction;                 // Action enum (LOGIN, LOGOUT, CREATE_PRODUCT, etc.)
+  target_collection?: string;          // MongoDB collection name (e.g., 'products', 'orders')
+  target_id?: ObjectId;                // ID of the affected document
+  metadata?: {
+    old_value?: unknown;                // Previous value (for updates)
+    new_value?: unknown;                // New value (for updates)
+    [key: string]: unknown;
+  };
+  ip_address?: string;                 // IP address of the action
+  user_agent?: string;                 // User agent string
+  createdAt: Date;
+}
+```
+
+**Indexes:**
+- `{ admin_id: 1, createdAt: -1 }` - For querying admin activity
+- `{ action: 1 }` - For querying specific action types
+- `{ target_collection: 1, target_id: 1 }` - For querying document audit history
+
+**Key Business Logic:**
+- **Login Flow:** Rate limiting (5 attempts/15 min), audit logging, token version check
+- **Logout Flow:** API call to log activity before session destruction
+- **RBAC Menu Filtering:** Menu items filtered by `AdminRole` enum, not hardcoded strings
+- **Auto-Expand Sidebar:** Parent menus auto-expand when navigating to child routes
+- **Rules of Hooks:** All hooks called before conditional returns to prevent React errors
+
+**See:** `docs/ADMIN_ACCOUNT_RBAC_COMPLETE.md` for complete RBAC documentation
