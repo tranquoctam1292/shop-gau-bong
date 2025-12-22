@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, memo, useCallback } from 'react';
 import {
   Table,
   TableBody,
@@ -27,6 +27,132 @@ export interface Variation {
   image?: string;
   attributes: Record<string, string>;
 }
+
+/**
+ * Buffered Input Cell Component
+ * 
+ * Optimized input component with local state to prevent parent re-renders on every keystroke.
+ * Only updates parent state on blur or Enter key press.
+ */
+interface VariationCellInputProps {
+  variationId: string;
+  field: string;
+  value: string | number | undefined;
+  type?: 'text' | 'number';
+  step?: string;
+  min?: string;
+  onSave: (variationId: string, field: string, value: string) => void;
+  onCancel?: () => void;
+  className?: string;
+}
+
+const VariationCellInput = memo(function VariationCellInput({
+  variationId,
+  field,
+  value,
+  type = 'text',
+  step,
+  min,
+  onSave,
+  onCancel,
+  className = '',
+}: VariationCellInputProps) {
+  const [localValue, setLocalValue] = useState<string>(value?.toString() || '');
+  const [isEditing, setIsEditing] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Sync local value when prop value changes (but not when editing)
+  useEffect(() => {
+    if (!isEditing) {
+      setLocalValue(value?.toString() || '');
+    }
+  }, [value, isEditing]);
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  const handleClick = useCallback(() => {
+    setIsEditing(true);
+    setLocalValue(value?.toString() || '');
+  }, [value]);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // Only update local state - no parent update
+    setLocalValue(e.target.value);
+  }, []);
+
+  const handleBlur = useCallback(() => {
+    setIsEditing(false);
+    // Update parent only on blur
+    onSave(variationId, field, localValue);
+  }, [variationId, field, localValue, onSave]);
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      setIsEditing(false);
+      onSave(variationId, field, localValue);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setIsEditing(false);
+      setLocalValue(value?.toString() || ''); // Reset to original value
+      onCancel?.();
+    } else if (e.key === 'Tab') {
+      // Save before tabbing away
+      setIsEditing(false);
+      onSave(variationId, field, localValue);
+    }
+  }, [variationId, field, localValue, value, onSave, onCancel]);
+
+  if (isEditing) {
+    return (
+      <Input
+        ref={inputRef}
+        type={type}
+        step={step}
+        min={min}
+        value={localValue}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
+        className={`h-8 text-xs ${className}`}
+      />
+    );
+  }
+
+  // Format display value based on field type
+  const getDisplayValue = () => {
+    if (value === undefined || value === null || value === '') {
+      return <span className="text-muted-foreground">Click để nhập</span>;
+    }
+    
+    if (type === 'number') {
+      const numValue = typeof value === 'number' ? value : parseFloat(value.toString());
+      if (isNaN(numValue)) {
+        return <span className="text-muted-foreground">Click để nhập</span>;
+      }
+      // Check if field is price (costPrice, regularPrice, salePrice)
+      const isPriceField = field === 'costPrice' || field === 'regularPrice' || field === 'salePrice';
+      return <span>{numValue.toLocaleString('vi-VN')}{isPriceField ? 'đ' : ''}</span>;
+    }
+    
+    return <span>{value}</span>;
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      className={`px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center ${className}`}
+    >
+      {getDisplayValue()}
+    </div>
+  );
+});
 
 interface VariationTableProps {
   variations: Variation[];
@@ -59,44 +185,17 @@ export function VariationTable({
 }: VariationTableProps) {
   const { showToast } = useToastContext();
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [editingCell, setEditingCell] = useState<{ rowId: string; field: string } | null>(null);
-  const [editValue, setEditValue] = useState<string>('');
-  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Focus input when editing starts
-  useEffect(() => {
-    if (editingCell && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editingCell]);
-
-  // Handle cell click to start editing
-  const handleCellClick = (rowId: string, field: string, currentValue: string | number | undefined) => {
-    setEditingCell({ rowId, field });
-    setEditValue(currentValue?.toString() || '');
-  };
-
-  // Handle input change
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setEditValue(e.target.value);
-  };
-
-  // Handle save (Enter key or blur)
-  const handleSave = () => {
-    if (!editingCell) return;
-
-    const { rowId, field } = editingCell;
+  // Optimized save handler - only called on blur/Enter, not on every keystroke
+  const handleCellSave = useCallback((variationId: string, field: string, value: string) => {
 
     // Special validation for stockQuantity
-    if (field === 'stockQuantity' && editValue.trim()) {
-      const numValue = parseFloat(editValue);
+    if (field === 'stockQuantity' && value.trim()) {
+      const numValue = parseFloat(value);
       
       // Check if value is a valid number
       if (isNaN(numValue)) {
         showToast('Số lượng phải là số hợp lệ', 'error');
-        setEditingCell(null);
-        setEditValue('');
         return;
       }
       
@@ -104,42 +203,38 @@ export function VariationTable({
       const intValue = Math.floor(numValue);
       if (intValue < 0) {
         showToast('Số lượng không thể là số âm', 'error');
-        setEditingCell(null);
-        setEditValue('');
         return;
       }
       
       // Check if value is too large (prevent overflow)
       if (!isFinite(intValue) || intValue > Number.MAX_SAFE_INTEGER) {
         showToast('Số lượng quá lớn', 'error');
-        setEditingCell(null);
-        setEditValue('');
         return;
       }
     }
 
     const updatedVariations = variations.map((variation) => {
-      if (variation.id !== rowId) return variation;
+      if (variation.id !== variationId) return variation;
 
       const updated = { ...variation };
-      const numValue = parseFloat(editValue);
+      const numValue = parseFloat(value);
 
       switch (field) {
         case 'sku':
-          updated.sku = editValue.trim() || undefined;
+          updated.sku = value.trim() || undefined;
           break;
         case 'costPrice':
-          updated.costPrice = editValue.trim() ? (isNaN(numValue) ? undefined : numValue) : undefined;
+          updated.costPrice = value.trim() ? (isNaN(numValue) ? undefined : numValue) : undefined;
           break;
         case 'regularPrice':
-          updated.regularPrice = editValue.trim() ? (isNaN(numValue) ? undefined : numValue) : undefined;
+          updated.regularPrice = value.trim() ? (isNaN(numValue) ? undefined : numValue) : undefined;
           break;
         case 'salePrice':
-          updated.salePrice = editValue.trim() ? (isNaN(numValue) ? undefined : numValue) : undefined;
+          updated.salePrice = value.trim() ? (isNaN(numValue) ? undefined : numValue) : undefined;
           break;
         case 'stockQuantity':
           // Validation already done above, safe to set value
-          updated.stockQuantity = editValue.trim() ? Math.floor(parseFloat(editValue)) : undefined;
+          updated.stockQuantity = value.trim() ? Math.floor(parseFloat(value)) : undefined;
           break;
         default:
           return variation;
@@ -149,31 +244,7 @@ export function VariationTable({
     });
 
     onVariationsChange(updatedVariations);
-    setEditingCell(null);
-    setEditValue('');
-  };
-
-  // Handle cancel (Escape key)
-  const handleCancel = () => {
-    setEditingCell(null);
-    setEditValue('');
-  };
-
-  // Handle key down
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSave();
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      handleCancel();
-    } else if (e.key === 'Tab') {
-      // Tab navigation will be handled by browser, but we save current edit first
-      if (editingCell) {
-        handleSave();
-      }
-    }
-  };
+  }, [variations, onVariationsChange, showToast]);
 
   // Handle image upload
   const handleImageUpload = (variationId: string, file: File) => {
@@ -275,26 +346,6 @@ export function VariationTable({
     onVariationsChange(updatedVariations);
   };
 
-  const isEditing = (rowId: string, field: string) => {
-    return editingCell?.rowId === rowId && editingCell?.field === field;
-  };
-
-  const getCellValue = (variation: Variation, field: string): string => {
-    switch (field) {
-      case 'sku':
-        return variation.sku || '';
-      case 'costPrice':
-        return variation.costPrice?.toString() || '';
-      case 'regularPrice':
-        return variation.regularPrice?.toString() || '';
-      case 'salePrice':
-        return variation.salePrice?.toString() || '';
-      case 'stockQuantity':
-        return variation.stockQuantity?.toString() || '';
-      default:
-        return '';
-    }
-  };
 
   return (
     <div className="space-y-4">
@@ -394,141 +445,87 @@ export function VariationTable({
 
                 {/* SKU */}
                 <TableCell>
-                  {isEditing(variation.id, 'sku') ? (
-                    <Input
-                      ref={inputRef}
-                      value={editValue}
-                      onChange={handleInputChange}
-                      onBlur={handleSave}
-                      onKeyDown={handleKeyDown}
-                      className="h-8 text-xs"
+                  <div className="space-y-1">
+                    <VariationCellInput
+                      variationId={variation.id}
+                      field="sku"
+                      value={variation.sku}
+                      type="text"
+                      onSave={handleCellSave}
                     />
-                  ) : (
-                    <div className="space-y-1">
-                      <div
-                        onClick={() => handleCellClick(variation.id, 'sku', variation.sku)}
-                        className="px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center"
-                      >
-                        {variation.sku || <span className="text-muted-foreground">Click để nhập</span>}
-                      </div>
-                      {/* Live Preview */}
-                      {autoGenerateSku && !variation.sku && previewSkus[variation.id] && (
-                        <div className="px-2 space-y-1">
-                          {hasIncrementToken && previewSkus[variation.id].includes('###') ? (
-                            <>
-                              <div className="text-xs text-muted-foreground italic">
-                                Preview: {previewSkus[variation.id]}
-                              </div>
-                              {/* FIX: Warning label for INCREMENT token - make it clear that number is not final */}
-                              <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                                <Info className="h-3 w-3 flex-shrink-0" />
-                                <span>
-                                  <strong>Lưu ý:</strong> Mã số cuối cùng sẽ được cấp phát sau khi lưu thành công
-                                </span>
-                              </div>
-                            </>
-                          ) : (
+                    {/* Live Preview */}
+                    {autoGenerateSku && !variation.sku && previewSkus[variation.id] && (
+                      <div className="px-2 space-y-1">
+                        {hasIncrementToken && previewSkus[variation.id].includes('###') ? (
+                          <>
                             <div className="text-xs text-muted-foreground italic">
                               Preview: {previewSkus[variation.id]}
                             </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                            {/* FIX: Warning label for INCREMENT token - make it clear that number is not final */}
+                            <div className="flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+                              <Info className="h-3 w-3 flex-shrink-0" />
+                              <span>
+                                <strong>Lưu ý:</strong> Mã số cuối cùng sẽ được cấp phát sau khi lưu thành công
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-xs text-muted-foreground italic">
+                            Preview: {previewSkus[variation.id]}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </TableCell>
 
                 {/* Cost Price */}
                 <TableCell>
-                  {isEditing(variation.id, 'costPrice') ? (
-                    <Input
-                      ref={inputRef}
-                      type="number"
-                      step="0.01"
-                      value={editValue}
-                      onChange={handleInputChange}
-                      onBlur={handleSave}
-                      onKeyDown={handleKeyDown}
-                      className="h-8 text-xs"
-                    />
-                  ) : (
-                    <div
-                      onClick={() => handleCellClick(variation.id, 'costPrice', variation.costPrice)}
-                      className="px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center"
-                    >
-                      {variation.costPrice ? `${variation.costPrice.toLocaleString('vi-VN')}đ` : <span className="text-muted-foreground">Click để nhập</span>}
-                    </div>
-                  )}
+                  <VariationCellInput
+                    variationId={variation.id}
+                    field="costPrice"
+                    value={variation.costPrice}
+                    type="number"
+                    step="0.01"
+                    onSave={handleCellSave}
+                  />
                 </TableCell>
 
                 {/* Regular Price */}
                 <TableCell>
-                  {isEditing(variation.id, 'regularPrice') ? (
-                    <Input
-                      ref={inputRef}
-                      type="number"
-                      step="0.01"
-                      value={editValue}
-                      onChange={handleInputChange}
-                      onBlur={handleSave}
-                      onKeyDown={handleKeyDown}
-                      className="h-8 text-xs"
-                    />
-                  ) : (
-                    <div
-                      onClick={() => handleCellClick(variation.id, 'regularPrice', variation.regularPrice)}
-                      className="px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center"
-                    >
-                      {variation.regularPrice ? `${variation.regularPrice.toLocaleString('vi-VN')}đ` : <span className="text-muted-foreground">Click để nhập</span>}
-                    </div>
-                  )}
+                  <VariationCellInput
+                    variationId={variation.id}
+                    field="regularPrice"
+                    value={variation.regularPrice}
+                    type="number"
+                    step="0.01"
+                    onSave={handleCellSave}
+                  />
                 </TableCell>
 
                 {/* Sale Price */}
                 <TableCell>
-                  {isEditing(variation.id, 'salePrice') ? (
-                    <Input
-                      ref={inputRef}
-                      type="number"
-                      step="0.01"
-                      value={editValue}
-                      onChange={handleInputChange}
-                      onBlur={handleSave}
-                      onKeyDown={handleKeyDown}
-                      className="h-8 text-xs"
-                    />
-                  ) : (
-                    <div
-                      onClick={() => handleCellClick(variation.id, 'salePrice', variation.salePrice)}
-                      className="px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center"
-                    >
-                      {variation.salePrice ? `${variation.salePrice.toLocaleString('vi-VN')}đ` : <span className="text-muted-foreground">Click để nhập</span>}
-                    </div>
-                  )}
+                  <VariationCellInput
+                    variationId={variation.id}
+                    field="salePrice"
+                    value={variation.salePrice}
+                    type="number"
+                    step="0.01"
+                    onSave={handleCellSave}
+                  />
                 </TableCell>
 
                 {/* Stock Quantity */}
                 <TableCell>
-                  {isEditing(variation.id, 'stockQuantity') ? (
-                    <Input
-                      ref={inputRef}
-                      type="number"
-                      step="1"
-                      min="0"
-                      value={editValue}
-                      onChange={handleInputChange}
-                      onBlur={handleSave}
-                      onKeyDown={handleKeyDown}
-                      className="h-8 text-xs"
-                    />
-                  ) : (
-                    <div
-                      onClick={() => handleCellClick(variation.id, 'stockQuantity', variation.stockQuantity)}
-                      className="px-2 py-1.5 text-sm rounded border border-transparent hover:border-border cursor-text min-h-[32px] flex items-center"
-                    >
-                      {variation.stockQuantity !== undefined ? variation.stockQuantity : <span className="text-muted-foreground">Click để nhập</span>}
-                    </div>
-                  )}
+                  <VariationCellInput
+                    variationId={variation.id}
+                    field="stockQuantity"
+                    value={variation.stockQuantity}
+                    type="number"
+                    step="1"
+                    min="0"
+                    onSave={handleCellSave}
+                  />
                 </TableCell>
 
                 {/* Actions */}
