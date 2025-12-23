@@ -11,7 +11,7 @@
 GitHub Security đã phát hiện **Telegram Bot Token** bị expose trong file documentation:
 - File: `docs/VERCEL_ENV_SETUP_NOTIFICATIONS.md`
 - Commit: `8d42c56d`
-- Token: `[REDACTED]` (đã được rotate)
+- Token: `[REDACTED - đã được rotate]`
 
 **Rủi ro:**
 - ⚠️ Bất kỳ ai có quyền đọc repository đều có thể thấy token
