@@ -318,7 +318,30 @@ export async function GET(
     return await withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       // Permission: product:read (checked by middleware)
-      const { products, categories } = await getCollections();
+      // ✅ FIX: Wrap getCollections in try-catch to handle MongoDB connection errors
+      let products, categories;
+      try {
+        const collections = await getCollections();
+        products = collections.products;
+        categories = collections.categories;
+      } catch (dbError) {
+        console.error('[Admin Product API] MongoDB connection error:', dbError);
+        return NextResponse.json(
+          { 
+            error: 'Database connection failed',
+            code: 'DB_CONNECTION_ERROR',
+            details: process.env.NODE_ENV === 'development' && dbError instanceof Error
+              ? { message: dbError.message }
+              : undefined,
+          },
+          { 
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
       
       // ✅ FIX: Ensure params.id exists and is a string
       if (!params || !params.id || typeof params.id !== 'string') {
@@ -652,7 +675,30 @@ export async function PUT(
     return await withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       // Permission: product:update (checked by middleware)
-      const { products, categories } = await getCollections();
+      // ✅ FIX: Wrap getCollections in try-catch to handle MongoDB connection errors
+      let products, categories;
+      try {
+        const collections = await getCollections();
+        products = collections.products;
+        categories = collections.categories;
+      } catch (dbError) {
+        console.error('[Admin Product API] MongoDB connection error:', dbError);
+        return NextResponse.json(
+          { 
+            error: 'Database connection failed',
+            code: 'DB_CONNECTION_ERROR',
+            details: process.env.NODE_ENV === 'development' && dbError instanceof Error
+              ? { message: dbError.message }
+              : undefined,
+          },
+          { 
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
       
       // ✅ FIX: Ensure params.id exists and is a string
       if (!params || !params.id || typeof params.id !== 'string') {
@@ -1352,7 +1398,29 @@ export async function DELETE(
     return await withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       // Permission: product:delete (checked by middleware)
-      const { products } = await getCollections();
+      // ✅ FIX: Wrap getCollections in try-catch to handle MongoDB connection errors
+      let products;
+      try {
+        const collections = await getCollections();
+        products = collections.products;
+      } catch (dbError) {
+        console.error('[Admin Product API] MongoDB connection error:', dbError);
+        return NextResponse.json(
+          { 
+            error: 'Database connection failed',
+            code: 'DB_CONNECTION_ERROR',
+            details: process.env.NODE_ENV === 'development' && dbError instanceof Error
+              ? { message: dbError.message }
+              : undefined,
+          },
+          { 
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
       
       // ✅ FIX: Ensure params.id exists and is a string
       if (!params || !params.id || typeof params.id !== 'string') {
