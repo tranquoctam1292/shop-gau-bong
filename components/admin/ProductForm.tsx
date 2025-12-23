@@ -207,9 +207,14 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   useEffect(() => {
     async function fetchCategories() {
       try {
-        const response = await fetch('/api/admin/categories');
-        const data = await response.json();
-        setCategories(data.categories || []);
+        // ✅ FIX: Add credentials: 'include' for authentication
+        const response = await fetch('/api/admin/categories', {
+          credentials: 'include',
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setCategories(data.categories || []);
+        }
       } catch (error) {
         console.error('Error fetching categories:', error);
       }
@@ -327,8 +332,33 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
   useEffect(() => {
     if (productId && !initialData) {
       async function fetchProduct() {
+        setLoading(true);
         try {
-          const response = await fetch(`/api/admin/products/${productId}`);
+          // ✅ FIX: Add credentials: 'include' to ensure authentication cookies are sent
+          // This is critical for Vercel deployment where cookies might not be sent by default
+          const response = await fetch(`/api/admin/products/${productId}`, {
+            credentials: 'include',
+          });
+          
+          // ✅ FIX: Check response status and content-type before parsing JSON
+          // Prevents "Unexpected token '<', "<!DOCTYPE "... is not valid JSON" error
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[ProductForm] Failed to fetch product: HTTP ${response.status}`, errorText);
+            showToast(`Không thể tải thông tin sản phẩm (${response.status})`, 'error');
+            setLoading(false);
+            return;
+          }
+          
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            const errorText = await response.text();
+            console.error('[ProductForm] Response is not JSON:', errorText.substring(0, 200));
+            showToast('Lỗi: Server trả về dữ liệu không hợp lệ', 'error');
+            setLoading(false);
+            return;
+          }
+          
           const data = await response.json();
           if (data.product) {
             const product = data.product as MappedProduct;
@@ -486,9 +516,19 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
                 };
               }));
             }
+          } else {
+            console.error('[ProductForm] Product data not found in response:', data);
+            showToast('Không tìm thấy thông tin sản phẩm', 'error');
           }
         } catch (error) {
-          console.error('Error fetching product:', error);
+          // ✅ FIX: Improved error handling with user notification
+          console.error('[ProductForm] Error fetching product:', error);
+          const errorMessage = error instanceof Error 
+            ? error.message 
+            : 'Không thể tải thông tin sản phẩm';
+          showToast(errorMessage, 'error');
+        } finally {
+          setLoading(false);
         }
       }
       fetchProduct();
@@ -731,7 +771,10 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
           if (currentProductId) {
             try {
               // Fetch latest product data
-              const refreshResponse = await fetch(`/api/admin/products/${currentProductId}`);
+              // ✅ FIX: Add credentials: 'include' for authentication
+              const refreshResponse = await fetch(`/api/admin/products/${currentProductId}`, {
+                credentials: 'include',
+              });
               if (refreshResponse.ok) {
                 const refreshData = await refreshResponse.json();
                 const refreshedProduct = refreshData.product;
@@ -878,8 +921,10 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
     if (confirm('Bạn có chắc chắn muốn di chuyển sản phẩm này vào thùng rác?')) {
       setLoading(true);
       try {
+        // ✅ FIX: Add credentials: 'include' for authentication
         const response = await fetch(`/api/admin/products/${productId}`, {
           method: 'DELETE',
+          credentials: 'include',
         });
 
         if (!response.ok) {
