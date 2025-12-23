@@ -14,7 +14,8 @@ import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { generateProductSchema } from '@/lib/utils/schema';
 import { normalizeSku } from '@/lib/utils/skuGenerator';
 import { escapeRegExp } from '@/lib/utils/escapeRegExp';
-import { cleanHtmlForStorage } from '@/lib/utils/sanitizeHtml';
+// ✅ FIX: Lazy load cleanHtmlForStorage to avoid jsdom/parse5 ES Module issues on Vercel
+// Only import when needed (in PUT handler)
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
@@ -822,11 +823,32 @@ export async function PUT(
 
     // ✅ PERFORMANCE: Clean HTML for description and shortDescription to reduce data bloat
     // Remove unnecessary attributes, empty classes, and redundant styles before saving
+    // ✅ FIX: Lazy load cleanHtmlForStorage to avoid jsdom/parse5 ES Module issues on Vercel
     if (updateData.description && typeof updateData.description === 'string') {
-      updateData.description = cleanHtmlForStorage(updateData.description);
+      try {
+        const { cleanHtmlForStorage } = await import('@/lib/utils/sanitizeHtml');
+        updateData.description = cleanHtmlForStorage(updateData.description);
+      } catch (error) {
+        // Fallback: if import fails, use simple regex cleaning
+        console.warn('[Admin Product API] Failed to load cleanHtmlForStorage, using fallback:', error);
+        updateData.description = updateData.description
+          .replace(/\s*class\s*=\s*["']\s*["']/gi, '')
+          .replace(/\s*style\s*=\s*["']\s*["']/gi, '')
+          .trim();
+      }
     }
     if (updateData.shortDescription && typeof updateData.shortDescription === 'string') {
-      updateData.shortDescription = cleanHtmlForStorage(updateData.shortDescription);
+      try {
+        const { cleanHtmlForStorage } = await import('@/lib/utils/sanitizeHtml');
+        updateData.shortDescription = cleanHtmlForStorage(updateData.shortDescription);
+      } catch (error) {
+        // Fallback: if import fails, use simple regex cleaning
+        console.warn('[Admin Product API] Failed to load cleanHtmlForStorage, using fallback:', error);
+        updateData.shortDescription = updateData.shortDescription
+          .replace(/\s*class\s*=\s*["']\s*["']/gi, '')
+          .replace(/\s*style\s*=\s*["']\s*["']/gi, '')
+          .trim();
+      }
     }
 
     // Replace category string with categoryId
