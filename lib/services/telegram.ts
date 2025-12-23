@@ -9,11 +9,14 @@ const TELEGRAM_API_URL = 'https://api.telegram.org/bot';
 
 /**
  * Telegram configuration
+ * Read from environment variables each time (not cached at module load time)
  */
-export const TELEGRAM_CONFIG = {
-  botToken: process.env.TELEGRAM_BOT_TOKEN || '',
-  chatId: process.env.TELEGRAM_CHAT_ID || '',
-} as const;
+export function getTelegramConfig() {
+  return {
+    botToken: process.env.TELEGRAM_BOT_TOKEN || '',
+    chatId: process.env.TELEGRAM_CHAT_ID || '',
+  };
+}
 
 /**
  * Send notification về đơn hàng mới qua Telegram
@@ -44,13 +47,16 @@ export async function sendTelegramNotification(
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    // Get configuration (read from env vars each time)
+    const config = getTelegramConfig();
+    
     // Validate configuration
-    if (!TELEGRAM_CONFIG.botToken) {
+    if (!config.botToken) {
       console.error('[Telegram Service] TELEGRAM_BOT_TOKEN not configured');
       return { success: false, error: 'Telegram bot token not configured' };
     }
 
-    if (!TELEGRAM_CONFIG.chatId) {
+    if (!config.chatId) {
       console.error('[Telegram Service] TELEGRAM_CHAT_ID not configured');
       return { success: false, error: 'Telegram chat ID not configured' };
     }
@@ -118,14 +124,14 @@ ${itemsText}
 
     // Send message via Telegram Bot API
     const response = await fetch(
-      `${TELEGRAM_API_URL}${TELEGRAM_CONFIG.botToken}/sendMessage`,
+      `${TELEGRAM_API_URL}${config.botToken}/sendMessage`,
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          chat_id: TELEGRAM_CONFIG.chatId,
+          chat_id: config.chatId,
           text: message,
           parse_mode: 'HTML',
           disable_web_page_preview: false,
@@ -165,13 +171,15 @@ ${itemsText}
  */
 export async function getChatId(): Promise<string | null> {
   try {
-    if (!TELEGRAM_CONFIG.botToken) {
+    const config = getTelegramConfig();
+    
+    if (!config.botToken) {
       console.error('[Telegram Service] TELEGRAM_BOT_TOKEN not configured');
       return null;
     }
 
     const response = await fetch(
-      `${TELEGRAM_API_URL}${TELEGRAM_CONFIG.botToken}/getUpdates`,
+      `${TELEGRAM_API_URL}${config.botToken}/getUpdates`,
       {
         method: 'GET',
       }

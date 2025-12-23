@@ -17,6 +17,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { OrderFilters, type OrderFilters as OrderFiltersType } from '@/components/admin/orders/OrderFilters';
 import { BulkActionsBar } from '@/components/admin/orders/BulkActionsBar';
 import { OrderQuickViewDialog } from '@/components/admin/orders/OrderQuickViewDialog';
+import { OrderStatusSelect } from '@/components/admin/orders/OrderStatusSelect';
 import { getStatusLabel, getStatusColor, type OrderStatus } from '@/lib/utils/orderStateMachine';
 
 interface Order {
@@ -280,13 +281,12 @@ export default function AdminOrdersPage() {
                       }).format(order.grandTotal || 0)}
                     </TableCell>
                     <TableCell>
-                      <span
-                        className={`px-2 py-1 rounded text-xs ${getStatusColor(
-                          order.status as OrderStatus
-                        )}`}
-                      >
-                        {getStatusLabel(order.status as OrderStatus)}
-                      </span>
+                      <OrderStatusSelect
+                        orderId={order._id}
+                        orderNumber={order.orderNumber}
+                        currentStatus={order.status as OrderStatus}
+                        onStatusChange={fetchOrders}
+                      />
                     </TableCell>
                     <TableCell>
                       {new Date(order.createdAt).toLocaleDateString('vi-VN')}

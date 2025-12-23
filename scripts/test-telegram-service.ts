@@ -5,6 +5,13 @@
  * Chạy: npm run test:telegram hoặc tsx scripts/test-telegram-service.ts
  */
 
+// Load environment variables from .env.local
+import { config } from 'dotenv';
+import { resolve } from 'path';
+
+// Load .env.local file
+config({ path: resolve(process.cwd(), '.env.local') });
+
 import { sendTelegramNotification, getChatId } from '../lib/services/telegram';
 
 async function testTelegramService() {

@@ -16,6 +16,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getCollections } from '@/lib/db';
 import { mapMongoCategory, MongoCategory } from '@/lib/utils/productMapper';
 
+// Force dynamic rendering (uses searchParams)
+export const dynamic = 'force-dynamic';
+
 // Cache 1 giờ (3600 giây) - ISR (Incremental Static Regeneration)
 export const revalidate = 3600;
 

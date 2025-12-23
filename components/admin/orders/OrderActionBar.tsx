@@ -31,6 +31,7 @@ import {
 import { CancelOrderModal } from './CancelOrderModal';
 import { RefundOrderModal } from './RefundOrderModal';
 import { useToastContext } from '@/components/providers/ToastProvider';
+import { useInvalidateDashboard } from '@/lib/hooks/useInvalidateDashboard';
 
 interface OrderActionBarProps {
   orderId: string;
@@ -52,6 +53,7 @@ export function OrderActionBar({
   onCreateShipment,
 }: OrderActionBarProps) {
   const { showToast } = useToastContext();
+  const { invalidateDashboard } = useInvalidateDashboard();
   const [loading, setLoading] = useState<string | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [showRefundModal, setShowRefundModal] = useState(false);
@@ -89,6 +91,9 @@ export function OrderActionBar({
       };
 
       showToast(statusLabels[newStatus] || 'Đã cập nhật trạng thái đơn hàng', 'success');
+
+      // Invalidate dashboard cache to reflect updated order stats
+      invalidateDashboard();
 
       // Refresh order data
       onStatusChange();
@@ -140,6 +145,9 @@ export function OrderActionBar({
       }
 
       showToast(`Đã hoàn tiền ${amount.toLocaleString('vi-VN')} đ thành công`, 'success');
+
+      // Invalidate dashboard cache to reflect updated refund stats
+      invalidateDashboard();
 
       // Refresh order data
       onStatusChange();

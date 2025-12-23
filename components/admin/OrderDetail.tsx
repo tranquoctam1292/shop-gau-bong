@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Save, ArrowLeft } from 'lucide-react';
+import { Save, ArrowLeft, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { OrderTimeline } from '@/components/admin/orders/OrderTimeline';
 import { OrderActionBar } from '@/components/admin/orders/OrderActionBar';
@@ -22,6 +22,7 @@ import { PrintShippingLabel } from '@/components/admin/orders/PrintShippingLabel
 import { PrintInvoice } from '@/components/admin/orders/PrintInvoice';
 import { getStatusLabel, getStatusColor, getValidNextStatuses, type OrderStatus } from '@/lib/utils/orderStateMachine';
 import { useToastContext } from '@/components/providers/ToastProvider';
+import { useInvalidateDashboard } from '@/lib/hooks/useInvalidateDashboard';
 
 interface OrderItem {
   _id: string;
@@ -95,6 +96,7 @@ interface OrderDetailProps {
 export function OrderDetail({ orderId }: OrderDetailProps) {
   const router = useRouter();
   const { showToast } = useToastContext();
+  const { invalidateDashboard } = useInvalidateDashboard();
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -102,6 +104,16 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
   const [paymentStatus, setPaymentStatus] = useState<string>('');
   const [adminNote, setAdminNote] = useState('');
   const [showShipmentModal, setShowShipmentModal] = useState(false);
+  
+  // Track if there are unsaved changes
+  const hasUnsavedChanges = useMemo(() => {
+    if (!order) return false;
+    return (
+      status !== order.status ||
+      paymentStatus !== order.paymentStatus ||
+      adminNote !== (order.adminNote || '')
+    );
+  }, [order, status, paymentStatus, adminNote]);
 
   // SECURITY FIX: Calculate valid next statuses using state machine
   // Prevents invalid transitions (e.g., from "cancelled" back to "shipping")
@@ -152,6 +164,12 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
 
       const data = await response.json();
       setOrder(data.order);
+      
+      // Invalidate dashboard cache if status or payment status changed
+      if (order && (status !== order.status || paymentStatus !== order.paymentStatus)) {
+        invalidateDashboard();
+      }
+      
       await refreshOrder(); // Refresh to get latest data
       showToast('Đã cập nhật đơn hàng thành công', 'success');
     } catch (error) {
@@ -206,9 +224,14 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
             </Button>
           </Link>
         </div>
-        <Button onClick={handleSave} disabled={saving}>
+        <Button 
+          onClick={handleSave} 
+          disabled={saving || !hasUnsavedChanges}
+          variant={hasUnsavedChanges ? 'default' : 'outline'}
+          className={hasUnsavedChanges ? 'bg-orange-500 hover:bg-orange-600' : ''}
+        >
           <Save className="w-4 h-4 mr-2" />
-          {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+          {saving ? 'Đang lưu...' : hasUnsavedChanges ? 'Lưu thay đổi' : 'Đã lưu'}
         </Button>
       </div>
 
@@ -355,36 +378,93 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
                 </p>
               </div>
               <div>
-                <Label htmlFor="status">Thay đổi trạng thái</Label>
-                <Select
-                  value={status}
-                  onValueChange={(value) => setStatus(value)}
-                >
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {/* SECURITY FIX: Only show valid next statuses from state machine */}
-                    {/* Prevents invalid transitions (e.g., from "cancelled" back to "shipping") */}
-                    {validNextStatuses.length === 0 ? (
-                      <SelectItem value={order.status} disabled>
-                        {getStatusLabel(order.status as OrderStatus)} (Không thể thay đổi)
-                      </SelectItem>
-                    ) : (
-                      <>
-                        {validNextStatuses.map((nextStatus) => (
-                          <SelectItem key={nextStatus} value={nextStatus}>
-                            {getStatusLabel(nextStatus)}
-                          </SelectItem>
-                        ))}
-                        {/* Allow keeping current status (no-op transition) */}
-                        <SelectItem value={order.status}>
-                          {getStatusLabel(order.status as OrderStatus)} (Giữ nguyên)
+                <div className="flex items-center justify-between mb-2">
+                  <Label htmlFor="status">Thay đổi trạng thái</Label>
+                  {status !== order.status && (
+                    <span className="text-xs text-orange-600 font-medium">
+                      ⚠️ Chưa lưu
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Select
+                    value={status}
+                    onValueChange={(value) => setStatus(value)}
+                  >
+                    <SelectTrigger id="status" className={`flex-1 ${status !== order.status ? 'border-orange-500' : ''}`}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {/* SECURITY FIX: Only show valid next statuses from state machine */}
+                      {/* Prevents invalid transitions (e.g., from "cancelled" back to "shipping") */}
+                      {validNextStatuses.length === 0 ? (
+                        <SelectItem value={order.status} disabled>
+                          {getStatusLabel(order.status as OrderStatus)} (Không thể thay đổi)
                         </SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
+                      ) : (
+                        <>
+                          {validNextStatuses.map((nextStatus) => (
+                            <SelectItem key={nextStatus} value={nextStatus}>
+                              {getStatusLabel(nextStatus)}
+                            </SelectItem>
+                          ))}
+                          {/* Allow keeping current status (no-op transition) */}
+                          <SelectItem value={order.status}>
+                            {getStatusLabel(order.status as OrderStatus)} (Giữ nguyên)
+                          </SelectItem>
+                        </>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  {status !== order.status && (
+                    <Button
+                      onClick={async () => {
+                        const oldStatus = status;
+                        setSaving(true);
+                        try {
+                          const response = await fetch(`/api/admin/orders/${orderId}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              status: oldStatus,
+                            }),
+                          });
+                          if (!response.ok) {
+                            const error = await response.json();
+                            showToast(error.error || 'Có lỗi xảy ra khi cập nhật trạng thái', 'error');
+                            return;
+                          }
+                          
+                          // Invalidate dashboard cache to reflect updated order stats
+                          invalidateDashboard();
+                          
+                          showToast('Đã cập nhật trạng thái thành công', 'success');
+                          await refreshOrder();
+                        } catch (error) {
+                          console.error('Error updating status:', error);
+                          showToast('Có lỗi xảy ra khi cập nhật trạng thái', 'error');
+                        } finally {
+                          setSaving(false);
+                        }
+                      }}
+                      disabled={saving}
+                      size="sm"
+                      className="min-h-[44px] min-w-[80px]"
+                    >
+                      {saving ? (
+                        <>
+                          <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          <span className="hidden sm:inline">Đang lưu...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4 mr-1" />
+                          <span className="hidden sm:inline">Lưu</span>
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
               </div>
               <div>
                 <Label htmlFor="paymentStatus">Trạng thái thanh toán</Label>

@@ -30,6 +30,9 @@
     "db:cleanup-sku-normalized": "tsx scripts/cleanup-sku-normalized-null.ts",
     "test:api-routes": "tsx scripts/test-api-routes.ts",
     "test:hooks-api": "tsx scripts/test-hooks-api.ts",
+    "test:dashboard-performance": "tsx scripts/test-dashboard-performance.ts",
+    "test:dashboard-errors": "tsx scripts/test-dashboard-errors.ts",
+    "test:dashboard-phase5": "tsx scripts/test-dashboard-phase5.ts",
     "migrate:wordpress-to-mongodb": "tsx scripts/migrate-wordpress-to-mongodb.ts",
     "migrate:verify": "tsx scripts/verify-migration.ts",
     "migrate:categories": "tsx scripts/migrate-categories-schema.ts",
@@ -51,7 +54,8 @@
     "test:email": "tsx scripts/test-email-service.ts",
     "test:telegram": "tsx scripts/test-telegram-service.ts",
     "test:telegram-chat-id": "tsx scripts/get-telegram-chat-id.ts",
-    "generate:nextauth-secret": "node scripts/generate-nextauth-secret.js"
+    "generate:nextauth-secret": "node scripts/generate-nextauth-secret.js",
+    "db:setup-dashboard-indexes": "tsx scripts/setup-dashboard-indexes.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -85,6 +89,7 @@
     "clsx": "^2.1.1",
     "cropperjs": "^1.6.2",
     "date-fns": "^4.1.0",
+    "date-fns-tz": "^3.2.0",
     "isomorphic-dompurify": "^2.34.0",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
@@ -96,6 +101,7 @@
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.48.0",
+    "recharts": "^3.6.0",
     "resend": "^6.6.0",
     "sharp": "^0.34.5",
     "tailwind-merge": "^2.6.0",
