@@ -75,12 +75,12 @@ Thêm từng biến một:
 
 5. **TELEGRAM_BOT_TOKEN**
    - Key: `TELEGRAM_BOT_TOKEN`
-   - Value: `8321066924:AAGBKGP7H0TwBFpHnaVvNih_xxDWx1Z0juA` (bot token của bạn)
+   - Value: `your_bot_token_here` (bot token từ BotFather)
    - Environment: `Production`, `Preview`, `Development`
 
 6. **TELEGRAM_CHAT_ID**
    - Key: `TELEGRAM_CHAT_ID`
-   - Value: `1899159757` (chat ID của bạn)
+   - Value: `your_chat_id_here` (chat ID của bạn)
    - Environment: `Production`, `Preview`, `Development`
 
 #### Site URL (Nếu chưa có)
@@ -204,12 +204,13 @@ Bạn có thể copy các giá trị từ `.env.local` và paste vào Vercel das
 
 ```env
 # Copy các dòng này và thêm vào Vercel
+# ⚠️ LƯU Ý: Thay các giá trị placeholder bằng giá trị thật của bạn
 RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 EMAIL_FROM=Shop Gấu Bông <noreply@lienhe.teddyland.vn>
 ADMIN_EMAIL=admin@lienhe.teddyland.vn
 EMAIL_REPLY_TO=support@lienhe.teddyland.vn
-TELEGRAM_BOT_TOKEN=8321066924:AAGBKGP7H0TwBFpHnaVvNih_xxDWx1Z0juA
-TELEGRAM_CHAT_ID=1899159757
+TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_CHAT_ID=your_chat_id_here
 NEXT_PUBLIC_SITE_URL=https://teddyland.vn
 ```
 

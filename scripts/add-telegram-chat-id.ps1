@@ -1,7 +1,13 @@
 # Script to add TELEGRAM_CHAT_ID to .env.local
 # Follows force-script-for-complex-io rule from .cursorrules
+# 
+# Usage: .\scripts\add-telegram-chat-id.ps1 <chat_id>
+# Example: .\scripts\add-telegram-chat-id.ps1 1899159757
 
-$chatId = "1899159757"
+param(
+    [Parameter(Mandatory=$true)]
+    [string]$chatId
+)
 
 if (-not (Test-Path .env.local)) {
     Write-Host "ERROR: File .env.local khong ton tai" -ForegroundColor Red
