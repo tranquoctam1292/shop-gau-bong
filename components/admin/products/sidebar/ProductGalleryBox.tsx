@@ -265,7 +265,7 @@ export function ProductGalleryBox({
               <Label className="text-xs font-medium">
                 Văn bản thay thế (Alt Text) cho SEO
               </Label>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-2">
                 {images.map((image) => (
                   <div key={image.id} className="flex gap-2 items-center">
                     <div className="w-12 h-12 flex-shrink-0 rounded overflow-hidden border">

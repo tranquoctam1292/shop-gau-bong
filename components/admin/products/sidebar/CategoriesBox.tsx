@@ -242,7 +242,7 @@ export function CategoriesBox({
                 {debouncedSearch ? 'Không tìm thấy danh mục' : 'Chưa có danh mục'}
               </p>
             ) : (
-              <div className="space-y-2 max-h-[300px] overflow-y-auto overflow-x-visible pr-2">
+              <div className="space-y-2">
                 {filteredCategories.map((category) => (
                   <CategoryItem
                     key={category.id}
@@ -378,24 +378,24 @@ function CategoryItem({
 
   return (
     <div>
-      <div className="flex items-center gap-2 py-1">
+      <div className="flex items-center gap-2 py-1 pr-2">
         {/* Expand/Collapse Button */}
         {categoryChildren.length > 0 && (
           <button
             type="button"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-0.5 hover:bg-muted rounded min-w-[20px]"
+            className="p-0.5 hover:bg-muted rounded min-w-[20px] flex-shrink-0"
           >
             <span className="text-xs">{isExpanded ? '−' : '+'}</span>
           </button>
         )}
-        {categoryChildren.length === 0 && <div className="w-5" />}
+        {categoryChildren.length === 0 && <div className="w-5 flex-shrink-0" />}
 
         {/* Checkbox */}
         <button
           type="button"
           onClick={() => onToggle(category.id)}
-          className="flex items-center gap-2 flex-1 text-left hover:bg-muted rounded px-2 py-1.5 transition-colors min-h-[44px]"
+          className="flex items-center gap-2 flex-1 text-left hover:bg-muted rounded px-2 py-1.5 transition-colors min-h-[44px] min-w-0"
         >
           <div
             className={`flex items-center justify-center w-4 h-4 border-2 rounded flex-shrink-0 ${
@@ -406,46 +406,49 @@ function CategoryItem({
           >
             {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
           </div>
-          <span className={`text-sm flex-1 ${isPrimary ? 'font-semibold text-primary' : ''}`}>
+          <span className={`text-sm flex-1 min-w-0 truncate ${isPrimary ? 'font-semibold text-primary' : ''}`}>
             {category.name}
             {isPrimary && <Star className="w-3 h-3 inline ml-1 text-primary" />}
           </span>
           {category.count !== null && (
-            <span className="text-xs text-muted-foreground">
+            <span className="text-xs text-muted-foreground flex-shrink-0">
               ({category.count})
             </span>
           )}
         </button>
 
-        {/* Primary Category Button */}
-        {onSetPrimary && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onSetPrimary();
-            }}
-            className={`p-1 rounded hover:bg-muted ${isPrimary ? 'text-primary' : 'text-muted-foreground'}`}
-            title={isPrimary ? 'Bỏ đánh dấu danh mục chính' : 'Đặt làm danh mục chính'}
-          >
-            <Star className={`w-4 h-4 ${isPrimary ? 'fill-current' : ''}`} />
-          </button>
-        )}
+        {/* Action Buttons Container */}
+        <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Primary Category Button */}
+          {onSetPrimary && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onSetPrimary();
+              }}
+              className={`p-1 rounded hover:bg-muted flex-shrink-0 ${isPrimary ? 'text-primary' : 'text-muted-foreground'}`}
+              title={isPrimary ? 'Bỏ đánh dấu danh mục chính' : 'Đặt làm danh mục chính'}
+            >
+              <Star className={`w-4 h-4 ${isPrimary ? 'fill-current' : ''}`} />
+            </button>
+          )}
 
-        {/* Add Sub-category Button */}
-        {onAddSubCategory && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAddSubCategory(category.id, category.name);
-            }}
-            className="p-1 rounded hover:bg-muted text-muted-foreground"
-            title="Thêm danh mục con"
-          >
-            <Plus className="w-4 h-4" />
-          </button>
-        )}
+          {/* Add Sub-category Button */}
+          {onAddSubCategory && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onAddSubCategory(category.id, category.name);
+              }}
+              className="p-1 rounded hover:bg-muted text-muted-foreground flex-shrink-0"
+              title="Thêm danh mục con"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Children Categories */}
