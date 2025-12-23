@@ -10,6 +10,7 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { z } from 'zod';
 import { createOrderCreationHistory } from '@/lib/services/orderHistory';
 import { handleValidationError } from '@/lib/utils/validation-errors';
+import { withTransaction, getCollectionsWithSession } from '@/lib/utils/transactionHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -232,50 +233,84 @@ export async function POST(request: NextRequest) {
       updatedAt: new Date(),
     };
     
-    // Step 4: Insert order document
-    const orderResult = await orders.insertOne(orderDoc);
-    const orderId = orderResult.insertedId.toString();
-    
-    // Step 5: Create order items with Database prices and snapshot data
-    const itemsToInsert = validatedLineItems.map((item) => ({
-      orderId,
-      productId: item.productId,
-      variationId: item.variationId,
-      productName: item.productName,
-      quantity: item.quantity,
-      price: item.price, // Database price (not Frontend price)
-      costPrice: item.costPrice, // Snapshot costPrice at time of order
-      thumbnailUrl: item.thumbnailUrl, // BUSINESS LOGIC FIX: Snapshot thumbnail URL at time of purchase
-      subtotal: item.price * item.quantity,
-      total: item.price * item.quantity,
-      createdAt: new Date(),
-    }));
-    
-    if (itemsToInsert.length > 0) {
-      await orderItems.insertMany(itemsToInsert);
-    }
+    // Step 4-6: Create order, order items, and reserve stock in a single transaction
+    // SECURITY FIX (2025-01): Use MongoDB transaction to ensure atomicity
+    // If stock reservation fails, order and order items are automatically rolled back
+    let orderId: string | undefined;
+    let orderResult: any;
 
-    // Auto-reserve stock when order is created (status: Pending)
     try {
-      const { reserveStock } = await import('@/lib/services/inventory');
-      await reserveStock(
-        orderId,
-        validatedData.lineItems.map((item) => ({
+      await withTransaction(async (session) => {
+        const collections = await getCollectionsWithSession(session);
+        const { orders: ordersCollection, orderItems: orderItemsCollection, products } = collections;
+
+        // Step 4: Insert order document
+        orderResult = await ordersCollection.insertOne(orderDoc, { session });
+        orderId = orderResult.insertedId.toString();
+
+        // Step 5: Create order items with Database prices and snapshot data
+        const itemsToInsert = validatedLineItems.map((item) => ({
+          orderId,
           productId: item.productId,
           variationId: item.variationId,
+          productName: item.productName,
           quantity: item.quantity,
-        }))
-      );
-    } catch (error: any) {
-      // If stock reservation fails, rollback order creation
-      await orderItems.deleteMany({ orderId });
-      await orders.deleteOne({ _id: orderResult.insertedId });
+          price: item.price, // Database price (not Frontend price)
+          costPrice: item.costPrice, // Snapshot costPrice at time of order
+          thumbnailUrl: item.thumbnailUrl, // BUSINESS LOGIC FIX: Snapshot thumbnail URL at time of purchase
+          subtotal: item.price * item.quantity,
+          total: item.price * item.quantity,
+          createdAt: new Date(),
+        }));
+
+        if (itemsToInsert.length > 0) {
+          await orderItemsCollection.insertMany(itemsToInsert, { session });
+        }
+
+        // Step 6: Reserve stock within the same transaction
+        // If this fails, the entire transaction (order + order items) will be rolled back
+        const { reserveStockInternal } = await import('@/lib/services/inventory-internal');
+        await reserveStockInternal(
+          products,
+          validatedData.lineItems.map((item) => ({
+            productId: item.productId,
+            variationId: item.variationId,
+            quantity: item.quantity,
+          })),
+          session
+        );
+      });
+    } catch (error: unknown) {
+      // Transaction automatically rolled back, just return error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      // Check if it's a stock-related error
+      if (errorMessage.includes('Insufficient stock') || errorMessage.includes('not found')) {
+        return NextResponse.json(
+          {
+            error: 'Insufficient stock',
+            message: errorMessage || 'Không đủ hàng trong kho',
+          },
+          { status: 400 }
+        );
+      }
+
+      // Other errors
+      console.error('[Orders API] Transaction error:', error);
       return NextResponse.json(
         {
-          error: 'Insufficient stock',
-          message: error.message || 'Không đủ hàng trong kho',
+          error: 'Order creation failed',
+          message: errorMessage || 'Không thể tạo đơn hàng',
         },
-        { status: 400 }
+        { status: 500 }
+      );
+    }
+
+    // Verify order was created successfully
+    if (!orderId || !orderResult?.insertedId) {
+      return NextResponse.json(
+        { error: 'Order creation failed - no order ID returned' },
+        { status: 500 }
       );
     }
 

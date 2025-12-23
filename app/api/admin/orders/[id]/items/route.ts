@@ -16,6 +16,7 @@ import {
   type ActorType,
 } from '@/lib/services/orderHistory';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { withTransaction, getCollectionsWithSession } from '@/lib/utils/transactionHelper';
 
 export const dynamic = 'force-dynamic';
 
@@ -99,84 +100,103 @@ export async function PATCH(
         );
       }
 
-      // Check stock availability before adding item
+      // Type assertion after validation - these fields are guaranteed to be defined
+      const productId = validatedData.productId;
+      const productName = validatedData.productName;
+      const quantity = validatedData.quantity;
+      const price = validatedData.price;
+      const variationId = validatedData.variationId;
+
+      // SECURITY FIX (2025-01): Use transaction to ensure atomicity
+      // Reserve stock and insert order item in a single transaction
+      // If stock reservation fails, order item is not created
       try {
-        const { checkStockAvailability } = await import('@/lib/services/inventory');
-        const stockCheck = await checkStockAvailability(
-          validatedData.productId,
-          validatedData.variationId,
-          validatedData.quantity
-        );
+        await withTransaction(async (session) => {
+          const collections = await getCollectionsWithSession(session);
+          const { products: productsCollection, orderItems: orderItemsCollection } = collections;
 
-        if (!stockCheck.canFulfill) {
-          return NextResponse.json(
-            {
-              error: 'Insufficient stock',
-              message: `Không đủ hàng trong kho. Còn lại: ${stockCheck.available}, Yêu cầu: ${validatedData.quantity}`,
-              stockInfo: stockCheck,
-            },
-            { status: 400 }
+          // Check stock availability before adding item
+          const { checkStockAvailability } = await import('@/lib/services/inventory');
+          const stockCheck = await checkStockAvailability(
+            productId,
+            variationId,
+            quantity
           );
-        }
 
-        // Reserve stock for the new item
-        const { reserveStock } = await import('@/lib/services/inventory');
-        await reserveStock(orderId.toString(), [
-          {
-            productId: validatedData.productId,
-            variationId: validatedData.variationId,
-            quantity: validatedData.quantity,
-          },
-        ]);
-      } catch (error: any) {
+          if (!stockCheck.canFulfill) {
+            throw new Error(
+              `Không đủ hàng trong kho. Còn lại: ${stockCheck.available}, Yêu cầu: ${quantity}`
+            );
+          }
+
+          // Reserve stock for the new item within transaction
+          const { reserveStockInternal } = await import('@/lib/services/inventory-internal');
+          await reserveStockInternal(
+            productsCollection,
+            [
+              {
+                productId,
+                variationId,
+                quantity,
+              },
+            ],
+            session
+          );
+
+          // Fetch product to get costPrice snapshot
+          const product = await productsCollection.findOne(
+            { _id: new ObjectId(productId) },
+            { session }
+          );
+
+          let costPrice: number | undefined = undefined;
+
+          // Get costPrice from product or variant
+          if (product) {
+            // For variable products, check variant costPrice first
+            if (variationId && product.productDataMetaBox?.variations) {
+              const variant = product.productDataMetaBox.variations.find(
+                (v: any) =>
+                  v.id === variationId ||
+                  (v as { _id?: { toString: () => string } })._id?.toString() === variationId
+              );
+              if (variant && typeof variant.costPrice === 'number') {
+                costPrice = variant.costPrice;
+              }
+            }
+
+            // Fallback to product costPrice if variant doesn't have it
+            if (costPrice === undefined && product.productDataMetaBox?.costPrice !== undefined) {
+              costPrice = product.productDataMetaBox.costPrice;
+            }
+          }
+
+          // Create new order item with costPrice snapshot within transaction
+          const newItem = {
+            orderId: orderId.toString(),
+            productId,
+            variationId,
+            productName,
+            quantity,
+            price,
+            costPrice: costPrice, // Snapshot costPrice at time of order
+            total: price * quantity,
+            createdAt: new Date(),
+          };
+
+          const insertResult = await orderItemsCollection.insertOne(newItem, { session });
+          updatedItems.push({ ...newItem, _id: insertResult.insertedId });
+        });
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         return NextResponse.json(
           {
             error: 'Stock check failed',
-            message: error.message || 'Không thể kiểm tra tồn kho',
+            message: errorMessage || 'Không thể kiểm tra tồn kho',
           },
           { status: 400 }
         );
       }
-
-      // Fetch product to get costPrice snapshot
-      const { products } = await getCollections();
-      const product = await products.findOne({ _id: new ObjectId(validatedData.productId) });
-      
-      let costPrice: number | undefined = undefined;
-      
-      // Get costPrice from product or variant
-      if (product) {
-        // For variable products, check variant costPrice first
-        if (validatedData.variationId && product.productDataMetaBox?.variations) {
-          const variant = product.productDataMetaBox.variations.find(
-            (v: any) => v.id === validatedData.variationId || (v as { _id?: { toString: () => string } })._id?.toString() === validatedData.variationId
-          );
-          if (variant && typeof variant.costPrice === 'number') {
-            costPrice = variant.costPrice;
-          }
-        }
-        
-        // Fallback to product costPrice if variant doesn't have it
-        if (costPrice === undefined && product.productDataMetaBox?.costPrice !== undefined) {
-          costPrice = product.productDataMetaBox.costPrice;
-        }
-      }
-
-      // Create new order item with costPrice snapshot
-      const newItem = {
-        orderId: orderId.toString(),
-        productId: validatedData.productId,
-        variationId: validatedData.variationId,
-        productName: validatedData.productName,
-        quantity: validatedData.quantity,
-        price: validatedData.price,
-        costPrice: costPrice, // Snapshot costPrice at time of order
-        total: validatedData.price * validatedData.quantity,
-        createdAt: new Date(),
-      };
-
-      const insertResult = await orderItems.insertOne(newItem);
-      updatedItems.push({ ...newItem, _id: insertResult.insertedId });
 
       historyDescription = `Thêm sản phẩm "${validatedData.productName}" (Số lượng: ${validatedData.quantity})`;
     } else if (validatedData.action === 'remove') {
@@ -200,26 +220,44 @@ export async function PATCH(
         );
       }
 
-      // Release reserved stock before removing item
+      // SECURITY FIX (2025-01): Use transaction to ensure atomicity
+      // Release stock and delete order item in a single transaction
+      // If stock release fails, order item is not deleted
       try {
-        const { releaseStock } = await import('@/lib/services/inventory');
-        await releaseStock(orderId.toString(), [
-          {
-            productId: itemToRemove.productId,
-            variationId: itemToRemove.variationId,
-            quantity: itemToRemove.quantity,
-          },
-        ]);
-      } catch (error: any) {
-        console.error('[Order Items API] Error releasing stock:', error);
-        // Continue with item removal even if stock release fails
-      }
+        await withTransaction(async (session) => {
+          const collections = await getCollectionsWithSession(session);
+          const { products: productsCollection, orderItems: orderItemsCollection } = collections;
 
-      // Remove item
-      await orderItems.deleteOne({ _id: new ObjectId(validatedData.itemId) });
-      updatedItems = updatedItems.filter(
-        (item) => item._id?.toString() !== validatedData.itemId
-      );
+          // Release reserved stock within transaction
+          const { releaseStockInternal } = await import('@/lib/services/inventory-internal');
+          await releaseStockInternal(
+            productsCollection,
+            [
+              {
+                productId: itemToRemove.productId,
+                variationId: itemToRemove.variationId,
+                quantity: itemToRemove.quantity,
+              },
+            ],
+            session
+          );
+
+          // Remove item within transaction
+          await orderItemsCollection.deleteOne({ _id: new ObjectId(validatedData.itemId) }, { session });
+        });
+
+        updatedItems = updatedItems.filter((item) => item._id?.toString() !== validatedData.itemId);
+      } catch (error: unknown) {
+        console.error('[Order Items API] Error releasing stock:', error);
+        // If transaction fails, don't remove item to maintain consistency
+        return NextResponse.json(
+          {
+            error: 'Failed to remove item',
+            message: error instanceof Error ? error.message : 'Không thể xóa sản phẩm',
+          },
+          { status: 500 }
+        );
+      }
 
       historyDescription = `Xóa sản phẩm "${itemToRemove.productName}"`;
     } else if (validatedData.action === 'update_quantity') {

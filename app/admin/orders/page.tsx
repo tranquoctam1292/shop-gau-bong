@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { OrderFilters, type OrderFilters as OrderFiltersType } from '@/components/admin/orders/OrderFilters';
 import { BulkActionsBar } from '@/components/admin/orders/BulkActionsBar';
+import { OrderQuickViewDialog } from '@/components/admin/orders/OrderQuickViewDialog';
 import { getStatusLabel, getStatusColor, type OrderStatus } from '@/lib/utils/orderStateMachine';
 
 interface Order {
@@ -43,6 +44,7 @@ export default function AdminOrdersPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [selectedOrders, setSelectedOrders] = useState<string[]>([]);
+  const [quickViewOrderId, setQuickViewOrderId] = useState<string | null>(null);
 
   // Initialize filters from URL params
   const getFiltersFromURL = (): OrderFiltersType => {
@@ -290,12 +292,23 @@ export default function AdminOrdersPage() {
                       {new Date(order.createdAt).toLocaleDateString('vi-VN')}
                     </TableCell>
                     <TableCell>
-                      <Link href={`/admin/orders/${order._id}`}>
-                        <Button variant="outline" size="sm">
-                          <Eye className="w-4 h-4 mr-2" />
-                          Xem
+                      <div className="flex items-center gap-2">
+                        <Link href={`/admin/orders/${order._id}`}>
+                          <Button variant="outline" size="sm">
+                            <Eye className="w-4 h-4 mr-2" />
+                            Xem
+                          </Button>
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setQuickViewOrderId(order._id)}
+                          title="Xem nhanh"
+                          className="min-h-[44px] min-w-[44px] p-0"
+                        >
+                          <Eye className="w-4 h-4" />
                         </Button>
-                      </Link>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -328,6 +341,15 @@ export default function AdminOrdersPage() {
           </>
         )}
       </div>
+
+      {/* Order Quick View Dialog */}
+      {quickViewOrderId && (
+        <OrderQuickViewDialog
+          orderId={quickViewOrderId}
+          open={!!quickViewOrderId}
+          onOpenChange={(open) => !open && setQuickViewOrderId(null)}
+        />
+      )}
     </div>
   );
 }
