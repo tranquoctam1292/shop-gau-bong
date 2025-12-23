@@ -317,6 +317,15 @@ export async function GET(
     try {
       // Permission: product:read (checked by middleware)
       const { products, categories } = await getCollections();
+      
+      // ✅ FIX: Ensure params.id exists and is a string
+      if (!params || !params.id || typeof params.id !== 'string') {
+        return NextResponse.json(
+          { error: 'Product ID is required' },
+          { status: 400 }
+        );
+      }
+      
       let { id } = params;
     
     // Extract ObjectId from GraphQL format if needed (backward compatibility)
@@ -353,7 +362,6 @@ export async function GET(
     }
     
     // Populate categories before mapping
-    const { categories: categoriesCollection } = await getCollections();
     const categoryIds: string[] = [];
     
     // Get category IDs from product
@@ -370,7 +378,7 @@ export async function GET(
     
     // Fetch category documents
     const categoryDocs = categoryIds.length > 0
-      ? await categoriesCollection.find({
+      ? await categories.find({
           $or: [
             { _id: { $in: categoryIds.filter((id) => ObjectId.isValid(id)).map((id) => new ObjectId(id)) } },
             { slug: { $in: categoryIds.filter((id) => !ObjectId.isValid(id)) } },
@@ -573,17 +581,34 @@ export async function GET(
     };
     
     return NextResponse.json(response);
-  } catch (error: any) {
-    console.error('[Admin Product API] Error:', error);
-    return NextResponse.json(
-      { 
-        error: error.message || 'Failed to fetch product',
-        details: process.env.NODE_ENV === 'development' 
-          ? { stack: error.stack }
-          : undefined,
-      },
-      { status: 500 }
-    );
+    } catch (error: unknown) {
+      // ✅ FIX: Improved error handling to always return JSON
+      console.error('[Admin Product API] GET Error:', error);
+      
+      // Ensure we always return JSON, not HTML error page
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to fetch product';
+      
+      const errorDetails = process.env.NODE_ENV === 'development' && error instanceof Error
+        ? { 
+            stack: error.stack,
+            name: error.name,
+          }
+        : undefined;
+      
+      return NextResponse.json(
+        { 
+          error: errorMessage,
+          details: errorDetails,
+        },
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
   }, 'product:read');
 }
@@ -596,7 +621,16 @@ export async function PUT(
     try {
       // Permission: product:update (checked by middleware)
       const { products, categories } = await getCollections();
-    let { id } = params;
+      
+      // ✅ FIX: Ensure params.id exists and is a string
+      if (!params || !params.id || typeof params.id !== 'string') {
+        return NextResponse.json(
+          { error: 'Product ID is required' },
+          { status: 400 }
+        );
+      }
+      
+      let { id } = params;
     const body = await request.json();
     
     // Extract ObjectId from GraphQL format if needed (backward compatibility)
@@ -1203,27 +1237,48 @@ export async function PUT(
     const mappedProduct = mapMongoProduct(updatedProduct as unknown as MongoProduct, populatedCategories);
     
     return NextResponse.json({ product: mappedProduct });
-  } catch (error: any) {
-    if (error instanceof z.ZodError) {
+    } catch (error: unknown) {
+      // ✅ FIX: Improved error handling to always return JSON
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          { 
+            error: 'Validation error',
+            details: error.errors,
+          },
+          { 
+            status: 400,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
+      
+      console.error('[Admin Product API] PUT Error:', error);
+      
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to update product';
+      
+      const errorDetails = process.env.NODE_ENV === 'development' && error instanceof Error
+        ? { 
+            stack: error.stack,
+            name: error.name,
+          }
+        : undefined;
+      
       return NextResponse.json(
         { 
-          error: 'Validation error',
-          details: error.errors,
+          error: errorMessage,
+          details: errorDetails,
         },
-        { status: 400 }
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
       );
-    }
-    
-    console.error('[Admin Product API] Error:', error);
-    return NextResponse.json(
-      { 
-        error: error.message || 'Failed to update product',
-        details: process.env.NODE_ENV === 'development' 
-          ? { stack: error.stack }
-          : undefined,
-      },
-      { status: 500 }
-    );
     }
   }, 'product:update');
 }
@@ -1236,7 +1291,16 @@ export async function DELETE(
     try {
       // Permission: product:delete (checked by middleware)
       const { products } = await getCollections();
-    let { id } = params;
+      
+      // ✅ FIX: Ensure params.id exists and is a string
+      if (!params || !params.id || typeof params.id !== 'string') {
+        return NextResponse.json(
+          { error: 'Product ID is required' },
+          { status: 400 }
+        );
+      }
+      
+      let { id } = params;
     
     // Extract ObjectId from GraphQL format if needed (backward compatibility)
     // Format: gid://shop-gau-bong/Product/OBJECT_ID
@@ -1333,17 +1397,33 @@ export async function DELETE(
       message: 'Đã chuyển vào thùng rác',
       product: mappedProduct,
     });
-  } catch (error: any) {
-    console.error('[Admin Product API] Error:', error);
-    return NextResponse.json(
-      { 
-        error: error.message || 'Failed to delete product',
-        details: process.env.NODE_ENV === 'development' 
-          ? { stack: error.stack }
-          : undefined,
-      },
-      { status: 500 }
-    );
+    } catch (error: unknown) {
+      // ✅ FIX: Improved error handling to always return JSON
+      console.error('[Admin Product API] DELETE Error:', error);
+      
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to delete product';
+      
+      const errorDetails = process.env.NODE_ENV === 'development' && error instanceof Error
+        ? { 
+            stack: error.stack,
+            name: error.name,
+          }
+        : undefined;
+      
+      return NextResponse.json(
+        { 
+          error: errorMessage,
+          details: errorDetails,
+        },
+        { 
+          status: 500,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
     }
   }, 'product:delete');
 }
