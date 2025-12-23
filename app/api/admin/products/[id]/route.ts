@@ -309,12 +309,45 @@ const productUpdateSchema = z.object({
   path: ["productDataMetaBox", "variations"],
 });
 
+// ✅ FIX: Helper function to ensure JSON response even for initialization errors
+async function safeHandler(
+  handler: () => Promise<NextResponse>
+): Promise<NextResponse> {
+  try {
+    return await handler();
+  } catch (error: unknown) {
+    console.error('[Admin Product API] Handler initialization error:', error);
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'Internal server error';
+    
+    return NextResponse.json(
+      { 
+        error: errorMessage,
+        code: 'HANDLER_INIT_ERROR',
+        details: process.env.NODE_ENV === 'development' && error instanceof Error
+          ? { 
+              stack: error.stack,
+              name: error.name,
+            }
+          : undefined,
+      },
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   // ✅ FIX: Wrap entire handler in try-catch to ensure JSON response even if withAuthAdmin fails
-  try {
+  return safeHandler(async () => {
     return await withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       // Permission: product:read (checked by middleware)
@@ -636,34 +669,7 @@ export async function GET(
       );
     }
   }, 'product:read');
-  } catch (error: unknown) {
-    // ✅ FIX: Catch any errors outside withAuthAdmin (e.g., MongoDB connection errors)
-    // Ensure we always return JSON, not HTML error page
-    console.error('[Admin Product API] GET - Outer catch error:', error);
-    
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Failed to fetch product';
-    
-    return NextResponse.json(
-      { 
-        error: errorMessage,
-        code: 'INTERNAL_ERROR',
-        details: process.env.NODE_ENV === 'development' && error instanceof Error
-          ? { 
-              stack: error.stack,
-              name: error.name,
-            }
-          : undefined,
-      },
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-  }
+  });
 }
 
 export async function PUT(
@@ -671,7 +677,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   // ✅ FIX: Wrap entire handler in try-catch to ensure JSON response even if withAuthAdmin fails
-  try {
+  return safeHandler(async () => {
     return await withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       // Permission: product:update (checked by middleware)
@@ -1359,34 +1365,7 @@ export async function PUT(
       );
     }
   }, 'product:update');
-  } catch (error: unknown) {
-    // ✅ FIX: Catch any errors outside withAuthAdmin (e.g., MongoDB connection errors)
-    // Ensure we always return JSON, not HTML error page
-    console.error('[Admin Product API] PUT - Outer catch error:', error);
-    
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Failed to update product';
-    
-    return NextResponse.json(
-      { 
-        error: errorMessage,
-        code: 'INTERNAL_ERROR',
-        details: process.env.NODE_ENV === 'development' && error instanceof Error
-          ? { 
-              stack: error.stack,
-              name: error.name,
-            }
-          : undefined,
-      },
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-  }
+  });
 }
 
 export async function DELETE(
@@ -1394,7 +1373,7 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   // ✅ FIX: Wrap entire handler in try-catch to ensure JSON response even if withAuthAdmin fails
-  try {
+  return safeHandler(async () => {
     return await withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       // Permission: product:delete (checked by middleware)
@@ -1556,33 +1535,6 @@ export async function DELETE(
       );
     }
   }, 'product:delete');
-  } catch (error: unknown) {
-    // ✅ FIX: Catch any errors outside withAuthAdmin (e.g., MongoDB connection errors)
-    // Ensure we always return JSON, not HTML error page
-    console.error('[Admin Product API] DELETE - Outer catch error:', error);
-    
-    const errorMessage = error instanceof Error 
-      ? error.message 
-      : 'Failed to delete product';
-    
-    return NextResponse.json(
-      { 
-        error: errorMessage,
-        code: 'INTERNAL_ERROR',
-        details: process.env.NODE_ENV === 'development' && error instanceof Error
-          ? { 
-              stack: error.stack,
-              name: error.name,
-            }
-          : undefined,
-      },
-      { 
-        status: 500,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-  }
+  });
 }
 
