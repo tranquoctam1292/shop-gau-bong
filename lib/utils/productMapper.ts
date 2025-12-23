@@ -1,0 +1,934 @@
+/**
+ * Product Mapper Utility
+ * 
+ * Map WooCommerce REST API product format sang frontend format
+ * để đảm bảo tương thích với components hiện tại
+ * 
+ * Note: This file still supports mapping from WooCommerce format for backward compatibility
+ * during migration. New code should use mapMongoProduct() instead.
+ */
+
+import type { WooCommerceProduct } from '@/types/woocommerce';
+import type { MongoVariant } from '@/types/mongodb';
+
+// Types for productDataMetaBox (backward compatibility)
+interface ProductDataMetaBoxVariation {
+  id: string;
+  attributes?: Record<string, string>;
+  regularPrice?: number;
+  salePrice?: number;
+  stockQuantity?: number;
+  sku?: string;
+  image?: string;
+}
+
+interface ProductDataMetaBoxAttribute {
+  name: string;
+  values?: string[];
+  visible?: boolean;
+  variation?: boolean;
+  globalAttributeId?: string;
+  usedForVariations?: boolean;
+}
+
+/**
+ * Helper function để extract ACF field value từ meta_data array
+ * (Extracted from lib/api/woocommerce.ts for independence)
+ * 
+ * @param metaData - Array of meta_data objects
+ * @param key - Key to extract
+ * @returns Value hoặc undefined
+ */
+function getMetaValue(metaData: Array<{ key: string; value: unknown }>, key: string): unknown {
+  const meta = metaData?.find(m => m.key === key);
+  return meta?.value;
+}
+
+/**
+ * Mapped Product Type - Format cho frontend components
+ * Tương thích với GraphQL product format hiện tại
+ */
+export interface MappedProduct {
+  id: string; // GraphQL ID format (hoặc databaseId)
+  databaseId: string | number; // MongoDB ObjectId string (or number for backward compatibility)
+  name: string;
+  slug: string;
+  price: string;
+  regularPrice: string;
+  salePrice: string;
+  onSale: boolean;
+  minPrice?: number; // Minimum price (for variable products)
+  maxPrice?: number; // Maximum price (for variable products)
+  image: {
+    id?: string; // Attachment ID (new structure)
+    sourceUrl: string;
+    altText: string;
+  } | null;
+  galleryImages: Array<{
+    id?: string; // Attachment ID (new structure)
+    sourceUrl: string;
+    altText: string;
+  }>;
+  description: string;
+  shortDescription: string;
+  sku: string;
+  stockStatus: string;
+  stockQuantity: number | null;
+  weight: string | null;
+  length: number | null;
+  width: number | null;
+  height: number | null;
+  volumetricWeight: number | null;
+  material: string | null;
+  origin: string | null;
+  categories: Array<{
+    id: string | number; // MongoDB ObjectId (string) or legacy number
+    name: string;
+    slug: string;
+  }>;
+  tags: Array<{
+    id: number;
+    name: string;
+    slug: string;
+  }>;
+  // Product attributes for variants (Size, Color, etc.)
+  attributes?: Array<{
+    id: number;
+    name: string;
+    options: string[];
+    position: number;
+    visible: boolean;
+    variation: boolean;
+    globalAttributeId?: string; // Reference to global attribute ID (for Phase 6)
+  }>;
+  // Product type: simple, variable, grouped, external
+  type?: 'simple' | 'variable' | 'grouped' | 'external';
+  // Variation IDs (for variable products)
+  variations?: number[];
+  // Status field (draft, publish, trash)
+  status?: 'draft' | 'publish' | 'trash';
+  // isActive field (for backward compatibility)
+  isActive?: boolean;
+  // Optimistic locking version field
+  version?: number;
+}
+
+/**
+ * Map WooCommerce REST API product to frontend format
+ * 
+ * @deprecated This function is only used in migration scripts. 
+ * For production code, use `mapMongoProduct()` instead.
+ * 
+ * @param wcProduct - WooCommerce product từ REST API
+ * @returns Mapped product cho frontend
+ */
+export function mapWooCommerceProduct(wcProduct: WooCommerceProduct): MappedProduct {
+  // Extract ACF fields từ meta_data
+  const length = getMetaValue(wcProduct.meta_data, 'length') as number | undefined;
+  const width = getMetaValue(wcProduct.meta_data, 'width') as number | undefined;
+  const height = getMetaValue(wcProduct.meta_data, 'height') as number | undefined;
+  const volumetricWeight = getMetaValue(wcProduct.meta_data, 'volumetric_weight') as number | undefined;
+  const material = getMetaValue(wcProduct.meta_data, 'material') as string | undefined;
+  const origin = getMetaValue(wcProduct.meta_data, 'origin') as string | undefined;
+
+  // Map dimensions từ WooCommerce dimensions object (nếu có)
+  // Ưu tiên ACF fields, fallback về WooCommerce dimensions
+  const finalLength = length || (wcProduct.dimensions?.length ? parseFloat(wcProduct.dimensions.length) : null);
+  const finalWidth = width || (wcProduct.dimensions?.width ? parseFloat(wcProduct.dimensions.width) : null);
+  const finalHeight = height || (wcProduct.dimensions?.height ? parseFloat(wcProduct.dimensions.height) : null);
+
+  return {
+    id: `gid://shop-gau-bong/Product/${wcProduct.id}`, // GraphQL ID format (tương thích)
+    databaseId: wcProduct.id,
+    name: wcProduct.name,
+    slug: wcProduct.slug,
+    price: wcProduct.price || '0',
+    regularPrice: wcProduct.regular_price || wcProduct.price || '0',
+    salePrice: wcProduct.sale_price || '',
+    onSale: wcProduct.on_sale || false,
+    image: wcProduct.images?.[0] ? {
+      sourceUrl: wcProduct.images[0].src,
+      altText: wcProduct.images[0].alt || wcProduct.name,
+    } : null,
+    galleryImages: wcProduct.images?.slice(1).map(img => ({
+      sourceUrl: img.src,
+      altText: img.alt || wcProduct.name,
+    })) || [],
+    description: wcProduct.description || '',
+    shortDescription: wcProduct.short_description || '',
+    sku: wcProduct.sku || '',
+    stockStatus: wcProduct.stock_status || 'instock',
+    stockQuantity: wcProduct.stock_quantity,
+    weight: wcProduct.weight || null,
+    length: finalLength,
+    width: finalWidth,
+    height: finalHeight,
+    volumetricWeight: volumetricWeight || null,
+    material: material || null,
+    origin: origin || null,
+    categories: wcProduct.categories || [],
+    tags: wcProduct.tags || [],
+    // Map attributes for variant selection
+    attributes: wcProduct.attributes || [],
+    // Product type
+    type: wcProduct.type || 'simple',
+    // Variation IDs (for variable products)
+    variations: wcProduct.variations || [],
+  };
+}
+
+/**
+ * Map array of WooCommerce products
+ * 
+ * @deprecated This function is only used in migration scripts.
+ * For production code, use `mapMongoProducts()` instead.
+ * 
+ * @param wcProducts - Array of WooCommerce products
+ * @returns Array of mapped products
+ */
+export function mapWooCommerceProducts(wcProducts: WooCommerceProduct[]): MappedProduct[] {
+  return wcProducts.map(mapWooCommerceProduct);
+}
+
+/**
+ * Map WooCommerce category to frontend format
+ */
+export interface MappedCategory {
+  id: string; // MongoDB ObjectId as string
+  databaseId: number | string; // For backward compatibility (can be ObjectId string or number)
+  name: string;
+  slug: string;
+  count: number | null;
+  parentId: string | null; // Parent category ID as string (ObjectId string), null = top-level
+  image: {
+    sourceUrl: string;
+    altText: string;
+  } | null;
+  status?: 'active' | 'inactive'; // NEW
+  metaTitle?: string; // NEW
+  metaDesc?: string; // NEW
+  deletedAt?: Date | null; // NEW
+  position?: number; // NEW - for sorting
+  featured?: boolean; // NEW - for homepage display (max 4)
+  children?: MappedCategory[]; // NEW - for tree structure
+  level?: number; // NEW - for tree indentation
+}
+
+/**
+ * Map WooCommerce category
+ * 
+ * @deprecated This function is only used in migration scripts.
+ * For production code, use `mapMongoCategory()` instead.
+ * 
+ * @param wcCategory - WooCommerce category từ REST API
+ * @returns Mapped category cho frontend
+ */
+export function mapWooCommerceCategory(wcCategory: {
+  id: number;
+  name: string;
+  slug: string;
+  count: number;
+  parent?: number; // Parent category ID (0 = top-level, undefined = not provided)
+  image: {
+    src: string;
+    alt: string;
+  } | null;
+}): MappedCategory {
+  return {
+    id: `gid://shop-gau-bong/ProductCategory/${wcCategory.id}`, // GraphQL ID format
+    databaseId: wcCategory.id,
+    name: wcCategory.name,
+    slug: wcCategory.slug,
+    count: wcCategory.count || null,
+    parentId: wcCategory.parent !== undefined && wcCategory.parent !== 0 ? String(wcCategory.parent) : null, // 0 = top-level, null = not provided
+    image: wcCategory.image ? {
+      sourceUrl: wcCategory.image.src,
+      altText: wcCategory.image.alt || wcCategory.name,
+    } : null,
+  };
+}
+
+/**
+ * Map array of WooCommerce categories
+ * 
+ * @deprecated This function is only used in migration scripts.
+ * For production code, use `mapMongoCategories()` instead.
+ * 
+ * @param wcCategories - Array of WooCommerce categories
+ * @returns Array of mapped categories
+ */
+export function mapWooCommerceCategories(
+  wcCategories: Array<{
+    id: number;
+    name: string;
+    slug: string;
+    count: number;
+    parent?: number; // Parent category ID
+    image: {
+      src: string;
+      alt: string;
+    } | null;
+  }>
+): MappedCategory[] {
+  return wcCategories.map(mapWooCommerceCategory);
+}
+
+/**
+ * MongoDB Product Type (from database)
+ */
+export interface MongoProduct {
+  _id: { toString: () => string }; // ObjectId
+  id?: string;
+  name: string;
+  slug: string;
+  description?: string;
+  shortDescription?: string;
+  sku?: string;
+  minPrice: number;
+  maxPrice?: number;
+  // Image fields (new structure)
+  _thumbnail_id?: string; // Attachment ID for featured image
+  _product_image_gallery?: string; // Comma-separated attachment IDs for gallery
+  images?: string[]; // Array of image URLs (backward compatibility)
+  category?: string; // Category ID or slug
+  tags?: string[];
+  variants?: Array<{
+    id: string;
+    size: string;
+    color?: string;
+    colorCode?: string;
+    price: number;
+    stock: number;
+    image?: string;
+    sku?: string;
+  }>;
+  isHot?: boolean;
+  isActive: boolean;
+  status: 'draft' | 'publish' | 'trash';
+  // Optimistic Locking
+  version?: number; // Version field for optimistic locking (starts at 1)
+  // Product Data Meta Box
+  productDataMetaBox?: {
+    productType: 'simple' | 'variable' | 'grouped' | 'external';
+    isVirtual: boolean;
+    isDownloadable: boolean;
+    sku?: string;
+    manageStock: boolean;
+    stockQuantity?: number;
+    stockStatus: 'instock' | 'outofstock' | 'onbackorder';
+    weight?: number;
+    length?: number;
+    width?: number;
+    height?: number;
+    regularPrice?: number;
+    salePrice?: number; // Must be < regularPrice
+    salePriceStartDate?: Date;
+    salePriceEndDate?: Date;
+    costPrice?: number;
+    lowStockThreshold?: number;
+    backorders: 'no' | 'notify' | 'yes';
+    soldIndividually: boolean;
+    purchaseNote?: string;
+    menuOrder: number;
+    enableReviews: boolean;
+    attributes?: Array<{
+      name: string;
+      options: string[];
+      visible: boolean;
+      variation: boolean;
+    }>;
+    variations?: Array<{
+      id: string;
+      attributes: Record<string, string>;
+      regularPrice: number;
+      salePrice?: number;
+      stockQuantity?: number;
+      sku?: string;
+      image?: string;
+    }>;
+  };
+  length?: number;
+  width?: number;
+  height?: number;
+  weight?: number;
+  volumetricWeight?: number;
+  material?: string;
+  origin?: string;
+  deletedAt?: Date | null; // Soft delete timestamp
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * MongoDB Document type (with _id)
+ */
+type MongoDocument = MongoProduct;
+
+/**
+ * Map MongoDB product to frontend format
+ * 
+ * Maps a MongoDB product document to the frontend-compatible MappedProduct format.
+ * Handles null/undefined values gracefully with appropriate fallbacks.
+ * 
+ * @param mongoProduct - MongoDB product document (can be MongoProduct or MongoDocument)
+ * @returns Mapped product cho frontend với proper null/undefined handling
+ * 
+ * @example
+ * ```typescript
+ * const mongoProduct = await products.findOne({ _id: new ObjectId(id) });
+ * if (mongoProduct) {
+ *   const mapped = mapMongoProduct(mongoProduct);
+ *   // mapped.price, mapped.image, etc. are safely handled
+ * }
+ * ```
+ * 
+ * @remarks
+ * - Price: Falls back to '0' if missing (will display as "Liên hệ" via formatPrice)
+ * - Images: Returns null if no image available (components should use placeholder)
+ * - Stock: Calculates from variants or productDataMetaBox, returns null if 0
+ * - Dimensions: Returns null if missing (shipping calc handles gracefully)
+ */
+/**
+ * Map MongoDB product to frontend format
+ * 
+ * @param mongoProduct - MongoDB product document
+ * @param populatedCategories - Optional: Pre-populated categories array (from API level)
+ *                               If not provided, categories will be empty array
+ * @returns Mapped product cho frontend
+ */
+export function mapMongoProduct(
+  mongoProduct: MongoProduct | MongoDocument,
+  populatedCategories?: Array<{
+    id: string | number;
+    name: string;
+    slug: string;
+  }>
+): MappedProduct {
+  const productId = mongoProduct._id.toString();
+  
+  // Determine product type first
+  const hasVariants = (mongoProduct.variants && mongoProduct.variants.length > 0) ||
+                      (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0);
+  const isVariableProduct = mongoProduct.productDataMetaBox?.productType === 'variable' || hasVariants;
+  
+  // Priority 1: Use productDataMetaBox prices if available
+  // Priority 2: For variable products, DO NOT auto-calculate from variants (let frontend handle price range)
+  // Priority 3: For simple products, calculate from variants or use minPrice/maxPrice
+  const regularPrice = mongoProduct.productDataMetaBox?.regularPrice !== undefined
+    ? String(mongoProduct.productDataMetaBox.regularPrice)
+    : isVariableProduct
+    ? '0' // Variable products should not have regularPrice auto-filled from variations
+    : mongoProduct.variants && mongoProduct.variants.length > 0
+    ? String(Math.max(...mongoProduct.variants.map((v: MongoVariant) => v.price || (v as { regularPrice?: number }).regularPrice || 0)))
+    : String(mongoProduct.maxPrice || mongoProduct.minPrice || 0);
+  
+  const salePrice = mongoProduct.productDataMetaBox?.salePrice !== undefined
+    ? String(mongoProduct.productDataMetaBox.salePrice)
+    : '';
+  
+  const onSale = Boolean(salePrice && parseFloat(salePrice) > 0 && parseFloat(salePrice) < parseFloat(regularPrice));
+  
+  // Use salePrice if on sale, otherwise use regularPrice
+  // If price is 0 or invalid, it will be handled by formatPrice to show "Liên hệ"
+  const price = onSale ? salePrice : regularPrice;
+  
+  // Extract attributes from variants (priority: variants > productDataMetaBox.variations)
+  // Priority 1: Use variants array (converted from productDataMetaBox.variations)
+  // Priority 2: Extract from productDataMetaBox.variations if variants not available (backward compatibility)
+  let sizeOptions: string[] = [];
+  let colorOptions: string[] = [];
+  
+  if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+    // Use variants array (new format)
+    // Filter out empty/null/undefined values
+    const allSizes = mongoProduct.variants.map((v: MongoVariant) => v.size).filter(Boolean);
+    const allColors = mongoProduct.variants.map((v: MongoVariant) => v.color).filter(Boolean);
+    
+    sizeOptions = [...new Set(allSizes
+      .filter((size): size is string => Boolean(size) && String(size).trim().length > 0)
+      .map((size: string) => String(size).trim()))] as string[];
+    colorOptions = [...new Set(allColors
+      .filter((color): color is string => Boolean(color) && String(color).trim().length > 0)
+      .map((color: string) => String(color).trim()))] as string[];
+  } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+    // Fallback: Extract from productDataMetaBox.variations (backward compatibility)
+    mongoProduct.productDataMetaBox.variations.forEach((variation: ProductDataMetaBoxVariation) => {
+      if (variation.attributes) {
+        Object.entries(variation.attributes).forEach(([attrName, value]) => {
+          const attrNameLower = attrName.toLowerCase();
+          if (attrNameLower.includes('size') || attrNameLower === 'pa_size' || attrNameLower === 'kích thước') {
+            const size = String(value).trim();
+            if (size && size.length > 0 && !sizeOptions.includes(size)) {
+              sizeOptions.push(size);
+            }
+          } else if (attrNameLower.includes('color') || attrNameLower === 'pa_color' || attrNameLower === 'màu') {
+            const color = String(value).trim();
+            if (color && color.length > 0 && !colorOptions.includes(color)) {
+              colorOptions.push(color);
+            }
+          }
+        });
+      }
+    });
+  }
+  
+  // Build attributes array
+  // Priority: Use productDataMetaBox.attributes if available (includes globalAttributeId)
+  // Fallback: Build from variants/extracted options
+  const attributes: Array<{
+    id: number;
+    name: string;
+    options: string[];
+    position: number;
+    visible: boolean;
+    variation: boolean;
+    globalAttributeId?: string;
+  }> = [];
+  
+  // Check if productDataMetaBox.attributes exists (new format with globalAttributeId)
+  if (mongoProduct.productDataMetaBox?.attributes && mongoProduct.productDataMetaBox.attributes.length > 0) {
+    // Map from productDataMetaBox.attributes (includes globalAttributeId)
+    mongoProduct.productDataMetaBox.attributes.forEach((attr: ProductDataMetaBoxAttribute, index: number) => {
+      if (attr.values && attr.values.length > 0) {
+        attributes.push({
+          id: index + 1,
+          name: attr.name,
+          options: attr.values,
+          position: index,
+          visible: true,
+          variation: attr.usedForVariations || false,
+          globalAttributeId: attr.globalAttributeId, // Include globalAttributeId
+        });
+      }
+    });
+  } else {
+    // Fallback: Build from extracted options (backward compatibility)
+    if (sizeOptions.length > 0) {
+      attributes.push({
+        id: 1,
+        name: 'pa_size',
+        options: sizeOptions,
+        position: 0,
+        visible: true,
+        variation: true,
+      });
+    }
+    
+    if (colorOptions.length > 0) {
+      attributes.push({
+        id: 2,
+        name: 'pa_color',
+        options: colorOptions,
+        position: 1,
+        visible: true,
+        variation: true,
+      });
+    }
+  }
+  
+  // Determine product type (use already calculated isVariableProduct)
+  const type: 'simple' | 'variable' = isVariableProduct ? 'variable' : 'simple';
+  
+  // Stock calculation logic:
+  // For variable products: Always calculate from variants (ignore productDataMetaBox.stockQuantity)
+  // For simple products: Use productDataMetaBox.stockQuantity if available
+  let stockQuantity: number | null = null;
+  let stockStatus: string = 'instock';
+  
+  if (hasVariants) {
+    // Variable product: Calculate sum from variants
+    // Priority 1: Sum from variants array (new format)
+    if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+      stockQuantity = mongoProduct.variants.reduce((sum: number, v: MongoVariant) => {
+        // Support both 'stock' and 'stockQuantity' fields in variants
+        const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : (v.stock || 0);
+        return sum + (variantStock || 0);
+      }, 0);
+      
+      // Check if any variant has stock for stockStatus
+      const hasStock = mongoProduct.variants.some((v: MongoVariant) => {
+        const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : (v.stock || 0);
+        return (variantStock || 0) > 0;
+      });
+      stockStatus = hasStock ? 'instock' : 'outofstock';
+    } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+      // Priority 2: Sum from productDataMetaBox.variations (backward compatibility)
+      stockQuantity = mongoProduct.productDataMetaBox.variations.reduce((sum: number, v: ProductDataMetaBoxVariation) => {
+        const variantStock = v.stockQuantity !== undefined ? v.stockQuantity : 0;
+        return sum + (variantStock || 0);
+      }, 0);
+      
+      // Check if any variation has stock
+      const hasStock = mongoProduct.productDataMetaBox.variations.some((v: ProductDataMetaBoxVariation) => (v.stockQuantity || 0) > 0);
+      stockStatus = hasStock ? 'instock' : 'outofstock';
+    } else {
+      // No variants found, use productDataMetaBox values or default
+      stockQuantity = mongoProduct.productDataMetaBox?.stockQuantity !== undefined
+        ? mongoProduct.productDataMetaBox.stockQuantity
+        : null;
+      stockStatus = mongoProduct.productDataMetaBox?.stockStatus || 'instock';
+    }
+    // If sum is 0, set to null
+    if (stockQuantity === 0) {
+      stockQuantity = null;
+    }
+  } else {
+    // Simple product: Use productDataMetaBox.stockQuantity if available
+    stockQuantity = mongoProduct.productDataMetaBox?.stockQuantity !== undefined
+      ? mongoProduct.productDataMetaBox.stockQuantity
+      : null;
+    // Stock status: Use productDataMetaBox.stockStatus or calculate from stockQuantity
+    stockStatus = mongoProduct.productDataMetaBox?.stockStatus !== undefined
+      ? mongoProduct.productDataMetaBox.stockStatus
+      : (stockQuantity !== null && stockQuantity > 0) ? 'instock' : 'outofstock';
+  }
+  
+  // Use ObjectId string directly for databaseId (don't convert to number to avoid scientific notation)
+  // Keep as string to preserve ObjectId format and prevent precision loss
+  const databaseId = productId || '';
+  
+  const mappedResult = {
+    id: productId || '', // Use MongoDB ObjectId directly (not GraphQL format), fallback to empty string
+    databaseId: databaseId, // Use ObjectId string directly (not converted to number)
+    name: mongoProduct.name || '', // Fallback to empty string if missing
+    slug: mongoProduct.slug || '', // Fallback to empty string if missing
+    price,
+    regularPrice,
+    salePrice,
+    onSale,
+    // BUSINESS LOGIC FIX: Robust Price Logic - Fallback từ variants nếu minPrice/maxPrice bị null/0
+    minPrice: (() => {
+      // Nếu minPrice có giá trị hợp lệ (> 0), sử dụng nó
+      if (mongoProduct.minPrice !== undefined && mongoProduct.minPrice !== null && mongoProduct.minPrice > 0) {
+        return mongoProduct.minPrice;
+      }
+      
+      // Fallback: Tính từ variants nếu có
+      if (hasVariants) {
+        if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+          const variantPrices = mongoProduct.variants
+            .map((v: MongoVariant) => {
+              // Ưu tiên price, fallback về regularPrice hoặc salePrice
+              return v.price || (v as any).regularPrice || (v as any).salePrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variantPrices.length > 0) {
+            return Math.min(...variantPrices);
+          }
+        } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+          const variationPrices = mongoProduct.productDataMetaBox.variations
+            .map((v: ProductDataMetaBoxVariation) => {
+              // Ưu tiên salePrice nếu < regularPrice, fallback về regularPrice
+              if (v.salePrice && v.regularPrice && v.salePrice < v.regularPrice) {
+                return v.salePrice;
+              }
+              return v.regularPrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variationPrices.length > 0) {
+            return Math.min(...variationPrices);
+          }
+        }
+      }
+      
+      // Fallback cuối cùng: Sử dụng regularPrice từ productDataMetaBox
+      if (mongoProduct.productDataMetaBox?.regularPrice !== undefined && mongoProduct.productDataMetaBox.regularPrice > 0) {
+        return mongoProduct.productDataMetaBox.regularPrice;
+      }
+      
+      // Trả về undefined nếu không tìm thấy giá hợp lệ
+      return undefined;
+    })(),
+    maxPrice: (() => {
+      // Nếu maxPrice có giá trị hợp lệ (> 0), sử dụng nó
+      if (mongoProduct.maxPrice !== undefined && mongoProduct.maxPrice !== null && mongoProduct.maxPrice > 0) {
+        return mongoProduct.maxPrice;
+      }
+      
+      // Fallback: Tính từ variants nếu có
+      if (hasVariants) {
+        if (mongoProduct.variants && mongoProduct.variants.length > 0) {
+          const variantPrices = mongoProduct.variants
+            .map((v: MongoVariant) => {
+              // Ưu tiên price, fallback về regularPrice hoặc salePrice
+              return v.price || (v as any).regularPrice || (v as any).salePrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variantPrices.length > 0) {
+            return Math.max(...variantPrices);
+          }
+        } else if (mongoProduct.productDataMetaBox?.variations && mongoProduct.productDataMetaBox.variations.length > 0) {
+          const variationPrices = mongoProduct.productDataMetaBox.variations
+            .map((v: ProductDataMetaBoxVariation) => {
+              // Ưu tiên salePrice nếu < regularPrice, fallback về regularPrice
+              if (v.salePrice && v.regularPrice && v.salePrice < v.regularPrice) {
+                return v.salePrice;
+              }
+              return v.regularPrice || 0;
+            })
+            .filter((price: number) => price > 0 && !isNaN(price));
+          
+          if (variationPrices.length > 0) {
+            return Math.max(...variationPrices);
+          }
+        }
+      }
+      
+      // Fallback cuối cùng: Sử dụng regularPrice từ productDataMetaBox (simple product)
+      if (mongoProduct.productDataMetaBox?.regularPrice !== undefined && mongoProduct.productDataMetaBox.regularPrice > 0) {
+        return mongoProduct.productDataMetaBox.regularPrice;
+      }
+      
+      // Trả về undefined nếu không tìm thấy giá hợp lệ
+      return undefined;
+    })(),
+    // Map images - FIX: Priority _thumbnail_id first, then fallback to images array
+    // ✅ PERFORMANCE: Images từ Vercel Blob được optimize tự động bởi Next.js Image Optimization API
+    // Next.js sẽ tự động resize và convert sang WebP/AVIF format dựa trên `sizes` prop trong Image component
+    // Đảm bảo tất cả Image components có `sizes` prop để tối ưu LCP (Largest Contentful Paint)
+    image: (() => {
+      // FIX: Priority 1: Use _thumbnail_id first (resolveUrl(_thumbnail_id))
+      // This ensures that if Admin updates featured image via Media Library (saved to _thumbnail_id)
+      // but doesn't update images array, Frontend will still show the new image
+      // Logic: resolveUrl(_thumbnail_id) || images[0]
+      // 
+      // When Admin selects image from Media Library:
+      // - _thumbnail_id is saved as URL (from Media Library)
+      // - images array may not be synced immediately (still contains old image)
+      // - This logic ensures _thumbnail_id (new image) takes priority over images[0] (old image)
+      if (mongoProduct._thumbnail_id) {
+        const thumbnailId = mongoProduct._thumbnail_id;
+        // Check if _thumbnail_id is already a full URL (direct URL from Media Library)
+        if (typeof thumbnailId === 'string' && 
+            (thumbnailId.startsWith('http://') || thumbnailId.startsWith('https://'))) {
+          // _thumbnail_id is a URL - use it directly (highest priority)
+          // This handles the case where Admin updated featured image but images array wasn't synced
+          return {
+            id: thumbnailId,
+            sourceUrl: thumbnailId,
+            altText: mongoProduct.name,
+          };
+        }
+        // If _thumbnail_id exists but is not a URL (e.g., media ID or pathname),
+        // fall through to Priority 2 to use images[0] (which may have been synced by API routes)
+        // But we'll still use _thumbnail_id as the id to maintain reference
+      }
+      
+      // Priority 2: Fallback to images array (images[0])
+      // Only use images[0] if _thumbnail_id doesn't exist or is not a valid URL
+      // This handles:
+      // - Backward compatibility (products without _thumbnail_id)
+      // - Cases where images array is the source of truth (synced by API routes)
+      // - Cases where _thumbnail_id is not a URL (media ID that needs resolution)
+      if (mongoProduct.images && Array.isArray(mongoProduct.images) && mongoProduct.images.length > 0) {
+        const firstImageUrl = mongoProduct.images[0];
+        if (firstImageUrl && typeof firstImageUrl === 'string' && firstImageUrl.length > 0) {
+          return {
+            // Use _thumbnail_id as id if it exists (even if not a URL), otherwise use image URL
+            // This ensures frontend knows the source of the image
+            id: mongoProduct._thumbnail_id || firstImageUrl,
+            sourceUrl: firstImageUrl,
+            altText: mongoProduct.name,
+          };
+        }
+      }
+      
+      // No image available - fallback to placeholder
+      // Components should handle null image and use placeholder: '/images/teddy-placeholder.png'
+      return null;
+    })(),
+    galleryImages: (() => {
+      // Priority 1: Use _product_image_gallery (comma-separated IDs)
+      if (mongoProduct._product_image_gallery) {
+        const galleryIds = mongoProduct._product_image_gallery.split(',').filter(Boolean);
+        const imageUrls = mongoProduct.images || [];
+        
+        // Map gallery IDs to image URLs
+        // Try to match IDs with URLs in images array, or use images array as fallback
+        return galleryIds.map((id: string, idx: number) => {
+          const trimmedId = id.trim();
+          let imageUrl = '';
+          
+          // Check if ID is already a full URL
+          if (trimmedId.startsWith('http://') || trimmedId.startsWith('https://')) {
+            imageUrl = trimmedId;
+          } else if (imageUrls.length > idx + 1) {
+            // Use corresponding image from array (skip first image which is featured)
+            imageUrl = imageUrls[idx + 1];
+          } else if (imageUrls.length > 0) {
+            // Fallback: use any available image
+            imageUrl = imageUrls[idx % imageUrls.length];
+          }
+          
+          return {
+            id: trimmedId,
+            sourceUrl: imageUrl,
+            altText: mongoProduct.name,
+          };
+        }).filter((img: { sourceUrl: string }) => img.sourceUrl); // Filter out images without URL
+      }
+      
+      // Priority 2: Use images array (old structure) - skip first image (featured)
+      if (mongoProduct.images && mongoProduct.images.length > 1) {
+        return mongoProduct.images.slice(1).map((img: string) => ({
+          sourceUrl: img,
+          altText: mongoProduct.name,
+        }));
+      }
+      
+      // No gallery images
+      return [];
+    })(),
+    description: mongoProduct.description || '',
+    shortDescription: mongoProduct.shortDescription || '',
+    sku: mongoProduct.productDataMetaBox?.sku || mongoProduct.sku || '',
+    // Use calculated stockQuantity and stockStatus
+    stockStatus,
+    stockQuantity,
+    weight: mongoProduct.weight ? String(mongoProduct.weight) : null,
+    length: mongoProduct.length || null,
+    width: mongoProduct.width || null,
+    height: mongoProduct.height || null,
+    volumetricWeight: mongoProduct.volumetricWeight || null,
+    material: mongoProduct.material || null,
+    origin: mongoProduct.origin || null,
+    // FIX: Populate categories from parameter (populated by API level)
+    // If populatedCategories is provided, use it; otherwise return empty array
+    // API routes should fetch categories and pass them to this function
+    categories: populatedCategories || [],
+    tags: (mongoProduct.tags || []).map((tag: string, idx: number) => ({
+      id: idx + 1,
+      name: tag,
+      slug: tag.toLowerCase().replace(/\s+/g, '-'),
+    })),
+    attributes: attributes.length > 0 ? attributes : undefined,
+    type,
+    variations: (mongoProduct.variants?.map((_: MongoVariant, idx: number) => idx + 1) || 
+                 mongoProduct.productDataMetaBox?.variations?.map((_: ProductDataMetaBoxVariation, idx: number) => idx + 1) || []),
+    status: mongoProduct.status || 'draft',
+    isActive: mongoProduct.isActive !== undefined ? mongoProduct.isActive : (mongoProduct.status === 'publish'),
+    // Include version for optimistic locking
+    version: mongoProduct.version || 0,
+  };
+  
+  return mappedResult;
+}
+
+/**
+ * Map array of MongoDB products
+ * 
+ * @param mongoProducts - Array of MongoDB products
+ * @returns Array of mapped products
+ */
+/**
+ * Map array of MongoDB products
+ * 
+ * @param mongoProducts - Array of MongoDB products
+ * @param populatedCategoriesMap - Optional: Map of product ID to populated categories array
+ *                                  If not provided, categories will be empty arrays
+ * @returns Array of mapped products
+ */
+export function mapMongoProducts(
+  mongoProducts: MongoProduct[],
+  populatedCategoriesMap?: Map<string, Array<{ id: string | number; name: string; slug: string }>>
+): MappedProduct[] {
+  return mongoProducts.map((product) => {
+    const productId = product._id.toString();
+    const populatedCategories = populatedCategoriesMap?.get(productId);
+    return mapMongoProduct(product, populatedCategories);
+  });
+}
+
+/**
+ * MongoDB Category Type (from database)
+ */
+export interface MongoCategory {
+  _id: { toString: () => string }; // ObjectId
+  name: string;
+  slug: string;
+  description?: string;
+  parentId?: string | null; // ObjectId as string or null
+  imageUrl?: string;
+  position?: number;
+  count?: number;
+  status?: 'active' | 'inactive'; // NEW: Default 'active'
+  metaTitle?: string; // NEW: SEO title
+  metaDesc?: string; // NEW: SEO description (max 500 chars)
+  featured?: boolean; // NEW: Featured category for homepage (max 4)
+  deletedAt?: Date | null; // NEW: Soft delete (null = not deleted)
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Map MongoDB category to frontend format
+ * 
+ * Maps a MongoDB category document to the frontend-compatible MappedCategory format.
+ * Handles null/undefined values gracefully with appropriate fallbacks.
+ * 
+ * @param mongoCategory - MongoDB category document
+ * @returns Mapped category cho frontend với proper null/undefined handling
+ * 
+ * @example
+ * ```typescript
+ * const category = await categories.findOne({ _id: new ObjectId(id) });
+ * if (category) {
+ *   const mapped = mapMongoCategory(category);
+ *   // mapped.image, mapped.parentId, etc. are safely handled
+ * }
+ * ```
+ * 
+ * @remarks
+ * - Image: Returns null if no image available (components should use placeholder)
+ * - ParentId: Returns null if top-level category (parentId is null or '0')
+ * - Count: Returns null if not provided (instead of 0)
+ */
+export function mapMongoCategory(mongoCategory: MongoCategory): MappedCategory {
+  const categoryId = mongoCategory._id.toString();
+  
+  // Convert parentId from ObjectId string to string (keep as string for compatibility)
+  let parentId: string | null = null;
+  if (mongoCategory.parentId) {
+    if (typeof mongoCategory.parentId === 'string') {
+      parentId = mongoCategory.parentId;
+    } else {
+      // parentId could be ObjectId or other type, convert to string
+      parentId = String(mongoCategory.parentId);
+    }
+  }
+  
+  return {
+    id: categoryId, // Use MongoDB ObjectId directly as string
+    // FIX: Use categoryId string directly instead of parseInt to avoid precision loss
+    // parseInt(categoryId, 16) on 24-char hex string can cause overflow or incorrect values
+    // Keep as string for consistency with MongoDB ObjectId format
+    databaseId: categoryId, // Use ObjectId string directly (not converted to number)
+    name: mongoCategory.name,
+    slug: mongoCategory.slug,
+    count: mongoCategory.count || null,
+    parentId: parentId, // Keep as string (ObjectId string)
+    image: mongoCategory.imageUrl ? {
+      sourceUrl: mongoCategory.imageUrl,
+      altText: mongoCategory.name,
+    } : null,
+    status: mongoCategory.status || 'active', // Default to 'active'
+    metaTitle: mongoCategory.metaTitle,
+    metaDesc: mongoCategory.metaDesc,
+    featured: mongoCategory.featured || false, // Default to false
+    deletedAt: mongoCategory.deletedAt || null,
+  };
+}
+
+/**
+ * Map array of MongoDB categories
+ * 
+ * @param mongoCategories - Array of MongoDB categories
+ * @returns Array of mapped categories
+ */
+export function mapMongoCategories(mongoCategories: MongoCategory[]): MappedCategory[] {
+  return mongoCategories.map(mapMongoCategory);
+}
+

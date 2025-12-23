@@ -1,0 +1,318 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import { useMemo, memo } from 'react';
+import { MenuDropdown, type MenuDropdownItem } from './MenuDropdown';
+import { ProductsMegaMenu } from './ProductsMegaMenu';
+import { ShopMegaMenu } from './ShopMegaMenu';
+import { cn } from '@/lib/utils/cn';
+import { mainNavigation } from '@/lib/constants/menuData';
+import type { MenuItem as ConfigMenuItem } from '@/types/menu';
+import { getMenuItemColor } from '@/types/menu';
+import type { MenuItem, Menu } from '@/lib/utils/menuServer';
+
+interface DynamicNavigationMenuProps {
+  menu: Menu | null;
+  fallbackToHardcoded?: boolean;
+}
+
+/**
+ * Dynamic Navigation Menu Component (Client Component)
+ * 
+ * Renders navigation menu from server-fetched data
+ * Falls back to hardcoded menu if no menu found or if fallbackToHardcoded is true
+ * Desktop: Horizontal menu với hover dropdowns và mega menu
+ * Mobile: Hidden (use DynamicMobileMenu instead)
+ * 
+ * ✅ PERFORMANCE: Menu data is fetched server-side to prevent render blocking
+ * ✅ FIX: Memoized to prevent infinite re-renders
+ */
+export const DynamicNavigationMenu = memo(function DynamicNavigationMenu({
+  menu,
+  fallbackToHardcoded = true,
+}: DynamicNavigationMenuProps) {
+  // If error or no menu, fallback to hardcoded menu
+  if (!menu || !menu.items || menu.items.length === 0) {
+    if (fallbackToHardcoded) {
+      return <HardcodedNavigationMenu />;
+    }
+    return null;
+  }
+
+  // Render menu from API
+  // Filter out ghost links (items with url === '#' or invalid references)
+  // ✅ FIX: Memoize validItems with stable key based on item IDs
+  const itemsKey = menu.items.map(item => item.id).join(',');
+  const validItems = useMemo(() => {
+    return menu.items.filter((item) => {
+      // Skip items with invalid URLs (ghost links from deleted references)
+      if (!item.url || item.url === '#') {
+        return false;
+      }
+      return true;
+    });
+  }, [itemsKey]); // Use stable string key instead of array reference
+
+  return (
+    <nav className="hidden lg:flex items-center space-x-1 relative z-50 overflow-visible">
+      {validItems.map((item) => (
+        <MenuItemRenderer key={item.id} item={item} />
+      ))}
+    </nav>
+  );
+}, (prevProps, nextProps) => {
+  // Simple comparison: only re-render if menu reference or structure changes
+  if (prevProps.menu === nextProps.menu) return true; // Same reference, skip re-render
+  if (!prevProps.menu && !nextProps.menu) return true; // Both null, skip re-render
+  if (!prevProps.menu || !nextProps.menu) return false; // One is null, re-render
+  if (prevProps.menu.id !== nextProps.menu.id) return false; // Different menu, re-render
+  if (prevProps.fallbackToHardcoded !== nextProps.fallbackToHardcoded) return false; // Different fallback, re-render
+  
+  // Compare items length and IDs
+  const prevItems = prevProps.menu.items || [];
+  const nextItems = nextProps.menu.items || [];
+  if (prevItems.length !== nextItems.length) return false;
+  
+  // Compare item IDs
+  for (let i = 0; i < prevItems.length; i++) {
+    if (prevItems[i].id !== nextItems[i].id) return false;
+  }
+  
+  return true; // Props are equal, skip re-render
+});
+
+/**
+ * Render individual menu item (recursive for nested items)
+ * ✅ FIX: Memoize component to prevent infinite re-renders
+ */
+const MenuItemRenderer = memo(function MenuItemRenderer({ item }: { item: MenuItem }) {
+  const pathname = usePathname();
+  const hasChildren = item.children && item.children.length > 0;
+  const isActive = pathname === item.url || (item.url !== '/' && pathname?.startsWith(item.url));
+
+  // ✅ FIX: Memoize dropdownItems to prevent infinite re-renders
+  // Calculate stable key from children IDs (computed once per render)
+  const childrenIdsKey = item.children?.map(c => c.id).join(',') || '';
+  const childrenLength = item.children?.length || 0;
+  
+  const dropdownItems: MenuDropdownItem[] = useMemo(() => {
+    if (!hasChildren || !item.children) {
+      return [];
+    }
+    return item.children.map((child) => ({
+      id: child.id,
+      label: child.title,
+      href: child.url,
+    }));
+  }, [hasChildren, childrenIdsKey, childrenLength]); // Use stable string key and length
+
+  // If item has children, render as dropdown
+  if (hasChildren) {
+
+    // Check if this is a products mega menu
+    // If label contains "Sản phẩm" or "Products", use ProductsMegaMenu with config from menuData
+    const isProductsMenu = item.title.toLowerCase().includes('sản phẩm') ||
+      item.title.toLowerCase().includes('products') ||
+      item.cssClass?.includes('products') ||
+      item.cssClass?.includes('mega-menu');
+
+    if (isProductsMenu) {
+      // Find products menu item from config to get megaMenu structure
+      const productsMenuItem = mainNavigation.find(mi => mi.id === 'products' && mi.type === 'mega');
+      if (productsMenuItem && productsMenuItem.megaMenu) {
+        return (
+          <ProductsMegaMenu
+            key={item.id}
+            label={item.title}
+            href={item.url}
+            menuItem={productsMenuItem}
+            className={item.cssClass || undefined}
+          />
+        );
+      }
+      // Fallback to ShopMegaMenu if config not found
+      return (
+        <ShopMegaMenu
+          key={item.id}
+          label={item.title}
+          href={item.url}
+          className={item.cssClass || undefined}
+        />
+      );
+    }
+
+    // Regular dropdown
+    return (
+      <MenuDropdown
+        key={item.id}
+        label={item.title}
+        href={item.url}
+        items={dropdownItems}
+        trigger="hover"
+        className={item.cssClass || undefined}
+      />
+    );
+  }
+
+  // Simple link item
+  return (
+    <Link
+      key={item.id}
+      href={item.url}
+      target={item.target}
+      className={cn(
+        'text-sm font-medium transition-colors',
+        'min-h-[44px] flex items-center px-3',
+        isActive 
+          ? 'text-primary font-semibold' 
+          : 'text-text-main hover:text-primary',
+        item.cssClass
+      )}
+    >
+      {item.iconClass && <span className={cn('mr-2', item.iconClass)} />}
+      {item.title}
+    </Link>
+  );
+}, (prevProps, nextProps) => {
+  // Simple comparison: only re-render if item structure actually changes
+  if (prevProps.item.id !== nextProps.item.id) return false;
+  if (prevProps.item.url !== nextProps.item.url) return false;
+  if (prevProps.item.title !== nextProps.item.title) return false;
+  if (prevProps.item.cssClass !== nextProps.item.cssClass) return false;
+  
+  // Compare children arrays by length and IDs (shallow comparison)
+  const prevChildren = prevProps.item.children || [];
+  const nextChildren = nextProps.item.children || [];
+  if (prevChildren.length !== nextChildren.length) return false;
+  
+  // Compare children IDs only (not full object comparison to avoid infinite loop)
+  const prevChildrenIds = prevChildren.map(c => c.id).join(',');
+  const nextChildrenIds = nextChildren.map(c => c.id).join(',');
+  if (prevChildrenIds !== nextChildrenIds) return false;
+  
+  return true; // Props are equal, skip re-render
+});
+
+/**
+ * Hardcoded Navigation Menu (Fallback)
+ * 
+ * Uses menu data from menuDataConfig
+ * Based on menu_gau_bong.md specification
+ */
+function HardcodedNavigationMenu() {
+  return (
+    <nav className="hidden lg:flex items-center space-x-1 relative z-50 overflow-visible">
+      {mainNavigation.map((item) => (
+        <ConfigMenuItemRenderer key={item.id} item={item} />
+      ))}
+    </nav>
+  );
+}
+
+/**
+ * Render menu item from config
+ */
+function ConfigMenuItemRenderer({ item }: { item: ConfigMenuItem }) {
+  const pathname = usePathname();
+  const isActive = pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
+  
+  // Link item
+  if (item.type === 'link') {
+    const hasSubItems = item.subItems && item.subItems.length > 0;
+    
+    if (hasSubItems) {
+      // Link with sub-items (dropdown)
+      const dropdownItems: MenuDropdownItem[] = item.subItems!.map((subItem) => ({
+        id: subItem.href,
+        label: subItem.label,
+        href: subItem.href,
+      }));
+
+  return (
+        <MenuDropdown
+          key={item.id}
+          label={item.label}
+          href={item.href}
+          items={dropdownItems}
+          trigger="hover"
+        />
+      );
+    }
+
+    // Simple link
+    const itemColor = getMenuItemColor(item);
+    return (
+      <Link
+        key={item.id}
+        href={item.href}
+        className={cn(
+          'text-sm font-medium transition-colors',
+          'min-h-[44px] flex items-center px-3',
+          isActive && 'text-primary font-semibold',
+          !isActive && item.highlight && 'font-bold',
+          !isActive && item.badge === 'sale' && 'text-red-600 hover:text-red-700'
+        )}
+        style={item.color && !isActive ? { color: itemColor } : undefined}
+      >
+        {item.label}
+        {item.badge && (
+          <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+            {item.badge === 'sale' ? 'Sale' : item.badge}
+          </span>
+        )}
+      </Link>
+    );
+  }
+
+  // Dropdown item
+  if (item.type === 'dropdown' && item.children && item.children.length > 0) {
+    const dropdownItems: MenuDropdownItem[] = item.children.map((child) => ({
+      id: child.id,
+      label: child.label,
+      href: child.href,
+      badge: child.badge,
+      icon: child.icon,
+    }));
+
+    return (
+      <MenuDropdown
+        key={item.id}
+        label={item.label}
+        href={item.href}
+        items={dropdownItems}
+        trigger="hover"
+      />
+    );
+  }
+
+  // Mega menu item
+  if (item.type === 'mega' && item.megaMenu) {
+    return (
+      <ProductsMegaMenu
+        key={item.id}
+        label={item.label}
+        href={item.href}
+        menuItem={item}
+      />
+    );
+  }
+
+  // Fallback to simple link
+  return (
+      <Link
+      key={item.id}
+      href={item.href}
+        className={cn(
+        'text-sm font-medium transition-colors',
+        'min-h-[44px] flex items-center px-3',
+        isActive 
+          ? 'text-primary font-semibold' 
+          : 'text-text-main hover:text-primary'
+        )}
+      >
+      {item.label}
+      </Link>
+  );
+}
+

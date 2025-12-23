@@ -1,0 +1,2007 @@
+﻿================================================================================
+FLOATING CONTACT WIDGET MODULE - SOURCE CODE (UPDATED)
+Generated: 2025-12-15 16:38:23
+Includes: All fixes from CONTACT.md review
+================================================================================
+
+
+--------------------------------------------------------------------------------
+FILE: types/mongodb.ts
+--------------------------------------------------------------------------------
+
+/**
+ * MongoDB Type Definitions
+ * 
+ * Types for MongoDB documents used in Custom CMS
+ * 
+ * These types represent the actual structure of documents in MongoDB,
+ * as opposed to WooCommerce REST API types which are kept for backward compatibility.
+ * 
+ * @see docs/SCHEMA_CONTEXT.md for detailed schema documentation
+ */
+
+/**
+ * MongoDB Order Type
+ * 
+ * Represents an order document in MongoDB
+ */
+export interface MongoOrder {
+  _id?: any; // ObjectId
+  orderNumber?: string;
+  createdAt?: Date | string;
+  updatedAt?: Date | string;
+  status?: string;
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded';
+  paymentMethod?: string;
+  paymentMethodTitle?: string;
+  customerName?: string;
+  customerEmail?: string;
+  customerPhone?: string;
+  billing?: {
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    postcode?: string;
+    country?: string;
+  };
+  shipping?: {
+    firstName?: string;
+    lastName?: string;
+    address1?: string;
+    address2?: string;
+    city?: string;
+    postcode?: string;
+    country?: string;
+  };
+  items?: Array<{
+    productId?: string;
+    variationId?: string;
+    productName?: string;
+    sku?: string;
+    quantity?: number;
+    price?: number | string;
+  }>;
+  subtotal?: number | string;
+  shippingTotal?: number | string;
+  total?: number | string;
+  totalTax?: number | string;
+  currency?: string;
+  customerNote?: string;
+  paymentMetadata?: Record<string, any>;
+  paidAt?: Date | string;
+  completedAt?: Date | string;
+  cancelledAt?: Date | string;
+}
+
+/**
+ * MongoDB Product Variant Type
+ * 
+ * Represents a product variant in MongoDB
+ * Note: MongoDB variants use direct `size` and `color` fields, NOT an `attributes` object
+ */
+export interface MongoVariant {
+  id?: string;
+  size: string;
+  color?: string;
+  colorCode?: string;
+  price: number;
+  stock?: number;
+  stockQuantity?: number;
+  image?: string;
+  sku?: string;
+  sku_normalized?: string; // NEW: Normalized SKU for duplicate checking
+}
+
+/**
+ * Smart SKU System Types
+ */
+
+/**
+ * SKU Settings Document
+ * Stores SKU generation patterns (global or category-specific)
+ */
+export interface SkuSetting {
+  _id?: any; // ObjectId
+  categoryId?: string | null; // null = global pattern, ObjectId = category-specific
+  pattern: string; // e.g., "{CATEGORY_CODE}-{PRODUCT_NAME}-{ATTRIBUTE_VALUE}-{INCREMENT}"
+  separator: string; // Default: "-"
+  caseType: 'UPPER' | 'LOWER'; // Default: 'UPPER'
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * SKU Abbreviation Document
+ * Stores abbreviation mappings for attributes (colors, sizes, materials, etc.)
+ * Note: Category codes are stored in categories.code field, not here
+ */
+export interface SkuAbbreviation {
+  _id?: any; // ObjectId
+  type: 'ATTRIBUTE'; // Only ATTRIBUTE (Category code in categories.code)
+  originalValue: string; // e.g., "Màu Đỏ", "Xanh Dương", "Size L"
+  shortCode: string; // e.g., "DO", "XD", "L"
+  categoryId?: string | null; // Optional: category-specific mapping
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * SKU Counter Document
+ * Atomic sequence counter for {INCREMENT} token
+ */
+export interface SkuCounter {
+  _id?: any; // ObjectId
+  key: string; // e.g., "CAT-ATTR-2025" (base SKU without increment)
+  sequence: number; // Current sequence number
+  updatedAt: Date;
+}
+
+/**
+ * SKU History Document
+ * Audit log for SKU changes (for order lookup, SEO redirect, debugging)
+ */
+export interface SkuHistory {
+  _id?: any; // ObjectId
+  productId: string; // Product ObjectId
+  variantId?: string; // Variant ID (if variant SKU changed)
+  oldSku: string; // Previous SKU
+  newSku: string; // New SKU
+  patternUsed?: string; // Pattern used to generate new SKU (for debugging)
+  reason: 'regenerate' | 'manual' | 'bulk_import'; // Reason for change
+  changedBy?: string; // Admin user ID
+  changedAt: Date;
+}
+
+/**
+ * Contact Widget Settings Document
+ * Stores configuration for Floating Contact Widget (Hotline, Zalo, Messenger)
+ */
+export interface ContactWidgetConfig {
+  _id?: any; // ObjectId
+  enabled: boolean;
+  position: 'left' | 'right';
+  primaryColor: string; // Hex color code (e.g., "#D6336C")
+  items: Array<{
+    type: 'hotline' | 'zalo' | 'messenger';
+    active: boolean;
+    label: string; // Display label (e.g., "Gọi ngay", "Chat Zalo")
+    value: string; // Phone number (for hotline/zalo) or Page ID (for messenger)
+    icon?: string; // Optional icon identifier
+  }>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+/**
+ * Frontend Order Type (Compatible with both WooCommerce and MongoDB formats)
+ * 
+ * This type is used by hooks and components that need to work with orders
+ * from either WooCommerce REST API (legacy) or MongoDB CMS API (current)
+ */
+export type Order = {
+  id: string | number;
+  number?: string;
+  orderNumber?: string;
+  status: string;
+  payment_method?: string;
+  paymentMethod?: string;
+  payment_method_title?: string;
+  paymentMethodTitle?: string;
+  date_created?: string;
+  createdAt?: Date | string;
+  billing: {
+    first_name?: string;
+    firstName?: string;
+    last_name?: string;
+    lastName?: string;
+    email?: string;
+    phone?: string;
+    address_1?: string;
+    address1?: string;
+    address_2?: string;
+    address2?: string;
+    city?: string;
+    postcode?: string;
+    country?: string;
+  };
+  shipping: {
+    first_name?: string;
+    firstName?: string;
+    last_name?: string;
+    lastName?: string;
+    address_1?: string;
+    address1?: string;
+    address_2?: string;
+    address2?: string;
+    city?: string;
+    postcode?: string;
+    country?: string;
+  };
+  line_items?: Array<{
+    id?: number | string;
+    product_id?: number | string;
+    productId?: string;
+    variation_id?: number | string;
+    variationId?: string;
+    name?: string;
+    productName?: string;
+    quantity?: number;
+    price?: string | number;
+    total?: string | number;
+    sku?: string;
+  }>;
+  items?: Array<{
+    productId?: string;
+    variationId?: string;
+    productName?: string;
+    sku?: string;
+    quantity?: number;
+    price?: number | string;
+  }>;
+  subtotal?: string | number;
+  shipping_total?: string | number;
+  shippingTotal?: string | number;
+  total?: string | number;
+  total_tax?: string | number;
+  totalTax?: string | number;
+  currency?: string;
+  customer_note?: string;
+  customerNote?: string;
+  [key: string]: any; // Allow additional fields for compatibility
+};
+
+
+--------------------------------------------------------------------------------
+FILE: lib/db.ts
+--------------------------------------------------------------------------------
+
+/**
+ * MongoDB Database Connection & Collections
+ * 
+ * Repository Pattern: Use getCollections() to access collections
+ * No Mongoose - Uses native MongoDB driver
+ * 
+ * @see https://www.mongodb.com/docs/drivers/node/current/
+ */
+
+// Load environment variables (for scripts)
+if (typeof window === 'undefined' && !process.env.MONGODB_URI) {
+  try {
+    // @ts-ignore - dotenv is optional dependency
+    require('dotenv').config({ path: require('path').resolve(process.cwd(), '.env.local') });
+  } catch {
+    // dotenv not available or .env.local not found - will check later
+  }
+}
+
+import { MongoClient, Db, Collection, ObjectId } from 'mongodb';
+
+// MongoDB connection URI from environment
+const MONGODB_URI = process.env.MONGODB_URI;
+
+// Don't throw error on module load - check when connecting
+function getMongoDBUri(): string {
+  if (!MONGODB_URI) {
+    throw new Error(
+      'Please define the MONGODB_URI environment variable inside .env.local'
+    );
+  }
+  return MONGODB_URI;
+}
+
+// Database name (extracted from URI or default)
+const DB_NAME = process.env.MONGODB_DB_NAME || 'shop-gau-bong';
+
+// Global connection cache (for serverless functions)
+interface MongoCache {
+  client: MongoClient | null;
+  db: Db | null;
+  promise: Promise<MongoClient> | null;
+}
+
+declare global {
+  // eslint-disable-next-line no-var
+  var mongo: MongoCache | undefined;
+}
+
+// Initialize global cache
+if (!global.mongo) {
+  global.mongo = {
+    client: null,
+    db: null,
+    promise: null,
+  };
+}
+
+const cache = global.mongo;
+
+/**
+ * Connect to MongoDB
+ * Uses connection pooling for serverless environments
+ */
+export async function connectDB(): Promise<MongoClient> {
+  if (cache.client && cache.db) {
+    return cache.client;
+  }
+
+  if (!cache.promise) {
+    const uri = getMongoDBUri(); // Get URI and validate
+    const opts = {
+      maxPoolSize: 10, // Maintain up to 10 socket connections
+      minPoolSize: 2, // Maintain at least 2 socket connections
+      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+    };
+
+    cache.promise = MongoClient.connect(uri, opts).then((client) => {
+      cache.client = client;
+      cache.db = client.db(DB_NAME);
+      return client;
+    });
+  }
+
+  try {
+    const client = await cache.promise;
+    return client;
+  } catch (error) {
+    cache.promise = null;
+    throw error;
+  }
+}
+
+/**
+ * Get MongoDB database instance
+ */
+async function getDB(): Promise<Db> {
+  if (cache.db) {
+    return cache.db;
+  }
+
+  await connectDB();
+  if (!cache.db) {
+    throw new Error('Failed to get database instance');
+  }
+  return cache.db;
+}
+
+/**
+ * Collections interface
+ * Add new collections here as needed
+ */
+export interface Collections {
+  db: Db;
+  products: Collection;
+  categories: Collection;
+  orders: Collection;
+  orderItems: Collection;
+  orderHistories: Collection;
+  users: Collection;
+  banners: Collection;
+  // Blog collections
+  posts: Collection;
+  authors: Collection;
+  comments: Collection;
+  postCategories: Collection;
+  postTags: Collection;
+  // Phase 4: Product templates
+  productTemplates: Collection;
+  // Phase 5: Reviews & Analytics
+  productReviews: Collection;
+  productAnalytics: Collection;
+  // Global Attributes System
+  productAttributes: Collection;
+  productAttributeTerms: Collection;
+  // Shipments
+  shipments: Collection;
+  // Refunds
+  refunds: Collection;
+  // Menu Management
+  menus: Collection;
+  menuItems: Collection;
+  // Media Library
+  media: Collection;
+  // Admin Account Management (RBAC)
+  adminUsers: Collection;
+  adminActivityLogs: Collection;
+  rateLimits: Collection;
+  // Smart SKU System
+  skuSettings: Collection;
+  skuAbbreviations: Collection;
+  skuCounters: Collection;
+  skuHistory: Collection;
+  // Contact Widget Settings
+  contactWidgetSettings: Collection;
+}
+
+/**
+ * Get all collections
+ * 
+ * Usage:
+ * ```typescript
+ * const { products, orders } = await getCollections();
+ * const product = await products.findOne({ _id: new ObjectId(id) });
+ * ```
+ */
+export async function getCollections(): Promise<Collections> {
+  const db = await getDB();
+
+  return {
+    db,
+    products: db.collection('products'),
+    categories: db.collection('categories'),
+    orders: db.collection('orders'),
+    orderItems: db.collection('order_items'),
+    orderHistories: db.collection('order_histories'),
+    users: db.collection('users'),
+    banners: db.collection('banners'),
+    // Blog collections
+    posts: db.collection('posts'),
+    authors: db.collection('authors'),
+    comments: db.collection('comments'),
+    postCategories: db.collection('post_categories'),
+    postTags: db.collection('post_tags'),
+    // Phase 4: Product templates (optional)
+    productTemplates: db.collection('product_templates'),
+    // Phase 5: Reviews & Analytics
+    productReviews: db.collection('product_reviews'),
+    productAnalytics: db.collection('product_analytics'),
+    // Global Attributes System
+    productAttributes: db.collection('product_attributes'),
+    productAttributeTerms: db.collection('product_attribute_terms'),
+    // Shipments
+    shipments: db.collection('shipments'),
+    // Refunds
+    refunds: db.collection('refunds'),
+    // Menu Management
+    menus: db.collection('menus'),
+    menuItems: db.collection('menu_items'),
+    // Media Library
+    media: db.collection('media'),
+    // Admin Account Management (RBAC)
+    adminUsers: db.collection('admin_users'),
+    adminActivityLogs: db.collection('admin_activity_logs'),
+    // Rate Limiting (for serverless environments)
+    rateLimits: db.collection('rate_limits'),
+    // Smart SKU System
+    skuSettings: db.collection('sku_settings'),
+    skuAbbreviations: db.collection('sku_abbreviations'),
+    skuCounters: db.collection('sku_counters'),
+    skuHistory: db.collection('sku_history'),
+    // Contact Widget Settings
+    contactWidgetSettings: db.collection('contact_widget_settings'),
+  };
+}
+
+/**
+ * Close MongoDB connection
+ * Useful for cleanup in scripts
+ */
+export async function closeDB(): Promise<void> {
+  if (cache.client) {
+    await cache.client.close();
+    cache.client = null;
+    cache.db = null;
+    cache.promise = null;
+  }
+}
+
+// Export ObjectId for use in other files
+export { ObjectId };
+
+
+
+--------------------------------------------------------------------------------
+FILE: lib/repositories/contactWidgetRepository.ts
+--------------------------------------------------------------------------------
+
+/**
+ * Contact Widget Repository
+ * 
+ * Repository pattern for Contact Widget Settings operations
+ * 
+ * Provides CRUD operations for contact widget configuration
+ */
+
+import { getCollections } from '@/lib/db';
+import type { ContactWidgetConfig } from '@/types/mongodb';
+
+/**
+ * Get contact widget settings
+ * 
+ * @returns Contact widget config or null if not found
+ */
+export async function getContactWidgetSettings(): Promise<ContactWidgetConfig | null> {
+  const { contactWidgetSettings } = await getCollections();
+  
+  // There should only be one settings document
+  const settings = await contactWidgetSettings.findOne({});
+  
+  return settings as ContactWidgetConfig | null;
+}
+
+/**
+ * Get public contact widget settings (only enabled items)
+ * 
+ * @returns Public config with only enabled items, or null if widget is disabled
+ */
+export async function getPublicContactWidgetSettings(): Promise<Omit<ContactWidgetConfig, 'createdAt' | 'updatedAt'> | null> {
+  const settings = await getContactWidgetSettings();
+  
+  if (!settings || !settings.enabled) {
+    return null;
+  }
+  
+  // Filter only active items
+  const activeItems = settings.items.filter(item => item.active);
+  
+  if (activeItems.length === 0) {
+    return null;
+  }
+  
+  // Return public config without timestamps
+  return {
+    _id: settings._id,
+    enabled: settings.enabled,
+    position: settings.position,
+    primaryColor: settings.primaryColor,
+    items: activeItems,
+  };
+}
+
+/**
+ * Update contact widget settings
+ * 
+ * @param config - Settings to update
+ * @returns Updated settings document
+ */
+export async function updateContactWidgetSettings(
+  config: Omit<ContactWidgetConfig, '_id' | 'createdAt' | 'updatedAt'>
+): Promise<ContactWidgetConfig> {
+  const { contactWidgetSettings } = await getCollections();
+  
+  const now = new Date();
+  
+  // Check if settings already exist
+  const existing = await contactWidgetSettings.findOne({});
+  
+  if (existing) {
+    // Update existing settings
+    const result = await contactWidgetSettings.findOneAndUpdate(
+      {},
+      {
+        $set: {
+          ...config,
+          updatedAt: now,
+        },
+      },
+      { returnDocument: 'after' }
+    );
+    
+    if (!result) {
+      throw new Error('Failed to update contact widget settings');
+    }
+    
+    return result as ContactWidgetConfig;
+  } else {
+    // Create new settings
+    const newSettings: Omit<ContactWidgetConfig, '_id'> = {
+      ...config,
+      createdAt: now,
+      updatedAt: now,
+    };
+    
+    const result = await contactWidgetSettings.insertOne(newSettings);
+    
+    if (!result.insertedId) {
+      throw new Error('Failed to create contact widget settings');
+    }
+    
+    const created = await contactWidgetSettings.findOne({ _id: result.insertedId });
+    if (!created) {
+      throw new Error('Failed to retrieve created contact widget settings');
+    }
+    
+    return created as ContactWidgetConfig;
+  }
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: app/api/admin/settings/contact-widget/route.ts
+--------------------------------------------------------------------------------
+
+/**
+ * Contact Widget Settings Management API
+ * GET /api/admin/settings/contact-widget - Get current settings
+ * POST /api/admin/settings/contact-widget - Create/Update settings
+ * 
+ * Protected route - requires authentication
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
+import { getContactWidgetSettings, updateContactWidgetSettings } from '@/lib/repositories/contactWidgetRepository';
+import { z } from 'zod';
+import type { ContactWidgetConfig } from '@/types/mongodb';
+
+export const dynamic = 'force-dynamic';
+
+// Request body schema for POST
+const contactWidgetItemSchema = z.object({
+  type: z.enum(['hotline', 'zalo', 'messenger']),
+  active: z.boolean(),
+  label: z.string().min(1, 'Label là bắt buộc'),
+  value: z.string().min(1, 'Value là bắt buộc'),
+  icon: z.string().optional(),
+});
+
+const contactWidgetConfigSchema = z.object({
+  enabled: z.boolean(),
+  position: z.enum(['left', 'right']),
+  primaryColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/, 'Màu phải là hex code (ví dụ: #D6336C)'),
+  items: z.array(contactWidgetItemSchema).min(0).max(3, 'Tối đa 3 items'),
+});
+
+/**
+ * GET /api/admin/settings/contact-widget
+ * Get current contact widget settings
+ */
+export async function GET(request: NextRequest) {
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      const settings = await getContactWidgetSettings();
+
+      return NextResponse.json({
+        success: true,
+        data: settings,
+      });
+    } catch (error: any) {
+      console.error('[Contact Widget Settings] GET error:', error);
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message || 'Có lỗi xảy ra khi lấy cấu hình',
+        },
+        { status: 500 }
+      );
+    }
+  });
+}
+
+/**
+ * POST /api/admin/settings/contact-widget
+ * Create or update contact widget settings
+ */
+export async function POST(request: NextRequest) {
+  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+    try {
+      const body = await request.json();
+      const validated = contactWidgetConfigSchema.parse(body);
+
+      // Validate phone numbers for hotline and zalo
+      for (const item of validated.items) {
+        if ((item.type === 'hotline' || item.type === 'zalo') && item.active) {
+          // ✅ FIX: Chỉ check độ dài tối thiểu/tối đa hợp lý (8-15 số)
+          // Cho phép nhập dấu +, -, space, nhưng khi count thì chỉ tính số
+          const phoneDigits = item.value.replace(/\D/g, '');
+          if (phoneDigits.length < 8 || phoneDigits.length > 15) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Số điện thoại ${item.label} không hợp lệ (phải từ 8-15 chữ số)`,
+              },
+              { status: 400 }
+            );
+          }
+        }
+        
+        if (item.type === 'messenger' && item.active) {
+          // Messenger value should be page ID or username (alphanumeric, dots, hyphens)
+          if (!/^[a-zA-Z0-9._-]+$/.test(item.value)) {
+            return NextResponse.json(
+              {
+                success: false,
+                error: `Messenger Page ID không hợp lệ (chỉ cho phép chữ, số, dấu chấm, gạch ngang)`,
+              },
+              { status: 400 }
+            );
+          }
+        }
+      }
+
+      const updated = await updateContactWidgetSettings(validated);
+
+      return NextResponse.json({
+        success: true,
+        message: 'Đã lưu cấu hình thành công',
+        data: updated,
+      });
+    } catch (error: any) {
+      console.error('[Contact Widget Settings] POST error:', error);
+      
+      if (error instanceof z.ZodError) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: error.errors[0]?.message || 'Dữ liệu không hợp lệ',
+            details: error.errors,
+          },
+          { status: 400 }
+        );
+      }
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: error.message || 'Có lỗi xảy ra khi lưu cấu hình',
+        },
+        { status: 500 }
+      );
+    }
+  });
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: app/api/cms/contact-widget/route.ts
+--------------------------------------------------------------------------------
+
+/**
+ * Contact Widget Public API
+ * GET /api/cms/contact-widget - Get public contact widget settings (only enabled items)
+ * 
+ * Public route - no authentication required
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getPublicContactWidgetSettings } from '@/lib/repositories/contactWidgetRepository';
+
+// ✅ FIX: Bỏ 'force-dynamic', dùng ISR revalidate 60s
+// Giúp giảm tải DB tới 99% - Cache response tại CDN/Edge trong 60 giây
+export const revalidate = 60;
+
+/**
+ * GET /api/cms/contact-widget
+ * Get public contact widget settings (only enabled and active items)
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const settings = await getPublicContactWidgetSettings();
+
+    // Return null if widget is disabled or no active items
+    return NextResponse.json({
+      success: true,
+      data: settings,
+    });
+  } catch (error: any) {
+    console.error('[Contact Widget Public API] GET error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Có lỗi xảy ra khi lấy cấu hình',
+      },
+      { status: 500 }
+    );
+  }
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: components/layout/FloatingContactWidget.tsx
+--------------------------------------------------------------------------------
+
+/**
+ * Floating Contact Widget Component
+ * 
+ * Displays a floating contact button with expandable sub-buttons (Hotline, Zalo, Messenger)
+ * - Fixed position at bottom corner (left or right)
+ * - Expandable menu with smooth animations
+ * - Client-side only rendering (ssr: false) for performance
+ */
+
+'use client';
+
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { Phone, MessageCircle, X } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import { ContactSubButton } from './ContactSubButton';
+import type { ContactWidgetConfig } from '@/types/mongodb';
+
+interface FloatingContactWidgetProps {
+  className?: string;
+}
+
+/**
+ * Fetch contact widget settings from public API
+ */
+async function fetchContactWidgetConfig() {
+  const res = await fetch('/api/cms/contact-widget');
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.success ? data.data : null;
+}
+
+export function FloatingContactWidget({ className }: FloatingContactWidgetProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const widgetRef = useRef<HTMLDivElement>(null);
+
+  // Fetch config from API
+  const { data: config } = useQuery({
+    queryKey: ['contact-widget-public'],
+    queryFn: fetchContactWidgetConfig,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
+  });
+
+  // Determine visibility based on config
+  useEffect(() => {
+    if (config && config.enabled && config.items && config.items.length > 0) {
+      setIsVisible(true);
+    } else {
+      setIsVisible(false);
+      setIsOpen(false); // Close if disabled
+    }
+  }, [config]);
+
+  // Click outside to close
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleClickOutside = (event: Event) => {
+      if (widgetRef.current && !widgetRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+
+    // Add slight delay to prevent immediate close when opening
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }, 100);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [isOpen]);
+
+  // Toggle open/close
+  const handleToggle = useCallback(() => {
+    setIsOpen((prev) => !prev);
+  }, []);
+
+  // Memoize active items
+  const activeItems = useMemo(() => {
+    if (!config?.items) return [];
+    return config.items.filter((item: ContactWidgetConfig['items'][0]) => item.active);
+  }, [config]);
+
+  // Don't render if not visible
+  if (!isVisible || !config) {
+    return null;
+  }
+
+  const position = config.position || 'right';
+  const primaryColor = config.primaryColor || '#D6336C';
+
+  return (
+    <div
+      ref={widgetRef}
+      className={cn(
+        'fixed z-[9999]',
+        position === 'right' ? 'right-4 md:right-6' : 'left-4 md:left-6',
+        'bottom-5 md:bottom-8',
+        // ✅ FIX: Thêm animation xuất hiện cho cả nút chính khi mới load trang
+        // Tránh FOUC (Flash of Unstyled Content) khi component mount
+        'animate-in fade-in zoom-in duration-500',
+        className
+      )}
+    >
+      {/* Sub Buttons */}
+      {isOpen && activeItems.length > 0 && (
+        <div
+          className={cn(
+            'flex flex-col-reverse gap-3 mb-3',
+            'animate-in fade-in slide-in-from-bottom-4 duration-300'
+          )}
+        >
+          {activeItems.map((item: ContactWidgetConfig['items'][0], index: number) => (
+            <ContactSubButton
+              key={item.type}
+              item={item}
+              primaryColor={primaryColor}
+              delay={index * 100} // Stagger animation
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Main FAB Button */}
+      <button
+        onClick={handleToggle}
+        className={cn(
+          'w-14 h-14 md:w-16 md:h-16',
+          'rounded-full shadow-lg',
+          'flex items-center justify-center',
+          'transition-all duration-300',
+          'hover:scale-110 active:scale-95',
+          'focus:outline-none focus:ring-2 focus:ring-offset-2',
+          !isOpen && 'animate-pulse', // Pulse when closed
+          isOpen && 'rotate-45' // Rotate when open
+        )}
+        style={{
+          backgroundColor: primaryColor,
+          color: '#ffffff',
+        }}
+        aria-label={isOpen ? 'Đóng menu liên hệ' : 'Mở menu liên hệ'}
+        aria-expanded={isOpen}
+      >
+        {isOpen ? (
+          <X className="w-6 h-6 md:w-7 md:h-7" />
+        ) : (
+          <MessageCircle className="w-6 h-6 md:w-7 md:h-7" />
+        )}
+      </button>
+
+      {/* Tooltip (Desktop only) */}
+      {!isOpen && (
+        <div
+          className={cn(
+            'hidden md:block',
+            'absolute bottom-full mb-2',
+            position === 'right' ? 'right-0' : 'left-0',
+            'px-3 py-1.5',
+            'bg-gray-900 text-white text-sm rounded-lg',
+            'whitespace-nowrap',
+            'opacity-0 group-hover:opacity-100 transition-opacity',
+            'pointer-events-none'
+          )}
+        >
+          Liên hệ
+          <div
+            className={cn(
+              'absolute top-full',
+              position === 'right' ? 'right-4' : 'left-4',
+              'w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900'
+            )}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: components/layout/ContactSubButton.tsx
+--------------------------------------------------------------------------------
+
+/**
+ * Contact Sub Button Component
+ * 
+ * Individual button for each contact method (Hotline, Zalo, Messenger)
+ * - Icon with optional label
+ * - Smooth animations
+ * - Link handling (tel:, zalo.me, m.me)
+ */
+
+'use client';
+
+import { Phone, MessageCircle } from 'lucide-react';
+import { cn } from '@/lib/utils/cn';
+import type { ContactWidgetConfig } from '@/types/mongodb';
+
+interface ContactSubButtonProps {
+  item: ContactWidgetConfig['items'][0];
+  primaryColor: string;
+  delay?: number; // Animation delay in ms
+}
+
+/**
+ * Zalo Icon (Official Logo Shape)
+ * ✅ FIX: Update SVG Path chuẩn nhận diện thương hiệu
+ * Zalo brand color: #0068FF
+ */
+function ZaloIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 48 48"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <path d="M0 0H48V48H0V0Z" fill="none" />
+      <path
+        fillRule="evenodd"
+        clipRule="evenodd"
+        d="M9.6 0C4.29807 0 0 4.29807 0 9.6V38.4C0 43.7019 4.29807 48 9.6 48H38.4C43.7019 48 48 43.7019 48 38.4V9.6C48 4.29807 43.7019 0 38.4 0H9.6ZM13.4357 15.6714C12.3783 15.6714 11.5212 16.5285 11.5212 17.5859V29.7428C11.5212 30.5528 12.1779 31.2095 12.9878 31.2095H16.0352C16.8452 31.2095 17.5019 30.5528 17.5019 29.7428V24.5126H18.9685L22.9566 30.2981C23.2759 30.7614 23.7716 31.0666 24.3314 31.1449H29.1433C30.2007 31.1449 31.0578 30.2878 31.0578 29.2304V17.0735C31.0578 16.2635 30.4011 15.6068 29.5911 15.6068H26.5438C25.7338 15.6068 25.0771 16.2635 25.0771 17.0735V22.2533H23.6105L19.6224 16.4678C19.3031 16.0045 18.8074 15.6993 18.2476 15.621H13.4357V15.6714ZM36.1919 19.5399C35.0348 19.5399 34.0967 20.478 34.0967 21.6352V25.1813C34.0967 26.3385 35.0348 27.2766 36.1919 27.2766H39.2393C40.3965 27.2766 41.3346 26.3385 41.3346 25.1813V21.6352C41.3346 20.478 40.3965 19.5399 39.2393 19.5399H36.1919Z"
+        fill="#0068FF"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Messenger Icon (Inline SVG)
+ * Messenger brand colors: Gradient #00B2FF to #0084FF
+ * Simplified Messenger logo representation
+ */
+function MessengerIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      <defs>
+        <linearGradient id="messenger-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#00B2FF" />
+          <stop offset="100%" stopColor="#0084FF" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M12 2C6.48 2 2 6.48 2 12c0 1.54.36 2.98.97 4.29L1 23l6.71-1.97C9.02 21.64 10.46 22 12 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"
+        fill="url(#messenger-gradient)"
+      />
+      <path
+        d="M7 10l4 4 6-6"
+        stroke="#FFFFFF"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        fill="none"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Get icon component for contact type
+ */
+function getIcon(type: ContactWidgetConfig['items'][0]['type'], className?: string) {
+  switch (type) {
+    case 'hotline':
+      return <Phone className={className} />;
+    case 'zalo':
+      return <ZaloIcon className={className} />;
+    case 'messenger':
+      return <MessengerIcon className={className} />;
+    default:
+      return <MessageCircle className={className} />;
+  }
+}
+
+/**
+ * Get link URL for contact type
+ */
+function getLinkUrl(item: ContactWidgetConfig['items'][0]): string {
+  switch (item.type) {
+    case 'hotline':
+      return `tel:${item.value.replace(/\s/g, '')}`;
+    case 'zalo':
+      // ✅ FIX: Format chuẩn cho zalo.me (bỏ tất cả non-digit characters)
+      // Giữ nguyên logic replace để đảm bảo chỉ có số
+      return `https://zalo.me/${item.value.replace(/\D/g, '')}`;
+    case 'messenger':
+      return `https://m.me/${item.value}`;
+    default:
+      return '#';
+  }
+}
+
+export function ContactSubButton({ item, primaryColor, delay = 0 }: ContactSubButtonProps) {
+  const linkUrl = getLinkUrl(item);
+  const isExternal = item.type === 'zalo' || item.type === 'messenger';
+
+  const handleClick = () => {
+    // Optional: Google Analytics event tracking
+    if (typeof window !== 'undefined' && (window as any).gtag) {
+      (window as any).gtag('event', 'click', {
+        event_category: 'Contact Button',
+        event_label: item.type,
+      });
+    }
+  };
+
+  return (
+    <a
+      href={linkUrl}
+      target={isExternal ? '_blank' : undefined}
+      rel={isExternal ? 'noopener noreferrer' : undefined}
+      onClick={handleClick}
+      className={cn(
+        'group',
+        'flex items-center gap-3',
+        'px-4 py-3 md:px-5 md:py-3.5',
+        'min-h-[44px]', // Touch target minimum
+        'rounded-full shadow-lg',
+        'transition-all duration-300',
+        'hover:scale-105 active:scale-95',
+        'focus:outline-none focus:ring-2 focus:ring-offset-2',
+        'animate-in fade-in slide-in-from-bottom-2',
+        'text-white font-medium text-sm md:text-base'
+      )}
+      style={{
+        backgroundColor: primaryColor,
+        animationDelay: `${delay}ms`,
+      }}
+      aria-label={item.label || item.type}
+    >
+      {/* Icon */}
+      <div className="flex-shrink-0 w-6 h-6 md:w-7 md:h-7 flex items-center justify-center">
+        {getIcon(item.type, 'w-full h-full')}
+      </div>
+
+      {/* Label (Desktop only) */}
+      <span className="hidden md:inline whitespace-nowrap">{item.label}</span>
+    </a>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: app/layout.tsx
+--------------------------------------------------------------------------------
+
+import type { Metadata } from 'next';
+import { Inter, Nunito, Fredoka } from 'next/font/google';
+import dynamic from 'next/dynamic';
+import { ToastProvider } from '@/components/providers/ToastProvider';
+import { CategoriesProvider } from '@/lib/providers/CategoriesProvider';
+import { QueryProvider } from '@/lib/providers/QueryProvider';
+import { LayoutWrapper } from '@/components/layout/LayoutWrapper';
+import './globals.css';
+
+// CRITICAL: Client-side only rendering để không chặn LCP/CLS
+// Widget fixed position nên không cần SSR, render sau khi page interactive
+const FloatingContactWidget = dynamic(
+  () => import('@/components/layout/FloatingContactWidget').then((mod) => ({ default: mod.FloatingContactWidget })),
+  {
+    ssr: false, // Không render trên server để không chặn LCP
+    loading: () => null, // Không hiển thị loading state
+  }
+);
+
+const inter = Inter({
+  subsets: ['latin', 'vietnamese'],
+  variable: '--font-inter',
+  display: 'swap',
+});
+
+const nunito = Nunito({
+  subsets: ['latin', 'vietnamese'],
+  variable: '--font-nunito',
+  display: 'swap',
+});
+
+// Handwriting font for logo - Soft, friendly, perfect for teddy bear shop
+// Note: Fredoka only supports 'latin', 'latin-ext', 'hebrew' subsets
+const fredoka = Fredoka({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-fredoka',
+  display: 'swap',
+  weight: ['400', '500', '600'],
+});
+
+import { getDefaultMetadata, generateOpenGraphTags, generateTwitterCardTags } from '@/lib/utils/metadata';
+import { SITE_CONFIG } from '@/lib/constants/config';
+
+const defaultMetadata = getDefaultMetadata();
+const ogTags = generateOpenGraphTags(defaultMetadata);
+const twitterTags = generateTwitterCardTags(defaultMetadata);
+
+export const metadata: Metadata = {
+  title: {
+    default: defaultMetadata.title,
+    template: `%s | ${SITE_CONFIG.name}`,
+  },
+  description: defaultMetadata.description,
+  keywords: ['gấu bông', 'teddy bear', 'thú nhồi bông', 'quà tặng', 'đồ chơi', 'shop gấu bông'],
+  authors: [{ name: SITE_CONFIG.name }],
+  creator: SITE_CONFIG.name,
+  publisher: SITE_CONFIG.name,
+  formatDetection: {
+    email: false,
+    address: false,
+    telephone: false,
+  },
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://shop-gaubong.com'),
+  openGraph: {
+    title: ogTags['og:title'],
+    description: ogTags['og:description'],
+    url: ogTags['og:url'],
+    siteName: ogTags['og:site_name'],
+    images: [
+      {
+        url: ogTags['og:image'],
+        width: 1200,
+        height: 630,
+        alt: SITE_CONFIG.name,
+      },
+    ],
+    locale: ogTags['og:locale'],
+    type: 'website',
+  },
+  twitter: twitterTags,
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  verification: {
+    // Add Google Search Console verification code if available
+    // google: 'your-verification-code',
+  },
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="vi" className={`${inter.variable} ${nunito.variable} ${fredoka.variable}`}>
+      <body className="min-h-screen bg-background flex flex-col">
+        <QueryProvider>
+          <ToastProvider>
+            <CategoriesProvider>
+              <LayoutWrapper>
+                {children}
+              </LayoutWrapper>
+              {/* Floating Contact Widget - Render sau cùng, client-side only */}
+              <FloatingContactWidget />
+            </CategoriesProvider>
+          </ToastProvider>
+        </QueryProvider>
+      </body>
+    </html>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: app/admin/settings/contact-widget/page.tsx
+--------------------------------------------------------------------------------
+
+/**
+ * Contact Widget Settings Page
+ * 
+ * Phase 2: CMS Admin UI
+ * - Configure Floating Contact Widget (Hotline, Zalo, Messenger)
+ */
+
+'use client';
+
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { ContactWidgetForm } from './components/ContactWidgetForm';
+
+export default function ContactWidgetSettingsPage() {
+  return (
+    <div className="space-y-8 p-6">
+      <div>
+        <h1 className="text-3xl font-bold">Cài đặt Nút Liên hệ Nổi</h1>
+        <p className="text-gray-600 mt-2">
+          Cấu hình nút liên hệ cố định (Hotline, Zalo, Messenger) hiển thị trên website
+        </p>
+      </div>
+
+      {/* Contact Widget Form */}
+      <ContactWidgetForm />
+    </div>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: app/admin/settings/contact-widget/components/ContactWidgetForm.tsx
+--------------------------------------------------------------------------------
+
+/**
+ * Contact Widget Form Component
+ * 
+ * Main form for configuring Floating Contact Widget
+ */
+
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
+import { useToastContext } from '@/components/providers/ToastProvider';
+import { Loader2, Phone } from 'lucide-react';
+import { ContactItemEditor } from './ContactItemEditor';
+import type { ContactWidgetConfig } from '@/types/mongodb';
+
+export function ContactWidgetForm() {
+  const { showToast } = useToastContext();
+  const queryClient = useQueryClient();
+  
+  const [enabled, setEnabled] = useState(false);
+  const [position, setPosition] = useState<'left' | 'right'>('right');
+  const [primaryColor, setPrimaryColor] = useState('#D6336C');
+  const [items, setItems] = useState<ContactWidgetConfig['items']>([
+    { type: 'hotline', active: false, label: 'Gọi ngay', value: '' },
+    { type: 'zalo', active: false, label: 'Chat Zalo', value: '' },
+    { type: 'messenger', active: false, label: 'Chat Messenger', value: '' },
+  ]);
+
+  // Fetch settings
+  const { data: settingsData, isLoading } = useQuery({
+    queryKey: ['contact-widget-settings'],
+    queryFn: async () => {
+      const res = await fetch('/api/admin/settings/contact-widget', {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch settings');
+      return res.json();
+    },
+  });
+
+  // Load settings into form
+  useEffect(() => {
+    if (settingsData?.success && settingsData?.data) {
+      const data = settingsData.data as ContactWidgetConfig;
+      setEnabled(data.enabled || false);
+      setPosition(data.position || 'right');
+      setPrimaryColor(data.primaryColor || '#D6336C');
+      
+      // Merge with default items to preserve all 3 types
+      const defaultItems: ContactWidgetConfig['items'] = [
+        { type: 'hotline', active: false, label: 'Gọi ngay', value: '' },
+        { type: 'zalo', active: false, label: 'Chat Zalo', value: '' },
+        { type: 'messenger', active: false, label: 'Chat Messenger', value: '' },
+      ];
+      
+      if (data.items && data.items.length > 0) {
+        // Map existing items to default items
+        const mergedItems = defaultItems.map(defaultItem => {
+          const existing = data.items.find(item => item.type === defaultItem.type);
+          return existing || defaultItem;
+        });
+        setItems(mergedItems);
+      } else {
+        setItems(defaultItems);
+      }
+    }
+  }, [settingsData]);
+
+  // Save mutation
+  const saveMutation = useMutation({
+    mutationFn: async (data: {
+      enabled: boolean;
+      position: 'left' | 'right';
+      primaryColor: string;
+      items: ContactWidgetConfig['items'];
+    }) => {
+      const res = await fetch('/api/admin/settings/contact-widget', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Failed to save settings');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['contact-widget-settings'] });
+      showToast('Đã lưu cấu hình thành công', 'success');
+    },
+    onError: (error: any) => {
+      showToast(error.message || 'Đã xảy ra lỗi khi lưu', 'error');
+    },
+  });
+
+  const handleItemChange = (index: number, updates: Partial<ContactWidgetConfig['items'][0]>) => {
+    setItems((prev) => {
+      const newItems = [...prev];
+      newItems[index] = { ...newItems[index], ...updates };
+      return newItems;
+    });
+  };
+
+  const handleSave = () => {
+    saveMutation.mutate({
+      enabled,
+      position,
+      primaryColor,
+      items,
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Cài đặt Nút Liên hệ Nổi</CardTitle>
+          <CardDescription>Cấu hình nút liên hệ cố định trên website</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Cài đặt Nút Liên hệ Nổi</CardTitle>
+        <CardDescription>
+          Cấu hình nút liên hệ cố định (Hotline, Zalo, Messenger) hiển thị ở góc màn hình
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {/* Enable/Disable Switch */}
+        <div className="flex items-center justify-between p-4 border rounded-lg">
+          <div className="space-y-0.5">
+            <Label htmlFor="enabled" className="text-base font-medium">
+              Bật nút liên hệ nổi
+            </Label>
+            <p className="text-sm text-gray-500">
+              Hiển thị nút liên hệ cố định ở góc màn hình
+            </p>
+          </div>
+          <Switch
+            id="enabled"
+            checked={enabled}
+            onCheckedChange={setEnabled}
+          />
+        </div>
+
+        {/* Position Select */}
+        <div className="space-y-2">
+          <Label htmlFor="position">Vị trí hiển thị</Label>
+          <Select value={position} onValueChange={(value) => setPosition(value as 'left' | 'right')}>
+            <SelectTrigger id="position">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="right">Bên phải</SelectItem>
+              <SelectItem value="left">Bên trái</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Primary Color */}
+        <div className="space-y-2">
+          <Label htmlFor="primaryColor">Màu chủ đạo</Label>
+          <div className="flex items-center gap-4">
+            <Input
+              id="primaryColor"
+              type="color"
+              value={primaryColor}
+              onChange={(e) => setPrimaryColor(e.target.value)}
+              className="w-20 h-10 cursor-pointer"
+            />
+            <Input
+              type="text"
+              value={primaryColor}
+              onChange={(e) => setPrimaryColor(e.target.value)}
+              placeholder="#D6336C"
+              className="flex-1 font-mono"
+              pattern="^#[0-9A-Fa-f]{6}$"
+            />
+          </div>
+          <p className="text-sm text-gray-500">
+            Màu sắc chủ đạo cho nút liên hệ (hex code, ví dụ: #D6336C)
+          </p>
+        </div>
+
+        {/* Contact Items */}
+        <div className="space-y-4">
+          <Label>Các kênh liên hệ</Label>
+          {items.map((item, index) => (
+            <ContactItemEditor
+              key={item.type}
+              item={item}
+              onChange={(updates) => handleItemChange(index, updates)}
+            />
+          ))}
+        </div>
+
+        {/* Save Button */}
+        <div className="flex justify-end pt-4 border-t">
+          <Button
+            onClick={handleSave}
+            disabled={saveMutation.isPending}
+            className="min-w-[120px]"
+          >
+            {saveMutation.isPending ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                Đang lưu...
+              </>
+            ) : (
+              'Lưu Cài Đặt'
+            )}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: app/admin/settings/contact-widget/components/ContactItemEditor.tsx
+--------------------------------------------------------------------------------
+
+/**
+ * Contact Item Editor Component
+ * 
+ * Component to edit individual contact item (Hotline, Zalo, Messenger)
+ */
+
+'use client';
+
+import { Card, CardContent } from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
+import { Switch } from '@/components/ui/switch';
+import { Phone, MessageCircle } from 'lucide-react';
+import type { ContactWidgetConfig } from '@/types/mongodb';
+
+interface ContactItemEditorProps {
+  item: ContactWidgetConfig['items'][0];
+  onChange: (updates: Partial<ContactWidgetConfig['items'][0]>) => void;
+}
+
+const itemLabels: Record<ContactWidgetConfig['items'][0]['type'], string> = {
+  hotline: 'Hotline',
+  zalo: 'Zalo',
+  messenger: 'Messenger',
+};
+
+const itemIcons: Record<ContactWidgetConfig['items'][0]['type'], typeof Phone> = {
+  hotline: Phone,
+  zalo: Phone,
+  messenger: MessageCircle,
+};
+
+const itemPlaceholders: Record<ContactWidgetConfig['items'][0]['type'], string> = {
+  hotline: '0123 456 789',
+  zalo: '0123 456 789',
+  messenger: 'your-page-id',
+};
+
+const itemDescriptions: Record<ContactWidgetConfig['items'][0]['type'], string> = {
+  hotline: 'Số điện thoại (10-11 chữ số)',
+  zalo: 'Số điện thoại Zalo (10-11 chữ số)',
+  messenger: 'Page ID hoặc username Facebook (chỉ chữ, số, dấu chấm, gạch ngang)',
+};
+
+export function ContactItemEditor({ item, onChange }: ContactItemEditorProps) {
+  const Icon = itemIcons[item.type];
+  const label = itemLabels[item.type];
+  const placeholder = itemPlaceholders[item.type];
+  const description = itemDescriptions[item.type];
+
+  return (
+    <Card className={item.active ? 'border-primary' : 'border-gray-200'}>
+      <CardContent className="p-4 space-y-4">
+        {/* Header with Toggle */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Icon className="w-5 h-5 text-gray-600" />
+            <Label className="text-base font-medium">{label}</Label>
+          </div>
+          <Switch
+            checked={item.active}
+            onCheckedChange={(checked) => onChange({ active: checked })}
+          />
+        </div>
+
+        {/* Form Fields (only show if active) */}
+        {item.active && (
+          <div className="space-y-4 pt-2 border-t">
+            {/* Label */}
+            <div className="space-y-2">
+              <Label htmlFor={`${item.type}-label`}>Nhãn hiển thị</Label>
+              <Input
+                id={`${item.type}-label`}
+                value={item.label}
+                onChange={(e) => onChange({ label: e.target.value })}
+                placeholder={`Ví dụ: ${label === 'Hotline' ? 'Gọi ngay' : label === 'Zalo' ? 'Chat Zalo' : 'Chat Messenger'}`}
+              />
+            </div>
+
+            {/* Value */}
+            <div className="space-y-2">
+              <Label htmlFor={`${item.type}-value`}>
+                {item.type === 'messenger' ? 'Page ID / Username' : 'Số điện thoại'}
+              </Label>
+              <Input
+                id={`${item.type}-value`}
+                value={item.value}
+                onChange={(e) => onChange({ value: e.target.value })}
+                placeholder={placeholder}
+                type={item.type === 'messenger' ? 'text' : 'tel'}
+              />
+              <p className="text-sm text-gray-500">{description}</p>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+
+--------------------------------------------------------------------------------
+FILE: app/admin/layout.tsx
+--------------------------------------------------------------------------------
+
+/**
+ * Admin Route Group Layout
+ * 
+ * This layout excludes Header/Footer from root layout
+ * Only renders admin-specific layout
+ */
+
+'use client';
+
+import { SessionProvider, useSession } from 'next-auth/react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { signOut } from 'next-auth/react';
+import { Button } from '@/components/ui/button';
+import {
+  Package,
+  ShoppingCart,
+  FolderTree,
+  LayoutDashboard,
+  LogOut,
+  FileText,
+  User,
+  MessageSquare,
+  Tags,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  List,
+  Menu,
+  Image,
+  Users,
+  Shield,
+  Hash,
+} from 'lucide-react';
+import { AdminRole } from '@/types/admin';
+
+function AdminLayoutContent({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  const pathname = usePathname();
+
+  // Don't redirect if on login page or change password page
+  const isLoginPage = pathname === '/admin/login';
+  const isChangePasswordPage = pathname === '/admin/change-password';
+
+  // Check if products submenu should be expanded
+  const isProductsPath = pathname.startsWith('/admin/products') || 
+                         pathname.startsWith('/admin/attributes') || 
+                         pathname.startsWith('/admin/categories');
+  
+  // Check if menus path
+  const isMenusPath = pathname.startsWith('/admin/menus');
+  
+  // Check if posts submenu should be expanded
+  const isPostsPath = pathname.startsWith('/admin/posts') || 
+                      pathname.startsWith('/admin/authors');
+  
+  // Check if settings submenu should be expanded
+  const isSettingsPath = pathname.startsWith('/admin/settings');
+  
+  // IMPORTANT: All hooks must be called before any conditional returns
+  const [expandedMenus, setExpandedMenus] = useState<Set<string>>(
+    new Set(
+      [
+        ...(isProductsPath ? ['/admin/products'] : []),
+        ...(isPostsPath ? ['/admin/posts'] : []),
+        ...(isSettingsPath ? ['/admin/settings'] : []),
+      ]
+    )
+  );
+
+  // Auto-expand menu if on submenu page
+  useEffect(() => {
+    if (isProductsPath && !expandedMenus.has('/admin/products')) {
+      setExpandedMenus((prev) => new Set(prev).add('/admin/products'));
+    }
+    if (isPostsPath && !expandedMenus.has('/admin/posts')) {
+      setExpandedMenus((prev) => new Set(prev).add('/admin/posts'));
+    }
+    if (isSettingsPath && !expandedMenus.has('/admin/settings')) {
+      setExpandedMenus((prev) => new Set(prev).add('/admin/settings'));
+    }
+  }, [pathname, isProductsPath, isPostsPath, isSettingsPath, expandedMenus]);
+
+  useEffect(() => {
+    // Only redirect if we're sure the user is not authenticated
+    // Don't redirect during loading state - wait for session to be determined
+    // Allow change password page without authentication (user may need to change password on first login)
+    if (!isLoginPage && !isChangePasswordPage && status === 'unauthenticated') {
+      router.push('/admin/login');
+    }
+  }, [status, router, isLoginPage, isChangePasswordPage]);
+
+  // For login page or change password page, render without sidebar
+  if (isLoginPage || isChangePasswordPage) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {children}
+      </div>
+    );
+  }
+
+  // Show loading only for protected pages
+  if (status === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Đang tải...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // For protected pages, check authentication
+  // Don't redirect during loading - wait for session to load
+  if (status === 'unauthenticated') {
+    return null; // Will redirect via useEffect
+  }
+
+  // CRITICAL FIX: Use AdminRole enum instead of hardcoded strings
+  // RBAC: Check if user has any admin role
+  const userRole = (session?.user as any)?.role;
+  const validAdminRoles = Object.values(AdminRole); // Get all enum values
+  // Also allow legacy 'admin' role for backward compatibility
+  const isValidRole = userRole && (validAdminRoles.includes(userRole) || userRole === 'admin');
+  
+  if (!session || !isValidRole) {
+    return null;
+  }
+
+  // CRITICAL FIX: Log logout activity before signOut
+  const handleLogout = async () => {
+    try {
+      // Call logout API to log activity before clearing session
+      await fetch('/api/admin/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+      });
+    } catch (error) {
+      // Continue with logout even if API call fails
+      console.error('[Logout] Error logging activity:', error);
+    }
+    await signOut({ callbackUrl: '/admin/login' });
+  };
+
+  interface NavItem {
+    href: string;
+    label: string;
+    icon: React.ComponentType<{ className?: string }>;
+    submenu?: Array<{
+      href: string;
+      label: string;
+      icon?: React.ComponentType<{ className?: string }>;
+    }>;
+  }
+
+  // Check if user is SUPER_ADMIN to show Users menu
+  const isSuperAdmin = (session.user as any)?.role === 'SUPER_ADMIN';
+
+  const navItems: NavItem[] = [
+    { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+    {
+      href: '/admin/products',
+      label: 'Sản phẩm',
+      icon: Package,
+      submenu: [
+        { href: '/admin/products', label: 'Tất cả sản phẩm', icon: List },
+        { href: '/admin/products/new', label: 'Thêm mới', icon: Plus },
+        { href: '/admin/categories', label: 'Danh mục', icon: FolderTree },
+        { href: '/admin/attributes', label: 'Thuộc tính', icon: Tags },
+      ],
+    },
+    { href: '/admin/orders', label: 'Đơn hàng', icon: ShoppingCart },
+    { href: '/admin/media', label: 'Media', icon: Image },
+    { href: '/admin/menus', label: 'Menu', icon: Menu },
+    {
+      href: '/admin/posts',
+      label: 'Bài viết',
+      icon: FileText,
+      submenu: [
+        { href: '/admin/posts', label: 'Tất cả bài viết', icon: List },
+        { href: '/admin/posts/new', label: 'Thêm mới', icon: Plus },
+        { href: '/admin/authors', label: 'Tác giả', icon: User },
+      ],
+    },
+    { href: '/admin/comments', label: 'Bình luận', icon: MessageSquare },
+    // Only show Users menu for SUPER_ADMIN
+    ...(isSuperAdmin
+      ? [
+          {
+            href: '/admin/users',
+            label: 'Quản lý tài khoản',
+            icon: Users,
+          } as NavItem,
+        ]
+      : []),
+    {
+      href: '/admin/settings',
+      label: 'Cài đặt',
+      icon: Shield,
+      submenu: [
+        { href: '/admin/settings/security', label: 'Bảo mật', icon: Shield },
+        { href: '/admin/settings/sku', label: 'Cài đặt SKU', icon: Hash },
+        { href: '/admin/settings/contact-widget', label: 'Nút Liên hệ Nổi', icon: MessageSquare },
+      ],
+    },
+  ];
+
+  const toggleMenu = (menuKey: string) => {
+    setExpandedMenus((prev) => {
+      const next = new Set(prev);
+      if (next.has(menuKey)) {
+        next.delete(menuKey);
+      } else {
+        next.add(menuKey);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <aside className="fixed left-0 top-0 h-full w-64 bg-white border-r border-gray-200">
+        <div className="p-6">
+          <h1 className="text-2xl font-bold text-gray-900">Admin Panel</h1>
+          <p className="text-sm text-gray-500 mt-1">Shop Gấu Bông</p>
+        </div>
+
+        <nav className="px-4 space-y-1">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const hasSubmenu = item.submenu && item.submenu.length > 0;
+            const isExpanded = hasSubmenu && expandedMenus.has(item.href);
+            const isActive = pathname === item.href || 
+                            (item.href !== '/admin' && pathname.startsWith(item.href)) ||
+                            (hasSubmenu && item.submenu?.some(sub => pathname.startsWith(sub.href)));
+
+            return (
+              <div key={item.href}>
+                {/* Main Menu Item */}
+                <div className="flex items-center">
+                  <Link
+                    href={item.href}
+                    className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-lg transition-colors ${
+                      isActive && !hasSubmenu
+                        ? 'bg-blue-50 text-blue-700 font-medium'
+                        : 'text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                  {hasSubmenu && (
+                    <button
+                      onClick={() => toggleMenu(item.href)}
+                      className="px-2 py-3 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                      aria-label={isExpanded ? 'Thu gọn' : 'Mở rộng'}
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
+
+                {/* Submenu */}
+                {hasSubmenu && isExpanded && item.submenu && (
+                  <div className="ml-4 space-y-1 border-l-2 border-gray-200 pl-2">
+                    {item.submenu.map((subItem) => {
+                      const SubIcon = subItem.icon || Package;
+                      const isSubActive = pathname === subItem.href || 
+                                         (subItem.href !== '/admin/products' && pathname.startsWith(subItem.href));
+                      return (
+                        <Link
+                          key={subItem.href}
+                          href={subItem.href}
+                          className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors text-sm ${
+                            isSubActive
+                              ? 'bg-blue-50 text-blue-700 font-medium'
+                              : 'text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          <SubIcon className="w-4 h-4" />
+                          <span>{subItem.label}</span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </nav>
+
+        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
+          <div className="mb-4 px-4">
+            <p className="text-sm font-medium text-gray-900">
+              {session.user?.name || session.user?.email}
+            </p>
+            <p className="text-xs text-gray-500">Admin</p>
+          </div>
+          <Button
+            onClick={handleLogout}
+            variant="outline"
+            className="w-full"
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Đăng xuất
+          </Button>
+        </div>
+      </aside>
+
+      {/* Main Content */}
+      <main className="ml-64 p-8">
+        {children}
+      </main>
+    </div>
+  );
+}
+
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <SessionProvider>
+      <AdminLayoutContent>{children}</AdminLayoutContent>
+    </SessionProvider>
+  );
+}
+

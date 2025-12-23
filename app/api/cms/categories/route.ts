@@ -1,0 +1,63 @@
+/**
+ * Public Categories API Route
+ * GET /api/cms/categories
+ * 
+ * Fetch categories from MongoDB (public endpoint)
+ * 
+ * ✅ PERFORMANCE: Sử dụng ISR với revalidate 1 giờ để cache tại Edge/Server
+ * Giúp giảm tải database tới 99% - Cache response tại CDN/Edge trong 1 giờ
+ * Categories ít thay đổi nên cache 1 giờ là hợp lý
+ * 
+ * ⚠️ NOTE: Khi Admin update categories, cần gọi revalidateTag/revalidatePath để xóa cache
+ * (Xem Bước 4: Cache Invalidation)
+ */
+
+import { NextRequest, NextResponse } from 'next/server';
+import { getCollections } from '@/lib/db';
+import { mapMongoCategory, MongoCategory } from '@/lib/utils/productMapper';
+
+// Cache 1 giờ (3600 giây) - ISR (Incremental Static Regeneration)
+export const revalidate = 3600;
+
+export async function GET(request: NextRequest) {
+  try {
+    const searchParams = request.nextUrl.searchParams;
+    
+    const { categories } = await getCollections();
+    
+    // Build query
+    const query: any = {
+      deletedAt: null, // Only non-deleted categories
+      status: 'active', // Only active categories for public API
+    };
+    const parentId = searchParams.get('parent');
+    if (parentId === '0' || parentId === null) {
+      query.parentId = null; // Top-level categories
+    } else if (parentId) {
+      query.parentId = parentId;
+    }
+    
+    // Fetch categories
+    const categoriesList = await categories
+      .find(query)
+      .sort({ position: 1, name: 1 })
+      .toArray();
+    
+    // Map to frontend format
+    const mappedCategories = categoriesList.map((cat) => mapMongoCategory(cat as unknown as MongoCategory));
+    
+    return NextResponse.json({ categories: mappedCategories });
+  } catch (error: any) {
+    console.error('[Categories API] Error:', error);
+    return NextResponse.json(
+      { 
+        error: error.message || 'Failed to fetch categories',
+        details: process.env.NODE_ENV === 'development' 
+          ? { stack: error.stack }
+          : undefined,
+      },
+      { status: 500 }
+    );
+  }
+}
+

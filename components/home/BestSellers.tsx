@@ -1,0 +1,69 @@
+'use client';
+
+import Link from 'next/link';
+import { useProductsForHome } from '@/lib/hooks/useProductsForHome';
+import { ProductCard } from '@/components/product/ProductCard';
+import { Skeleton } from '@/components/ui/skeleton';
+import { buttonVariants } from '@/lib/utils/button-variants';
+
+/**
+ * Best Sellers Section
+ * 
+ * Hiển thị sản phẩm bán chạy nhất
+ * Grid: 2 cols mobile, 4 cols desktop
+ */
+export function BestSellers() {
+  const { products, loading, error } = useProductsForHome({
+    orderby: 'popularity',
+    order: 'desc',
+    per_page: 8, // 2 hàng x 4 cột = 8 sản phẩm
+  });
+
+  if (error) {
+    return null; // Fail silently
+  }
+
+  if (loading) {
+    return (
+      <section className="w-full px-2 md:container-mobile md:px-8 py-8 md:py-16">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="font-heading text-xl md:text-3xl">
+            🔥 Sản phẩm bán chạy
+          </h2>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
+          {[...Array(8)].map((_, i) => (
+            <Skeleton key={i} className="aspect-square rounded-2xl" />
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  if (!products || products.length === 0) {
+    return null;
+  }
+
+  return (
+    <section className="w-full px-2 md:container-mobile md:px-8 py-8 md:py-16">
+      <div className="flex items-center justify-between mb-6">
+        <h2 className="font-heading text-xl md:text-3xl">
+          🔥 Sản phẩm bán chạy
+        </h2>
+        <Link 
+          href="/products?sort=popularity"
+          className={buttonVariants({ variant: 'ghost', size: 'sm' })}
+        >
+          Xem tất cả →
+        </Link>
+      </div>
+      
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-4 lg:gap-6">
+        {products.slice(0, 8).map((product) => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
+    </section>
+  );
+}
+

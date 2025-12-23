@@ -1,0 +1,264 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide scrollbar for horizontal scrolling thumbnails */
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+}
+
+/* Fonts are loaded via Next.js font optimization in app/layout.tsx */
+/* No need for @import here - Next.js handles font loading with display: swap */
+
+@layer base {
+  :root {
+    /* --- BẢNG MÀU MỚI: NGỌT NGÀO & ẤM ÁP --- */
+    /* Tông màu Hồng Pastel (Chủ đạo) phối với Nâu Chocolate Sữa (Văn bản) và Kem (Nền) */
+    
+    /* Background: Màu Kem Sữa (Creamy White) - Thay vì trắng tinh */
+    --background: 30 33% 98%; /* #FDFBF9 */
+    --foreground: 15 25% 35%; /* Nâu đất nhẹ cho text thường */
+
+    /* Card: Trắng nhưng hơi ám hồng nhẹ */
+    --card: 0 0% 100%;
+    --card-foreground: 15 25% 35%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 15 25% 35%;
+
+    /* Primary: Màu Hồng Đào Đậm (Cho nút Mua Hàng, Giá tiền) */
+    /* Đây là điểm nhấn quan trọng nhất để tạo sự dễ thương */
+    /* Cập nhật: Đậm hơn để đạt chuẩn WCAG contrast ratio 4.5:1 */
+    --primary: 339 65% 52%; /* #D6336C - Màu hồng đậm chuẩn, đạt WCAG AA */
+    --primary-foreground: 0 0% 100%; /* Chữ trắng trên nền hồng */
+
+    /* Secondary: Màu Nâu Nhạt (Cho các thẻ phụ, nền button phụ) */
+    --secondary: 25 40% 90%; /* #F5EBE6 */
+    --secondary-foreground: 25 30% 30%; /* Nâu đậm */
+
+    /* Muted: Xám ấm */
+    --muted: 30 20% 96%;
+    --muted-foreground: 25 10% 55%;
+
+    /* Accent: Màu Hồng Phấn Nhạt (Cho hiệu ứng Hover menu) */
+    --accent: 345 80% 96%; /* #FFF0F5 */
+    --accent-foreground: 345 90% 45%;
+
+    /* Destructive: Đỏ cam */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 25 20% 90%;
+    --input: 25 20% 90%;
+    --ring: 339 65% 52%; /* Focus ring màu hồng đậm (match với primary) */
+
+    /* Bo góc tròn trịa hơn */
+    --radius: 1rem;
+    
+    /* Chart colors - Removed (not used in storefront) */
+    /* If needed for admin dashboard in the future, uncomment:
+    --chart-1: 12 76% 61%;
+    --chart-2: 350 65% 65%;
+    --chart-3: 30 50% 55%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    */
+  }
+  .dark {
+    /* Dark mode với tông màu ấm - Phù hợp với shop gấu bông */
+    --background: 25 15% 8%; /* Warm dark brown background */
+    --foreground: 30 20% 95%; /* Warm off-white text */
+    
+    --card: 25 15% 10%;
+    --card-foreground: 30 20% 95%;
+    
+    --popover: 25 15% 10%;
+    --popover-foreground: 30 20% 95%;
+    
+    /* Primary: Màu be ấm trong dark mode */
+    --primary: 30 40% 70%; /* Warm beige */
+    --primary-foreground: 25 30% 15%; /* Dark brown */
+    
+    --secondary: 25 20% 18%;
+    --secondary-foreground: 30 20% 90%;
+    
+    --muted: 25 15% 20%;
+    --muted-foreground: 30 15% 65%;
+    
+    /* Accent: Màu hồng nhạt trong dark mode */
+    --accent: 350 50% 25%; /* Deep rose */
+    --accent-foreground: 350 60% 85%; /* Light pink text */
+    
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 0 0% 98%;
+    
+    --border: 25 20% 25%;
+    --input: 25 20% 25%;
+    --ring: 350 60% 60%; /* Soft rose for focus */
+    
+    /* Chart colors - Removed (not used in storefront) */
+    /* If needed for admin dashboard in the future, uncomment:
+    --chart-1: 12 70% 55%;
+    --chart-2: 350 60% 60%;
+    --chart-3: 30 45% 50%;
+    --chart-4: 43 65% 60%;
+    --chart-5: 27 75% 60%;
+    */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-text-main font-sans;
+    font-size: 15px; /* Mobile readable size theo DESIGN_SYSTEM.md */
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+  h1 {
+    @apply text-2xl; /* Compact on mobile theo DESIGN_SYSTEM.md */
+  }
+  h2 {
+    @apply text-xl;
+  }
+}
+
+/* Mobile First - Prevent horizontal scroll */
+@layer utilities {
+  .container-mobile {
+    @apply w-full px-4 md:px-8;
+    /* Max-width responsive: 1280px cho desktop vừa, 1400px cho desktop lớn */
+    @apply lg:max-w-[1280px] 2xl:max-w-[1400px] mx-auto;
+    /* Removed overflow-x-hidden to prevent clipping dropdowns */
+    /* Use overflow-x-hidden only on specific sections that need it */
+  }
+  
+  /* Better touch handling for mobile */
+  .touch-manipulation {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Smooth Transitions */
+@layer utilities {
+  .transition-smooth {
+    @apply transition-all duration-300 ease-in-out;
+  }
+  
+  .animate-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  .fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+  }
+  
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  
+  .slide-in-right {
+    animation: slideInRight 0.3s ease-in-out;
+  }
+  
+  @keyframes slideInRight {
+    from {
+      transform: translateX(100%);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  
+  /* Slide Down animation for dropdowns and mega menus */
+  @keyframes slideDown {
+    from {
+      opacity: 0;
+      transform: translateY(-10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  /* Fade In Up animation for contact widget sub buttons */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Button Primary - Candy-like gradient effect for teddy bear shop */
+/* Cập nhật: Dùng màu đậm hơn để đạt chuẩn WCAG contrast ratio */
+/* Loại bỏ shadow khi hover để giao diện gọn gàng hơn */
+@layer components {
+  .button-primary-gradient {
+    /* Gradient từ hồng nhạt đến hồng đậm (#D6336C) */
+    background-image: linear-gradient(to bottom right, #E85A8A, #D6336C) !important;
+    box-shadow: none;
+    transition: all 0.2s ease-in-out;
+  }
+  
+  .button-primary-gradient:hover {
+    box-shadow: none;
+    transform: translateY(-1px);
+  }
+  
+  .button-primary-gradient:active {
+    box-shadow: none;
+    transform: translateY(0);
+  }
+}
+
+/* Video Embed Wrapper Styles - For responsive video embeds in editor */
+@layer components {
+  .video-embed-wrapper {
+    position: relative;
+    padding-bottom: 56.25%; /* 16:9 aspect ratio */
+    height: 0;
+    overflow: hidden;
+    max-width: 100%;
+    margin: 1rem 0;
+  }
+  
+  .video-embed-wrapper iframe {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
