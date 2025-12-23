@@ -48,6 +48,9 @@
     "test:smart-sku-phase5": "tsx scripts/test-smart-sku-phase5.ts",
     "test:product-quick-edit": "tsx scripts/test-product-quick-edit.ts",
     "debug:product-variants": "tsx scripts/debug-product-variants.ts",
+    "test:email": "tsx scripts/test-email-service.ts",
+    "test:telegram": "tsx scripts/test-telegram-service.ts",
+    "test:telegram-chat-id": "tsx scripts/get-telegram-chat-id.ts",
     "generate:nextauth-secret": "node scripts/generate-nextauth-secret.js"
   },
   "dependencies": {
@@ -93,6 +96,7 @@
     "react-dom": "^18.2.0",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.48.0",
+    "resend": "^6.6.0",
     "sharp": "^0.34.5",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",

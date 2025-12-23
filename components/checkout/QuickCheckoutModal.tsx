@@ -130,8 +130,12 @@ export function QuickCheckoutModal() {
       const firstName = nameParts.length > 1 ? nameParts.slice(0, -1).join(' ') : fullName.trim();
       const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : '';
 
-      // Generate email từ phone nếu cần (hoặc để trống)
-      const email = formData.phone ? `${formData.phone.replace(/[\s-]/g, '')}@shop-gaubong.com` : '';
+      // Generate email từ phone - đảm bảo email luôn hợp lệ
+      // Nếu phone không có, dùng email mặc định với timestamp để đảm bảo unique
+      const phoneNumber = formData.phone?.replace(/[\s-]/g, '') || '';
+      const email = phoneNumber 
+        ? `${phoneNumber}@shop-gaubong.com`
+        : `customer-${Date.now()}@shop-gaubong.com`;
 
       const checkoutData: CheckoutFormData = {
         firstName: firstName || fullName.trim(),

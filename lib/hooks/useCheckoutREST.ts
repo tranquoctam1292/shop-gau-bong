@@ -125,7 +125,7 @@ export function useCheckoutREST() {
         paymentMethodTitle: getPaymentMethodTitle(formData.paymentMethod),
         subtotal,
         shippingTotal,
-        total,
+        grandTotal: total, // API expects 'grandTotal', not 'total'
         customerNote: formData.customerNote || undefined,
       };
 
@@ -140,7 +140,40 @@ export function useCheckoutREST() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || errorData.message || 'Không thể tạo đơn hàng');
+        
+        // Extract detailed validation errors if available
+        let errorMessage = errorData.error || errorData.message || 'Không thể tạo đơn hàng';
+        
+        // If there are validation details, include them in the error message
+        if (errorData.details && Array.isArray(errorData.details) && errorData.details.length > 0) {
+          const fieldErrors = errorData.details
+            .map((detail: { field: string; message: string }) => {
+              // Map field names to Vietnamese labels
+              const fieldLabels: Record<string, string> = {
+                'customerEmail': 'Email',
+                'customerName': 'Họ và tên',
+                'billing.firstName': 'Tên',
+                'billing.lastName': 'Họ',
+                'billing.address1': 'Địa chỉ',
+                'billing.city': 'Thành phố',
+                'billing.postcode': 'Mã bưu điện',
+                'shipping.firstName': 'Tên người nhận',
+                'shipping.lastName': 'Họ người nhận',
+                'shipping.address1': 'Địa chỉ giao hàng',
+                'shipping.city': 'Thành phố',
+                'lineItems': 'Sản phẩm',
+                'grandTotal': 'Tổng tiền',
+              };
+              
+              const fieldLabel = fieldLabels[detail.field] || detail.field;
+              return `${fieldLabel}: ${detail.message}`;
+            })
+            .join(', ');
+          
+          errorMessage = `Dữ liệu không hợp lệ: ${fieldErrors}`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();

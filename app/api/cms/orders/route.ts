@@ -330,6 +330,78 @@ export async function POST(request: NextRequest) {
     const createdOrder = await orders.findOne({ _id: orderResult.insertedId });
     const items = await orderItems.find({ orderId }).toArray();
     
+    // Send email notification to admin (non-blocking)
+    // Don't fail order creation if email fails
+    try {
+      const { sendNewOrderNotificationEmail } = await import('@/lib/services/email');
+      const emailResult = await sendNewOrderNotificationEmail({
+        orderNumber,
+        customerName: validatedData.customerName,
+        customerEmail: validatedData.customerEmail,
+        customerPhone: validatedData.customerPhone,
+        grandTotal: recalculatedGrandTotal,
+        paymentMethod: validatedData.paymentMethod,
+        paymentMethodTitle: validatedData.paymentMethodTitle,
+        items: items.map((item) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total,
+        })),
+        shippingAddress: {
+          address1: validatedData.shipping.address1,
+          address2: validatedData.shipping.address2,
+          province: validatedData.shipping.city, // Note: city field contains full address info
+          postcode: validatedData.shipping.postcode,
+        },
+        createdAt: new Date(),
+      });
+      
+      if (!emailResult.success) {
+        console.error('[Orders API] Failed to send email notification:', emailResult.error);
+      }
+    } catch (error) {
+      // Log error but don't fail order creation
+      console.error('[Orders API] Error sending email notification:', error);
+    }
+    
+    // Send Telegram notification to admin (non-blocking)
+    // Don't fail order creation if Telegram fails
+    try {
+      const { sendTelegramNotification } = await import('@/lib/services/telegram');
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://teddyland.vn';
+      const telegramResult = await sendTelegramNotification({
+        orderNumber,
+        customerName: validatedData.customerName,
+        customerEmail: validatedData.customerEmail,
+        customerPhone: validatedData.customerPhone,
+        grandTotal: recalculatedGrandTotal,
+        paymentMethod: validatedData.paymentMethod,
+        paymentMethodTitle: validatedData.paymentMethodTitle,
+        items: items.map((item) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.total,
+        })),
+        shippingAddress: {
+          address1: validatedData.shipping.address1,
+          address2: validatedData.shipping.address2,
+          province: validatedData.shipping.city,
+          postcode: validatedData.shipping.postcode,
+        },
+        createdAt: new Date(),
+        adminUrl: `${siteUrl}/admin/orders/${orderNumber}`,
+      });
+      
+      if (!telegramResult.success) {
+        console.error('[Orders API] Failed to send Telegram notification:', telegramResult.error);
+      }
+    } catch (error) {
+      // Log error but don't fail order creation
+      console.error('[Orders API] Error sending Telegram notification:', error);
+    }
+    
     return NextResponse.json(
       {
         order: {
