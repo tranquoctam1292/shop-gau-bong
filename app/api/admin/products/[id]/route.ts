@@ -402,15 +402,55 @@ export async function GET(
       );
     }
     
-    // Find by ObjectId or slug
+    // PERFORMANCE OPTIMIZATION (2.1.3): Use projection to only fetch fields needed for Quick Edit
+    // This reduces data transfer and improves query performance
+    const projection: Record<string, 1> = {
+      _id: 1,
+      name: 1,
+      slug: 1,
+      sku: 1,
+      status: 1,
+      visibility: 1,
+      version: 1,
+      description: 1,
+      shortDescription: 1,
+      images: 1,
+      _thumbnail_id: 1,
+      _product_image_gallery: 1,
+      category: 1,
+      categoryId: 1,
+      categories: 1,
+      tags: 1,
+      isHot: 1,
+      isActive: 1,
+      scheduledDate: 1,
+      password: 1,
+      length: 1,
+      width: 1,
+      height: 1,
+      weight: 1,
+      volumetricWeight: 1,
+      minPrice: 1,
+      maxPrice: 1,
+      productDataMetaBox: 1, // Include all productDataMetaBox fields (pricing, stock, variants, etc.)
+      variants: 1, // Include variants array
+      seo: 1,
+      giftFeatures: 1,
+      mediaExtended: 1,
+      createdAt: 1,
+      updatedAt: 1,
+      deletedAt: 1,
+    };
+    
+    // Find by ObjectId or slug with projection
     let product = null;
     
     if (ObjectId.isValid(id)) {
-      product = await products.findOne({ _id: new ObjectId(id) });
+      product = await products.findOne({ _id: new ObjectId(id) }, { projection });
     }
     
     if (!product) {
-      product = await products.findOne({ slug: id });
+      product = await products.findOne({ slug: id }, { projection });
     }
     
     if (!product) {
@@ -469,7 +509,108 @@ export async function GET(
     }> | undefined = undefined;
     
     // Priority 1: Use variants array from MongoDB (if exists)
+    // BUT: If variants don't have color field, enrich from productDataMetaBox.variations
     if (product.variants && Array.isArray(product.variants) && product.variants.length > 0) {
+      // Check if variants have color field
+      const hasColorInVariants = product.variants.some((v: any) => v.color);
+      
+      // If variants don't have color, try to enrich from productDataMetaBox.variations
+      if (!hasColorInVariants && product.productDataMetaBox?.variations && product.productDataMetaBox.variations.length > 0) {
+        // Find color attribute in productDataMetaBox.attributes to get colorCodes mapping
+        const colorAttribute = product.productDataMetaBox?.attributes?.find((attr: any) => {
+          const attrNameLower = (attr.name || '').toLowerCase();
+          return attrNameLower.includes('color') || 
+                 attrNameLower === 'pa_color' || 
+                 attrNameLower === 'màu' ||
+                 attrNameLower === 'màu sắc';
+        });
+        const colorCodesMap = colorAttribute?.colorCodes || {};
+        const colorAttributeName = colorAttribute?.name || '';
+        
+        // Create a map of variations by variation ID for quick lookup (includes both attributes and direct colorCode field)
+        const variationMap = new Map<string, any>();
+        product.productDataMetaBox.variations.forEach((variation: any) => {
+          if (variation.id) {
+            variationMap.set(variation.id, variation);
+          }
+        });
+        
+        // Enrich variants with color from productDataMetaBox.variations
+        variants = product.variants.map((v: any) => {
+          const variation = variationMap.get(v.id);
+          let color: string | undefined = v.color || undefined;
+          let colorCode: string | undefined = v.colorCode || undefined;
+          
+          // If variation found, extract color and colorCode
+          if (variation) {
+            // Priority 1: Use direct colorCode field if available
+            if (!colorCode && variation.colorCode) {
+              colorCode = variation.colorCode;
+            }
+            
+            // Extract color from variation attributes if not in variant
+            const variationAttributes = variation.attributes;
+            if (!color && variationAttributes && typeof variationAttributes === 'object') {
+              Object.entries(variationAttributes).forEach(([attrName, value]) => {
+                const attrNameLower = attrName.toLowerCase().trim();
+                const valueStr = String(value).trim();
+                
+                // Normalize attribute names for comparison
+                const normalizeString = (str: string) => {
+                  return str.toLowerCase()
+                    .normalize('NFD')
+                    .replace(/[\u0300-\u036f]/g, '') // Remove accents
+                    .trim();
+                };
+                
+                const normalizedAttrName = normalizeString(attrName);
+                const normalizedColorAttrName = colorAttributeName ? normalizeString(colorAttributeName) : '';
+                
+                // Check if this is a color attribute
+                const isColorAttr = colorAttributeName ? (
+                  attrName === colorAttributeName ||
+                  normalizedAttrName === normalizedColorAttrName ||
+                  normalizedAttrName.includes('color') || 
+                  normalizedAttrName === 'pa_color' || 
+                  normalizedAttrName === 'mau' ||
+                  normalizedAttrName === 'mau sac' ||
+                  normalizedAttrName.includes('mau')
+                ) : (
+                  normalizedAttrName.includes('color') || 
+                  normalizedAttrName === 'pa_color' || 
+                  normalizedAttrName === 'mau' ||
+                  normalizedAttrName === 'mau sac' ||
+                  normalizedAttrName.includes('mau')
+                );
+                
+                if (isColorAttr && !color) {
+                  color = valueStr;
+                  // Lookup colorCode from colorCodes mapping if not already found
+                  if (!colorCode) {
+                    colorCode = colorCodesMap[valueStr] || 
+                               colorCodesMap[valueStr.toLowerCase()] || 
+                               colorCodesMap[valueStr.toUpperCase()] ||
+                               colorCodesMap[valueStr.trim()] ||
+                               undefined;
+                  }
+                }
+              });
+            }
+          }
+          
+          return {
+            id: v.id || '',
+            size: v.size || '',
+            color: color || undefined,
+            colorCode: colorCode || undefined,
+            price: v.price || 0,
+            stock: v.stock || v.stockQuantity || 0,
+            image: v.image || undefined,
+            sku: v.sku || undefined,
+          };
+        });
+      } else {
+        // Variants already have color or no productDataMetaBox.variations - use as is
       variants = product.variants.map((v: any) => ({
         id: v.id || '',
         size: v.size || '',
@@ -481,7 +622,8 @@ export async function GET(
         sku: v.sku || undefined,
       }));
     }
-    // Priority 2: Convert from productDataMetaBox.variations
+    }
+    // Priority 2: Convert from productDataMetaBox.variations (if variants array doesn't exist)
     else if (product.productDataMetaBox?.variations && product.productDataMetaBox.variations.length > 0) {
       // Find color attribute in productDataMetaBox.attributes to get colorCodes mapping
       const colorAttribute = product.productDataMetaBox?.attributes?.find((attr: any) => {
@@ -915,6 +1057,32 @@ export async function PUT(
       
       // Set variants array (will be used by frontend)
       updateData.variants = convertedVariants;
+      
+      // PHASE 0: Variants Structure Sync (7.1.3) - Ensure variants[] is synced
+      // variants[] is now the single source of truth
+      // variations[] is kept for backward compatibility but should be synced from variants[]
+    } else if (updateData.variants && Array.isArray(updateData.variants) && updateData.variants.length > 0) {
+      // PHASE 0: Variants Structure Sync (7.1.3) - Sync variations[] from variants[]
+      // If variants[] is updated directly, sync to variations[] for backward compatibility
+      if (!updateData.productDataMetaBox) {
+        updateData.productDataMetaBox = { ...product.productDataMetaBox || {} };
+      }
+      
+      updateData.productDataMetaBox.variations = updateData.variants.map((variant: any) => {
+        const attributes: Record<string, string> = {};
+        if (variant.size) attributes.Size = variant.size;
+        if (variant.color) attributes.Color = variant.color;
+        
+        return {
+          id: variant.id,
+          attributes,
+          regularPrice: variant.price || variant.regularPrice || 0,
+          salePrice: variant.salePrice,
+          stockQuantity: variant.stock || variant.stockQuantity || 0,
+          sku: variant.sku,
+          image: variant.image,
+        };
+      });
     } else if (updateData.productDataMetaBox && !updateData.productDataMetaBox.variations) {
       // If productDataMetaBox is being updated but variations is empty/undefined, clear variants
       updateData.variants = [];

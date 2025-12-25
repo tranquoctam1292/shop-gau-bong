@@ -92,16 +92,25 @@ async function fetchTopCustomers(
 }
 
 /**
- * Hook to fetch today's stats only
+ * Hook to fetch stats for a given date range
  * Returns: { revenue, orderCount, refunds }
  */
-export function useTodayStats() {
+export function useStatsCards(options: DashboardStatsOptions = {}) {
   return useQuery({
-    queryKey: ['dashboard-stats', 'today'],
-    queryFn: () => fetchDashboardStats({ dateRange: 'today' }),
+    queryKey: ['dashboard-stats-cards', options],
+    queryFn: () => fetchDashboardStats(options),
     staleTime: 30 * 1000, // 30 seconds
-    select: (data) => data.data.todayStats, // Extract only todayStats
+    select: (data) => data.data.todayStats, // Extract only todayStats (kept for backward compatibility)
   });
+}
+
+/**
+ * Hook to fetch today's stats only (backward compatibility)
+ * Returns: { revenue, orderCount, refunds }
+ * @deprecated Use useStatsCards({ dateRange: 'today' }) instead
+ */
+export function useTodayStats() {
+  return useStatsCards({ dateRange: 'today' });
 }
 
 /**

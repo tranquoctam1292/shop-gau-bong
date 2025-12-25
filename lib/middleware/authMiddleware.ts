@@ -12,6 +12,10 @@ import { AdminUser, Permission } from '@/types/admin';
 import { hasPermission } from '@/lib/utils/permissions';
 import { AdminRole } from '@/types/admin';
 import { checkRateLimit } from '@/lib/utils/rateLimiter';
+import { getToken } from 'next-auth/jwt';
+import { authOptions } from '@/lib/authOptions';
+import { extractCsrfTokenFromHeaders, hashCsrfToken, validateOrigin, getAllowedOrigins } from '@/lib/utils/csrf';
+import { verifyCsrfTokenForUser } from '@/lib/utils/csrfTokenCache';
 
 /**
  * Request with authenticated admin user attached
@@ -60,7 +64,8 @@ export async function withAuthAdmin(
 ): Promise<NextResponse> {
   try {
     // 1. Check authentication (session)
-    const session = await getSession();
+    // Pass request to getSession so it can read cookies from the request using getToken
+    const session = await getSession(request);
 
     if (!session || !session.user || !(session.user as any).id) {
       return NextResponse.json(
@@ -120,14 +125,12 @@ export async function withAuthAdmin(
     const pathname = url.pathname;
     const method = request.method.toUpperCase();
 
-    // Determine rate limit thresholds based on HTTP method
-    // GET requests: 60 req/min, Others: 20 req/min
-    const isGetRequest = method === 'GET';
-    const maxAttempts = isGetRequest ? 60 : 20;
-    const windowMs = 60 * 1000; // 1 minute window
-
+    // PHASE 3: Rate Limiting Granularity (7.12.9) - Get granular rate limit config
+    const { getRateLimitConfig, checkRateLimitWithBurst } = await import('@/lib/utils/rateLimiter');
+    const rateLimitConfig = getRateLimitConfig(pathname, method, user.role);
+    
     const rateLimitKey = `admin_limit:${userId}:${method}:${pathname}`;
-    const withinLimit = await checkRateLimit(rateLimitKey, maxAttempts, windowMs);
+    const withinLimit = await checkRateLimitWithBurst(rateLimitKey, rateLimitConfig);
 
     if (!withinLimit) {
       return NextResponse.json(
@@ -176,7 +179,108 @@ export async function withAuthAdmin(
       }
     }
 
-    // 8. Attach adminUser to request and call handler
+    // 8. PHASE 1: CSRF Protection (7.12.2) - Validate CSRF token for state-changing requests
+    const stateChangingMethods = ['POST', 'PUT', 'PATCH', 'DELETE'];
+    if (stateChangingMethods.includes(method)) {
+      // Skip CSRF validation for certain endpoints (e.g., login, logout, change-password)
+      // These endpoints handle authentication and don't need CSRF protection
+      const skipCsrfRoutes = [
+        '/api/admin/auth/login',
+        '/api/admin/auth/logout',
+        '/api/admin/auth/csrf-token',
+        '/api/admin/auth/change-password',
+      ];
+      
+      const shouldSkipCsrf = skipCsrfRoutes.some(route => pathname === route);
+      
+      if (!shouldSkipCsrf) {
+        // Validate Origin header
+        const origin = request.headers.get('Origin');
+        const allowedOrigins = getAllowedOrigins();
+        const requestUrl = request.url;
+        
+        // Allow same-origin requests (origin matches request URL's origin)
+        // This handles cases where browser sends Origin header even for same-origin requests
+        if (!validateOrigin(origin, allowedOrigins, requestUrl)) {
+          // Only reject if origin is explicitly provided and doesn't match
+          // If no origin header, it's safe (same-origin requests sometimes don't send Origin)
+          if (origin) {
+            return NextResponse.json(
+              {
+                success: false,
+                code: 'CSRF_ORIGIN_INVALID',
+                message: 'Yêu cầu không hợp lệ',
+              },
+              { status: 403 }
+            );
+          }
+        }
+
+        // Extract and validate CSRF token
+        const csrfToken = extractCsrfTokenFromHeaders(request.headers);
+        if (!csrfToken) {
+          return NextResponse.json(
+            {
+              success: false,
+              code: 'CSRF_TOKEN_MISSING',
+              message: 'CSRF token không được tìm thấy',
+            },
+            { status: 403 }
+          );
+        }
+
+        // Verify CSRF token using cache
+        const secret = authOptions.secret;
+        if (!secret) {
+          return NextResponse.json(
+            {
+              success: false,
+              code: 'INTERNAL_ERROR',
+              message: 'Server configuration error',
+            },
+            { status: 500 }
+          );
+        }
+        
+        // CRITICAL FIX: Ensure userId is string for CSRF token verification
+        // userId from session is already string, but ensure type safety
+        const userIdString = String(userId);
+        
+        // Log for debugging (development only)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[CSRF Validation] Verifying token for userId:', userIdString);
+          console.log('[CSRF Validation] Token length:', csrfToken?.length || 0);
+        }
+        
+        const isValid = await verifyCsrfTokenForUser(userIdString, csrfToken, secret, hashCsrfToken);
+        if (!isValid) {
+          // Log error for debugging (only in development)
+          if (process.env.NODE_ENV === 'development') {
+            console.error('[CSRF Validation Failed]', {
+              userId: userIdString,
+              tokenLength: csrfToken?.length || 0,
+              pathname,
+              origin: request.headers.get('Origin'),
+            });
+          }
+          return NextResponse.json(
+            {
+              success: false,
+              code: 'CSRF_TOKEN_INVALID',
+              message: 'CSRF token không hợp lệ. Vui lòng tải lại trang',
+            },
+            { status: 403 }
+          );
+        }
+        
+        // Log success (development only)
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[CSRF Validation] Token verified successfully for userId:', userIdString);
+        }
+      }
+    }
+
+    // 9. Attach adminUser to request and call handler
     (request as AuthenticatedRequest).adminUser = user as AdminUser;
     return await handler(request as AuthenticatedRequest);
   } catch (error) {

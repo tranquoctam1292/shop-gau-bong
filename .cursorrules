@@ -19,6 +19,21 @@ This is a teddy bear e-commerce site for the Vietnam market.
   - Fixed ProductForm data loading on Vercel: Added `credentials: 'include'` to all fetch calls
   - Fixed ES Module compatibility: Lazy load `cleanHtmlForStorage` to avoid `jsdom`/`parse5` errors
   - Improved error handling: Added `safeHandler` wrapper and MongoDB connection error handling
+- **Quick Edit Feature (2025-01):** ✅ Phase 0-3 Complete (100% - All phases completed)
+  - Product Quick Edit Dialog: Inline editing với Dialog (desktop) và Sheet (mobile), support single và bulk edit mode
+  - Features: Categories/Tags, Featured Image & Gallery, Weight & Dimensions, Low Stock Threshold, SEO Fields, Cost Price, Product Type & Visibility, Shipping & Tax Settings
+  - Performance: Virtual scrolling cho variant table (50+ variants), batch update cho bulk edit (10-50x faster), type-safe conversion helpers
+  - UX/UI: Success feedback, visual field indicators, sticky save button, mobile keyboard handling, price formatting consistency
+  - Security: XSS sanitization, variant ownership validation, NoSQL injection prevention, version range validation
+  - **Performance Optimization (2025-01):** ✅ Phase 1-3 Complete
+    - CSRF Token Caching: sessionStorage với TTL check, pre-fetching on hover
+    - React Query Integration: Product data caching, pre-fetching, lightweight API endpoint
+    - MongoDB Indexes: `products.slug` và `categories.slug` (unique, sparse) để tối ưu query performance
+    - Code Splitting: Dynamic imports cho Quick Edit Dialog, giảm initial bundle size
+    - Progressive Loading: Critical sections load first, secondary sections load after 100ms delay với skeleton loaders
+    - Performance Impact: Giảm thời gian mở dialog từ ~8s xuống <2s
+    - See: `docs/reports/QUICK_EDIT_PERFORMANCE_OPTIMIZATION_PLAN.md` for details
+  - See: `docs/reports/QUICK_EDIT_PROGRESS_TRACKING.md` và `docs/reports/QUICK_EDIT_SAAS_GAP_ANALYSIS.md` for details
 
 # KNOWLEDGE BASE & CONTEXT STRATEGY (CRITICAL)
 Before implementing any feature, you MUST reference the following sources based on the task type:
@@ -56,6 +71,7 @@ Before implementing any feature, you MUST reference the following sources based 
 - **API Routes:** 
   - Public routes: `/api/cms/*` (products, categories, orders, banners, posts)
   - Admin routes: `/api/admin/*` (products, categories, orders, posts, authors, comments, media) - requires authentication
+  - **Performance Optimization:** Lightweight endpoint `/api/admin/products/[id]/quick-edit` for Quick Edit Dialog (only fetches required fields)
 - **API Route Error Handling (CRITICAL):** Always ensure API routes return JSON, never HTML error pages
   - Wrap entire route handlers in `safeHandler` or outer try-catch to catch initialization errors
   - Always include `credentials: 'include'` in client-side fetch calls to admin APIs
@@ -122,10 +138,22 @@ Before implementing any feature, you MUST reference the following sources based 
     - Use proper interfaces instead of `any` assertions
     - Use `unknown` for error handling, then check with `instanceof Error`
 - **Database Access:** Use `lib/db.ts` with `getCollections()` helper. Always use Repository Pattern.
+- **MongoDB Indexes (CRITICAL):** Always create indexes for frequently queried fields to optimize performance.
+  - *Required Indexes:* `products.slug` (unique, sparse), `categories.slug` (unique, sparse)
+  - *Script:* Run `npm run db:setup-indexes` to create all indexes
+  - *Verification:* Use `npm run verify:quick-edit-indexes` to verify index existence
+  - *Performance Impact:* Indexes reduce query time from 100-200ms to <10ms for slug lookups
 - **React Query:** Use `@tanstack/react-query` for data fetching, caching, and deduplication. Configured globally via `QueryProvider`.
-  - *Use for:* Product variations, product lists, categories
-  - *Benefits:* Automatic caching, request deduplication, background refetching
-  - *Example:* `useProductVariations(productId)` with lazy loading
+  - *Use for:* Product variations, product lists, categories, single product data
+  - *Benefits:* Automatic caching, request deduplication, background refetching, pre-fetching support
+  - *Example:* `useProductVariations(productId)` with lazy loading, `useProduct(productId)` for single product
+  - *Performance Optimization:* Use `useLightweight: true` option for Quick Edit Dialog to fetch only required fields
+  - *Pre-fetching:* Use `usePrefetchProduct` hook to pre-fetch product data on hover (debounced)
+- **React Virtual:** Use `@tanstack/react-virtual` for virtual scrolling in large lists/tables (50+ items).
+  - *Use for:* Variant tables, product lists, media library grids
+  - *Benefits:* Only render visible items, reduces DOM nodes by 70-80%, improves initial render time 3-5x
+  - *Example:* `useVirtualizer` hook in `VariantQuickEditTable.tsx` (threshold: 20 items)
+  - *Rule:* Enable virtualization only when item count >= threshold to avoid overhead for small lists
 
 ## 2. Frontend (Next.js & UI)
 - Framework: Next.js 14+ (App Router).

@@ -133,14 +133,11 @@ export async function GET(request: NextRequest) {
       // ✅ FIX: Order items are stored in separate collection, need to query orderItems collection directly
       
       // Get order IDs that match our criteria first
+      // Only include orders with status = 'completed'
       const matchingOrders = await orders
         .find({
           createdAt: { $gte: start, $lte: end },
-          status: { $in: ['confirmed', 'processing', 'shipping', 'completed'] },
-          $or: [
-            { paymentMethod: 'cod' },
-            { paymentStatus: 'paid' },
-          ],
+          status: 'completed',
         })
         .project({ _id: 1 })
         .toArray();

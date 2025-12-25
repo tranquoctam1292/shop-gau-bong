@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -16,7 +16,20 @@ import type { MappedProduct } from '@/lib/utils/productMapper';
 import { useToastContext } from '@/components/providers/ToastProvider';
 import { RestoreProductModal } from './RestoreProductModal';
 import { ForceDeleteModal } from './ForceDeleteModal';
-import { ProductQuickEditDialog } from './ProductQuickEditDialog';
+// PERFORMANCE OPTIMIZATION (3.2.1): Lazy load ProductQuickEditDialog for code splitting
+import dynamic from 'next/dynamic';
+
+const ProductQuickEditDialog = dynamic(
+  () => import('./ProductQuickEditDialog').then((mod) => ({ default: mod.ProductQuickEditDialog })),
+  {
+    loading: () => null, // Don't show loading spinner, dialog will show its own loading state
+    ssr: false, // Disable SSR for this component (client-only)
+  }
+);
+// PERFORMANCE OPTIMIZATION (1.1.1): Pre-fetch CSRF token on hover
+import { usePrefetchCsrfToken } from '@/lib/hooks/usePrefetchCsrfToken';
+// PERFORMANCE OPTIMIZATION (2.1.1): Pre-fetch product data on hover
+import { usePrefetchProduct } from '@/lib/hooks/usePrefetchProduct';
 
 interface ProductActionMenuProps {
   product: MappedProduct;
@@ -44,6 +57,21 @@ export function ProductActionMenu({
   const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [showForceDeleteModal, setShowForceDeleteModal] = useState(false);
   const [showQuickEdit, setShowQuickEdit] = useState(false);
+  // PERFORMANCE OPTIMIZATION (1.1.1): Pre-fetch CSRF token on hover
+  const { handleMouseEnter: handleCsrfMouseEnter, handleMouseLeave: handleCsrfMouseLeave } = usePrefetchCsrfToken({ debounceMs: 400 });
+  // PERFORMANCE OPTIMIZATION (2.1.1): Pre-fetch product data on hover (only for single product edit)
+  const { handleMouseEnter: handleProductMouseEnter, handleMouseLeave: handleProductMouseLeave } = usePrefetchProduct(product.id, { debounceMs: 400 });
+  
+  // Combine both pre-fetch handlers
+  const handleMouseEnter = useCallback(() => {
+    handleCsrfMouseEnter();
+    handleProductMouseEnter();
+  }, [handleCsrfMouseEnter, handleProductMouseEnter]);
+  
+  const handleMouseLeave = useCallback(() => {
+    handleCsrfMouseLeave();
+    handleProductMouseLeave();
+  }, [handleCsrfMouseLeave, handleProductMouseLeave]);
 
   const handleDelete = async () => {
     if (!onDelete) return;
@@ -136,6 +164,8 @@ export function ProductActionMenu({
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => setShowQuickEdit(true)}
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
               disabled={isLoading}
               className="cursor-pointer"
             >
@@ -210,15 +240,18 @@ export function ProductActionMenu({
         product={product}
       />
       
-      {/* Quick Edit Dialog */}
-      <ProductQuickEditDialog
-        product={product}
-        open={showQuickEdit}
-        onClose={() => setShowQuickEdit(false)}
-        onSuccess={(updatedProduct) => {
-          onProductUpdate?.(updatedProduct);
-        }}
-      />
+      {/* Quick Edit Dialog - Only render when open to prevent duplicate dialogs */}
+      {showQuickEdit && (
+        <ProductQuickEditDialog
+          key={`quick-edit-menu-${product.id}`}
+          product={product}
+          open={showQuickEdit}
+          onClose={() => setShowQuickEdit(false)}
+          onSuccess={(updatedProduct) => {
+            onProductUpdate?.(updatedProduct);
+          }}
+        />
+      )}
     </DropdownMenu>
   );
 }

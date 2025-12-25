@@ -64,8 +64,8 @@ export function useCategories(options: UseCategoriesOptions = {}): UseCategories
     queryKey: ['categories', type, status],
     queryFn: () => fetchCategories({ type, status }),
     enabled,
-    staleTime: 5 * 60 * 1000, // Cache 5 phút
-    gcTime: 10 * 60 * 1000, // Giữ trong cache 10 phút
+    staleTime: 30 * 60 * 1000, // PERFORMANCE OPTIMIZATION (1.2.2): Cache 30 phút (tăng từ 5 phút)
+    gcTime: 60 * 60 * 1000, // PERFORMANCE OPTIMIZATION (1.2.2): Giữ trong cache 1 giờ (tăng từ 10 phút)
     retry: 1,
     refetchOnWindowFocus: false,
     refetchOnMount: false,

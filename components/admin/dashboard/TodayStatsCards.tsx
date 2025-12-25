@@ -1,14 +1,21 @@
 'use client';
 
-import { useTodayStats } from '@/lib/hooks/useDashboard';
+import { useStatsCards } from '@/lib/hooks/useDashboard';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { DashboardErrorBoundary } from './ErrorBoundary';
 import { ErrorState } from '@/components/ui/error-state';
 import { TrendingUp, ShoppingCart, RefreshCw } from 'lucide-react';
+import { getDateRangeLabel } from '@/lib/utils/dateRange';
+import type { DashboardStatsOptions } from '@/types/dashboard';
 
-export function TodayStatsCards() {
-  const { data: todayStats, isLoading, error, refetch } = useTodayStats();
+interface TodayStatsCardsProps {
+  options?: DashboardStatsOptions;
+}
+
+export function TodayStatsCards({ options = { dateRange: 'today' } }: TodayStatsCardsProps) {
+  const { data: stats, isLoading, error, refetch } = useStatsCards(options);
+  const dateRangeLabel = getDateRangeLabel(options.dateRange || 'today');
 
   // Loading state
   if (isLoading) {
@@ -33,7 +40,7 @@ export function TodayStatsCards() {
   if (error) {
     return (
       <ErrorState
-        title="Không thể tải thống kê hôm nay"
+        title={`Không thể tải thống kê ${dateRangeLabel}`}
         message={error instanceof Error ? error.message : 'Có lỗi xảy ra khi tải dữ liệu'}
         action={{
           label: 'Thử lại',
@@ -45,7 +52,7 @@ export function TodayStatsCards() {
   }
 
   // Empty state (shouldn't happen, but handle gracefully)
-  if (!todayStats) {
+  if (!stats) {
     return (
       <Card>
         <CardContent className="pt-6">
@@ -57,27 +64,27 @@ export function TodayStatsCards() {
     );
   }
 
-  const stats = [
+  const statsData = [
     {
-      title: 'Doanh thu hôm nay',
+      title: `Doanh thu ${dateRangeLabel}`,
       value: new Intl.NumberFormat('vi-VN', {
         style: 'currency',
         currency: 'VND',
-      }).format(todayStats.revenue || 0),
+      }).format(stats.revenue || 0),
       icon: TrendingUp,
       color: 'text-orange-600',
       bgColor: 'bg-orange-50',
     },
     {
-      title: 'Đơn hàng hôm nay',
-      value: todayStats.orderCount || 0,
+      title: `Đơn hàng ${dateRangeLabel}`,
+      value: stats.orderCount || 0,
       icon: ShoppingCart,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Hoàn trả hôm nay',
-      value: todayStats.refunds || 0,
+      title: `Hoàn trả ${dateRangeLabel}`,
+      value: stats.refunds || 0,
       icon: RefreshCw,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
@@ -87,7 +94,7 @@ export function TodayStatsCards() {
   return (
     <DashboardErrorBoundary title="Lỗi khi hiển thị thống kê">
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {stats.map((stat) => {
+        {statsData.map((stat) => {
           const Icon = stat.icon;
           return (
             <Card key={stat.title}>

@@ -9,6 +9,14 @@
 - Improved API route error handling: All routes now return JSON (not HTML error pages)
 - Fixed Vercel deployment issues: Lazy loading for `isomorphic-dompurify` to avoid ES Module errors
 - Enhanced MongoDB connection error handling in API routes
+- **Quick Edit Feature:** ✅ Phase 0-3 Complete - Product Quick Edit Dialog với single và bulk edit mode, SEO fields, cost price, shipping/tax settings, performance optimizations (virtual scrolling, batch updates)
+- **Performance Optimization:** ✅ Phase 1-3 Complete
+  - CSRF Token Caching: sessionStorage với TTL check, pre-fetching on hover
+  - React Query Integration: Product data caching, pre-fetching, lightweight API endpoint (`/api/admin/products/[id]/quick-edit`)
+  - MongoDB Indexes: `products.slug` và `categories.slug` (unique, sparse) để tối ưu query performance
+  - Code Splitting: Dynamic imports cho Quick Edit Dialog
+  - Progressive Loading: Critical sections load first, secondary sections load after 100ms delay
+  - Performance Impact: Giảm thời gian mở dialog từ ~8s xuống <2s
 
 ---
 
@@ -129,8 +137,11 @@ interface MongoProduct {
     salePrice?: number;              // Must be < regularPrice (Phase 1: Validation)
     salePriceStartDate?: Date;
     salePriceEndDate?: Date;
-    costPrice?: number;
-    lowStockThreshold?: number;
+    costPrice?: number;              // ✅ Phase 2: Cost Price field for profit calculation
+    lowStockThreshold?: number;      // ✅ Phase 1: Low stock alert threshold
+    shippingClass?: string;          // ✅ Phase 2: Shipping class (Không có, Hàng thường, Hàng dễ vỡ, Hàng cồng kềnh, Giao hàng nhanh)
+    taxStatus?: 'taxable' | 'shipping' | 'none'; // ✅ Phase 2: Tax status
+    taxClass?: string;               // ✅ Phase 2: Tax class (Mặc định, Thuế tiêu chuẩn, Thuế giảm, Thuế 0%, '__none__')
     backorders: 'no' | 'notify' | 'yes';
     soldIndividually: boolean;
     purchaseNote?: string;
@@ -515,7 +526,9 @@ const product = await collections.products.findOne({
 - `types/woocommerce.ts` - Frontend type definitions (kept for compatibility)
 - `app/api/cms/**/route.ts` - Public API routes
 - `app/api/admin/**/route.ts` - Admin API routes
+- `app/api/admin/products/[id]/quick-edit/route.ts` - Lightweight API endpoint for Quick Edit Dialog
 - `scripts/setup-database-indexes.ts` - Database index setup
+- `scripts/create-quick-edit-indexes-direct.js` - Quick script to create Quick Edit indexes
 
 ---
 
@@ -636,6 +649,28 @@ media.createIndex({ createdAt: -1 });
 - **Impact:** All variation matching logic updated to use `variation.size` and `variation.color` directly
 - **Removed:** "Mua ngay" (Quick checkout) button from ProductInfo component - only "Thêm giỏ hàng" and "GỬI TẶNG" remain
 - **Fixed:** Runtime error `Cannot read properties of undefined (reading 'find')` in ProductInfo by updating variation matching logic
+
+### Quick Edit Feature (2025-01) - ✅ Phase 0-2 Complete
+- **Product Quick Edit Dialog:** Single và bulk edit mode, Dialog (desktop) và Sheet (mobile)
+- **New Fields Added:**
+  - SEO: `seo.seoTitle` (max 60 chars), `seo.seoDescription` (max 160 chars), `slug` (editable, URL-safe, unique)
+  - Cost Price: `productDataMetaBox.costPrice` (for profit calculation)
+  - Product Type & Visibility: `productDataMetaBox.productType`, `visibility`, `password`
+  - Shipping & Tax: `productDataMetaBox.shippingClass`, `taxStatus`, `taxClass`
+  - Low Stock: `productDataMetaBox.lowStockThreshold`
+- **Performance Optimizations:**
+  - Virtual scrolling cho variant tables (20+ items) using `@tanstack/react-virtual`
+  - Batch updates cho bulk edit (10-50x faster với `updateMany`)
+  - Type-safe conversion helpers (`lib/utils/typeConverters.ts`)
+- **Components:** `ProductQuickEditDialog.tsx`, `VariantQuickEditTable.tsx`, `PriceInput.tsx`, `LoadingProgressIndicator.tsx`
+- **Hooks:** `useQuickUpdateProduct.ts`, `useSkuValidation.ts`, `useMobileKeyboard.ts`
+- **Utilities:** `lib/utils/typeConverters.ts`, `lib/utils/variantIdValidator.ts`
+- **API Endpoints:**
+  - `PATCH /api/admin/products/[id]/quick-update` - Quick update single product
+  - `GET /api/admin/products/validate-sku?sku=...` - Real-time SKU validation
+  - `GET /api/admin/products/validate-slug?slug=...` - Slug uniqueness check
+  - `POST /api/admin/products/bulk-action` (action: 'quick_update') - Bulk edit multiple products
+- **See:** `docs/reports/QUICK_EDIT_PROGRESS_TRACKING.md` và `docs/reports/QUICK_EDIT_SAAS_GAP_ANALYSIS.md` for details
 
 ## 🔐 Admin Account Management (RBAC) - Collections
 

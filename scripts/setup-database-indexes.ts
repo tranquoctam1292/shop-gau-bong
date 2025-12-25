@@ -23,7 +23,28 @@ async function setupIndexes() {
 
     // Products indexes
     console.log('📦 Setting up products indexes...');
-    await collections.products.createIndex({ slug: 1 }, { unique: true });
+    // PERFORMANCE OPTIMIZATION (3.1.2): Add sparse option for backward compatibility
+    try {
+      // Drop existing index if it exists without sparse option
+      try {
+        await collections.products.dropIndex('slug_1');
+        console.log('   ℹ️  Dropped existing slug_1 index to recreate with sparse option');
+      } catch (dropError: any) {
+        // Index doesn't exist or has different name, continue
+        if (dropError.code !== 27) { // 27 = IndexNotFound
+          console.log('   ℹ️  Could not drop existing index:', dropError.message);
+        }
+      }
+      await collections.products.createIndex({ slug: 1 }, { unique: true, sparse: true, name: 'slug_1_unique' });
+      console.log('   ✅ Created products.slug index (unique, sparse)');
+    } catch (error: any) {
+      if (error.code === 85 || error.codeName === 'IndexOptionsConflict') {
+        console.log('   ⚠️  Index already exists: products.slug');
+      } else {
+        console.error('   ❌ Error creating products.slug index:', error.message);
+        throw error;
+      }
+    }
     await collections.products.createIndex({ status: 1 });
     await collections.products.createIndex({ featured: 1 });
     await collections.products.createIndex({ category: 1 });
@@ -94,7 +115,28 @@ async function setupIndexes() {
 
     // Categories indexes
     console.log('📦 Setting up categories indexes...');
-    await collections.categories.createIndex({ slug: 1 }, { unique: true });
+    // PERFORMANCE OPTIMIZATION (3.1.2): Add sparse option for backward compatibility
+    try {
+      // Drop existing index if it exists without sparse option
+      try {
+        await collections.categories.dropIndex('slug_1');
+        console.log('   ℹ️  Dropped existing slug_1 index to recreate with sparse option');
+      } catch (dropError: any) {
+        // Index doesn't exist or has different name, continue
+        if (dropError.code !== 27) { // 27 = IndexNotFound
+          console.log('   ℹ️  Could not drop existing index:', dropError.message);
+        }
+      }
+      await collections.categories.createIndex({ slug: 1 }, { unique: true, sparse: true, name: 'slug_1_unique' });
+      console.log('   ✅ Created categories.slug index (unique, sparse)');
+    } catch (error: any) {
+      if (error.code === 85 || error.codeName === 'IndexOptionsConflict') {
+        console.log('   ⚠️  Index already exists: categories.slug');
+      } else {
+        console.error('   ❌ Error creating categories.slug index:', error.message);
+        throw error;
+      }
+    }
     await collections.categories.createIndex({ parentId: 1 });
     await collections.categories.createIndex({ position: 1 });
     await collections.categories.createIndex({ status: 1 }); // NEW: For status filtering

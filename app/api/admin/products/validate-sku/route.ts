@@ -1,68 +1,85 @@
+/**
+ * Validate SKU Uniqueness API Route
+ * GET /api/admin/products/validate-sku - Check if SKU is available
+ * 
+ * Protected route - requires authentication
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 import { getCollections, ObjectId } from '@/lib/db';
-import { normalizeSku } from '@/lib/utils/skuGenerator';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
 
 export const dynamic = 'force-dynamic';
 
-/**
- * POST /api/admin/products/validate-sku
- * Validate SKU uniqueness using normalized SKU (case-insensitive)
- * 
- * According to SMART_SKU_IMPLEMENTATION_PLAN.md:
- * - Use sku_normalized field for duplicate checking (case-insensitive)
- * - Normalized SKU: uppercase, remove special chars
- * 
- * Protected route - requires authentication via withAuthAdmin middleware
- */
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
       const { searchParams } = new URL(request.url);
       const sku = searchParams.get('sku');
-      const excludeId = searchParams.get('excludeId');
+      const excludeId = searchParams.get('excludeId'); // Product ID to exclude from check (for edit mode)
 
-      if (!sku || !sku.trim()) {
-        return NextResponse.json({ available: true });
+      // Validate input
+      if (!sku || typeof sku !== 'string' || sku.trim() === '') {
+        return NextResponse.json(
+          { error: 'SKU is required' },
+          { status: 400 }
+        );
+      }
+
+      // Sanitize SKU: only allow alphanumeric, dash, underscore
+      const sanitizedSku = sku.trim().replace(/[^a-zA-Z0-9\-_]/g, '');
+      if (sanitizedSku !== sku.trim()) {
+        return NextResponse.json(
+          { 
+            available: false,
+            error: 'SKU chỉ được chứa chữ cái, số, dấu gạch ngang và dấu gạch dưới',
+            sanitized: sanitizedSku
+          },
+          { status: 200 } // Return 200 with available: false to show validation error
+        );
       }
 
       const { products } = await getCollections();
 
-      // Normalize SKU for case-insensitive duplicate checking
-      const skuNormalized = normalizeSku(sku.trim());
-      
-      if (!skuNormalized) {
-        // Empty normalized SKU is considered valid (empty SKU is allowed)
-        return NextResponse.json({ available: true });
-      }
+      // Build query: find products with same SKU, excluding current product if editing
+      const query: Record<string, unknown> = {
+        sku: sanitizedSku,
+        deletedAt: null, // Only check non-deleted products
+      };
 
-      // Build query using sku_normalized (case-insensitive check)
-      const query: any = { sku_normalized: skuNormalized };
-      
-      // Exclude current product if editing
       if (excludeId) {
-        try {
+        // Exclude current product when editing
+        if (ObjectId.isValid(excludeId)) {
           query._id = { $ne: new ObjectId(excludeId) };
-        } catch {
-          // Invalid ObjectId, ignore
         }
       }
 
-      // Check if SKU exists (using normalized field)
+      // Check if SKU exists
       const existingProduct = await products.findOne(query);
 
       if (existingProduct) {
         return NextResponse.json({
           available: false,
-          error: 'SKU đã tồn tại trong hệ thống',
+          error: `SKU "${sanitizedSku}" đã được sử dụng bởi sản phẩm khác`,
         });
       }
 
-      return NextResponse.json({ available: true });
-    } catch (error) {
-      console.error('Error validating SKU:', error);
+      // SKU is available
+      return NextResponse.json({
+        available: true,
+        sku: sanitizedSku,
+      });
+    } catch (error: unknown) {
+      console.error('[Validate SKU API] Error:', error);
+      
+      const isDevelopment = process.env.NODE_ENV === 'development';
+      const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+      
       return NextResponse.json(
-        { error: 'Internal server error', available: false },
+        {
+          error: isDevelopment ? errorMessage : 'Đã xảy ra lỗi khi kiểm tra SKU',
+          available: false,
+        },
         { status: 500 }
       );
     }

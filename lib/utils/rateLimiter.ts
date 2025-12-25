@@ -190,3 +190,159 @@ export async function cleanupExpiredRateLimits(): Promise<number> {
     return 0;
   }
 }
+
+/**
+ * PHASE 3: Rate Limiting Granularity (7.12.9) - Rate limit configuration per endpoint
+ */
+interface RateLimitConfig {
+  maxAttempts: number;
+  windowMs: number;
+  burstMaxAttempts?: number; // Burst protection: stricter limit for short window
+  burstWindowMs?: number; // Burst protection: shorter time window
+}
+
+/**
+ * PHASE 3: Rate Limiting Granularity (7.12.9) - Get rate limit configuration for endpoint
+ * 
+ * @param pathname - API endpoint pathname
+ * @param method - HTTP method
+ * @param userRole - User role (optional, for role-based limits)
+ * @returns Rate limit configuration
+ */
+export function getRateLimitConfig(
+  pathname: string,
+  method: string,
+  userRole?: string
+): RateLimitConfig {
+  // Default config
+  const defaultConfig: RateLimitConfig = {
+    maxAttempts: method === 'GET' ? 60 : 20,
+    windowMs: 60 * 1000, // 1 minute
+    burstMaxAttempts: method === 'GET' ? 30 : 10,
+    burstWindowMs: 10 * 1000, // 10 seconds for burst protection
+  };
+
+  // PHASE 3: Per-endpoint limits - Stricter limits for critical endpoints
+  const endpointConfigs: Record<string, RateLimitConfig> = {
+    // Quick update endpoint - stricter limit (10/min instead of 20/min)
+    '/api/admin/products/[id]/quick-update': {
+      maxAttempts: 10,
+      windowMs: 60 * 1000, // 1 minute
+      burstMaxAttempts: 5, // Allow 5 requests in 10 seconds
+      burstWindowMs: 10 * 1000,
+    },
+    // Bulk actions - very strict limit
+    '/api/admin/products/bulk-action': {
+      maxAttempts: 5,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 2,
+      burstWindowMs: 10 * 1000,
+    },
+    // Product creation - moderate limit
+    'POST:/api/admin/products': {
+      maxAttempts: 15,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 5,
+      burstWindowMs: 10 * 1000,
+    },
+    // Product deletion - strict limit
+    'DELETE:/api/admin/products/[id]': {
+      maxAttempts: 5,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 2,
+      burstWindowMs: 10 * 1000,
+    },
+  };
+
+  // Check for exact endpoint match first
+  const exactKey = `${method}:${pathname}`;
+  if (endpointConfigs[exactKey]) {
+    return endpointConfigs[exactKey];
+  }
+
+  // Check for pathname pattern match (e.g., /api/admin/products/[id]/quick-update)
+  for (const [pattern, config] of Object.entries(endpointConfigs)) {
+    // Skip if already matched as exact key
+    if (pattern === exactKey) {
+      continue;
+    }
+    
+    // Handle exact method:pathname format
+    let checkPattern = pattern;
+    if (pattern.includes(':')) {
+      const [patternMethod, patternPath] = pattern.split(':');
+      if (patternMethod !== method) {
+        continue; // Skip if method doesn't match
+      }
+      checkPattern = patternPath;
+    }
+    
+    // Convert pattern to regex
+    const regexPattern = checkPattern
+      .replace(/\[id\]/g, '[^/]+') // Replace [id] with non-slash characters
+      .replace(/\//g, '\\/'); // Escape slashes
+    
+    const regex = new RegExp(`^${regexPattern}$`);
+    if (regex.test(pathname)) {
+      return config;
+    }
+  }
+
+  // PHASE 3: User role-based limits - Different limits for different roles
+  if (userRole) {
+    const roleConfigs: Record<string, Partial<RateLimitConfig>> = {
+      SUPER_ADMIN: {
+        // Super admin gets higher limits (no change by default, but can override)
+        maxAttempts: defaultConfig.maxAttempts * 2,
+      },
+      VIEWER: {
+        // Viewer role gets lower limits (read-only operations)
+        maxAttempts: Math.floor(defaultConfig.maxAttempts * 0.7),
+        burstMaxAttempts: Math.floor((defaultConfig.burstMaxAttempts || 10) * 0.7),
+      },
+    };
+
+    const roleConfig = roleConfigs[userRole];
+    if (roleConfig) {
+      return {
+        ...defaultConfig,
+        ...roleConfig,
+      };
+    }
+  }
+
+  return defaultConfig;
+}
+
+/**
+ * PHASE 3: Rate Limiting Granularity (7.12.9) - Check rate limit with burst protection
+ * 
+ * Implements two-tier rate limiting:
+ * 1. Burst protection: Short window with stricter limit (prevents sudden spikes)
+ * 2. Regular limit: Longer window with normal limit (prevents sustained abuse)
+ * 
+ * @param key - Rate limit key
+ * @param config - Rate limit configuration
+ * @returns true if within limit, false if exceeded
+ */
+export async function checkRateLimitWithBurst(
+  key: string,
+  config: RateLimitConfig
+): Promise<boolean> {
+  // Check burst protection first (if configured)
+  if (config.burstMaxAttempts && config.burstWindowMs) {
+    const burstKey = `${key}:burst`;
+    const withinBurstLimit = await checkRateLimit(
+      burstKey,
+      config.burstMaxAttempts,
+      config.burstWindowMs
+    );
+    
+    if (!withinBurstLimit) {
+      return false; // Burst limit exceeded
+    }
+  }
+
+  // Check regular limit
+  return await checkRateLimit(key, config.maxAttempts, config.windowMs);
+}

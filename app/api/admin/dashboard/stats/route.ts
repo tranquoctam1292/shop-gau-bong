@@ -50,9 +50,13 @@ async function safeHandler(
 }
 
 /**
- * Calculate today's statistics
+ * Calculate statistics for a given date range
  */
-async function calculateTodayStats(): Promise<TodayStats> {
+async function calculateTodayStats(
+  dateRange: DashboardDateRange,
+  startDate?: string,
+  endDate?: string
+): Promise<TodayStats> {
   // ✅ FIX: Wrap getCollections in try-catch to handle MongoDB connection errors
   let orders, refunds;
   try {
@@ -63,37 +67,28 @@ async function calculateTodayStats(): Promise<TodayStats> {
     console.error('[Admin Dashboard Stats API] MongoDB connection error:', dbError);
     throw new Error('Database connection failed');
   }
-  const { start, end } = getDateRange('today');
+  
+  // Get date range based on parameter
+  const rangeResult = getDateRange(dateRange, startDate, endDate);
+  if (rangeResult.error) {
+    throw new Error(rangeResult.error);
+  }
+  const { start, end } = rangeResult;
 
-  // Calculate revenue and order count from confirmed orders (not just completed)
-  // Revenue includes: confirmed, processing, shipping, completed orders
-  // For COD orders: include if status is confirmed+ (paymentStatus may be 'pending')
-  // For online payment: include if paymentStatus = 'paid'
+  // Calculate revenue and order count from completed orders only
+  // Only count orders with status = 'completed'
   const todayStatsPipeline = [
     {
       $match: {
         createdAt: { $gte: start, $lt: end },
-        status: { $nin: ['cancelled', 'failed', 'pending', 'awaiting_payment', 'refunded'] },
+        status: 'completed',
       },
     },
     {
       $group: {
         _id: null,
         revenue: {
-          $sum: {
-            $cond: [
-              {
-                $or: [
-                  // COD orders: status is confirmed+ (paymentStatus may be 'pending')
-                  { $eq: ['$paymentMethod', 'cod'] },
-                  // Non-COD orders: paymentStatus must be 'paid'
-                  { $eq: ['$paymentStatus', 'paid'] },
-                ],
-              },
-              { $toDouble: { $ifNull: ['$grandTotal', 0] } },
-              0,
-            ],
-          },
+          $sum: { $toDouble: { $ifNull: ['$grandTotal', 0] } },
         },
         orderCount: { $sum: 1 },
       },
@@ -161,18 +156,12 @@ async function calculateRevenueChart(
   const dateFormat = getDateToStringFormat(groupBy);
 
   // Aggregation pipeline
-  // Include confirmed, processing, shipping, completed orders
-  // For COD: include if status is confirmed+
-  // For online payment: include if paymentStatus = 'paid'
+  // Only include orders with status = 'completed'
   const pipeline = [
     {
       $match: {
         createdAt: { $gte: start, $lte: end },
-        status: { $in: ['confirmed', 'processing', 'shipping', 'completed'] },
-        $or: [
-          { paymentMethod: 'cod' },
-          { paymentStatus: 'paid' },
-        ],
+        status: 'completed',
       },
     },
     {
@@ -262,8 +251,8 @@ export async function GET(request: NextRequest) {
         );
       }
 
-      // Calculate today stats
-      const todayStats = await calculateTodayStats();
+      // Calculate stats for the selected date range
+      const todayStats = await calculateTodayStats(dateRange, startDate, endDate);
 
       // Calculate revenue chart if requested
       let revenueChart: RevenueChartData | null = null;

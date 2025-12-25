@@ -2,13 +2,24 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Trash2, RotateCcw, FileX, Loader2, DollarSign, Package } from 'lucide-react';
+import { Trash2, RotateCcw, FileX, Loader2, DollarSign, Package, Edit } from 'lucide-react';
 import { BulkUpdatePriceModal } from './BulkUpdatePriceModal';
 import { BulkUpdateStockModal } from './BulkUpdateStockModal';
+// PERFORMANCE OPTIMIZATION (3.2.1): Lazy load ProductQuickEditDialog for code splitting
+import dynamic from 'next/dynamic';
+
+const ProductQuickEditDialog = dynamic(
+  () => import('./ProductQuickEditDialog').then((mod) => ({ default: mod.ProductQuickEditDialog })),
+  {
+    loading: () => null, // Don't show loading spinner, dialog will show its own loading state
+    ssr: false, // Disable SSR for this component (client-only)
+  }
+);
 import { useToastContext } from '@/components/providers/ToastProvider';
 
 interface BulkActionsBarProps {
   selectedCount: number;
+  selectedProductIds?: string[]; // PHASE 2: Bulk Quick Edit (4.2.5)
   isTrashTab?: boolean;
   onBulkDelete?: () => Promise<void>;
   onBulkRestore?: () => Promise<void>;
@@ -17,10 +28,12 @@ interface BulkActionsBarProps {
   onBulkUpdatePrice?: (price: number) => Promise<void>;
   onBulkUpdateStock?: (value: number, operation: 'set' | 'add' | 'subtract') => Promise<void>;
   onClearSelection?: () => void;
+  onBulkSuccess?: (updatedCount: number) => void; // PHASE 2: Bulk Quick Edit (4.2.5)
 }
 
 export function BulkActionsBar({
   selectedCount,
+  selectedProductIds = [],
   isTrashTab = false,
   onBulkDelete,
   onBulkRestore,
@@ -29,11 +42,13 @@ export function BulkActionsBar({
   onBulkUpdatePrice,
   onBulkUpdateStock,
   onClearSelection,
+  onBulkSuccess,
 }: BulkActionsBarProps) {
   const { showToast } = useToastContext();
   const [loading, setLoading] = useState<string | null>(null);
   const [showPriceModal, setShowPriceModal] = useState(false);
   const [showStockModal, setShowStockModal] = useState(false);
+  const [showQuickEditDialog, setShowQuickEditDialog] = useState(false); // PHASE 2: Bulk Quick Edit (4.2.5)
 
   const handleBulkUpdatePrice = async (price: number) => {
     if (!onBulkUpdatePrice) return;
@@ -118,6 +133,18 @@ export function BulkActionsBar({
                   Cập nhật kho
                 </Button>
               )}
+              {/* PHASE 2: Bulk Quick Edit Button (4.2.5) */}
+              {selectedProductIds.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowQuickEditDialog(true)}
+                  disabled={!!loading}
+                >
+                  <Edit className="w-4 h-4 mr-2" />
+                  Sửa nhanh
+                </Button>
+              )}
               <Button
                 variant="destructive"
                 size="sm"
@@ -191,6 +218,24 @@ export function BulkActionsBar({
           onClose={() => setShowStockModal(false)}
           onConfirm={handleBulkUpdateStock}
           selectedCount={selectedCount}
+        />
+      )}
+
+      {/* PHASE 2: Bulk Quick Edit Dialog (4.2.5) - Only render when open */}
+      {showQuickEditDialog && selectedProductIds.length > 0 && (
+        <ProductQuickEditDialog
+          key={`bulk-quick-edit-${selectedProductIds.join('-')}`}
+          productIds={selectedProductIds}
+          open={showQuickEditDialog}
+          onClose={() => {
+            setShowQuickEditDialog(false);
+            onClearSelection?.();
+          }}
+          onBulkSuccess={(updatedCount) => {
+            onBulkSuccess?.(updatedCount);
+            setShowQuickEditDialog(false);
+            onClearSelection?.();
+          }}
         />
       )}
     </>

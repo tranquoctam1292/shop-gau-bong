@@ -11,6 +11,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { withAuthAdmin } from '@/lib/middleware/authMiddleware';
 import { logActivity } from '@/lib/utils/auditLogger';
 import { AdminAction } from '@/types/admin';
+import { clearCsrfToken } from '@/lib/utils/csrfTokenCache';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,10 +29,15 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      const userId = req.adminUser._id.toString();
+
+      // PHASE 1: CSRF Protection (7.12.2) - Clear CSRF token cache on logout
+      await clearCsrfToken(userId);
+
       // Log logout activity
       await logActivity(
         AdminAction.LOGOUT,
-        req.adminUser._id.toString(),
+        userId,
         undefined,
         request
       );

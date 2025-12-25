@@ -10,6 +10,7 @@ import { getCollections } from '@/lib/db';
 import { comparePassword } from '@/lib/utils/passwordUtils';
 import { AdminRole } from '@/types/admin';
 import { checkRateLimit, getLoginRateLimitKey, resetRateLimit } from '@/lib/utils/rateLimiter';
+// PHASE 1: CSRF Protection (7.12.2) - CSRF token managed via cache, not JWT
 
 /**
  * ✅ PERFORMANCE: In-memory cache for user status (token_version, is_active)
@@ -177,6 +178,8 @@ export const authOptions: NextAuthOptions = {
         token.permissions = (user as any).permissions || [];
         token.tokenVersion = (user as any).tokenVersion || 0; // V1.2: Store token version
         token.mustChangePassword = (user as any).mustChangePassword || false; // 🔒 SECURITY FIX: Include password change requirement
+        // PHASE 1: CSRF Protection (7.12.2) - CSRF token is managed via cache (not JWT)
+        // Token is generated and stored in cache via /api/admin/auth/csrf-token endpoint
       } else if (token.id) {
         // ✅ PERFORMANCE: Use cached user status instead of querying DB every request
         // Cache TTL: 30 seconds - reduces DB queries while keeping status fresh for security

@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { useSession } from 'next-auth/react';
 import { TodayStatsCards } from '@/components/admin/dashboard/TodayStatsCards';
 import { RevenueChart } from '@/components/admin/dashboard/RevenueChart';
 import { TopProductsChart } from '@/components/admin/dashboard/TopProductsChart';
@@ -11,7 +10,6 @@ import { getGroupByForDateRange } from '@/lib/utils/dateRange';
 import type { DashboardDateRange } from '@/types/dashboard';
 
 export default function AdminDashboard() {
-  const { data: session } = useSession();
   const [dateRange, setDateRange] = useState<DashboardDateRange>('thisMonth');
 
   // Auto-select groupBy based on date range
@@ -19,21 +17,14 @@ export default function AdminDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="mb-8">
+      {/* Header with Date Range Selector */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">Dashboard</h1>
-        <p className="text-gray-600 dark:text-gray-400 mt-2">
-          Chào mừng, {session?.user?.name || session?.user?.email}
-        </p>
-      </div>
-
-      {/* Date Range Selector */}
-      <div className="flex justify-end">
         <DateRangeSelector value={dateRange} onValueChange={setDateRange} />
       </div>
 
-      {/* Today Stats Cards */}
-      <TodayStatsCards />
+      {/* Stats Cards */}
+      <TodayStatsCards options={{ dateRange }} />
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

@@ -21,7 +21,9 @@ const SheetOverlay = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SheetPrimitive.Overlay
     className={cn(
-    "fixed inset-0 z-[60] bg-black/50  data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        // PHASE 3: Dialog/Sheet Animations Optimization (7.11.14) - Respect prefers-reduced-motion
+        "fixed inset-0 z-[60] bg-black/50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        "motion-reduce:duration-0 motion-reduce:animate-none", // PHASE 3: Respect prefers-reduced-motion
       className
     )}
     {...props}
@@ -31,7 +33,8 @@ const SheetOverlay = React.forwardRef<
 SheetOverlay.displayName = SheetPrimitive.Overlay.displayName
 
 const sheetVariants = cva(
-  "fixed z-[60] gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  // PHASE 3: Dialog/Sheet Animations Optimization (7.11.14) - Respect prefers-reduced-motion
+  "fixed z-[60] gap-4 bg-background p-6 shadow-lg transition ease-in-out data-[state=closed]:duration-300 data-[state=open]:duration-500 data-[state=open]:animate-in data-[state=closed]:animate-out motion-reduce:duration-0 motion-reduce:animate-none",
   {
     variants: {
       side: {

@@ -222,3 +222,30 @@ export function getGroupByForDateRange(
   }
 }
 
+/**
+ * Get Vietnamese label for date range
+ * Used in dashboard stats cards titles
+ */
+export function getDateRangeLabel(
+  dateRange: 'today' | 'yesterday' | 'last7Days' | 'thisWeek' | 'thisMonth' | 'lastMonth' | 'custom'
+): string {
+  switch (dateRange) {
+    case 'today':
+      return 'hôm nay';
+    case 'yesterday':
+      return 'hôm qua';
+    case 'last7Days':
+      return '7 ngày qua';
+    case 'thisWeek':
+      return 'tuần này';
+    case 'thisMonth':
+      return 'tháng này';
+    case 'lastMonth':
+      return 'tháng trước';
+    case 'custom':
+      return 'khoảng thời gian đã chọn';
+    default:
+      return 'hôm nay';
+  }
+}
+

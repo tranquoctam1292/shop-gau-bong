@@ -129,18 +129,12 @@ export async function GET(request: NextRequest) {
       }
 
       // Aggregation pipeline to get top customers
-      // Include confirmed, processing, shipping, completed orders
-      // For COD: include if status is confirmed+
-      // For online payment: include if paymentStatus = 'paid'
+      // Only include orders with status = 'completed'
       const pipeline = [
         {
           $match: {
             createdAt: { $gte: start, $lte: end },
-            status: { $in: ['confirmed', 'processing', 'shipping', 'completed'] },
-            $or: [
-              { paymentMethod: 'cod' },
-              { paymentStatus: 'paid' },
-            ],
+            status: 'completed',
             customerEmail: { $exists: true, $nin: [null, ''] }, // Filter out null/undefined emails
           },
         },

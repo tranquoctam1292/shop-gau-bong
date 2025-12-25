@@ -9,12 +9,48 @@ import { authOptions } from '@/lib/authOptions';
 import { getCollections, ObjectId } from '@/lib/db';
 import { AdminUser, AdminRole } from '@/types/admin';
 import { verifyTokenVersion } from '@/lib/utils/tokenRevocation';
+import { NextRequest } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 
 /**
  * Get current session (server-side)
+ * In Next.js 14 App Router API routes, we need to pass request to read cookies
  */
-export async function getSession() {
-  return await getServerSession(authOptions);
+export async function getSession(request?: NextRequest) {
+  try {
+    // In API routes (when request is provided), use getToken to read JWT from cookies
+    if (request) {
+      const token = await getToken({ 
+        req: request as any,
+        secret: authOptions.secret,
+      });
+      
+      if (!token) {
+        return null;
+      }
+      
+      // Convert token to session-like object
+      const expires = token.exp && typeof token.exp === 'number' 
+        ? new Date(token.exp * 1000).toISOString() 
+        : undefined;
+      
+      return {
+        user: {
+          id: token.id,
+          role: token.role,
+          permissions: token.permissions || [],
+          tokenVersion: token.tokenVersion || 0,
+        },
+        expires,
+      } as any;
+    }
+    
+    // In Server Components, getServerSession can work without request
+    return await getServerSession(authOptions);
+  } catch (error) {
+    console.error('[getSession] Error getting session:', error);
+    return null;
+  }
 }
 
 /**

@@ -13,17 +13,15 @@
 
 ### Overview
 
-Website này sử dụng **WPGraphQL** làm API layer, kết nối Next.js frontend với WordPress backend.
+Website này sử dụng **Custom CMS với MongoDB** làm backend, kết nối Next.js frontend với MongoDB database qua Next.js API Routes.
 
-**GraphQL Endpoint:**
-```
-POST /graphql
-```
+**⚠️ IMPORTANT:** Project đã migrated từ WordPress/WooCommerce sang Custom CMS. Không sử dụng WPGraphQL nữa.
 
-**Base URL:**
-- Local: `http://localhost/wordpress/graphql`
-- Staging: `https://staging.yourdomain.com/graphql`
-- Production: `https://yourdomain.com/graphql`
+**API Base URL:**
+- Public API: `/api/cms/*` (products, categories, orders, banners, posts)
+- Admin API: `/api/admin/*` (products, categories, orders, posts, authors, comments, media) - requires authentication
+- Local: `http://localhost:3000/api/...`
+- Production: `https://yourdomain.com/api/...`
 
 ### GraphQL Client Setup
 

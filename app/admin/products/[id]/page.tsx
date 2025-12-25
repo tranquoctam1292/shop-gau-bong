@@ -26,7 +26,9 @@ export default function ProductDetailPage({
   useEffect(() => {
     async function fetchProduct() {
       try {
-        const response = await fetch(`/api/admin/products/${id}`);
+        const response = await fetch(`/api/admin/products/${id}`, {
+          credentials: 'include',
+        });
         const data = await response.json();
         if (data.product) {
           setProduct(data.product);
@@ -48,6 +50,7 @@ export default function ProductDetailPage({
     try {
       const response = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -69,6 +72,7 @@ export default function ProductDetailPage({
     try {
       const response = await fetch(`/api/admin/products/${id}/duplicate`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       if (response.ok) {

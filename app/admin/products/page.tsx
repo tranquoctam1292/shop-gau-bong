@@ -145,9 +145,17 @@ export default function AdminProductsPage() {
         params.append('stock_status', filters.stockStatus);
       }
 
-      const response = await fetch(`/api/admin/products?${params}`);
+      const response = await fetch(`/api/admin/products?${params}`, {
+        credentials: 'include',
+      });
       
       if (!response.ok) {
+        // Handle 401 Unauthorized - redirect to login
+        if (response.status === 401) {
+          // Clear any stale session data
+          window.location.href = '/admin/login';
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -191,6 +199,7 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(`/api/admin/products/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -217,6 +226,7 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(`/api/admin/products/${id}/restore`, {
         method: 'PATCH',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -266,6 +276,7 @@ export default function AdminProductsPage() {
     try {
       const response = await fetch(`/api/admin/products/${id}/duplicate`, {
         method: 'POST',
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -289,6 +300,7 @@ export default function AdminProductsPage() {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
+        credentials: 'include',
       });
 
       if (response.ok) {
@@ -332,6 +344,7 @@ export default function AdminProductsPage() {
       const response = await fetch('/api/admin/products/bulk-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ids: selectedProducts,
           action: 'soft_delete',
@@ -364,6 +377,7 @@ export default function AdminProductsPage() {
       const response = await fetch('/api/admin/products/bulk-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ids: selectedProducts,
           action: 'update_status',
@@ -397,6 +411,7 @@ export default function AdminProductsPage() {
       const response = await fetch('/api/admin/products/bulk-action', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           ids: selectedProducts,
           action: 'restore',
@@ -477,6 +492,7 @@ export default function AdminProductsPage() {
         {/* Bulk Actions Bar */}
         <BulkActionsBar
           selectedCount={getSelectedCount()}
+          selectedProductIds={getSelectedIds()} // PHASE 2: Bulk Quick Edit (4.2.5)
           isTrashTab={activeTab === 'trash'}
           onBulkDelete={handleBulkDelete}
           onBulkRestore={handleBulkRestore}
@@ -489,6 +505,7 @@ export default function AdminProductsPage() {
               const response = await fetch('/api/admin/products/bulk-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({
                   ids: selectedProducts,
                   action: 'force_delete',
@@ -514,6 +531,7 @@ export default function AdminProductsPage() {
               const response = await fetch('/api/admin/products/bulk-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({
                   ids: selectedProducts,
                   action: 'update_price',
@@ -533,6 +551,9 @@ export default function AdminProductsPage() {
               showToast('Có lỗi xảy ra khi cập nhật giá', 'error');
             }
           }}
+          onBulkSuccess={(updatedCount) => {
+            fetchProducts(); // Refresh product list after bulk update
+          }}
           onBulkUpdateStock={async (value: number, operation: 'set' | 'add' | 'subtract') => {
             const selectedProducts = getSelectedIds();
             try {
@@ -543,6 +564,7 @@ export default function AdminProductsPage() {
               const response = await fetch('/api/admin/products/bulk-action', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({
                   ids: selectedProducts,
                   action: 'update_stock',

@@ -20,6 +20,13 @@ The following API endpoints are available for scheduled tasks:
 - **Purpose:** Automatically cancel pending orders that have timed out
 - **Authentication:** Requires admin authentication
 
+### 3. Execute Scheduled Product Updates (Phase 4)
+- **Endpoint:** `POST /api/admin/cron/execute-scheduled-updates`
+- **Schedule:** Recommended every 5 minutes (`*/5 * * * *`)
+- **Purpose:** Execute scheduled product updates that are due
+- **Authentication:** Requires admin authentication or `CRON_SECRET` environment variable
+- **Note:** This endpoint checks for scheduled updates with `status: 'pending'` and `scheduledAt <= now`, then applies the updates to products
+
 ## Setup Options
 
 ### Option 1: Upgrade Vercel Plan

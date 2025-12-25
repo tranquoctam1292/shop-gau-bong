@@ -29,7 +29,9 @@ export default function BulkOperationsPage() {
         params.append('search', search);
       }
 
-      const response = await fetch(`/api/admin/products?${params}`);
+      const response = await fetch(`/api/admin/products?${params}`, {
+        credentials: 'include',
+      });
       const data = await response.json();
       setProducts(data.products || []);
     } catch (error) {
@@ -80,6 +82,7 @@ export default function BulkOperationsPage() {
               fetch(`/api/admin/products/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
                 body: JSON.stringify({ status: bulkValue }),
               })
             )
@@ -92,7 +95,10 @@ export default function BulkOperationsPage() {
           }
           await Promise.all(
             selectedProducts.map((id) =>
-              fetch(`/api/admin/products/${id}`, { method: 'DELETE' })
+              fetch(`/api/admin/products/${id}`, { 
+                method: 'DELETE',
+                credentials: 'include',
+              })
             )
           );
           break;

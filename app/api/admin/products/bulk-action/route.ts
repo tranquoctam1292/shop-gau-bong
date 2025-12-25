@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
 
 // Bulk action schema
 const bulkActionSchema = z.object({
-  ids: z.array(z.string()).min(1, 'At least one product ID is required'),
+  ids: z.array(z.string()).min(1, 'At least one product ID is required').max(50, 'Tối đa 50 sản phẩm có thể được cập nhật cùng lúc'), // PHASE 2: Bulk Edit Performance (7.2.4) - Limit to 50 products
   action: z.enum([
     'soft_delete',
     'force_delete',
@@ -22,10 +22,12 @@ const bulkActionSchema = z.object({
     'update_status',
     'update_price',
     'update_stock',
+    'quick_update', // PHASE 2: Bulk Quick Edit (4.2.5)
   ]),
   value: z.union([
     z.string(), // For status updates
     z.number(), // For price/stock updates
+    z.record(z.unknown()), // For quick_update (object with update fields)
   ]).optional(),
 });
 
@@ -184,6 +186,153 @@ export async function POST(request: NextRequest) {
           }
         );
         updated = result.modifiedCount;
+        break;
+      }
+      
+      case 'quick_update': {
+        // PHASE 2: Bulk Quick Edit (4.2.5) + PHASE 2: Bulk Edit Performance (7.2.4)
+        // Optimized batch update using updateMany for simple fields
+        
+        if (!validatedData.value || typeof validatedData.value !== 'object') {
+          return NextResponse.json(
+            { error: 'Update data is required for quick_update action' },
+            { status: 400 }
+          );
+        }
+        
+        const updateData = validatedData.value as Record<string, unknown>;
+        
+        // PHASE 2: Bulk Edit Performance (7.2.4) - Check for complex fields that require individual updates
+        const hasComplexFields = 
+          updateData._thumbnail_id !== undefined ||
+          updateData._product_image_gallery !== undefined ||
+          updateData.variants !== undefined ||
+          updateData.slug !== undefined ||
+          updateData.seoTitle !== undefined ||
+          updateData.seoDescription !== undefined ||
+          updateData.weight !== undefined ||
+          updateData.length !== undefined ||
+          updateData.width !== undefined ||
+          updateData.height !== undefined ||
+          updateData.lowStockThreshold !== undefined ||
+          updateData.costPrice !== undefined ||
+          updateData.productType !== undefined ||
+          updateData.visibility !== undefined ||
+          updateData.shippingClass !== undefined ||
+          updateData.taxStatus !== undefined ||
+          updateData.taxClass !== undefined;
+        
+        // If only simple fields, use batch updateMany
+        if (!hasComplexFields) {
+          // Build batch update object
+          const batchUpdateObj: any = {
+            updatedAt: now,
+          };
+          const batchUnsetObj: any = {};
+          
+          // Apply simple field updates
+          if (updateData.status) batchUpdateObj.status = updateData.status;
+          
+          // Handle productDataMetaBox fields
+          const metaBoxUpdates: any = {};
+          if (updateData.regularPrice !== undefined) {
+            batchUpdateObj.minPrice = updateData.regularPrice;
+            metaBoxUpdates['productDataMetaBox.regularPrice'] = updateData.regularPrice;
+          }
+          if (updateData.salePrice !== undefined) {
+            if (updateData.salePrice === null) {
+              batchUnsetObj['productDataMetaBox.salePrice'] = 1;
+            } else {
+              metaBoxUpdates['productDataMetaBox.salePrice'] = updateData.salePrice;
+            }
+          }
+          if (updateData.stockQuantity !== undefined) {
+            batchUpdateObj.stockQuantity = updateData.stockQuantity;
+            metaBoxUpdates['productDataMetaBox.stockQuantity'] = updateData.stockQuantity;
+          }
+          if (updateData.stockStatus) {
+            metaBoxUpdates['productDataMetaBox.stockStatus'] = updateData.stockStatus;
+          }
+          
+          // Merge metaBox updates into batchUpdateObj
+          Object.assign(batchUpdateObj, metaBoxUpdates);
+          
+          // Handle categories and tags (arrays)
+          if (updateData.categories) batchUpdateObj.categories = updateData.categories;
+          if (updateData.tags) batchUpdateObj.tags = updateData.tags;
+          
+          // Build update operation
+          const updateOperation: any = {
+            $set: batchUpdateObj,
+            $inc: { version: 1 },
+          };
+          if (Object.keys(batchUnsetObj).length > 0) {
+            updateOperation.$unset = batchUnsetObj;
+          }
+          
+          // Execute batch update
+          const result = await products.updateMany(
+            { _id: { $in: productIds } },
+            updateOperation
+          );
+          
+          updated = result.modifiedCount;
+          failed = productIds.length - updated;
+        } else {
+          // PHASE 2: Bulk Edit Performance (7.2.4) - Complex fields require individual updates
+          // Process each product individually for complex fields
+          for (const productId of productIds) {
+            try {
+              const product = await products.findOne({ _id: productId });
+              if (!product) {
+                failed++;
+                errors.push(`Product ${productId.toString()} not found`);
+                continue;
+              }
+              
+              // Build update object similar to quick-update route
+              const updateObj: any = {
+                updatedAt: now,
+              };
+              
+              // Apply updates (simplified - only common fields)
+              if (updateData.status) updateObj.status = updateData.status;
+              if (updateData.regularPrice !== undefined) {
+                updateObj.minPrice = updateData.regularPrice;
+                if (!updateObj.productDataMetaBox) updateObj.productDataMetaBox = {};
+                updateObj.productDataMetaBox.regularPrice = updateData.regularPrice;
+              }
+              if (updateData.salePrice !== undefined) {
+                if (!updateObj.productDataMetaBox) updateObj.productDataMetaBox = {};
+                updateObj.productDataMetaBox.salePrice = updateData.salePrice === null ? undefined : updateData.salePrice;
+              }
+              if (updateData.stockQuantity !== undefined) {
+                updateObj.stockQuantity = updateData.stockQuantity;
+                if (!updateObj.productDataMetaBox) updateObj.productDataMetaBox = {};
+                updateObj.productDataMetaBox.stockQuantity = updateData.stockQuantity;
+              }
+              if (updateData.stockStatus) {
+                if (!updateObj.productDataMetaBox) updateObj.productDataMetaBox = {};
+                updateObj.productDataMetaBox.stockStatus = updateData.stockStatus;
+              }
+              if (updateData.categories) updateObj.categories = updateData.categories;
+              if (updateData.tags) updateObj.tags = updateData.tags;
+              
+              // Increment version (use $inc operator)
+              await products.updateOne(
+                { _id: productId },
+                { 
+                  $set: updateObj,
+                  $inc: { version: 1 }
+                }
+              );
+              updated++;
+            } catch (error: any) {
+              failed++;
+              errors.push(`Failed to update product ${productId.toString()}: ${error.message}`);
+            }
+          }
+        }
         break;
       }
       

@@ -128,6 +128,8 @@ export interface Collections {
   postTags: Collection;
   // Phase 4: Product templates
   productTemplates: Collection;
+  // Phase 4: Scheduled Updates (4.4.2)
+  scheduledUpdates: Collection;
   // Phase 5: Reviews & Analytics
   productReviews: Collection;
   productAnalytics: Collection;
@@ -187,6 +189,8 @@ export async function getCollections(): Promise<Collections> {
     postTags: db.collection('post_tags'),
     // Phase 4: Product templates (optional)
     productTemplates: db.collection('product_templates'),
+    // Phase 4: Scheduled Updates (4.4.2)
+    scheduledUpdates: db.collection('scheduled_updates'),
     // Phase 5: Reviews & Analytics
     productReviews: db.collection('product_reviews'),
     productAnalytics: db.collection('product_analytics'),
