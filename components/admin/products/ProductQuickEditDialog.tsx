@@ -41,6 +41,7 @@ import { MediaLibraryModal } from './MediaLibraryModal';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Textarea } from '@/components/ui/textarea';
 import { useProductHistory } from '@/lib/hooks/useProductHistory';
 import { useUndoRedo } from '@/lib/hooks/useUndoRedo';
@@ -210,6 +211,8 @@ export function ProductQuickEditDialog({
   const [historyPage, setHistoryPage] = useState(1);
   // UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help dialog
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+  // PHASE 5.3.2: Accordion Layout - Track expanded sections (default: basic-info và pricing)
+  const [expandedSections, setExpandedSections] = useState<string[]>(['section-basic-info', 'section-pricing']);
   // PERFORMANCE: Only fetch history when dialog is open and user is on history tab
   const { data: historyData, isLoading: isLoadingHistory } = useProductHistory(
     product?.id,
@@ -2276,6 +2279,76 @@ export function ProductQuickEditDialog({
     return errorList;
   }, [errors]);
 
+  // PHASE 5.3.2: Accordion Layout - Helper functions for error handling by section
+  const getErrorsBySection = useMemo(() => {
+    const errorsBySection: Record<string, Array<{field: string, message: string, label: string}>> = {};
+    
+    // Map fields to sections
+    const fieldToSection: Record<string, string> = {
+      'name': 'section-basic-info',
+      'sku': 'section-basic-info',
+      'barcode': 'section-basic-info',
+      'gtin': 'section-basic-info',
+      'ean': 'section-basic-info',
+      'status': 'section-pricing',
+      'regularPrice': 'section-pricing',
+      'salePrice': 'section-pricing',
+      'costPrice': 'section-pricing',
+      'stockQuantity': 'section-pricing',
+      'stockStatus': 'section-pricing',
+      'manageStock': 'section-pricing',
+      'lowStockThreshold': 'section-pricing',
+      'backorders': 'section-pricing',
+      'soldIndividually': 'section-pricing',
+      'productType': 'section-product-type',
+      'visibility': 'section-product-type',
+      'password': 'section-product-type',
+      'shippingClass': 'section-shipping',
+      'taxStatus': 'section-shipping',
+      'taxClass': 'section-shipping',
+      'weight': 'section-dimensions',
+      'length': 'section-dimensions',
+      'width': 'section-dimensions',
+      'height': 'section-dimensions',
+      'categories': 'section-categories',
+      'tags': 'section-categories',
+      'seoTitle': 'section-seo',
+      'seoDescription': 'section-seo',
+      'slug': 'section-seo',
+    };
+    
+    allValidationErrors.forEach((err) => {
+      const baseField = err.field.split('.')[0];
+      const sectionId = fieldToSection[baseField] || 'section-basic-info';
+      if (!errorsBySection[sectionId]) {
+        errorsBySection[sectionId] = [];
+      }
+      errorsBySection[sectionId].push(err);
+    });
+    
+    return errorsBySection;
+  }, [allValidationErrors]);
+
+  const getErrorCountForSection = useCallback((sectionId: string): number => {
+    return getErrorsBySection[sectionId]?.length || 0;
+  }, [getErrorsBySection]);
+
+  // PHASE 5.3.2: Accordion Layout - Auto-expand sections with errors
+  useEffect(() => {
+    if (allValidationErrors.length > 0) {
+      const sectionsWithErrors = Object.keys(getErrorsBySection);
+      setExpandedSections(prev => {
+        const newExpanded = [...prev];
+        sectionsWithErrors.forEach(sectionId => {
+          if (!newExpanded.includes(sectionId)) {
+            newExpanded.push(sectionId);
+          }
+        });
+        return newExpanded;
+      });
+    }
+  }, [allValidationErrors, getErrorsBySection]);
+
   // PERFORMANCE OPTIMIZATION (3.3.1): Show skeleton loader while loading product data
   const formContent = (
     <form id="quick-edit-form" onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4">
@@ -2360,7 +2433,7 @@ export function ProductQuickEditDialog({
       {/* UX/UI UPGRADE Phase 4.1.3: aria-live region cho success message */}
       {!loadingProduct && showSuccessIndicator && !isDirty && (
         <div 
-          className="bg-green-50 border border-green-200 rounded-md p-4 space-y-2 animate-in slide-in-from-top-2"
+          className="bg-green-50 border border-green-200 rounded-md p-3 md:p-4 space-y-2 animate-in slide-in-from-top-2"
           role="status"
           aria-live="polite"
           aria-atomic="true"
@@ -2383,7 +2456,7 @@ export function ProductQuickEditDialog({
       {/* UX/UI UPGRADE Phase 4.1.3: aria-live region cho error summary */}
       {!loadingProduct && allValidationErrors.length > 0 && (
         <div 
-          className="bg-red-50 border border-red-200 rounded-md p-4 space-y-2 animate-in slide-in-from-top-2"
+          className="bg-red-50 border border-red-200 rounded-md p-3 md:p-4 space-y-2 animate-in slide-in-from-top-2"
           role="alert"
           aria-live="assertive"
           aria-atomic="true"
@@ -2429,21 +2502,35 @@ export function ProductQuickEditDialog({
       {/* PERFORMANCE OPTIMIZATION (3.3.1): Hide form content while loading (skeleton shown above) */}
       {!loadingProduct && (
         <>
-      {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
-      <div 
-        id="section-basic-info" 
-        className="flex items-center gap-2 mb-2 scroll-mt-4"
-        tabIndex={-1}
-        role="region"
-        aria-label="Thông tin cơ bản"
+      {/* PHASE 5.3.2: Accordion Layout - Wrap sections in Accordion */}
+      <Accordion 
+        type="multiple" 
+        value={expandedSections} 
+        onValueChange={setExpandedSections}
+        className="w-full space-y-0"
       >
-        <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
-        <h3 className="text-base font-semibold text-slate-900">Thông tin cơ bản</h3>
-      </div>
+        {/* Basic Info Section */}
+        <AccordionItem value="section-basic-info" className="border-b border-slate-200">
+          <AccordionTrigger 
+            id="section-basic-info"
+            className="hover:no-underline py-4 scroll-mt-4"
+            aria-label="Thông tin cơ bản"
+          >
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
+              <h3 className="text-base font-semibold text-slate-900">Thông tin cơ bản</h3>
+              {getErrorCountForSection('section-basic-info') > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
+                  {getErrorCountForSection('section-basic-info')}
+                </Badge>
+              )}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-0 pb-4">
       
       {/* UX/UI UPGRADE Phase 1.1.1: Background colors cho sections */}
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
+      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
+      <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
       {/* Row 1: Thông tin cơ bản - Grid 2 cột */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
@@ -2596,24 +2683,32 @@ export function ProductQuickEditDialog({
         </div>
       </div>
       </div>
+          </AccordionContent>
+        </AccordionItem>
 
-      {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-      {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
-      <div 
-        id="section-pricing" 
-        className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4"
-        tabIndex={-1}
-        role="region"
-        aria-label="Giá & Trạng thái"
-      >
-        <DollarSign className="h-5 w-5 text-slate-600" aria-hidden="true" />
-        <h3 className="text-base font-semibold text-slate-900">Giá & Trạng thái</h3>
-      </div>
+        {/* Pricing Section */}
+        <AccordionItem value="section-pricing" className="border-b border-slate-200">
+          <AccordionTrigger 
+            id="section-pricing"
+            className="hover:no-underline py-4 scroll-mt-4"
+            aria-label="Giá & Trạng thái"
+          >
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5 text-slate-600" aria-hidden="true" />
+              <h3 className="text-base font-semibold text-slate-900">Giá & Trạng thái</h3>
+              {getErrorCountForSection('section-pricing') > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
+                  {getErrorCountForSection('section-pricing')}
+                </Badge>
+              )}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-0 pb-4">
 
       {/* UX/UI UPGRADE Phase 1.1.1: Background colors cho sections */}
       {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders - border-top cho sections (trừ section đầu tiên) */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
+      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
       {/* Row 2: Giá & Trạng thái - Grid 3 cột */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2">
@@ -2770,101 +2865,315 @@ export function ProductQuickEditDialog({
             );
           })()}
         </div>
-      </div>
+        </div>
       </div>
 
+      {/* PHASE 5.3.2: Accordion Layout - Inventory section (part of Pricing tab) */}
+      {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
+      {/* PERFORMANCE OPTIMIZATION (3.3.2): Critical section - Always show inventory */}
+      <div className="flex items-center gap-2 mb-2 mt-6">
+        <Box className="h-5 w-5 text-slate-600" />
+        <h3 className="text-base font-semibold text-slate-900">Tồn kho</h3>
+      </div>
+
+      {/* Inventory Card */}
+      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
+      <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
+        {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
+        <div className="flex items-center space-x-2 min-h-[44px]">
+          <Checkbox
+            id="quick-edit-manage-stock"
+            checked={formData.manageStock || false}
+            onCheckedChange={(checked) => {
+              setValue('manageStock', checked === true, { shouldDirty: true });
+            }}
+          />
+          <Label 
+            htmlFor="quick-edit-manage-stock" 
+            className="text-sm font-medium text-slate-900 cursor-pointer"
+          >
+            Quản lý tồn kho
+          </Label>
+        </div>
+
+        {formData.manageStock && (
+          <>
+            {/* PHASE 5.3.4: Reorganize Inventory Section - Stock Quantity + Stock Status (2 cột) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="space-y-2">
+                {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
+                {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+                <div className="flex items-center gap-2 min-h-[21px]">
+                  <Label htmlFor="quick-edit-stock-quantity" className="text-slate-900 flex-1">Số lượng tồn kho</Label>
+                  {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
+                  <button
+                    type="button"
+                    title="Số lượng sản phẩm hiện có trong kho. VD: 100"
+                    className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
+                    aria-label="Thông tin về số lượng tồn kho"
+                  >
+                    <Info className="h-4 w-4 text-slate-400" />
+                  </button>
+                </div>
+                {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
+                <Input
+                  id="quick-edit-stock-quantity"
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={stockQuantity}
+                  onChange={handleStockQtyChange}
+                  onFocus={(e) => handleFieldFocus('quick-edit-stock-quantity', e)}
+                  onBlur={handleFieldBlur}
+                  className={getFieldClassName('stockQuantity', stockQuantity, !!errors.stockQuantity, savedFields.has('stockQuantity'), 'quick-edit-stock-quantity')}
+                  placeholder="Nhập số lượng tồn kho..."
+                  aria-label="Số lượng tồn kho"
+                  aria-describedby={errors.stockQuantity ? 'quick-edit-stock-quantity-error' : 'quick-edit-stock-quantity-help'}
+                />
+                {errors.stockQuantity && (
+                  <p id="quick-edit-stock-quantity-error" className="text-xs text-red-500" role="alert">{errors.stockQuantity.message}</p>
+                )}
+                <p id="quick-edit-stock-quantity-help" className="text-xs text-slate-500">Số lượng sản phẩm hiện có trong kho</p>
+              </div>
+
+              <div className="space-y-2">
+                {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+                <div className="min-h-[21px]">
+                  <Label htmlFor="quick-edit-stock-status" className="text-slate-900">Trạng thái kho</Label>
+                </div>
+                {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
+                <Select
+                  value={formData.stockStatus}
+                  onValueChange={(value) => {
+                    setValue('stockStatus', value as 'instock' | 'outofstock' | 'onbackorder', { shouldDirty: true });
+                  }}
+                >
+                  <SelectTrigger 
+                    id="quick-edit-stock-status"
+                    className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                    aria-label="Trạng thái kho hàng"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="instock">Còn hàng</SelectItem>
+                    <SelectItem value="outofstock">Hết hàng</SelectItem>
+                    <SelectItem value="onbackorder">Đặt hàng trước</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-slate-500">Trạng thái hiện tại của kho hàng</p>
+              </div>
+            </div>
+
+            {/* PHASE 5.3.4: Reorganize Inventory Section - Low Stock Threshold (full width) */}
+            {loadedSections.has('secondary') && (
+              <div className="space-y-2">
+                {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+                <div className="min-h-[21px]">
+                  <Label htmlFor="quick-edit-low-stock-threshold" className="text-slate-900">
+                    Ngưỡng tồn kho thấp
+                  </Label>
+                </div>
+                {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
+                <Input
+                  id="quick-edit-low-stock-threshold"
+                  type="number"
+                  min="0"
+                  step="1"
+                  {...register('lowStockThreshold', { 
+                    valueAsNumber: true,
+                    setValueAs: (v) => {
+                      if (v === '' || (typeof v === 'number' && isNaN(v))) return undefined;
+                      return typeof v === 'number' ? Math.floor(v) : parseInt(v, 10);
+                    }
+                  })}
+                  className={`${getFieldClassName('lowStockThreshold', lowStockThreshold, !!errors.lowStockThreshold, savedFields.has('lowStockThreshold'), 'quick-edit-low-stock-threshold')} max-w-xs`}
+                  placeholder="Nhập ngưỡng tồn kho thấp..."
+                  aria-label="Ngưỡng tồn kho thấp"
+                  aria-describedby={errors.lowStockThreshold ? 'quick-edit-low-stock-threshold-error' : 'quick-edit-low-stock-threshold-help'}
+                />
+                {errors.lowStockThreshold && (
+                  <p id="quick-edit-low-stock-threshold-error" className="text-xs text-red-500" role="alert">{errors.lowStockThreshold.message}</p>
+                )}
+                <p id="quick-edit-low-stock-threshold-help" className="text-xs text-slate-500">
+                  Cảnh báo khi số lượng tồn kho &lt;= giá trị này
+                </p>
+              </div>
+            )}
+
+            {/* PHASE 5.3.4: Reorganize Inventory Section - Backorders (full width) */}
+            <div className="space-y-2">
+              {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+              <div className="min-h-[21px]">
+                <Label htmlFor="quick-edit-backorders" className="text-slate-900">
+                  Cho phép đặt hàng trước (Backorders)
+                </Label>
+              </div>
+              {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
+              <Select
+                value={watch('backorders') || 'no'}
+                onValueChange={(value) => {
+                  setValue('backorders', value as 'no' | 'notify' | 'yes', { shouldDirty: true });
+                  const currentStockQty = watch('stockQuantity') || 0;
+                  if (value === 'no' && currentStockQty === 0) {
+                    setValue('stockStatus', 'outofstock', { shouldDirty: true });
+                  }
+                }}
+              >
+                <SelectTrigger 
+                  id="quick-edit-backorders"
+                  className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                  aria-label="Cho phép đặt hàng trước (Backorders)"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no">Không cho phép</SelectItem>
+                  <SelectItem value="notify">Cho phép nhưng thông báo khách</SelectItem>
+                  <SelectItem value="yes">Cho phép</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-slate-500">
+                Cho phép khách hàng đặt hàng khi sản phẩm hết hàng
+              </p>
+              {watch('backorders') === 'no' && (watch('stockQuantity') || 0) === 0 && (
+                <p className="text-xs text-amber-600 flex items-center gap-1">
+                  <AlertCircle className="h-3 w-3" />
+                  Trạng thái kho đã được tự động đặt thành &quot;Hết hàng&quot;
+                </p>
+              )}
+            </div>
+          </>
+        )}
+        
+        {/* PHASE 3: Sold Individually (4.3.3) - Not part of core inventory, but kept in section for now */}
+        {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+        <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-2">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="quick-edit-sold-individually"
+              checked={watch('soldIndividually') || false}
+              onCheckedChange={(checked) => {
+                setValue('soldIndividually', checked === true, { shouldDirty: true });
+              }}
+            />
+            <Label 
+              htmlFor="quick-edit-sold-individually" 
+              className="text-sm font-medium text-slate-900 cursor-pointer"
+            >
+              Chỉ bán từng cái (Sold Individually)
+            </Label>
+          </div>
+          <p className="text-xs text-slate-500 ml-6">
+            Khi bật, khách hàng chỉ có thể mua 1 sản phẩm mỗi đơn hàng
+          </p>
+        </div>
+      </div>
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Product Type Section */}
+        <AccordionItem value="section-product-type" className="border-b border-slate-200">
+          <AccordionTrigger 
+            id="section-product-type"
+            className="hover:no-underline py-4 scroll-mt-4"
+            aria-label="Loại sản phẩm & Hiển thị"
+          >
+            <div className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
+              <h3 className="text-base font-semibold text-slate-900">Loại sản phẩm & Hiển thị</h3>
+              {getErrorCountForSection('section-product-type') > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
+                  {getErrorCountForSection('section-product-type')}
+                </Badge>
+              )}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-0 pb-4">
       {/* PHASE 2: Product Type & Visibility Section (4.2.3) */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
         <>
-      {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
-      <div 
-        id="section-product-type" 
-        className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4"
-        tabIndex={-1}
-        role="region"
-        aria-label="Loại sản phẩm & Hiển thị"
-      >
-        <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
-        <h3 className="text-base font-semibold text-slate-900">Loại sản phẩm & Hiển thị</h3>
-      </div>
-      
       {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
-        {/* Product Type */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-product-type" className="text-slate-900">Loại sản phẩm</Label>
-          </div>
-          <Select
-            value={watch('productType')}
-            onValueChange={(value) => {
-              const newType = value as 'simple' | 'variable' | 'grouped' | 'external';
-              const currentType = watch('productType') || 'simple';
-              const hasVariants = formData.variants && formData.variants.length > 0;
-              
-              // PHASE 2: Warning khi change từ variable sang simple/grouped/external (4.2.3)
-              if (currentType === 'variable' && newType !== 'variable' && hasVariants) {
-                setPendingProductType(newType);
-                setShowProductTypeWarning(true);
-              } else {
-                setValue('productType', newType, { shouldDirty: true });
-              }
-            }}
-          >
-            <SelectTrigger 
-              id="quick-edit-product-type"
-              className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-              aria-label="Loại sản phẩm"
+      {/* PHASE 5.3.3: Optimize Grid Layout - Product Type 2 cột */}
+      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
+        {/* Product Type & Visibility - Grid 2 cột */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Product Type */}
+          <div className="space-y-2">
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-product-type" className="text-slate-900">Loại sản phẩm</Label>
+            </div>
+            <Select
+              value={watch('productType')}
+              onValueChange={(value) => {
+                const newType = value as 'simple' | 'variable' | 'grouped' | 'external';
+                const currentType = watch('productType') || 'simple';
+                const hasVariants = formData.variants && formData.variants.length > 0;
+                
+                // PHASE 2: Warning khi change từ variable sang simple/grouped/external (4.2.3)
+                if (currentType === 'variable' && newType !== 'variable' && hasVariants) {
+                  setPendingProductType(newType);
+                  setShowProductTypeWarning(true);
+                } else {
+                  setValue('productType', newType, { shouldDirty: true });
+                }
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="simple">Đơn giản</SelectItem>
-              <SelectItem value="variable">Có biến thể</SelectItem>
-              <SelectItem value="grouped">Nhóm sản phẩm</SelectItem>
-              <SelectItem value="external">Sản phẩm ngoài</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-slate-500">
-            Loại sản phẩm xác định cách sản phẩm được bán và quản lý
-          </p>
-        </div>
+              <SelectTrigger 
+                id="quick-edit-product-type"
+                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                aria-label="Loại sản phẩm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="simple">Đơn giản</SelectItem>
+                <SelectItem value="variable">Có biến thể</SelectItem>
+                <SelectItem value="grouped">Nhóm sản phẩm</SelectItem>
+                <SelectItem value="external">Sản phẩm ngoài</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">
+              Loại sản phẩm xác định cách sản phẩm được bán và quản lý
+            </p>
+          </div>
 
-        {/* Visibility */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-visibility" className="text-slate-900">Hiển thị</Label>
-          </div>
-          <Select
-            value={watch('visibility')}
-            onValueChange={(value) => {
-              setValue('visibility', value as 'public' | 'private' | 'password', { shouldDirty: true });
-              // Clear password if not password-protected
-              if (value !== 'password') {
-                setValue('password', '', { shouldDirty: true });
-              }
-            }}
-          >
-            <SelectTrigger 
-              id="quick-edit-visibility"
-              className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-              aria-label="Tùy chọn hiển thị sản phẩm"
+          {/* Visibility */}
+          <div className="space-y-2">
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-visibility" className="text-slate-900">Hiển thị</Label>
+            </div>
+            <Select
+              value={watch('visibility')}
+              onValueChange={(value) => {
+                setValue('visibility', value as 'public' | 'private' | 'password', { shouldDirty: true });
+                // Clear password if not password-protected
+                if (value !== 'password') {
+                  setValue('password', '', { shouldDirty: true });
+                }
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="public">Công khai</SelectItem>
-              <SelectItem value="private">Riêng tư</SelectItem>
-              <SelectItem value="password">Bảo vệ bằng mật khẩu</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-slate-500">
-            Xác định ai có thể xem sản phẩm này
-          </p>
+              <SelectTrigger 
+                id="quick-edit-visibility"
+                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                aria-label="Tùy chọn hiển thị sản phẩm"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="public">Công khai</SelectItem>
+                <SelectItem value="private">Riêng tư</SelectItem>
+                <SelectItem value="password">Bảo vệ bằng mật khẩu</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">
+              Xác định ai có thể xem sản phẩm này
+            </p>
+          </div>
         </div>
 
         {/* Password (conditional) */}
@@ -2898,33 +3207,44 @@ export function ProductQuickEditDialog({
       ) : (
         <div className="mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-48 bg-slate-200 rounded" />
-          <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4">
+          {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+          <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4">
             <div className="h-10 bg-slate-200 rounded" />
             <div className="h-10 bg-slate-200 rounded" />
           </div>
         </div>
       )}
+          </AccordionContent>
+        </AccordionItem>
 
+        {/* Shipping & Tax Section */}
+        <AccordionItem value="section-shipping" className="border-b border-slate-200">
+          <AccordionTrigger 
+            id="section-shipping"
+            className="hover:no-underline py-4 scroll-mt-4"
+            aria-label="Giao hàng & Thuế"
+          >
+            <div className="flex items-center gap-2">
+              <Ruler className="h-5 w-5 text-slate-600" aria-hidden="true" />
+              <h3 className="text-base font-semibold text-slate-900">Giao hàng & Thuế</h3>
+              {getErrorCountForSection('section-shipping') > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
+                  {getErrorCountForSection('section-shipping')}
+                </Badge>
+              )}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-0 pb-4">
       {/* PHASE 2: Shipping Class & Tax Settings Section (4.2.4) */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
         <>
-      {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
-      <div 
-        id="section-shipping" 
-        className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4"
-        tabIndex={-1}
-        role="region"
-        aria-label="Giao hàng & Thuế"
-      >
-        <Ruler className="h-5 w-5 text-slate-600" aria-hidden="true" />
-        <h3 className="text-base font-semibold text-slate-900">Giao hàng & Thuế</h3>
-      </div>
       
       {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
-        {/* Shipping Class */}
+      {/* PHASE 5.3.3: Optimize Grid Layout - Shipping & Tax */}
+      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
+        {/* Shipping Class - Full width */}
         <div className="space-y-2">
           {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
           <div className="min-h-[21px]">
@@ -2956,72 +3276,76 @@ export function ProductQuickEditDialog({
           </p>
         </div>
 
-        {/* Tax Status */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-tax-status" className="text-slate-900">Trạng thái thuế</Label>
-          </div>
-          <Select
-            value={watch('taxStatus') || 'taxable'}
-            onValueChange={(value) => {
-              setValue('taxStatus', value as 'taxable' | 'shipping' | 'none', { shouldDirty: true });
-            }}
-          >
-            <SelectTrigger 
-              id="quick-edit-tax-status"
-              className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-              aria-label="Trạng thái thuế"
+        {/* Tax Status & Tax Class - Grid 2 cột */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Tax Status */}
+          <div className="space-y-2">
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-tax-status" className="text-slate-900">Trạng thái thuế</Label>
+            </div>
+            <Select
+              value={watch('taxStatus') || 'taxable'}
+              onValueChange={(value) => {
+                setValue('taxStatus', value as 'taxable' | 'shipping' | 'none', { shouldDirty: true });
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="taxable">Có thuế</SelectItem>
-              <SelectItem value="shipping">Chỉ thuế vận chuyển</SelectItem>
-              <SelectItem value="none">Không có thuế</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-slate-500">
-            Xác định sản phẩm có chịu thuế hay không
-          </p>
-        </div>
+              <SelectTrigger 
+                id="quick-edit-tax-status"
+                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                aria-label="Trạng thái thuế"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="taxable">Có thuế</SelectItem>
+                <SelectItem value="shipping">Chỉ thuế vận chuyển</SelectItem>
+                <SelectItem value="none">Không có thuế</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">
+              Xác định sản phẩm có chịu thuế hay không
+            </p>
+          </div>
 
-        {/* Tax Class */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-tax-class" className="text-slate-900">Loại thuế</Label>
-          </div>
-          <Select
-            value={watch('taxClass') || '__none__'}
-            onValueChange={(value) => {
-              setValue('taxClass', value === '__none__' ? undefined : value, { shouldDirty: true });
-            }}
-          >
-            <SelectTrigger 
-              id="quick-edit-tax-class"
-              className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-              aria-label="Loại thuế"
+          {/* Tax Class */}
+          <div className="space-y-2">
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-tax-class" className="text-slate-900">Loại thuế</Label>
+            </div>
+            <Select
+              value={watch('taxClass') || '__none__'}
+              onValueChange={(value) => {
+                setValue('taxClass', value === '__none__' ? undefined : value, { shouldDirty: true });
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Mặc định</SelectItem>
-              <SelectItem value="standard">Thuế tiêu chuẩn</SelectItem>
-              <SelectItem value="reduced-rate">Thuế giảm</SelectItem>
-              <SelectItem value="zero-rate">Thuế 0%</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-slate-500">
-            Chọn loại thuế áp dụng cho sản phẩm (chỉ áp dụng khi trạng thái thuế = &quot;Có thuế&quot;)
-          </p>
+              <SelectTrigger 
+                id="quick-edit-tax-class"
+                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                aria-label="Loại thuế"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Mặc định</SelectItem>
+                <SelectItem value="standard">Thuế tiêu chuẩn</SelectItem>
+                <SelectItem value="reduced-rate">Thuế giảm</SelectItem>
+                <SelectItem value="zero-rate">Thuế 0%</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-slate-500">
+              Chọn loại thuế áp dụng cho sản phẩm (chỉ áp dụng khi trạng thái thuế = &quot;Có thuế&quot;)
+            </p>
+          </div>
         </div>
       </div>
         </>
       ) : (
         <div className="mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-40 bg-slate-200 rounded" />
-          <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4">
+          {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+          <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4">
             <div className="h-10 bg-slate-200 rounded" />
             <div className="h-10 bg-slate-200 rounded" />
             <div className="h-10 bg-slate-200 rounded" />
@@ -3029,168 +3353,7 @@ export function ProductQuickEditDialog({
         </div>
       )}
 
-      {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Critical section - Always show inventory */}
-      <div className="flex items-center gap-2 mb-2 mt-6">
-        <Box className="h-5 w-5 text-slate-600" />
-        <h3 className="text-base font-semibold text-slate-900">Tồn kho</h3>
-      </div>
-
-      {/* Inventory Card */}
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
-        {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-        <div className="flex items-center space-x-2 min-h-[44px]">
-          <Checkbox
-            id="quick-edit-manage-stock"
-            checked={formData.manageStock}
-            onCheckedChange={(checked) => {
-              setValue('manageStock', checked as boolean, { shouldDirty: true });
-              if (!checked) {
-                // Fix #19: Clear both stockQuantity and stockStatus when disabling manage stock
-                setValue('stockQuantity', 0, { shouldDirty: true });
-                setValue('stockStatus', 'instock', { shouldDirty: true });
-              }
-            }}
-          />
-          <Label htmlFor="quick-edit-manage-stock" className="cursor-pointer text-slate-900">
-            Quản lý tồn kho
-          </Label>
-        </div>
-
-        {formData.manageStock && (
-          <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="space-y-2">
-              {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
-              {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-              <div className="flex items-center gap-2 min-h-[21px]">
-                <Label htmlFor="quick-edit-stock-quantity" className="text-slate-900 flex-1">Số lượng tồn kho</Label>
-                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-                <button
-                  type="button"
-                  title="Số lượng sản phẩm hiện có trong kho. VD: 100"
-                  className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
-                  aria-label="Thông tin về số lượng tồn kho"
-                >
-                  <Info className="h-4 w-4 text-slate-400" />
-                </button>
-              </div>
-              {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-              <Input
-                id="quick-edit-stock-quantity"
-                type="number"
-                min="0"
-                value={stockQuantity}
-                onChange={handleStockQtyChange}
-                onFocus={(e) => handleFieldFocus('quick-edit-stock-quantity', e)}
-                onBlur={handleFieldBlur}
-                className={getFieldClassName('stockQuantity', stockQuantity, !!errors.stockQuantity, savedFields.has('stockQuantity'), 'quick-edit-stock-quantity')}
-                placeholder="VD: 100"
-                aria-label="Số lượng tồn kho"
-                aria-describedby={errors.stockQuantity ? 'quick-edit-stock-quantity-error' : 'quick-edit-stock-quantity-help'}
-              />
-              {errors.stockQuantity && (
-                <div id="quick-edit-stock-quantity-error" className="flex items-center gap-1 text-sm text-red-600" role="alert">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-                  <p>{errors.stockQuantity.message}</p>
-                </div>
-              )}
-              <p id="quick-edit-stock-quantity-help" className="text-xs text-slate-500">Số lượng sản phẩm hiện có trong kho</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="quick-edit-stock-status" className="text-slate-900">Trạng thái kho</Label>
-              {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-              <Select
-                value={formData.stockStatus}
-                onValueChange={(value) => setValue('stockStatus', value as 'instock' | 'outofstock' | 'onbackorder', { shouldDirty: true })}
-              >
-                <SelectTrigger 
-                  id="quick-edit-stock-status"
-                  className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                  aria-label="Trạng thái kho hàng"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="instock">Còn hàng</SelectItem>
-                  <SelectItem value="outofstock">Hết hàng</SelectItem>
-                  <SelectItem value="onbackorder">Đặt hàng trước</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        )}
-        
-        {/* PHASE 3: Sold Individually (4.3.3) */}
-        <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-2">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="quick-edit-sold-individually"
-              checked={watch('soldIndividually') || false}
-              onCheckedChange={(checked) => {
-                setValue('soldIndividually', checked === true, { shouldDirty: true });
-              }}
-            />
-            <Label 
-              htmlFor="quick-edit-sold-individually" 
-              className="text-sm font-medium text-slate-900 cursor-pointer"
-            >
-              Chỉ bán từng cái (Sold Individually)
-            </Label>
-          </div>
-          <p className="text-xs text-slate-500 ml-6">
-            Khi bật, khách hàng chỉ có thể mua 1 sản phẩm mỗi đơn hàng
-          </p>
-        </div>
-        
-        {/* PHASE 3: Backorders Settings (4.3.4) */}
-        {formData.manageStock && (
-          <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-backorders" className="text-slate-900">
-                Cho phép đặt hàng trước (Backorders)
-              </Label>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <Select
-              value={watch('backorders') || 'no'}
-              onValueChange={(value) => {
-                setValue('backorders', value as 'no' | 'notify' | 'yes', { shouldDirty: true });
-                
-                // PHASE 3: Auto-sync logic - Nếu "Do not allow" và stock = 0 → stockStatus = "outofstock"
-                const currentStockQty = watch('stockQuantity') || 0;
-                if (value === 'no' && currentStockQty === 0) {
-                  setValue('stockStatus', 'outofstock', { shouldDirty: true });
-                }
-              }}
-            >
-              <SelectTrigger 
-                id="quick-edit-backorders"
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                aria-label="Cho phép đặt hàng trước (Backorders)"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="no">Không cho phép</SelectItem>
-                <SelectItem value="notify">Cho phép nhưng thông báo khách</SelectItem>
-                <SelectItem value="yes">Cho phép</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-slate-500">
-              Cho phép khách hàng đặt hàng khi sản phẩm hết hàng
-            </p>
-            {watch('backorders') === 'no' && (watch('stockQuantity') || 0) === 0 && (
-              <p className="text-xs text-amber-600 flex items-center gap-1">
-                <AlertCircle className="h-3 w-3" />
-                Trạng thái kho đã được tự động đặt thành &quot;Hết hàng&quot;
-              </p>
-            )}
-          </div>
-        )}
-      </div>
-
+      {/* PHASE 5.3.2: Accordion Layout - Dimensions section (part of Shipping) */}
       {/* PHASE 1: Weight & Dimensions Section (4.1.3) */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
@@ -3210,7 +3373,8 @@ export function ProductQuickEditDialog({
           <h3 className="text-base font-semibold text-slate-900">Kích thước & Trọng lượng</h3>
         </div>
         {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4">
+        {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
             {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
@@ -3345,7 +3509,8 @@ export function ProductQuickEditDialog({
       ) : (
         <div className="mb-6 mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-56 bg-slate-200 rounded" />
-          <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4">
+          {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+          <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="h-10 bg-slate-200 rounded" />
               <div className="h-10 bg-slate-200 rounded" />
@@ -3355,54 +3520,35 @@ export function ProductQuickEditDialog({
           </div>
         </div>
       )}
+          </AccordionContent>
+        </AccordionItem>
 
-      {/* PHASE 1: Low Stock Threshold (4.1.4) */}
-      {formData.manageStock && loadedSections.has('secondary') && (
-        <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-low-stock-threshold" className="text-slate-900">
-              Ngưỡng tồn kho thấp
-            </Label>
-          </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Input
-            id="quick-edit-low-stock-threshold"
-            type="number"
-            min="0"
-            step="1"
-            {...register('lowStockThreshold', { 
-              valueAsNumber: true,
-              setValueAs: (v) => {
-                if (v === '' || (typeof v === 'number' && isNaN(v))) return undefined;
-                return typeof v === 'number' ? Math.floor(v) : parseInt(v, 10);
-              }
-            })}
-            className={`${getFieldClassName('lowStockThreshold', lowStockThreshold, !!errors.lowStockThreshold, savedFields.has('lowStockThreshold'), 'quick-edit-low-stock-threshold')} max-w-xs`}
-            placeholder="Nhập ngưỡng tồn kho thấp..."
-            aria-label="Ngưỡng tồn kho thấp"
-            aria-describedby={errors.lowStockThreshold ? 'quick-edit-low-stock-threshold-error' : 'quick-edit-low-stock-threshold-help'}
-          />
-          {errors.lowStockThreshold && (
-            <p id="quick-edit-low-stock-threshold-error" className="text-xs text-red-500" role="alert">{errors.lowStockThreshold.message}</p>
-          )}
-          <p id="quick-edit-low-stock-threshold-help" className="text-xs text-slate-500">
-            Cảnh báo khi số lượng tồn kho &lt;= giá trị này
-          </p>
-        </div>
-      )}
-
+        {/* Categories & Tags Section */}
+        <AccordionItem value="section-categories" className="border-b border-slate-200">
+          <AccordionTrigger 
+            id="section-categories"
+            className="hover:no-underline py-4 scroll-mt-4"
+            aria-label="Danh mục & Thẻ"
+          >
+            <div className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-slate-600" aria-hidden="true" />
+              <h3 className="text-base font-semibold text-slate-900">Danh mục & Thẻ</h3>
+              {getErrorCountForSection('section-categories') > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
+                  {getErrorCountForSection('section-categories')}
+                </Badge>
+              )}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-0 pb-4">
       {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Categories already lazy loaded, but show skeleton if section not loaded */}
       {loadedSections.has('secondary') ? (
         <>
-      <div className="flex items-center gap-2 mb-2 mt-6">
-        <Tag className="h-5 w-5 text-slate-600" />
-        <h3 className="text-base font-semibold text-slate-900">Danh mục & Thẻ</h3>
-      </div>
       
       {/* PHASE 1: Categories & Tags Section (4.1.1) */}
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
+      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
+      <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
         
         {/* Categories Multi-select */}
         <div className="space-y-2">
@@ -3565,24 +3711,42 @@ export function ProductQuickEditDialog({
           </p>
         </div>
       </div>
-
-      {/* PHASE 1: Featured Image & Gallery Section (4.1.2) */}
-      {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
-      <div 
-        id="section-images" 
-        className="mb-6 scroll-mt-4"
-        tabIndex={-1}
-        role="region"
-        aria-label="Hình ảnh sản phẩm"
-      >
-        {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-        <div className="flex items-center gap-2 mb-2 mt-6">
-          <ImageIcon className="h-5 w-5 text-slate-600" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-slate-900">Hình ảnh sản phẩm</h3>
+        </>
+      ) : (
+        <div className="mb-6 mt-6 space-y-4 animate-pulse">
+          <div className="h-5 w-32 bg-slate-200 rounded" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="h-32 bg-slate-200 rounded" />
+          </div>
         </div>
+      )}
+          </AccordionContent>
+        </AccordionItem>
+
+        {/* Images Section */}
+        <AccordionItem value="section-images" className="border-b border-slate-200">
+          <AccordionTrigger 
+            id="section-images"
+            className="hover:no-underline py-4 scroll-mt-4"
+            aria-label="Hình ảnh sản phẩm"
+          >
+            <div className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-slate-600" aria-hidden="true" />
+              <h3 className="text-base font-semibold text-slate-900">Hình ảnh sản phẩm</h3>
+              {getErrorCountForSection('section-images') > 0 && (
+                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
+                  {getErrorCountForSection('section-images')}
+                </Badge>
+              )}
+            </div>
+          </AccordionTrigger>
+          <AccordionContent className="pt-0 pb-4">
+      {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
+      {loadedSections.has('secondary') ? (
+        <>
         {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4">
+        {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4">
         
         {/* Featured Image */}
         <div className="space-y-2">
@@ -3683,7 +3847,6 @@ export function ProductQuickEditDialog({
           </div>
         </div>
         </div>
-      </div>
         </>
       ) : (
         <div className="mb-6 mt-6 space-y-4 animate-pulse">
@@ -3701,6 +3864,8 @@ export function ProductQuickEditDialog({
           </div>
         </div>
       )}
+          </AccordionContent>
+        </AccordionItem>
 
       {/* PHASE 2: SEO Fields Section (4.2.1) */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
@@ -3759,59 +3924,64 @@ export function ProductQuickEditDialog({
       </div>
       
       {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
-        {/* Meta Title */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="quick-edit-seo-title" className="text-slate-900">Meta Title</Label>
-            <span className={`text-xs ${(watch('seoTitle')?.length || 0) > 60 ? 'text-red-500' : 'text-slate-500'}`}>
-              {(watch('seoTitle')?.length || 0)}/60
-            </span>
+      {/* PHASE 5.3.3: Optimize Grid Layout - SEO Title & Description 2 cột */}
+      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
+        {/* SEO Title & SEO Description - Grid 2 cột */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* Meta Title */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="quick-edit-seo-title" className="text-slate-900">Meta Title</Label>
+              <span className={`text-xs ${(watch('seoTitle')?.length || 0) > 60 ? 'text-red-500' : 'text-slate-500'}`}>
+                {(watch('seoTitle')?.length || 0)}/60
+              </span>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
+            <Input
+              id="quick-edit-seo-title"
+              {...register('seoTitle')}
+              maxLength={60}
+              className={getFieldClassName('seoTitle', seoTitle, !!errors.seoTitle, savedFields.has('seoTitle'), 'quick-edit-seo-title')}
+              placeholder="Nhập meta title (tối đa 60 ký tự)..."
+              aria-label="Meta Title (SEO)"
+              aria-describedby={errors.seoTitle ? 'quick-edit-seo-title-error' : 'quick-edit-seo-title-help'}
+            />
+            {errors.seoTitle && (
+              <p id="quick-edit-seo-title-error" className="text-xs text-red-500" role="alert">{errors.seoTitle.message}</p>
+            )}
+            <p id="quick-edit-seo-title-help" className="text-xs text-slate-500">
+              Tiêu đề hiển thị trên kết quả tìm kiếm. Nếu để trống, sẽ dùng tên sản phẩm.
+            </p>
           </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Input
-            id="quick-edit-seo-title"
-            {...register('seoTitle')}
-            maxLength={60}
-            className={getFieldClassName('seoTitle', seoTitle, !!errors.seoTitle, savedFields.has('seoTitle'), 'quick-edit-seo-title')}
-            placeholder="Nhập meta title (tối đa 60 ký tự)..."
-            aria-label="Meta Title (SEO)"
-            aria-describedby={errors.seoTitle ? 'quick-edit-seo-title-error' : 'quick-edit-seo-title-help'}
-          />
-          {errors.seoTitle && (
-            <p id="quick-edit-seo-title-error" className="text-xs text-red-500" role="alert">{errors.seoTitle.message}</p>
-          )}
-          <p id="quick-edit-seo-title-help" className="text-xs text-slate-500">
-            Tiêu đề hiển thị trên kết quả tìm kiếm. Nếu để trống, sẽ dùng tên sản phẩm.
-          </p>
-        </div>
 
-        {/* Meta Description */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="flex items-center justify-between min-h-[21px]">
-            <Label htmlFor="quick-edit-seo-description" className="text-slate-900">Meta Description</Label>
-            <span className={`text-xs flex-shrink-0 ${(watch('seoDescription')?.length || 0) > 160 ? 'text-red-500' : 'text-slate-500'}`}>
-              {(watch('seoDescription')?.length || 0)}/160
-            </span>
+          {/* Meta Description */}
+          <div className="space-y-2">
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="flex items-center justify-between min-h-[21px]">
+              <Label htmlFor="quick-edit-seo-description" className="text-slate-900">Meta Description</Label>
+              <span className={`text-xs flex-shrink-0 ${(watch('seoDescription')?.length || 0) > 160 ? 'text-red-500' : 'text-slate-500'}`}>
+                {(watch('seoDescription')?.length || 0)}/160
+              </span>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
+            <textarea
+              id="quick-edit-seo-description"
+              {...register('seoDescription')}
+              maxLength={160}
+              rows={3}
+              className={`flex w-full rounded-md border-2 bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-none ${getFieldClassName('seoDescription', seoDescription, !!errors.seoDescription, savedFields.has('seoDescription'), 'quick-edit-seo-description')}`}
+              placeholder="Nhập meta description (tối đa 160 ký tự)..."
+              aria-label="Meta Description (SEO)"
+              aria-describedby={errors.seoDescription ? 'quick-edit-seo-description-error' : 'quick-edit-seo-description-help'}
+            />
+            {errors.seoDescription && (
+              <p id="quick-edit-seo-description-error" className="text-xs text-red-500" role="alert">{errors.seoDescription.message}</p>
+            )}
+            <p id="quick-edit-seo-description-help" className="text-xs text-slate-500">
+              Mô tả ngắn hiển thị dưới tiêu đề trên kết quả tìm kiếm. Nếu để trống, sẽ dùng mô tả ngắn sản phẩm.
+            </p>
           </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <textarea
-            id="quick-edit-seo-description"
-            {...register('seoDescription')}
-            maxLength={160}
-            rows={3}
-            className={`flex w-full rounded-md border-2 bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-none ${getFieldClassName('seoDescription', seoDescription, !!errors.seoDescription, savedFields.has('seoDescription'), 'quick-edit-seo-description')}`}
-            placeholder="Nhập meta description (tối đa 160 ký tự)..."
-            aria-label="Meta Description (SEO)"
-            aria-describedby={errors.seoDescription ? 'quick-edit-seo-description-error' : 'quick-edit-seo-description-help'}
-          />
-          {errors.seoDescription && (
-            <p id="quick-edit-seo-description-error" className="text-xs text-red-500" role="alert">{errors.seoDescription.message}</p>
-          )}
-          <p id="quick-edit-seo-description-help" className="text-xs text-slate-500">
-            Mô tả ngắn hiển thị dưới tiêu đề trên kết quả tìm kiếm. Nếu để trống, sẽ dùng mô tả ngắn sản phẩm.
-          </p>
         </div>
 
         {/* URL Slug */}
@@ -3873,6 +4043,7 @@ export function ProductQuickEditDialog({
           </div>
         </div>
       )}
+      </Accordion>
 
       {/* Variants section */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Variants are critical for variable products, but can be deferred for simple products */}
@@ -3977,7 +4148,8 @@ export function ProductQuickEditDialog({
               <h3 className="text-base font-semibold text-slate-900">Tùy chọn sản phẩm</h3>
             </div>
             
-            <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-3">
+            {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+            <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-3">
               <p className="text-sm text-slate-600 mb-3">
                 Bật/tắt các thuộc tính (Size, Color, etc.) cho sản phẩm
               </p>
@@ -4071,7 +4243,8 @@ export function ProductQuickEditDialog({
             side="bottom" 
             className="h-[90vh] rounded-t-2xl overflow-hidden flex flex-col p-0"
           >
-            <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-200 flex-shrink-0">
+            {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+            <SheetHeader className="px-4 pt-4 pb-3 md:px-6 md:pt-6 md:pb-4 border-b border-slate-200 flex-shrink-0">
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1">
                   <SheetTitle className="text-lg font-semibold text-slate-900">
@@ -4109,9 +4282,10 @@ export function ProductQuickEditDialog({
                 />
               </div>
             )}
+            {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
             <div 
               ref={containerRef}
-              className="flex-1 overflow-y-auto px-6 py-4 relative"
+              className="flex-1 overflow-y-auto px-4 py-3 md:px-6 md:py-4 relative"
               onScroll={(e) => {
                 // PHASE 2: Mobile Sheet Scrolling Issues (7.11.8) - Calculate scroll progress
                 const target = e.currentTarget;
@@ -4144,7 +4318,7 @@ export function ProductQuickEditDialog({
             {/* PHASE 2: Button Placement & Hierarchy (7.11.5) - Sticky save button wrapper */}
             {/* PHASE 3: Product History Tab (4.3.5) - Only show footer when edit tab is active or bulk mode */}
             {(activeTab === 'edit' || isBulkMode) && (
-              <div className="sticky bottom-0 z-50 bg-white border-t border-slate-200 px-6 py-4 flex-shrink-0">
+              <div className="sticky bottom-0 z-50 bg-white border-t border-slate-200 px-4 py-3 md:px-6 md:py-4 flex-shrink-0">
                 <SheetFooter className="px-0 py-0 border-0 gap-2">
               <Button
                 type="button"
@@ -5035,7 +5209,8 @@ export function ProductQuickEditDialog({
                         </div>
                       </div>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-md p-4">
+                    {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4">
                       <h3 className="text-sm font-semibold text-slate-900 mb-2">Mẹo</h3>
                       <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
                         <li>Sử dụng Tab để di chuyển giữa các trường</li>
@@ -5133,7 +5308,8 @@ export function ProductQuickEditDialog({
                         </div>
                       </div>
                     </div>
-                    <div className="bg-slate-50 border border-slate-200 rounded-md p-4">
+                    {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4">
                       <h3 className="text-sm font-semibold text-slate-900 mb-2">Mẹo</h3>
                       <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
                         <li>Sử dụng Tab để di chuyển giữa các trường</li>
