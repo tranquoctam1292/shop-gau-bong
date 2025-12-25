@@ -208,6 +208,8 @@ export function ProductQuickEditDialog({
   // PHASE 3: Product History Tab (4.3.5)
   const [activeTab, setActiveTab] = useState<string>('edit');
   const [historyPage, setHistoryPage] = useState(1);
+  // UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help dialog
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   // PERFORMANCE: Only fetch history when dialog is open and user is on history tab
   const { data: historyData, isLoading: isLoadingHistory } = useProductHistory(
     product?.id,
@@ -219,6 +221,12 @@ export function ProductQuickEditDialog({
   const { showToast } = useToastContext();
   // PHASE 2: Success Feedback Enhancement (7.11.4) - Track updates for visual feedback
   const savedUpdatesRef = useRef<Record<string, unknown>>({});
+  // FIX: Store timeout IDs to prevent memory leaks when dialog closes
+  const timeoutRefs = useRef<{
+    flashAnimation?: NodeJS.Timeout;
+    successIndicator?: NodeJS.Timeout;
+    closeDialog?: NodeJS.Timeout;
+  }>({});
   const { quickUpdate, isLoading } = useQuickUpdateProduct({
     onSuccess: (updatedProduct) => {
       // FIX: Update productWithVariants state with new version from API response
@@ -295,15 +303,37 @@ export function ProductQuickEditDialog({
       if (updates.status !== undefined) savedFieldsSet.add('status');
       setSavedFields(savedFieldsSet);
       
+      // UX/UI UPGRADE Phase 2.2.1: Trigger green flash animation cho saved fields
+      setFlashingFields(new Set(savedFieldsSet));
+      // Remove flash animation after 1s (smooth fade out)
+      // FIX: Store timeout ID to prevent memory leak
+      timeoutRefs.current.flashAnimation = setTimeout(() => {
+        setFlashingFields(new Set());
+        timeoutRefs.current.flashAnimation = undefined;
+      }, 1000);
+      
       // Hide success indicator after 3 seconds
-      setTimeout(() => {
+      // FIX: Store timeout ID and move before onClose() to prevent memory leak
+      timeoutRefs.current.successIndicator = setTimeout(() => {
         setShowSuccessIndicator(false);
         setSavedFields(new Set());
+        timeoutRefs.current.successIndicator = undefined;
       }, 3000);
       
       // Close dialog after showing success feedback (delay 2 seconds)
-      setTimeout(() => {
-      onClose();
+      // FIX: Store timeout ID to allow cancellation if needed
+      timeoutRefs.current.closeDialog = setTimeout(() => {
+        // Clear all pending timeouts before closing to prevent state updates after unmount
+        if (timeoutRefs.current.flashAnimation) {
+          clearTimeout(timeoutRefs.current.flashAnimation);
+          timeoutRefs.current.flashAnimation = undefined;
+        }
+        if (timeoutRefs.current.successIndicator) {
+          clearTimeout(timeoutRefs.current.successIndicator);
+          timeoutRefs.current.successIndicator = undefined;
+        }
+        timeoutRefs.current.closeDialog = undefined;
+        onClose();
       }, 2000);
     },
     onError: (error) => {
@@ -327,6 +357,12 @@ export function ProductQuickEditDialog({
               setLoadingProduct(false);
             });
         }
+      } else if (error.message === 'CSRF_TOKEN_INVALID_AFTER_RETRY') {
+        // CSRF error after retry - toast already shown in hook, just log
+        console.error('[ProductQuickEditDialog] CSRF token invalid after retry:', error);
+      } else if (error.message.includes('CSRF_TOKEN_INVALID') || error.message.includes('CSRF_TOKEN_MISSING') || error.message.includes('CSRF_ORIGIN_INVALID')) {
+        // Fallback: Show toast if CSRF error not handled by retry logic
+        showToast('CSRF token không hợp lệ. Vui lòng tải lại trang và thử lại.', 'error');
       }
       // Don't close dialog on error - let user fix and retry
     },
@@ -362,6 +398,8 @@ export function ProductQuickEditDialog({
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const [showSuccessIndicator, setShowSuccessIndicator] = useState(false);
   const [savedFields, setSavedFields] = useState<Set<string>>(new Set());
+  // UX/UI UPGRADE Phase 2.2.1: Green flash animation cho saved fields
+  const [flashingFields, setFlashingFields] = useState<Set<string>>(new Set());
   // PHASE 2: Visual Feedback for Edited Fields (7.11.2)
   const [fieldOriginalValues, setFieldOriginalValues] = useState<Record<string, any>>({});
   // PHASE 2: Mobile Sheet Scrolling Issues (7.11.8)
@@ -768,17 +806,19 @@ export function ProductQuickEditDialog({
   // PHASE 3: Field Focus Visual Enhancement (7.11.13) - Track focused field
   const [focusedFieldId, setFocusedFieldId] = useState<string | null>(null);
   
+  // UX/UI UPGRADE PREREQUISITE 3 (10.2.2): Unified Focus Handler - Combines enhanced focus + mobile keyboard handling
   // PHASE 3: Field Focus Visual Enhancement (7.11.13) - Enhanced focus handler
-  const handleFieldFocus = useCallback((fieldId: string, e?: React.FocusEvent<HTMLInputElement>) => {
+  const handleFieldFocus = useCallback((fieldId: string, e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFocusedFieldId(fieldId);
-    // Call original handleInputFocus for mobile keyboard handling
-    if (e) {
-      handleInputFocus(e);
+    // Call original handleInputFocus for mobile keyboard handling (only for Input/Textarea, not Select)
+    if (e && (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+      handleInputFocus(e as React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>);
     }
   }, [handleInputFocus]);
   
+  // UX/UI UPGRADE PREREQUISITE 3 (10.2.2): Unified Focus Handler - Works with all input types
   // PHASE 3: Field Focus Visual Enhancement (7.11.13) - Enhanced blur handler
-  const handleFieldBlur = useCallback((_e?: React.FocusEvent<HTMLInputElement>) => {
+  const handleFieldBlur = useCallback((_e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFocusedFieldId(null);
   }, []);
   
@@ -1160,6 +1200,27 @@ export function ProductQuickEditDialog({
     };
   }, [open, activeTab, formIsDirty, isLoading, onClose, setShowConfirmClose, showToast, canUndo, canRedo, undo, redo]);
 
+  // FIX: Cleanup timeouts on unmount or when dialog closes to prevent memory leaks
+  useEffect(() => {
+    // Copy ref values to variables to avoid stale closure warnings
+    const timeouts = timeoutRefs.current;
+    return () => {
+      // Clear all pending timeouts when component unmounts or dialog closes
+      if (timeouts.flashAnimation) {
+        clearTimeout(timeouts.flashAnimation);
+        timeouts.flashAnimation = undefined;
+      }
+      if (timeouts.successIndicator) {
+        clearTimeout(timeouts.successIndicator);
+        timeouts.successIndicator = undefined;
+      }
+      if (timeouts.closeDialog) {
+        clearTimeout(timeouts.closeDialog);
+        timeouts.closeDialog = undefined;
+      }
+    };
+  }, [open]); // Re-run cleanup when dialog opens/closes
+
   // PHASE 3: Client State Sync (7.12.7) - Update formIsDirty ref when it changes
   useEffect(() => {
     formIsDirtyRef.current = formIsDirty;
@@ -1374,12 +1435,32 @@ export function ProductQuickEditDialog({
   };
 
   // Helper function to normalize values for comparison
-  const normalizeValue = (value: any): any => {
+  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced normalizeValue với edge cases handling
+  const normalizeValue = useCallback((value: any): any => {
+    // Handle null/undefined
     if (value === null || value === undefined) return undefined;
+    
+    // Handle empty strings
     if (typeof value === 'string' && value.trim() === '') return '';
+    
+    // Handle NaN numbers
     if (typeof value === 'number' && isNaN(value)) return 0;
+    
+    // Handle arrays - normalize to sorted string for comparison
+    if (Array.isArray(value)) {
+      if (value.length === 0) return [];
+      // Sort arrays to ensure consistent comparison (for categories, tags)
+      return [...value].sort().map(item => normalizeValue(item));
+    }
+    
+    // Handle objects - normalize nested objects
+    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      // For objects, return as-is (will be compared by reference or deep comparison if needed)
+      return value;
+    }
+    
     return value;
-  };
+  }, []);
 
   // PHASE 1: Dirty Check Optimization (7.7.2) - Optimized with early exit and memoization
   // Use snapshotInitialData for stable comparison (snapshot taken when dialog opens)
@@ -1507,6 +1588,7 @@ export function ProductQuickEditDialog({
     // PHASE 3: Barcode/GTIN/EAN, Sold Individually, Backorders
     barcode, gtin, ean,
     soldIndividually, backorders,
+    normalizeValue, // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Add normalizeValue dependency
   ]);
 
   // PHASE 4: Unsaved Changes Warning (7.11.10) - Update isDirty ref for beforeunload (after isDirty is defined)
@@ -1576,34 +1658,141 @@ export function ProductQuickEditDialog({
   }, [open, isDirty]);
     
   // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Helper to check if field is edited
+  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced với edge cases handling
   const isFieldEdited = useCallback((fieldName: string, currentValue: any): boolean => {
     if (!fieldOriginalValues || Object.keys(fieldOriginalValues).length === 0) return false;
+    
     const originalValue = fieldOriginalValues[fieldName];
-    return normalizeValue(currentValue) !== normalizeValue(originalValue);
-  }, [fieldOriginalValues]);
+    
+    // Handle undefined field (field not in original values)
+    if (originalValue === undefined) {
+      // Field is edited if current value is not empty/null/undefined
+      const normalizedCurrent = normalizeValue(currentValue);
+      return normalizedCurrent !== undefined && normalizedCurrent !== '' && normalizedCurrent !== null;
+    }
+    
+    // Normalize both values for comparison
+    const normalizedOriginal = normalizeValue(originalValue);
+    const normalizedCurrent = normalizeValue(currentValue);
+    
+    // Deep comparison for arrays
+    if (Array.isArray(normalizedOriginal) && Array.isArray(normalizedCurrent)) {
+      if (normalizedOriginal.length !== normalizedCurrent.length) return true;
+      // Compare each element
+      for (let i = 0; i < normalizedOriginal.length; i++) {
+        if (normalizeValue(normalizedOriginal[i]) !== normalizeValue(normalizedCurrent[i])) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // Simple comparison for primitives
+    return normalizedOriginal !== normalizedCurrent;
+  }, [fieldOriginalValues, normalizeValue]);
+
+  // UX/UI UPGRADE PREREQUISITE 1 (10.1.1): State Priority Logic - Get field className with priority: Error > Success > Edited > Normal
+  // UX/UI UPGRADE PREREQUISITE 4 (10.4.1): Memoized để prevent re-renders
+  // FIX: Added optional isValid parameter to handle validation success state (e.g., SKU validation)
+  const getFieldClassName = useCallback((fieldName: string, currentValue: any, hasError: boolean, isSaved: boolean, fieldId?: string, isValid?: boolean): string => {
+    // Priority order: Error > Validation Success > Saved > Edited > Normal
+    const baseClasses = 'hover:border-slate-300';
+    const focusClasses = fieldId && focusedFieldId === fieldId ? 'ring-2 ring-slate-950 ring-offset-2' : '';
+    
+    // UX/UI UPGRADE Phase 2.2.1: Green flash animation cho saved fields
+    const isFlashing = flashingFields.has(fieldName);
+    const flashAnimationClass = isFlashing ? 'animate-pulse' : '';
+    
+    // 1. Error state (highest priority)
+    if (hasError) {
+      return `border-red-500 focus:ring-red-500 ${baseClasses} ${focusClasses}`;
+    }
+    
+    // 2. Validation Success state (e.g., SKU validation passed but not saved yet)
+    // This takes priority over edited state to show validation feedback
+    if (isValid === true && !isSaved) {
+      return `border-green-500 focus:ring-green-500 ${baseClasses} ${focusClasses}`;
+    }
+    
+    // 3. Success state (saved)
+    if (isSaved) {
+      // UX/UI UPGRADE Phase 2.2.1: Add flash animation when field is just saved
+      if (isFlashing) {
+        return `border-green-500 bg-green-100 transition-all duration-1000 ${flashAnimationClass} ${baseClasses} ${focusClasses}`;
+      }
+      return `border-green-500 bg-green-50/50 transition-all duration-300 ${baseClasses} ${focusClasses}`;
+    }
+    
+    // 4. Edited state (field has been modified)
+    if (isFieldEdited(fieldName, currentValue)) {
+      return `border-blue-400 bg-blue-50/50 ${baseClasses} ${focusClasses}`;
+    }
+    
+    // 5. Normal state (default)
+    return `border-slate-200 focus:ring-2 focus:ring-slate-950 ${baseClasses} ${focusClasses}`;
+  }, [focusedFieldId, isFieldEdited, flashingFields]);
+
+  // Helper function to format values for tooltip display
+  const formatValueForTooltip = useCallback((val: any): string => {
+    if (val === null || val === undefined || val === '') return '(trống)';
+    if (typeof val === 'number') {
+      if (isNaN(val)) return '(không hợp lệ)';
+      return val.toLocaleString('vi-VN');
+    }
+    if (Array.isArray(val)) {
+      if (val.length === 0) return '(trống)';
+      return val.map(item => formatValueForTooltip(item)).join(', ');
+    }
+    if (typeof val === 'object' && val !== null) {
+      return JSON.stringify(val);
+    }
+    return String(val);
+  }, []);
 
   // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Get field change tooltip text
+  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced với edge cases handling
   const getFieldChangeTooltip = useCallback((fieldName: string, currentValue: any): string => {
     if (!fieldOriginalValues || Object.keys(fieldOriginalValues).length === 0) return '';
+    
     const originalValue = fieldOriginalValues[fieldName];
+    
+    // Handle undefined field
+    if (originalValue === undefined) {
+      const normalizedCurrent = normalizeValue(currentValue);
+      if (normalizedCurrent === undefined || normalizedCurrent === '' || normalizedCurrent === null) {
+        return '';
+      }
+      return `Mới: ${formatValueForTooltip(currentValue)}`;
+    }
+    
     const normalizedOriginal = normalizeValue(originalValue);
     const normalizedCurrent = normalizeValue(currentValue);
     
     if (normalizedOriginal === normalizedCurrent) return '';
     
-    const formatValue = (val: any): string => {
-      if (val === null || val === undefined || val === '') return '(trống)';
-      if (typeof val === 'number') return val.toLocaleString('vi-VN');
-      if (Array.isArray(val)) return val.length > 0 ? val.join(', ') : '(trống)';
-      return String(val);
-    };
-    
-    return `Gốc: ${formatValue(originalValue)} → Mới: ${formatValue(currentValue)}`;
-  }, [fieldOriginalValues]);
+    return `Gốc: ${formatValueForTooltip(originalValue)} → Mới: ${formatValueForTooltip(currentValue)}`;
+  }, [fieldOriginalValues, normalizeValue, formatValueForTooltip]);
 
   // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Reset field to original value
+  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced với edge cases handling
   const resetFieldToOriginal = useCallback((fieldName: string) => {
-    if (!fieldOriginalValues || !fieldOriginalValues[fieldName]) return;
+    if (!fieldOriginalValues) return;
+    
+    // Handle undefined field - reset to empty/default value
+    if (fieldOriginalValues[fieldName] === undefined) {
+      // Determine default value based on field type
+      if (fieldName === 'salePrice' || fieldName === 'weight' || fieldName === 'length' || fieldName === 'width' || fieldName === 'height' || fieldName === 'lowStockThreshold' || fieldName === 'costPrice') {
+        setValue(fieldName as any, undefined, { shouldDirty: true });
+      } else if (fieldName === 'categories' || fieldName === 'tags' || fieldName === 'variants') {
+        setValue(fieldName as any, [], { shouldDirty: true });
+      } else if (fieldName === 'manageStock') {
+        setValue(fieldName as any, false, { shouldDirty: true });
+      } else {
+        setValue(fieldName as any, '', { shouldDirty: true });
+      }
+      return;
+    }
+    
     const originalValue = fieldOriginalValues[fieldName];
     
     // Reset based on field type - use setValue for all fields
@@ -1901,6 +2090,13 @@ export function ProductQuickEditDialog({
       return labels[fieldName] || fieldName;
     };
     
+    // Helper to map field name to field ID
+    const getFieldId = (fieldName: string): string => {
+      // Handle nested fields (e.g., variants.0.price -> quick-edit-variants-0-price)
+      const normalizedField = fieldName.replace(/\./g, '-').replace(/\[|\]/g, '-');
+      return `quick-edit-${normalizedField}`;
+    };
+    
     // Extract errors from react-hook-form errors object
     const extractErrors = (errorObj: any, prefix = ''): void => {
       Object.keys(errorObj).forEach((key) => {
@@ -1920,6 +2116,39 @@ export function ProductQuickEditDialog({
     extractErrors(errors);
     
     if (errorList.length > 0) {
+      // UX/UI UPGRADE Phase 2.1.1: Auto-scroll to first error field
+      const firstErrorField = errorList[0].field;
+      const firstErrorFieldId = getFieldId(firstErrorField);
+      
+      // Use setTimeout to ensure DOM is updated with error messages
+      setTimeout(() => {
+        const errorElement = document.getElementById(firstErrorFieldId);
+        if (errorElement) {
+          errorElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center',
+            inline: 'nearest'
+          });
+          // Focus the field after scrolling
+          setTimeout(() => {
+            errorElement.focus();
+          }, 300);
+        } else {
+          // Fallback: Try to find by field name pattern
+          const fallbackElement = document.querySelector(`[id*="${firstErrorField}"]`) as HTMLElement;
+          if (fallbackElement) {
+            fallbackElement.scrollIntoView({ 
+              behavior: 'smooth', 
+              block: 'center',
+              inline: 'nearest'
+            });
+            setTimeout(() => {
+              fallbackElement.focus();
+            }, 300);
+          }
+        }
+      }, 100);
+      
       // Show summary toast with all errors
       if (errorList.length === 1) {
         showToast(
@@ -1953,6 +2182,44 @@ export function ProductQuickEditDialog({
       setValue('stockStatus', 'outofstock', { shouldDirty: true });
     }
   };
+
+  // UX/UI UPGRADE Phase 2.1.2: Helper function to scroll to error field
+  const scrollToErrorField = useCallback((fieldName: string) => {
+    // Helper to map field name to field ID
+    const getFieldId = (field: string): string => {
+      // Handle nested fields (e.g., variants.0.price -> quick-edit-variants-0-price)
+      const normalizedField = field.replace(/\./g, '-').replace(/\[|\]/g, '-');
+      return `quick-edit-${normalizedField}`;
+    };
+    
+    const fieldId = getFieldId(fieldName);
+    const errorElement = document.getElementById(fieldId);
+    
+    if (errorElement) {
+      errorElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center',
+        inline: 'nearest'
+      });
+      // Focus the field after scrolling
+      setTimeout(() => {
+        errorElement.focus();
+      }, 300);
+    } else {
+      // Fallback: Try to find by field name pattern
+      const fallbackElement = document.querySelector(`[id*="${fieldName}"]`) as HTMLElement;
+      if (fallbackElement) {
+        fallbackElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center',
+          inline: 'nearest'
+        });
+        setTimeout(() => {
+          fallbackElement.focus();
+        }, 300);
+      }
+    }
+  }, []);
 
   // PHASE 1: Error Message Details (7.6.3) - Collect all validation errors for summary display
   const allValidationErrors = useMemo(() => {
@@ -2017,11 +2284,89 @@ export function ProductQuickEditDialog({
         <ProductQuickEditSkeleton />
       )}
       
+      {/* UX/UI UPGRADE Phase 4.2.1: Skip links cho keyboard navigation */}
+      {!loadingProduct && (
+        <nav className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:top-2 focus-within:left-2 focus-within:z-50 focus-within:bg-white focus-within:border focus-within:border-slate-300 focus-within:rounded-md focus-within:shadow-lg focus-within:p-2" aria-label="Skip to sections">
+          <ul className="flex flex-wrap gap-2">
+            <li>
+              <a
+                href="#section-basic-info"
+                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const element = document.getElementById('section-basic-info');
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    element.focus();
+                  }
+                }}
+              >
+                Bỏ qua đến: Thông tin cơ bản
+              </a>
+            </li>
+            <li>
+              <a
+                href="#section-pricing"
+                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const element = document.getElementById('section-pricing');
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    element.focus();
+                  }
+                }}
+              >
+                Bỏ qua đến: Giá & Trạng thái
+              </a>
+            </li>
+            <li>
+              <a
+                href="#section-images"
+                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const element = document.getElementById('section-images');
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    element.focus();
+                  }
+                }}
+              >
+                Bỏ qua đến: Hình ảnh
+              </a>
+            </li>
+            <li>
+              <a
+                href="#section-seo"
+                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const element = document.getElementById('section-seo');
+                  if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    element.focus();
+                  }
+                }}
+              >
+                Bỏ qua đến: SEO & URL
+              </a>
+            </li>
+          </ul>
+        </nav>
+      )}
+      
       {/* PHASE 2: Success Feedback Enhancement (7.11.4) - "All changes saved" message */}
+      {/* UX/UI UPGRADE Phase 4.1.3: aria-live region cho success message */}
       {!loadingProduct && showSuccessIndicator && !isDirty && (
-        <div className="bg-green-50 border border-green-200 rounded-md p-4 space-y-2 animate-in slide-in-from-top-2">
+        <div 
+          className="bg-green-50 border border-green-200 rounded-md p-4 space-y-2 animate-in slide-in-from-top-2"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
           <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" />
+            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" aria-hidden="true" />
             <h4 className="text-sm font-semibold text-green-900">
               Tất cả thay đổi đã được lưu
             </h4>
@@ -2035,8 +2380,14 @@ export function ProductQuickEditDialog({
       )}
       
       {/* PHASE 1: Error Message Details (7.6.3) - Error Summary Section */}
+      {/* UX/UI UPGRADE Phase 4.1.3: aria-live region cho error summary */}
       {!loadingProduct && allValidationErrors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-md p-4 space-y-2 animate-in slide-in-from-top-2">
+        <div 
+          className="bg-red-50 border border-red-200 rounded-md p-4 space-y-2 animate-in slide-in-from-top-2"
+          role="alert"
+          aria-live="assertive"
+          aria-atomic="true"
+        >
           <div className="flex items-center gap-2">
             <div className="h-5 w-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
               <span className="text-white text-xs font-bold">{allValidationErrors.length}</span>
@@ -2048,7 +2399,16 @@ export function ProductQuickEditDialog({
           <ul className="list-disc list-inside space-y-1 text-sm text-red-800 ml-7">
             {allValidationErrors.map((err, index) => (
               <li key={index}>
-                <span className="font-medium">{err.label}:</span> {err.message}
+                {/* UX/UI UPGRADE Phase 2.1.2: Error summary với clickable links */}
+                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
+                <button
+                  type="button"
+                  onClick={() => scrollToErrorField(err.field)}
+                  className="text-left hover:underline hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded px-1 -ml-1 transition-colors min-h-[44px] py-2 w-full"
+                  aria-label={`Scroll to ${err.label} field`}
+                >
+                  <span className="font-medium">{err.label}:</span> {err.message}
+                </button>
               </li>
             ))}
           </ul>
@@ -2070,33 +2430,57 @@ export function ProductQuickEditDialog({
       {!loadingProduct && (
         <>
       {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      <div id="section-basic-info" className="flex items-center gap-2 mb-2 scroll-mt-4">
-        <Package className="h-5 w-5 text-slate-600" />
+      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
+      <div 
+        id="section-basic-info" 
+        className="flex items-center gap-2 mb-2 scroll-mt-4"
+        tabIndex={-1}
+        role="region"
+        aria-label="Thông tin cơ bản"
+      >
+        <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
         <h3 className="text-base font-semibold text-slate-900">Thông tin cơ bản</h3>
       </div>
       
+      {/* UX/UI UPGRADE Phase 1.1.1: Background colors cho sections */}
+      <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
       {/* Row 1: Thông tin cơ bản - Grid 2 cột */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-name" className="text-slate-900">Tên sản phẩm</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-name" className="text-slate-900">Tên sản phẩm</Label>
+          </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Input
             id="quick-edit-name"
             {...register('name')}
             onFocus={(e) => handleFieldFocus('quick-edit-name', e)}
             onBlur={handleFieldBlur}
-            className={`${errors.name ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300 ${focusedFieldId === 'quick-edit-name' ? 'ring-2 ring-slate-950 ring-offset-2' : ''}`}
+            className={getFieldClassName('name', name, !!errors.name, savedFields.has('name'), 'quick-edit-name')}
+            aria-label="Tên sản phẩm"
+            aria-describedby={errors.name ? 'quick-edit-name-error' : 'quick-edit-name-help'}
           />
           {errors.name && (
-            <p className="text-xs text-red-500">{errors.name.message}</p>
+            <p id="quick-edit-name-error" className="text-xs text-red-500" role="alert">{errors.name.message}</p>
           )}
+          <p id="quick-edit-name-help" className="sr-only">Nhập tên sản phẩm</p>
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center gap-1">
-          <Label htmlFor="quick-edit-sku" className="text-slate-900">SKU</Label>
-            <div title="Mã sản phẩm duy nhất (Stock Keeping Unit). VD: GAU-BONG-001">
-              <Info className="h-4 w-4 text-slate-400 cursor-help" />
-            </div>
+          {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="flex items-center gap-2 min-h-[21px]">
+            <Label htmlFor="quick-edit-sku" className="text-slate-900 flex-1">SKU</Label>
+            {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
+            <button
+              type="button"
+              title="Mã sản phẩm duy nhất (Stock Keeping Unit). VD: GAU-BONG-001"
+              className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
+              aria-label="Thông tin về SKU"
+            >
+              <Info className="h-4 w-4 text-slate-400" />
+            </button>
           </div>
           <div className="relative">
           <Input
@@ -2106,13 +2490,7 @@ export function ProductQuickEditDialog({
               onBlur={handleFieldBlur}
               aria-label="Mã SKU sản phẩm"
               aria-describedby={errors.sku ? 'quick-edit-sku-error' : skuValidation.error ? 'quick-edit-sku-validation-error' : 'quick-edit-sku-help'}
-              className={`${errors.sku || (skuValidation.isValid === false && skuValidation.error) 
-                ? 'border-red-500 focus:ring-red-500 pr-10' 
-                : savedFields.has('sku')
-                  ? 'border-green-500 bg-green-50/50 pr-10 transition-all duration-300'
-                  : skuValidation.isValid === true 
-                    ? 'border-green-500 focus:ring-green-500 pr-10' 
-                    : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300 ${focusedFieldId === 'quick-edit-sku' ? 'ring-2 ring-slate-950 ring-offset-2' : ''}`}
+              className={`${getFieldClassName('sku', sku, !!(errors.sku || (skuValidation.isValid === false && skuValidation.error)), savedFields.has('sku'), 'quick-edit-sku', skuValidation.isValid === true && !errors.sku ? true : undefined)} pr-10`}
               placeholder="VD: GAU-BONG-001"
           />
             {/* PHASE 2: SKU Real-time Validation (7.8.2) - Visual feedback icons */}
@@ -2156,60 +2534,91 @@ export function ProductQuickEditDialog({
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <div className="space-y-2">
           <Label htmlFor="quick-edit-barcode" className="text-slate-900">Barcode</Label>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Input
             id="quick-edit-barcode"
             {...register('barcode')}
-            className={`${errors.barcode ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('barcode', barcode, !!errors.barcode, savedFields.has('barcode'), 'quick-edit-barcode')}
             placeholder="Nhập barcode..."
-            onFocus={handleInputFocus}
+            onFocus={(e) => handleFieldFocus('quick-edit-barcode', e)}
+            onBlur={handleFieldBlur}
+            aria-label="Barcode sản phẩm"
+            aria-describedby={errors.barcode ? 'quick-edit-barcode-error' : 'quick-edit-barcode-help'}
           />
           {errors.barcode && (
-            <p className="text-xs text-red-500">{errors.barcode.message}</p>
+            <p id="quick-edit-barcode-error" className="text-xs text-red-500" role="alert">{errors.barcode.message}</p>
           )}
+          <p id="quick-edit-barcode-help" className="sr-only">Nhập mã barcode của sản phẩm</p>
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-gtin" className="text-slate-900">GTIN</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-gtin" className="text-slate-900">GTIN</Label>
+          </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Input
             id="quick-edit-gtin"
             {...register('gtin')}
-            className={`${errors.gtin ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('gtin', gtin, !!errors.gtin, savedFields.has('gtin'), 'quick-edit-gtin')}
             placeholder="Nhập GTIN..."
-            onFocus={handleInputFocus}
+            onFocus={(e) => handleFieldFocus('quick-edit-gtin', e)}
+            onBlur={handleFieldBlur}
+            aria-label="GTIN (Global Trade Item Number)"
+            aria-describedby={errors.gtin ? 'quick-edit-gtin-error' : 'quick-edit-gtin-help'}
           />
           {errors.gtin && (
-            <p className="text-xs text-red-500">{errors.gtin.message}</p>
+            <p id="quick-edit-gtin-error" className="text-xs text-red-500" role="alert">{errors.gtin.message}</p>
           )}
-          <p className="text-xs text-slate-500">Global Trade Item Number</p>
+          <p id="quick-edit-gtin-help" className="text-xs text-slate-500">Global Trade Item Number</p>
         </div>
         
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-ean" className="text-slate-900">EAN</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-ean" className="text-slate-900">EAN</Label>
+          </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Input
             id="quick-edit-ean"
             {...register('ean')}
-            className={`${errors.ean ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('ean', ean, !!errors.ean, savedFields.has('ean'), 'quick-edit-ean')}
             placeholder="Nhập EAN..."
-            onFocus={handleInputFocus}
+            onFocus={(e) => handleFieldFocus('quick-edit-ean', e)}
+            onBlur={handleFieldBlur}
+            aria-label="EAN (European Article Number)"
+            aria-describedby={errors.ean ? 'quick-edit-ean-error' : 'quick-edit-ean-help'}
           />
           {errors.ean && (
-            <p className="text-xs text-red-500">{errors.ean.message}</p>
+            <p id="quick-edit-ean-error" className="text-xs text-red-500" role="alert">{errors.ean.message}</p>
           )}
-          <p className="text-xs text-slate-500">European Article Number</p>
+          <p id="quick-edit-ean-help" className="text-xs text-slate-500">European Article Number</p>
         </div>
+      </div>
       </div>
 
       {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
       {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      <div id="section-pricing" className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4">
-        <DollarSign className="h-5 w-5 text-slate-600" />
+      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
+      <div 
+        id="section-pricing" 
+        className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4"
+        tabIndex={-1}
+        role="region"
+        aria-label="Giá & Trạng thái"
+      >
+        <DollarSign className="h-5 w-5 text-slate-600" aria-hidden="true" />
         <h3 className="text-base font-semibold text-slate-900">Giá & Trạng thái</h3>
       </div>
 
+      {/* UX/UI UPGRADE Phase 1.1.1: Background colors cho sections */}
+      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders - border-top cho sections (trừ section đầu tiên) */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
       {/* Row 2: Giá & Trạng thái - Grid 3 cột */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="space-y-2">
           <Label htmlFor="quick-edit-status" className="text-slate-900">Trạng thái</Label>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Select
             value={formData.status}
             onValueChange={(value) => {
@@ -2229,6 +2638,7 @@ export function ProductQuickEditDialog({
             <SelectTrigger 
               id="quick-edit-status"
               className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+              aria-label="Trạng thái sản phẩm"
             >
               <SelectValue />
             </SelectTrigger>
@@ -2241,20 +2651,24 @@ export function ProductQuickEditDialog({
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-regular-price" className="text-slate-900">Giá gốc (đ)</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-regular-price" className="text-slate-900">Giá gốc (đ)</Label>
+          </div>
           <PriceInput
             id="quick-edit-regular-price"
             value={regularPrice}
             onChange={(value) => {
               setValue('regularPrice', value || 0, { shouldDirty: true });
             }}
-            onFocus={handleInputFocus}
+            onFocus={(e) => handleFieldFocus('quick-edit-regular-price', e)}
+            onBlur={handleFieldBlur}
             showCurrency={true}
             showClearButton={true}
             placeholder="Nhập giá gốc..."
             aria-label="Giá gốc sản phẩm"
             aria-describedby={errors.regularPrice ? 'quick-edit-regular-price-error' : 'quick-edit-regular-price-help'}
-            className={`${errors.regularPrice ? 'border-red-500 focus:ring-red-500' : savedFields.has('regularPrice') ? 'border-green-500 bg-green-50/50 transition-all duration-300' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('regularPrice', regularPrice, !!errors.regularPrice, savedFields.has('regularPrice'), 'quick-edit-regular-price')}
           />
           {errors.regularPrice && (
             <p id="quick-edit-regular-price-error" className="text-xs text-red-500" role="alert">{errors.regularPrice.message}</p>
@@ -2264,11 +2678,19 @@ export function ProductQuickEditDialog({
         </div>
 
         <div className="space-y-2">
-          <div className="flex items-center gap-1">
-          <Label htmlFor="quick-edit-sale-price" className="text-slate-900">Giá khuyến mãi (đ)</Label>
-            <div title="Giá khuyến mãi phải nhỏ hơn giá gốc. Để trống để xóa khuyến mãi. VD: 800000">
-              <Info className="h-4 w-4 text-slate-400 cursor-help" />
-            </div>
+          {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="flex items-center gap-2 min-h-[21px]">
+            <Label htmlFor="quick-edit-sale-price" className="text-slate-900 flex-1">Giá khuyến mãi (đ)</Label>
+            {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
+            <button
+              type="button"
+              title="Giá khuyến mãi phải nhỏ hơn giá gốc. Để trống để xóa khuyến mãi. VD: 800000"
+              className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
+              aria-label="Thông tin về giá khuyến mãi"
+            >
+              <Info className="h-4 w-4 text-slate-400" />
+            </button>
           </div>
           <PriceInput
             id="quick-edit-sale-price"
@@ -2276,13 +2698,14 @@ export function ProductQuickEditDialog({
             onChange={(value) => {
               setValue('salePrice', value, { shouldDirty: true });
             }}
-            onFocus={handleInputFocus}
+            onFocus={(e) => handleFieldFocus('quick-edit-sale-price', e)}
+            onBlur={handleFieldBlur}
             showCurrency={true}
             showClearButton={true}
             placeholder="Nhập giá khuyến mãi..."
             aria-label="Giá khuyến mãi sản phẩm"
             aria-describedby={errors.salePrice ? 'quick-edit-sale-price-error' : 'quick-edit-sale-price-help'}
-            className={`${errors.salePrice ? 'border-red-500 focus:ring-red-500' : savedFields.has('salePrice') ? 'border-green-500 bg-green-50/50 transition-all duration-300' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('salePrice', salePrice, !!errors.salePrice, savedFields.has('salePrice'), 'quick-edit-sale-price')}
           />
           {errors.salePrice && (
             <div id="quick-edit-sale-price-error" className="flex items-center gap-1 text-sm text-red-600" role="alert">
@@ -2296,20 +2719,28 @@ export function ProductQuickEditDialog({
 
         {/* PHASE 2: Cost Price (4.2.2) */}
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-cost-price" className="text-slate-900">Giá vốn (đ)</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-cost-price" className="text-slate-900">Giá vốn (đ)</Label>
+          </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <PriceInput
             id="quick-edit-cost-price"
             value={costPrice}
             onChange={(value) => {
               setValue('costPrice', value, { shouldDirty: true });
             }}
-            onFocus={handleInputFocus}
+            onFocus={(e) => handleFieldFocus('quick-edit-cost-price', e)}
+            onBlur={handleFieldBlur}
             showCurrency={true}
-            className={`${errors.costPrice ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('costPrice', costPrice, !!errors.costPrice, savedFields.has('costPrice'), 'quick-edit-cost-price')}
+            aria-label="Giá vốn sản phẩm"
+            aria-describedby={errors.costPrice ? 'quick-edit-cost-price-error' : 'quick-edit-cost-price-help'}
           />
           {errors.costPrice && (
-            <p className="text-xs text-red-500">{errors.costPrice.message}</p>
+            <p id="quick-edit-cost-price-error" className="text-xs text-red-500" role="alert">{errors.costPrice.message}</p>
           )}
+          <p id="quick-edit-cost-price-help" className="sr-only">Giá vốn để tính lợi nhuận. VD: 500.000 đ</p>
           {/* PHASE 2: Price Formatting Consistency (7.11.11) - Format hint */}
           <p className="text-xs text-slate-500">VD: 500.000 đ</p>
           {/* Profit Margin Calculation */}
@@ -2340,21 +2771,33 @@ export function ProductQuickEditDialog({
           })()}
         </div>
       </div>
+      </div>
 
       {/* PHASE 2: Product Type & Visibility Section (4.2.3) */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
         <>
       {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      <div id="section-product-type" className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4">
-        <Package className="h-5 w-5 text-slate-600" />
+      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
+      <div 
+        id="section-product-type" 
+        className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4"
+        tabIndex={-1}
+        role="region"
+        aria-label="Loại sản phẩm & Hiển thị"
+      >
+        <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
         <h3 className="text-base font-semibold text-slate-900">Loại sản phẩm & Hiển thị</h3>
       </div>
       
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
+      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
         {/* Product Type */}
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-product-type" className="text-slate-900">Loại sản phẩm</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-product-type" className="text-slate-900">Loại sản phẩm</Label>
+          </div>
           <Select
             value={watch('productType')}
             onValueChange={(value) => {
@@ -2374,6 +2817,7 @@ export function ProductQuickEditDialog({
             <SelectTrigger 
               id="quick-edit-product-type"
               className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+              aria-label="Loại sản phẩm"
             >
               <SelectValue />
             </SelectTrigger>
@@ -2391,7 +2835,10 @@ export function ProductQuickEditDialog({
 
         {/* Visibility */}
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-visibility" className="text-slate-900">Hiển thị</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-visibility" className="text-slate-900">Hiển thị</Label>
+          </div>
           <Select
             value={watch('visibility')}
             onValueChange={(value) => {
@@ -2405,6 +2852,7 @@ export function ProductQuickEditDialog({
             <SelectTrigger 
               id="quick-edit-visibility"
               className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+              aria-label="Tùy chọn hiển thị sản phẩm"
             >
               <SelectValue />
             </SelectTrigger>
@@ -2422,17 +2870,24 @@ export function ProductQuickEditDialog({
         {/* Password (conditional) */}
         {watch('visibility') === 'password' && (
           <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-            <Label htmlFor="quick-edit-password" className="text-slate-900">Mật khẩu</Label>
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-password" className="text-slate-900">Mật khẩu</Label>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-password"
               type="password"
               {...register('password')}
-              className={`${errors.password ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+              className={getFieldClassName('password', password, !!errors.password, savedFields.has('password'), 'quick-edit-password')}
               placeholder="Nhập mật khẩu để bảo vệ sản phẩm..."
+              aria-label="Mật khẩu bảo vệ sản phẩm"
+              aria-describedby={errors.password ? 'quick-edit-password-error' : 'quick-edit-password-help'}
           />
             {errors.password && (
-              <p className="text-xs text-red-500">{errors.password.message}</p>
+              <p id="quick-edit-password-error" className="text-xs text-red-500" role="alert">{errors.password.message}</p>
           )}
+          <p id="quick-edit-password-help" className="sr-only">Mật khẩu để khách hàng truy cập sản phẩm này</p>
             <p className="text-xs text-slate-500">
               Mật khẩu để khách hàng truy cập sản phẩm này
             </p>
@@ -2455,15 +2910,26 @@ export function ProductQuickEditDialog({
       {loadedSections.has('secondary') ? (
         <>
       {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      <div id="section-shipping" className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4">
-        <Ruler className="h-5 w-5 text-slate-600" />
+      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
+      <div 
+        id="section-shipping" 
+        className="flex items-center gap-2 mb-2 mt-6 scroll-mt-4"
+        tabIndex={-1}
+        role="region"
+        aria-label="Giao hàng & Thuế"
+      >
+        <Ruler className="h-5 w-5 text-slate-600" aria-hidden="true" />
         <h3 className="text-base font-semibold text-slate-900">Giao hàng & Thuế</h3>
       </div>
       
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
+      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
         {/* Shipping Class */}
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-shipping-class" className="text-slate-900">Lớp giao hàng</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-shipping-class" className="text-slate-900">Lớp giao hàng</Label>
+          </div>
           <Select
             value={watch('shippingClass') || '__none__'}
             onValueChange={(value) => {
@@ -2473,6 +2939,7 @@ export function ProductQuickEditDialog({
             <SelectTrigger 
               id="quick-edit-shipping-class"
               className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+              aria-label="Lớp giao hàng"
             >
               <SelectValue />
             </SelectTrigger>
@@ -2491,7 +2958,10 @@ export function ProductQuickEditDialog({
 
         {/* Tax Status */}
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-tax-status" className="text-slate-900">Trạng thái thuế</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-tax-status" className="text-slate-900">Trạng thái thuế</Label>
+          </div>
           <Select
             value={watch('taxStatus') || 'taxable'}
             onValueChange={(value) => {
@@ -2501,6 +2971,7 @@ export function ProductQuickEditDialog({
             <SelectTrigger 
               id="quick-edit-tax-status"
               className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+              aria-label="Trạng thái thuế"
             >
               <SelectValue />
             </SelectTrigger>
@@ -2517,7 +2988,10 @@ export function ProductQuickEditDialog({
 
         {/* Tax Class */}
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-tax-class" className="text-slate-900">Loại thuế</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-tax-class" className="text-slate-900">Loại thuế</Label>
+          </div>
           <Select
             value={watch('taxClass') || '__none__'}
             onValueChange={(value) => {
@@ -2527,6 +3001,7 @@ export function ProductQuickEditDialog({
             <SelectTrigger 
               id="quick-edit-tax-class"
               className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+              aria-label="Loại thuế"
             >
               <SelectValue />
             </SelectTrigger>
@@ -2563,7 +3038,8 @@ export function ProductQuickEditDialog({
 
       {/* Inventory Card */}
       <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
-        <div className="flex items-center space-x-2">
+        {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
+        <div className="flex items-center space-x-2 min-h-[44px]">
           <Checkbox
             id="quick-edit-manage-stock"
             checked={formData.manageStock}
@@ -2584,33 +3060,46 @@ export function ProductQuickEditDialog({
         {formData.manageStock && (
           <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
             <div className="space-y-2">
-              <div className="flex items-center gap-1">
-              <Label htmlFor="quick-edit-stock-quantity" className="text-slate-900">Số lượng tồn kho</Label>
-                <div title="Số lượng sản phẩm hiện có trong kho. VD: 100">
-                  <Info className="h-4 w-4 text-slate-400 cursor-help" />
-                </div>
+              {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
+              {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+              <div className="flex items-center gap-2 min-h-[21px]">
+                <Label htmlFor="quick-edit-stock-quantity" className="text-slate-900 flex-1">Số lượng tồn kho</Label>
+                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
+                <button
+                  type="button"
+                  title="Số lượng sản phẩm hiện có trong kho. VD: 100"
+                  className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
+                  aria-label="Thông tin về số lượng tồn kho"
+                >
+                  <Info className="h-4 w-4 text-slate-400" />
+                </button>
               </div>
+              {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
               <Input
                 id="quick-edit-stock-quantity"
                 type="number"
                 min="0"
                 value={stockQuantity}
                 onChange={handleStockQtyChange}
-                onFocus={handleInputFocus}
-                className={`${errors.stockQuantity ? 'border-red-500 focus:ring-red-500' : savedFields.has('stockQuantity') ? 'border-green-500 bg-green-50/50 transition-all duration-300' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+                onFocus={(e) => handleFieldFocus('quick-edit-stock-quantity', e)}
+                onBlur={handleFieldBlur}
+                className={getFieldClassName('stockQuantity', stockQuantity, !!errors.stockQuantity, savedFields.has('stockQuantity'), 'quick-edit-stock-quantity')}
                 placeholder="VD: 100"
+                aria-label="Số lượng tồn kho"
+                aria-describedby={errors.stockQuantity ? 'quick-edit-stock-quantity-error' : 'quick-edit-stock-quantity-help'}
               />
               {errors.stockQuantity && (
-                <div className="flex items-center gap-1 text-sm text-red-600">
-                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                <div id="quick-edit-stock-quantity-error" className="flex items-center gap-1 text-sm text-red-600" role="alert">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
                   <p>{errors.stockQuantity.message}</p>
                 </div>
               )}
-              <p className="text-xs text-slate-500">Số lượng sản phẩm hiện có trong kho</p>
+              <p id="quick-edit-stock-quantity-help" className="text-xs text-slate-500">Số lượng sản phẩm hiện có trong kho</p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="quick-edit-stock-status" className="text-slate-900">Trạng thái kho</Label>
+              {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
               <Select
                 value={formData.stockStatus}
                 onValueChange={(value) => setValue('stockStatus', value as 'instock' | 'outofstock' | 'onbackorder', { shouldDirty: true })}
@@ -2618,6 +3107,7 @@ export function ProductQuickEditDialog({
                 <SelectTrigger 
                   id="quick-edit-stock-status"
                   className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                  aria-label="Trạng thái kho hàng"
                 >
                   <SelectValue />
                 </SelectTrigger>
@@ -2656,9 +3146,13 @@ export function ProductQuickEditDialog({
         {/* PHASE 3: Backorders Settings (4.3.4) */}
         {formData.manageStock && (
           <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-2">
-            <Label htmlFor="quick-edit-backorders" className="text-slate-900">
-              Cho phép đặt hàng trước (Backorders)
-            </Label>
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-backorders" className="text-slate-900">
+                Cho phép đặt hàng trước (Backorders)
+              </Label>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Select
               value={watch('backorders') || 'no'}
               onValueChange={(value) => {
@@ -2674,6 +3168,7 @@ export function ProductQuickEditDialog({
               <SelectTrigger 
                 id="quick-edit-backorders"
                 className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
+                aria-label="Cho phép đặt hàng trước (Backorders)"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -2701,16 +3196,28 @@ export function ProductQuickEditDialog({
       {loadedSections.has('secondary') ? (
         <>
       {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      <div id="section-dimensions" className="mb-6 scroll-mt-4">
+      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
+      <div 
+        id="section-dimensions" 
+        className="mb-6 scroll-mt-4"
+        tabIndex={-1}
+        role="region"
+        aria-label="Kích thước & Trọng lượng"
+      >
         {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
         <div className="flex items-center gap-2 mb-2 mt-6">
-          <Ruler className="h-5 w-5 text-slate-600" />
+          <Ruler className="h-5 w-5 text-slate-600" aria-hidden="true" />
           <h3 className="text-base font-semibold text-slate-900">Kích thước & Trọng lượng</h3>
         </div>
-        <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4">
+        {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
+        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="space-y-2">
-            <Label htmlFor="quick-edit-weight" className="text-slate-900">Trọng lượng (kg)</Label>
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-weight" className="text-slate-900">Trọng lượng (kg)</Label>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-weight"
               type="number"
@@ -2723,15 +3230,22 @@ export function ProductQuickEditDialog({
                   return typeof v === 'number' ? v : parseFloat(v);
                 }
               })}
-              className={`${errors.weight ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+              className={getFieldClassName('weight', weight, !!errors.weight, savedFields.has('weight'), 'quick-edit-weight')}
+              aria-label="Trọng lượng sản phẩm (kg)"
+              aria-describedby={errors.weight ? 'quick-edit-weight-error' : 'quick-edit-weight-help'}
             />
             {errors.weight && (
-              <p className="text-xs text-red-500">{errors.weight.message}</p>
+              <p id="quick-edit-weight-error" className="text-xs text-red-500" role="alert">{errors.weight.message}</p>
             )}
+            <p id="quick-edit-weight-help" className="sr-only">Nhập trọng lượng sản phẩm tính bằng kilogram</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quick-edit-length" className="text-slate-900">Chiều dài (cm)</Label>
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-length" className="text-slate-900">Chiều dài (cm)</Label>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-length"
               type="number"
@@ -2744,15 +3258,22 @@ export function ProductQuickEditDialog({
                   return typeof v === 'number' ? v : parseFloat(v);
                 }
               })}
-              className={`${errors.length ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+              className={getFieldClassName('length', length, !!errors.length, savedFields.has('length'), 'quick-edit-length')}
+              aria-label="Chiều dài sản phẩm (cm)"
+              aria-describedby={errors.length ? 'quick-edit-length-error' : 'quick-edit-length-help'}
             />
             {errors.length && (
-              <p className="text-xs text-red-500">{errors.length.message}</p>
+              <p id="quick-edit-length-error" className="text-xs text-red-500" role="alert">{errors.length.message}</p>
             )}
+            <p id="quick-edit-length-help" className="sr-only">Nhập chiều dài sản phẩm tính bằng centimet</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quick-edit-width" className="text-slate-900">Chiều rộng (cm)</Label>
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-width" className="text-slate-900">Chiều rộng (cm)</Label>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-width"
               type="number"
@@ -2765,15 +3286,22 @@ export function ProductQuickEditDialog({
                   return typeof v === 'number' ? v : parseFloat(v);
                 }
               })}
-              className={`${errors.width ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+              className={getFieldClassName('width', width, !!errors.width, savedFields.has('width'), 'quick-edit-width')}
+              aria-label="Chiều rộng sản phẩm (cm)"
+              aria-describedby={errors.width ? 'quick-edit-width-error' : 'quick-edit-width-help'}
             />
             {errors.width && (
-              <p className="text-xs text-red-500">{errors.width.message}</p>
+              <p id="quick-edit-width-error" className="text-xs text-red-500" role="alert">{errors.width.message}</p>
             )}
+            <p id="quick-edit-width-help" className="sr-only">Nhập chiều rộng sản phẩm tính bằng centimet</p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="quick-edit-height" className="text-slate-900">Chiều cao (cm)</Label>
+            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+            <div className="min-h-[21px]">
+              <Label htmlFor="quick-edit-height" className="text-slate-900">Chiều cao (cm)</Label>
+            </div>
+            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-height"
               type="number"
@@ -2786,11 +3314,14 @@ export function ProductQuickEditDialog({
                   return typeof v === 'number' ? v : parseFloat(v);
                 }
               })}
-              className={`${errors.height ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+              className={getFieldClassName('height', height, !!errors.height, savedFields.has('height'), 'quick-edit-height')}
+              aria-label="Chiều cao sản phẩm (cm)"
+              aria-describedby={errors.height ? 'quick-edit-height-error' : 'quick-edit-height-help'}
             />
             {errors.height && (
-              <p className="text-xs text-red-500">{errors.height.message}</p>
+              <p id="quick-edit-height-error" className="text-xs text-red-500" role="alert">{errors.height.message}</p>
             )}
+            <p id="quick-edit-height-help" className="sr-only">Nhập chiều cao sản phẩm tính bằng centimet</p>
             {/* Display calculated volumetric weight */}
             {(() => {
               const length = watch('length');
@@ -2828,9 +3359,13 @@ export function ProductQuickEditDialog({
       {/* PHASE 1: Low Stock Threshold (4.1.4) */}
       {formData.manageStock && loadedSections.has('secondary') && (
         <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-2">
-          <Label htmlFor="quick-edit-low-stock-threshold" className="text-slate-900">
-            Ngưỡng tồn kho thấp
-          </Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-low-stock-threshold" className="text-slate-900">
+              Ngưỡng tồn kho thấp
+            </Label>
+          </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Input
             id="quick-edit-low-stock-threshold"
             type="number"
@@ -2843,13 +3378,15 @@ export function ProductQuickEditDialog({
                 return typeof v === 'number' ? Math.floor(v) : parseInt(v, 10);
               }
             })}
-            className={`${errors.lowStockThreshold ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300 max-w-xs`}
+            className={`${getFieldClassName('lowStockThreshold', lowStockThreshold, !!errors.lowStockThreshold, savedFields.has('lowStockThreshold'), 'quick-edit-low-stock-threshold')} max-w-xs`}
             placeholder="Nhập ngưỡng tồn kho thấp..."
+            aria-label="Ngưỡng tồn kho thấp"
+            aria-describedby={errors.lowStockThreshold ? 'quick-edit-low-stock-threshold-error' : 'quick-edit-low-stock-threshold-help'}
           />
           {errors.lowStockThreshold && (
-            <p className="text-xs text-red-500">{errors.lowStockThreshold.message}</p>
+            <p id="quick-edit-low-stock-threshold-error" className="text-xs text-red-500" role="alert">{errors.lowStockThreshold.message}</p>
           )}
-          <p className="text-xs text-slate-500">
+          <p id="quick-edit-low-stock-threshold-help" className="text-xs text-slate-500">
             Cảnh báo khi số lượng tồn kho &lt;= giá trị này
           </p>
         </div>
@@ -2910,9 +3447,10 @@ export function ProductQuickEditDialog({
                     const categoryId = String(category.id || category.databaseId || '');
                     const isSelected = selectedCategories.includes(categoryId);
                     return (
+                      // UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px
                       <div
                         key={categoryId}
-                        className="flex items-center space-x-2 p-2 hover:bg-slate-100 rounded cursor-pointer"
+                        className="flex items-center space-x-2 p-2 hover:bg-slate-100 rounded cursor-pointer min-h-[44px]"
                         onClick={() => {
                           const newCategories = isSelected
                             ? selectedCategories.filter((id) => id !== categoryId)
@@ -2958,6 +3496,7 @@ export function ProductQuickEditDialog({
                     className="flex items-center gap-1"
                   >
                     {category.name}
+                    {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
                     <button
                       type="button"
                       onClick={() => {
@@ -2967,7 +3506,8 @@ export function ProductQuickEditDialog({
                           { shouldDirty: true }
                         );
                       }}
-                      className="ml-1 hover:bg-slate-200 rounded-full p-0.5"
+                      className="ml-2 hover:bg-slate-200 rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center"
+                      aria-label={`Xóa danh mục ${category.name}`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -2985,6 +3525,7 @@ export function ProductQuickEditDialog({
             {selectedTags.map((tag, index) => (
               <Badge key={index} variant="secondary" className="flex items-center gap-1">
                 {tag}
+                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
                 <button
                   type="button"
                   onClick={() => {
@@ -2994,7 +3535,8 @@ export function ProductQuickEditDialog({
                       { shouldDirty: true }
                     );
                   }}
-                  className="ml-1 hover:bg-slate-200 rounded-full p-0.5"
+                  className="ml-2 hover:bg-slate-200 rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center"
+                  aria-label={`Xóa thẻ ${tag}`}
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -3026,13 +3568,21 @@ export function ProductQuickEditDialog({
 
       {/* PHASE 1: Featured Image & Gallery Section (4.1.2) */}
       {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      <div id="section-images" className="mb-6 scroll-mt-4">
+      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
+      <div 
+        id="section-images" 
+        className="mb-6 scroll-mt-4"
+        tabIndex={-1}
+        role="region"
+        aria-label="Hình ảnh sản phẩm"
+      >
         {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
         <div className="flex items-center gap-2 mb-2 mt-6">
-          <ImageIcon className="h-5 w-5 text-slate-600" />
+          <ImageIcon className="h-5 w-5 text-slate-600" aria-hidden="true" />
           <h3 className="text-base font-semibold text-slate-900">Hình ảnh sản phẩm</h3>
         </div>
-        <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4">
+        {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
+        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4">
         
         {/* Featured Image */}
         <div className="space-y-2">
@@ -3046,12 +3596,14 @@ export function ProductQuickEditDialog({
                   fill
                   className="object-cover"
                 />
+                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
                 <button
                   type="button"
                   onClick={() => {
                     setValue('_thumbnail_id', undefined, { shouldDirty: true });
                   }}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-600"
+                  aria-label="Xóa ảnh đại diện"
                 >
                   <X className="h-3 w-3" />
                 </button>
@@ -3102,6 +3654,7 @@ export function ProductQuickEditDialog({
                       fill
                       className="object-cover"
                     />
+                    {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
                     <button
                       type="button"
                       onClick={() => {
@@ -3109,7 +3662,8 @@ export function ProductQuickEditDialog({
                         const newIds = currentIds.filter((id) => id !== img.id);
                         setValue('_product_image_gallery', newIds.join(','), { shouldDirty: true });
                       }}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-600"
+                      aria-label={`Xóa ảnh ${index + 1}`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -3154,12 +3708,26 @@ export function ProductQuickEditDialog({
         <>
       {/* PHASE 3: SEO Fields Conflict (7.3.1) - Limited fields with link to full form */}
       {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      <div id="section-seo" className="flex items-center justify-between mb-2 mt-6 scroll-mt-4">
+      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
+      <div 
+        id="section-seo" 
+        className="flex items-center justify-between mb-2 mt-6 scroll-mt-4"
+        tabIndex={-1}
+        role="region"
+        aria-label="SEO & URL"
+      >
         <div className="flex items-center gap-2">
-          <Search className="h-5 w-5 text-slate-600" />
+          <Search className="h-5 w-5 text-slate-600" aria-hidden="true" />
           <h3 className="text-base font-semibold text-slate-900">SEO & URL</h3>
+          {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
           <div className="group relative">
-            <Info className="h-4 w-4 text-slate-400 cursor-help" />
+            <button
+              type="button"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center cursor-help"
+              aria-label="Thông tin về các trường SEO"
+            >
+              <Info className="h-4 w-4 text-slate-400" />
+            </button>
             <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
               <p className="font-semibold mb-1">Các trường có thể chỉnh sửa:</p>
               <ul className="list-disc list-inside space-y-1">
@@ -3190,7 +3758,8 @@ export function ProductQuickEditDialog({
         )}
       </div>
       
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-4 space-y-4 mb-6">
+      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
+      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-4 space-y-4 mb-6">
         {/* Meta Title */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -3199,58 +3768,71 @@ export function ProductQuickEditDialog({
               {(watch('seoTitle')?.length || 0)}/60
             </span>
           </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Input
             id="quick-edit-seo-title"
             {...register('seoTitle')}
             maxLength={60}
-            className={`${errors.seoTitle ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('seoTitle', seoTitle, !!errors.seoTitle, savedFields.has('seoTitle'), 'quick-edit-seo-title')}
             placeholder="Nhập meta title (tối đa 60 ký tự)..."
+            aria-label="Meta Title (SEO)"
+            aria-describedby={errors.seoTitle ? 'quick-edit-seo-title-error' : 'quick-edit-seo-title-help'}
           />
           {errors.seoTitle && (
-            <p className="text-xs text-red-500">{errors.seoTitle.message}</p>
+            <p id="quick-edit-seo-title-error" className="text-xs text-red-500" role="alert">{errors.seoTitle.message}</p>
           )}
-          <p className="text-xs text-slate-500">
+          <p id="quick-edit-seo-title-help" className="text-xs text-slate-500">
             Tiêu đề hiển thị trên kết quả tìm kiếm. Nếu để trống, sẽ dùng tên sản phẩm.
           </p>
         </div>
 
         {/* Meta Description */}
         <div className="space-y-2">
-          <div className="flex items-center justify-between">
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="flex items-center justify-between min-h-[21px]">
             <Label htmlFor="quick-edit-seo-description" className="text-slate-900">Meta Description</Label>
-            <span className={`text-xs ${(watch('seoDescription')?.length || 0) > 160 ? 'text-red-500' : 'text-slate-500'}`}>
+            <span className={`text-xs flex-shrink-0 ${(watch('seoDescription')?.length || 0) > 160 ? 'text-red-500' : 'text-slate-500'}`}>
               {(watch('seoDescription')?.length || 0)}/160
             </span>
           </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <textarea
             id="quick-edit-seo-description"
             {...register('seoDescription')}
             maxLength={160}
             rows={3}
-            className={`flex w-full rounded-md border-2 bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300 resize-none ${errors.seoDescription ? 'border-red-500 focus:ring-red-500' : ''}`}
+            className={`flex w-full rounded-md border-2 bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-none ${getFieldClassName('seoDescription', seoDescription, !!errors.seoDescription, savedFields.has('seoDescription'), 'quick-edit-seo-description')}`}
             placeholder="Nhập meta description (tối đa 160 ký tự)..."
+            aria-label="Meta Description (SEO)"
+            aria-describedby={errors.seoDescription ? 'quick-edit-seo-description-error' : 'quick-edit-seo-description-help'}
           />
           {errors.seoDescription && (
-            <p className="text-xs text-red-500">{errors.seoDescription.message}</p>
+            <p id="quick-edit-seo-description-error" className="text-xs text-red-500" role="alert">{errors.seoDescription.message}</p>
           )}
-          <p className="text-xs text-slate-500">
+          <p id="quick-edit-seo-description-help" className="text-xs text-slate-500">
             Mô tả ngắn hiển thị dưới tiêu đề trên kết quả tìm kiếm. Nếu để trống, sẽ dùng mô tả ngắn sản phẩm.
           </p>
         </div>
 
         {/* URL Slug */}
         <div className="space-y-2">
-          <Label htmlFor="quick-edit-slug" className="text-slate-900">URL Slug</Label>
+          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
+          <div className="min-h-[21px]">
+            <Label htmlFor="quick-edit-slug" className="text-slate-900">URL Slug</Label>
+          </div>
+          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
           <Input
             id="quick-edit-slug"
             {...register('slug')}
-            className={`${errors.slug ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-2 focus:ring-slate-950'} hover:border-slate-300`}
+            className={getFieldClassName('slug', slug, !!errors.slug, savedFields.has('slug'), 'quick-edit-slug')}
             placeholder="gau-bong-tho-tai-dai"
+            aria-label="URL Slug (đường dẫn thân thiện)"
+            aria-describedby={errors.slug ? 'quick-edit-slug-error' : 'quick-edit-slug-help'}
           />
           {errors.slug && (
-            <p className="text-xs text-red-500">{errors.slug.message}</p>
+            <p id="quick-edit-slug-error" className="text-xs text-red-500" role="alert">{errors.slug.message}</p>
           )}
-          <p className="text-xs text-slate-500">
+          <p id="quick-edit-slug-help" className="text-xs text-slate-500">
             URL thân thiện cho sản phẩm. Chỉ được chứa chữ thường, số và dấu gạch ngang.
           </p>
         </div>
@@ -3490,23 +4072,39 @@ export function ProductQuickEditDialog({
             className="h-[90vh] rounded-t-2xl overflow-hidden flex flex-col p-0"
           >
             <SheetHeader className="px-6 pt-6 pb-4 border-b border-slate-200 flex-shrink-0">
-              <SheetTitle className="text-lg font-semibold text-slate-900">
-                {isBulkMode ? `Sửa nhanh ${bulkProductCount} sản phẩm` : 'Sửa nhanh sản phẩm'}
-              </SheetTitle>
-              {!isBulkMode && <p className="text-sm text-slate-500 mt-1">ID: {product?.id || 'N/A'}</p>}
-              {/* PHASE 4: Unsaved Changes Warning (7.11.10) - Visual warning banner */}
-              {isDirty && (
-                <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                  <p className="text-xs text-amber-800">Bạn có thay đổi chưa lưu</p>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <SheetTitle className="text-lg font-semibold text-slate-900">
+                    {isBulkMode ? `Sửa nhanh ${bulkProductCount} sản phẩm` : 'Sửa nhanh sản phẩm'}
+                  </SheetTitle>
+                  {!isBulkMode && <p className="text-sm text-slate-500 mt-1">ID: {product?.id || 'N/A'}</p>}
+                  {/* PHASE 4: Unsaved Changes Warning (7.11.10) - Visual warning banner */}
+                  {isDirty && (
+                    <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                      <p className="text-xs text-amber-800">Bạn có thay đổi chưa lưu</p>
+                    </div>
+                  )}
                 </div>
-              )}
+                {/* UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowShortcutsHelp(true)}
+                  className="flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex-shrink-0"
+                  aria-label="Xem phím tắt bàn phím"
+                  title="Xem phím tắt bàn phím (?)"
+                >
+                  <Keyboard className="h-4 w-4" />
+                </Button>
+              </div>
             </SheetHeader>
-            {/* PHASE 2: Mobile Sheet Scrolling Issues (7.11.8) - Scroll indicator */}
+            {/* UX/UI UPGRADE Phase 3.1.1: Improved scroll progress bar */}
             {scrollProgress > 0 && scrollProgress < 100 && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-slate-100 z-50">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100/50 z-50 rounded-b-full overflow-hidden">
                 <div 
-                  className="h-full bg-slate-600 transition-all duration-150"
+                  className="h-full bg-gradient-to-r from-slate-600 via-slate-500 to-slate-600 transition-all duration-300 ease-out rounded-r-full shadow-sm"
                   style={{ width: `${scrollProgress}%` }}
                 />
               </div>
@@ -3646,27 +4244,44 @@ export function ProductQuickEditDialog({
         <Dialog open={open} onOpenChange={handleOpenChange} modal={true}>
           <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
             <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200 flex-shrink-0">
-              <DialogTitle className="text-lg font-semibold text-slate-900">
-                {isBulkMode ? `Sửa nhanh ${bulkProductCount} sản phẩm` : 'Sửa nhanh sản phẩm'}
-              </DialogTitle>
-              {!isBulkMode && (
-                <DialogDescription className="text-sm text-slate-500 mt-1">
-                  ID: {product?.id || 'N/A'}
-                </DialogDescription>
-              )}
-              {/* PHASE 4: Unsaved Changes Warning (7.11.10) - Visual warning banner */}
-              {isDirty && (
-                <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                  <p className="text-xs text-amber-800">Bạn có thay đổi chưa lưu</p>
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex-1">
+                  <DialogTitle className="text-lg font-semibold text-slate-900">
+                    {isBulkMode ? `Sửa nhanh ${bulkProductCount} sản phẩm` : 'Sửa nhanh sản phẩm'}
+                  </DialogTitle>
+                  {!isBulkMode && (
+                    <DialogDescription className="text-sm text-slate-500 mt-1">
+                      ID: {product?.id || 'N/A'}
+                    </DialogDescription>
+                  )}
+                  {/* PHASE 4: Unsaved Changes Warning (7.11.10) - Visual warning banner */}
+                  {isDirty && (
+                    <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
+                      <p className="text-xs text-amber-800">Bạn có thay đổi chưa lưu</p>
+                    </div>
+                  )}
                 </div>
-              )}
+                {/* UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowShortcutsHelp(true)}
+                  className="flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 min-h-[44px] min-w-[44px]"
+                  aria-label="Xem phím tắt bàn phím"
+                  title="Xem phím tắt bàn phím (?)"
+                >
+                  <Keyboard className="h-4 w-4" />
+                  <span className="hidden sm:inline">Phím tắt</span>
+                </Button>
+              </div>
             </DialogHeader>
-            {/* PHASE 2: Mobile Sheet Scrolling Issues (7.11.8) - Scroll indicator (desktop) */}
+            {/* UX/UI UPGRADE Phase 3.1.1: Improved scroll progress bar */}
             {scrollProgress > 0 && scrollProgress < 100 && (
-              <div className="absolute top-0 left-0 right-0 h-1 bg-slate-100 z-50">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100/50 z-50 rounded-b-full overflow-hidden">
                 <div 
-                  className="h-full bg-slate-600 transition-all duration-150"
+                  className="h-full bg-gradient-to-r from-slate-600 via-slate-500 to-slate-600 transition-all duration-300 ease-out rounded-r-full shadow-sm"
                   style={{ width: `${scrollProgress}%` }}
                 />
               </div>
@@ -4339,6 +4954,205 @@ export function ProductQuickEditDialog({
         }
         buttonText={mediaLibraryMode === 'featured' ? 'Chọn ảnh đại diện' : 'Thêm vào thư viện'}
       />
+
+      {/* UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help dialog */}
+      {isMobile ? (
+        <Sheet open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp}>
+          <SheetContent side="bottom" className="h-[80vh] rounded-t-2xl">
+            <SheetHeader>
+              <SheetTitle className="flex items-center gap-2">
+                <Keyboard className="h-5 w-5" />
+                Phím tắt bàn phím
+              </SheetTitle>
+            </SheetHeader>
+            <div className="mt-6 space-y-6 overflow-y-auto">
+              {(() => {
+                const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                const modifierKey = isMac ? '⌘' : 'Ctrl';
+                return (
+                  <>
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-slate-900">Thao tác chính</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Lưu thay đổi</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + S
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Đóng dialog</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            Esc
+                          </kbd>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-slate-900">Điều hướng</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Thông tin cơ bản</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 1
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Giá & Trạng thái</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 2
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Loại sản phẩm</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 3
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Giao hàng & Thuế</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 4
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Kích thước & Trọng lượng</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 5
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Danh mục</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 6
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Hình ảnh</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 7
+                          </kbd>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-md p-4">
+                      <h3 className="text-sm font-semibold text-slate-900 mb-2">Mẹo</h3>
+                      <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
+                        <li>Sử dụng Tab để di chuyển giữa các trường</li>
+                        <li>Nhấn Enter để lưu thay đổi</li>
+                        <li>Nhấn Esc để đóng dialog (có xác nhận nếu có thay đổi chưa lưu)</li>
+                      </ul>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <SheetFooter className="mt-6">
+              <Button onClick={() => setShowShortcutsHelp(false)} className="w-full">
+                Đóng
+              </Button>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Dialog open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp} modal={true}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Keyboard className="h-5 w-5" />
+                Phím tắt bàn phím
+              </DialogTitle>
+            </DialogHeader>
+            <div className="mt-4 space-y-6 max-h-[60vh] overflow-y-auto">
+              {(() => {
+                const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                const modifierKey = isMac ? '⌘' : 'Ctrl';
+                return (
+                  <>
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-slate-900">Thao tác chính</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Lưu thay đổi</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + S
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Đóng dialog</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            Esc
+                          </kbd>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <h3 className="text-sm font-semibold text-slate-900">Điều hướng</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Thông tin cơ bản</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 1
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Giá & Trạng thái</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 2
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Loại sản phẩm</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 3
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Giao hàng & Thuế</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 4
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Kích thước & Trọng lượng</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 5
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Danh mục</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 6
+                          </kbd>
+                        </div>
+                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
+                          <span className="text-sm text-slate-700">Hình ảnh</span>
+                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
+                            {modifierKey} + 7
+                          </kbd>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-slate-50 border border-slate-200 rounded-md p-4">
+                      <h3 className="text-sm font-semibold text-slate-900 mb-2">Mẹo</h3>
+                      <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
+                        <li>Sử dụng Tab để di chuyển giữa các trường</li>
+                        <li>Nhấn Enter để lưu thay đổi</li>
+                        <li>Nhấn Esc để đóng dialog (có xác nhận nếu có thay đổi chưa lưu)</li>
+                      </ul>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <DialogFooter>
+              <Button onClick={() => setShowShortcutsHelp(false)}>
+                Đóng
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </>
   );
 }

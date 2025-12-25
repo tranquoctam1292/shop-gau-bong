@@ -428,4 +428,180 @@ Có thể là future enhancements hoặc từ section khác.
 
 - **Risk Analysis:** `QUICK_EDIT_PERFORMANCE_OPTIMIZATION_RISKS.md` - Chi tiết các rủi ro, xung đột, và giải pháp
 - **Quick Edit Progress:** `QUICK_EDIT_PROGRESS_TRACKING.md` - Tracking tổng thể của Quick Edit feature
+- **UX/UI Upgrade Plan:** `QUICK_EDIT_UX_UI_UPGRADE_PLAN.md` - Kế hoạch nâng cấp UX/UI cho Quick Edit Dialog
+
+---
+
+## UX/UI UPGRADE PROGRESS (2025-01-XX)
+
+### Prerequisites Status: ✅ COMPLETED (4/4)
+
+**Prerequisite 1 (10.1.1) - State Priority Logic:** ✅ Completed
+- Implemented `getFieldClassName` function với priority: Error > Success > Edited > Normal
+- Memoized với useCallback để prevent re-renders
+- Location: `components/admin/products/ProductQuickEditDialog.tsx` line ~1600
+
+**Prerequisite 2 (10.2.1) - Helper Functions Verification:** ✅ Completed
+- Enhanced `normalizeValue` với edge cases handling (arrays, objects, nested)
+- Enhanced `isFieldEdited` với deep comparison cho arrays
+- Enhanced `getFieldChangeTooltip` với better formatting
+- Enhanced `resetFieldToOriginal` với default values handling
+- Location: `components/admin/products/ProductQuickEditDialog.tsx` lines ~1378-1720
+
+**Prerequisite 3 (10.2.2) - Unified Focus Handler:** ✅ Completed
+- Enhanced `handleFieldFocus` để support Input, Textarea, Select
+- Integrated với mobile keyboard handling từ `useMobileKeyboard` hook
+- Location: `components/admin/products/ProductQuickEditDialog.tsx` lines ~770-783
+
+**Prerequisite 4 (10.4.1) - Memoization:** ✅ Completed
+- `getFieldClassName` đã được memoized với useCallback
+- Ready để apply vào fields trong Phase 1.2.1
+
+**Phase 1 Status: ✅ COMPLETED (2/2 P0 tasks)**
+
+**Phase 1.1.1 - Background colors cho sections:** ✅ Completed
+- Added `bg-slate-50 border border-slate-200 rounded-md p-4` cho tất cả sections
+- Applied cho: Basic Info, Pricing sections (các sections khác đã có sẵn)
+- Consistent visual grouping across all sections
+
+**Phase 1.2.1 - Apply visual indicators cho fields:** ✅ Completed
+- Applied `getFieldClassName` function cho tất cả input fields (18 fields)
+- Fields updated: name, sku, barcode, gtin, ean, regularPrice, salePrice, costPrice, password, stockQuantity, weight, length, width, height, lowStockThreshold, seoTitle, seoDescription, slug
+- Visual states: Error (red) > Success (green) > Edited (blue) > Normal (slate)
+- Focus ring enhancement integrated
+
+**Phase 1 P1 Tasks Status: ✅ COMPLETED (2/2 tasks)**
+
+**Phase 1.1.2 - Section spacing và borders:** ✅ Completed
+- Added `border-t-slate-300` cho tất cả sections (trừ section đầu tiên)
+- Applied cho: Pricing, Product Type, Shipping, Dimensions, Images, SEO sections
+- Improved visual separation between sections
+
+**Phase 1.3.1 - Enhanced focus ring cho tất cả fields:** ✅ Completed
+- Replaced `handleInputFocus` với `handleFieldFocus` cho tất cả Input fields
+- Fields updated: barcode, gtin, ean, regularPrice, salePrice, costPrice, stockQuantity
+- All fields now have enhanced focus ring với `ring-2 ring-slate-950 ring-offset-2`
+- Integrated với mobile keyboard handling
+
+**Phase 1 Summary:**
+- ✅ P0 Tasks: 2/2 completed (1.1.1, 1.2.1)
+- ✅ P1 Tasks: 2/2 completed (1.1.2, 1.3.1)
+- **Total Phase 1 Progress:** 4/4 tasks completed (100%)
+
+**Phase 2 Status: ✅ COMPLETED (3/3 P0 and P1 tasks)**
+
+**Phase 2.1.1 - Auto-scroll to first error:** ✅ Completed
+- Added auto-scroll logic trong `onError` handler
+- Scrolls to first error field với smooth behavior
+- Auto-focus field sau khi scroll (300ms delay)
+- Fallback mechanism nếu field ID không tìm thấy
+
+**Phase 2.1.2 - Error summary với clickable links:** ✅ Completed
+- Added `scrollToErrorField` helper function
+- Error items trong summary giờ là clickable buttons
+- Click vào error → scroll to field và focus
+- Hover và focus states với underline và ring
+
+**Phase 2.2.1 - Green flash animation cho saved fields:** ✅ Completed
+- Added `flashingFields` state để track fields đang flash
+- Flash animation triggered khi field được saved
+- Smooth animation với `animate-pulse` và `bg-green-100` trong 1s
+- Fade out sau 1s, giữ saved state trong 3s
+
+**Phase 2 Summary:**
+- ✅ P0 Tasks: 1/1 completed (2.1.1)
+- ✅ P1 Tasks: 2/2 completed (2.1.2, 2.2.1)
+- **Total Phase 2 Progress:** 3/3 tasks completed (100%)
+
+**Phase 3 Status: ✅ COMPLETED (4/4 implementable tasks)**
+
+**Phase 3.3.1 - Verify touch targets >= 44x44px:** ✅ Completed
+- Fixed Info icon touch targets: Wrapped in button với min-h-[44px] min-w-[44px]
+- Fixed category selection items: Added min-h-[44px] cho clickable divs
+- Fixed X buttons (remove category/tag/image): Added min-h-[44px] min-w-[44px]
+- Fixed error summary links: Added min-h-[44px] và py-2 cho buttons
+- Fixed checkbox wrapper: Added min-h-[44px] cho container
+- All interactive elements now meet WCAG 2.1 Level AA touch target requirements
+
+**Phase 3.1.1 - Improved scroll progress bar:** ✅ Completed
+- Enhanced visual design với gradient (from-slate-600 via-slate-500 to-slate-600)
+- Added rounded corners (rounded-b-full, rounded-r-full)
+- Improved animation với duration-300 ease-out và shadow-sm
+- Increased height từ h-1 lên h-1.5 cho better visibility
+- Applied cho cả mobile Sheet và desktop Dialog
+
+**Phase 3.2.3 - Improve auto-scroll behavior:** ✅ Completed
+- Enhanced scroll offset calculation với dynamic offset cho mobile (minimum 150px)
+- Better spacing để input không bị che bởi keyboard
+- Improved logic trong `useMobileKeyboard` hook
+
+**Phase 3.3.2 - Increase spacing giữa touch targets:** ✅ Completed
+- Increased spacing từ gap-1 (4px) lên gap-2 (8px) cho Label + Info button pairs
+- Increased spacing từ ml-1 (4px) lên ml-2 (8px) cho X buttons trong badges
+- All interactive elements now have minimum 8px spacing
+
+**Phase 3 Summary:**
+- ✅ P0 Tasks: 1/1 completed (3.3.1)
+- ✅ P1 Tasks: 2/2 completed (3.1.1, 3.2.3)
+- ✅ P2 Tasks: 1/1 completed (3.3.2)
+- ⏳ P0 Tasks (Testing): 2/2 pending (3.2.1, 3.2.2 - requires physical devices)
+- **Total Phase 3 Progress:** 4/4 implementable tasks completed (100%)
+
+**Phase 4 Status: ✅ COMPLETED (3/3 P0 tasks)**
+
+**Phase 4.1.1 - ARIA labels cho tất cả fields:** ✅ Completed
+- Added `aria-label` cho tất cả Input, Select, Textarea fields (20+ fields)
+- Added `aria-describedby` linking với error messages và help text
+- All error messages có `id` và `role="alert"` cho screen readers
+- All help text có `id` để link với inputs
+- Fields updated: name, barcode, gtin, ean, status, costPrice, password, stockQuantity, stockStatus, productType, visibility, shippingClass, taxStatus, taxClass, weight, length, width, height, lowStockThreshold, seoTitle, seoDescription, slug, backorders
+- Checkboxes đã có implicit ARIA labels thông qua Label với htmlFor
+
+**Phase 4.1.2 - Link error messages với inputs bằng aria-describedby:** ✅ Completed
+- Verified tất cả error messages đã có `id` và được link với inputs bằng `aria-describedby`
+- Fixed seoTitle field: Added missing `aria-describedby` và error message `id`
+- All error messages có `role="alert"` để screen readers announce immediately
+- All help text có `id` để link với inputs khi không có error
+- 100% form fields now have proper error message linking
+
+**Phase 4.1.3 - aria-live regions cho dynamic content:** ✅ Completed
+- Added `aria-live="assertive"` và `role="alert"` cho error summary section
+- Added `aria-live="polite"` và `role="status"` cho success message
+- Screen readers sẽ announce errors và success messages automatically
+- Error summary có `aria-atomic="true"` để announce toàn bộ content khi có thay đổi
+- Success message có `aria-atomic="true"` để announce toàn bộ message
+
+**Phase 4 Summary:**
+- ✅ P0 Tasks: 3/3 completed (4.1.1, 4.1.2, 4.1.3)
+- **Total Phase 4 Progress:** 3/3 tasks completed (100%)
+
+**Phase 4.2.1 - Improve keyboard navigation flow:** ✅ Completed
+- Added skip links navigation menu ở đầu form (sr-only, visible on focus)
+- Skip links cho 4 main sections: Basic Info, Pricing, Images, SEO
+- Made all section headers focusable với `tabIndex={-1}` và `role="region"`
+- Added `aria-label` cho tất cả section headers
+- Added `aria-hidden="true"` cho decorative icons
+- Keyboard users có thể:
+  - Tab vào skip links để jump to sections
+  - Use Ctrl/Cmd + 1-7 để jump to sections (đã có sẵn)
+  - Navigate sections với logical tab order
+- Radix UI Dialog/Sheet đã có focus trap built-in
+
+**Phase 4.2.2 - Keyboard shortcuts documentation:** ✅ Completed
+- Added help button với Keyboard icon trong DialogHeader và SheetHeader
+- Created help dialog với complete keyboard shortcuts list
+- Shortcuts documented: Ctrl/Cmd + S (Save), Esc (Close), Ctrl/Cmd + 1-7 (Jump to sections)
+- Auto-detect OS để hiển thị đúng modifier key (⌘ cho Mac, Ctrl cho Windows/Linux)
+- Added tips section với helpful information
+- Help button có min-h-[44px] min-w-[44px] cho touch target compliance
+- Mobile: Only icon, Desktop: Icon + "Phím tắt" text
+
+**Phase 4 Summary:**
+- ✅ P0 Tasks: 3/3 completed (4.1.1, 4.1.2, 4.1.3)
+- ✅ P1 Tasks: 1/1 completed (4.2.1)
+- ✅ P2 Tasks: 1/1 completed (4.2.2 - Recommended)
+- **Total Phase 4 Progress:** 5/5 tasks completed (100%)
+
+**Next Steps:**
+- Phase 3.2.1 & 3.2.2: Test trên iOS/Android devices (PENDING - requires physical devices)
 

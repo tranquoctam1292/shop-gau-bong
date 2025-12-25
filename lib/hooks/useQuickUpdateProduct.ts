@@ -93,15 +93,22 @@ export function useQuickUpdateProduct(options: UseQuickUpdateProductOptions = {}
         // PHASE 4: CSRF Protection (7.12.2) - Handle CSRF token errors (403)
         // If CSRF token is invalid, clear cache and retry once with new token
         // CRITICAL: Next.js hot reload can reset in-memory cache, so we always retry on CSRF errors
-        if (response.status === 403 && (errorData.code === 'CSRF_TOKEN_INVALID' || errorData.code === 'CSRF_TOKEN_MISSING' || errorData.code === 'CSRF_ORIGIN_INVALID') && retryCount < 2) {
-          // Clear CSRF token cache and retry
-          const { clearCsrfTokenCache } = await import('@/lib/utils/csrfClient');
-          clearCsrfTokenCache();
-          // Longer delay on retry to ensure new token is generated and cached
-          const delay = retryCount === 0 ? 200 : 500;
-          await new Promise(resolve => setTimeout(resolve, delay));
-          if (timeoutId) clearTimeout(timeoutId);
-          return quickUpdate(productId, updates, retryCount + 1);
+        if (response.status === 403 && (errorData.code === 'CSRF_TOKEN_INVALID' || errorData.code === 'CSRF_TOKEN_MISSING' || errorData.code === 'CSRF_ORIGIN_INVALID')) {
+          if (retryCount < 2) {
+            // Clear CSRF token cache and retry
+            const { clearCsrfTokenCache } = await import('@/lib/utils/csrfClient');
+            clearCsrfTokenCache();
+            // Longer delay on retry to ensure new token is generated and cached
+            const delay = retryCount === 0 ? 200 : 500;
+            await new Promise(resolve => setTimeout(resolve, delay));
+            if (timeoutId) clearTimeout(timeoutId);
+            return quickUpdate(productId, updates, retryCount + 1);
+          } else {
+            // Retry failed after 2 attempts - show clear error message
+            const csrfErrorMessage = 'CSRF token không hợp lệ sau nhiều lần thử. Vui lòng tải lại trang và thử lại.';
+            showToast(csrfErrorMessage, 'error');
+            throw new Error('CSRF_TOKEN_INVALID_AFTER_RETRY');
+          }
         }
           
           // PHASE 0: Network Retry Mechanism (7.6.2) - Retry for transient errors

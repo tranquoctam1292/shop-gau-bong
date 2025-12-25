@@ -55,7 +55,7 @@ export function useMobileKeyboard({
     }
   }, [enabled]);
 
-  // Auto-scroll input into view when focused
+  // UX/UI UPGRADE Phase 3.2.3: Improved auto-scroll behavior with better offset
   const scrollInputIntoView = (inputElement: HTMLElement) => {
     if (!enabled || !containerRef.current) return;
 
@@ -67,9 +67,14 @@ export function useMobileKeyboard({
       // Calculate scroll position to bring input into view
       const scrollTop = container.scrollTop;
       const inputTopRelativeToContainer = inputRect.top - containerRect.top + scrollTop;
-      const targetScrollTop = inputTopRelativeToContainer - scrollOffset;
+      
+      // Improved offset calculation: account for keyboard height and provide comfortable spacing
+      // Use larger offset on mobile to ensure input is not covered by keyboard
+      const isMobile = window.innerWidth < 768;
+      const dynamicOffset = isMobile ? Math.max(scrollOffset, 150) : scrollOffset;
+      const targetScrollTop = inputTopRelativeToContainer - dynamicOffset;
 
-      // Smooth scroll to input position
+      // Smooth scroll to input position with better easing
       container.scrollTo({
         top: Math.max(0, targetScrollTop),
         behavior: 'smooth',

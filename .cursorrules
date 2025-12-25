@@ -19,7 +19,7 @@ This is a teddy bear e-commerce site for the Vietnam market.
   - Fixed ProductForm data loading on Vercel: Added `credentials: 'include'` to all fetch calls
   - Fixed ES Module compatibility: Lazy load `cleanHtmlForStorage` to avoid `jsdom`/`parse5` errors
   - Improved error handling: Added `safeHandler` wrapper and MongoDB connection error handling
-- **Quick Edit Feature (2025-01):** ✅ Phase 0-3 Complete (100% - All phases completed)
+- **Quick Edit Feature (2025-01):** ✅ Phase 0-4 Complete (100% - All phases completed)
   - Product Quick Edit Dialog: Inline editing với Dialog (desktop) và Sheet (mobile), support single và bulk edit mode
   - Features: Categories/Tags, Featured Image & Gallery, Weight & Dimensions, Low Stock Threshold, SEO Fields, Cost Price, Product Type & Visibility, Shipping & Tax Settings
   - Performance: Virtual scrolling cho variant table (50+ variants), batch update cho bulk edit (10-50x faster), type-safe conversion helpers
@@ -33,6 +33,14 @@ This is a teddy bear e-commerce site for the Vietnam market.
     - Progressive Loading: Critical sections load first, secondary sections load after 100ms delay với skeleton loaders
     - Performance Impact: Giảm thời gian mở dialog từ ~8s xuống <2s
     - See: `docs/reports/QUICK_EDIT_PERFORMANCE_OPTIMIZATION_PLAN.md` for details
+  - **UX/UI Upgrade (2025-01):** ✅ Phase 1-4 Complete (All P0 and P1 tasks completed)
+    - Visual Hierarchy: Background colors cho sections, visual indicators cho fields (Error > Success > Edited > Normal), enhanced focus rings
+    - User Feedback: Auto-scroll to first error, clickable error summary, green flash animation cho saved fields
+    - Mobile UX: Touch targets >= 44x44px (WCAG 2.1 Level AA), improved scroll progress bar, dynamic keyboard offset, spacing optimization
+    - Accessibility: Complete ARIA labels, error message linking với aria-describedby, aria-live regions, keyboard navigation với skip links, keyboard shortcuts documentation
+    - Field Alignment: Consistent label heights, proper Info button sizing, no conflicting border classes
+    - Error Handling: Improved CSRF token error messages với retry logic, memory leak fixes cho timeout cleanup
+    - See: `docs/reports/QUICK_EDIT_UX_UI_UPGRADE_PLAN.md` for details
   - See: `docs/reports/QUICK_EDIT_PROGRESS_TRACKING.md` và `docs/reports/QUICK_EDIT_SAAS_GAP_ANALYSIS.md` for details
 
 # KNOWLEDGE BASE & CONTEXT STRATEGY (CRITICAL)
@@ -283,6 +291,9 @@ Before implementing any feature, you MUST reference the following sources based 
   - **Slug Generation:** Only auto-generate slug when creating new product (`!productId`). Preserve existing slug when editing
   - **Image Alt Text:** Always provide alt text for SEO. Use `mediaExtended.imageAltTexts` object to store alt texts by image ID
   - **HTML Display:** When displaying product names or descriptions in admin lists/tables, use `stripHtmlTags()` from `lib/utils/sanitizeHtml.ts` to remove HTML tags and display plain text only (prevents raw HTML tags like `<p></p>` from appearing)
+  - **Field Alignment:** Ensure all form field labels have consistent height using `min-h-[21px]` wrapper div. Info buttons should be `h-5 w-5` (not `min-h-[44px]`) to prevent label misalignment. Use `flex-1` for labels and `flex-shrink-0` for Info buttons
+  - **Field State Priority:** Use `getFieldClassName()` helper with priority: Error > Validation Success > Saved > Edited > Normal. Pass `isValid` parameter for validation success state (e.g., SKU validation) to prevent conflicting border classes
+  - **Memory Leak Prevention:** Always clear timeouts in `useEffect` cleanup. Use `useRef` to store timeout IDs and clear them on component unmount or dialog close
 - **VariationTable Performance Optimization (CRITICAL):**
   - **Input Lag Prevention:** Never update parent state on every keystroke in table inputs
   - **Buffered Input Pattern:** Use local state (`localValue`, `isEditing`) in child components (`VariationCellInput`)
@@ -560,6 +571,11 @@ Before implementing any feature, you MUST reference the following sources based 
     if (data.exists) { ... }
     ```
   - **Why:** Prevents trying to parse error responses as JSON and provides proper error handling for authentication failures.
+- **CSRF Token Error Handling (CRITICAL):** When handling CSRF token errors (403), implement retry logic with clear user feedback
+  - *Pattern:* Retry up to 2 times with increasing delay (200ms, 500ms). Clear CSRF token cache before retry
+  - *After retry fails:* Show clear error message: "CSRF token không hợp lệ sau nhiều lần thử. Vui lòng tải lại trang và thử lại."
+  - *Implementation:* See `lib/hooks/useQuickUpdateProduct.ts` for reference
+  - *Dialog handling:* Check for `CSRF_TOKEN_INVALID_AFTER_RETRY` error code và log appropriately (toast already shown in hook)
 
 ## 9. Admin Layout & RBAC Rules (CRITICAL)
 - **AdminLayout Structure:** Always separate `SessionProvider` wrapper from content component

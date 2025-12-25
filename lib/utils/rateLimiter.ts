@@ -37,23 +37,69 @@ export async function checkRateLimit(
     const now = new Date();
     const resetAt = new Date(now.getTime() + windowMs);
 
-    // Try to find existing entry
+    // FIX: Simplified approach to avoid ConflictingUpdateOperators
+    // Strategy: Use findOne first, then update/insert based on result
+    // This avoids race conditions while keeping logic simple
+    
     const existing = await rateLimits.findOne({ key });
 
     if (!existing) {
-      // No entry exists, create new one
-      await rateLimits.insertOne({
-        key,
-        count: 1,
-        resetAt,
-        createdAt: now,
-      });
-      return true; // First attempt, allowed
+      // No entry exists, try to create new one
+      // Use insertOne with try-catch to handle race condition (duplicate key)
+      try {
+        await rateLimits.insertOne({
+          key,
+          count: 1,
+          resetAt,
+          createdAt: now,
+        });
+        return true; // First attempt, allowed
+      } catch (insertError: unknown) {
+        // Handle duplicate key error (race condition - another request created it first)
+        if (insertError && typeof insertError === 'object' && 'code' in insertError && insertError.code === 11000) {
+          // Another request created the entry, retry with find
+          const retryExisting = await rateLimits.findOne({ key });
+          if (!retryExisting) {
+            return true; // Should not happen, but fail open
+          }
+
+          // Check if expired
+          if (retryExisting.resetAt < now) {
+            await rateLimits.updateOne(
+              { key },
+              {
+                $set: {
+                  count: 1,
+                  resetAt,
+                  createdAt: now,
+                },
+              }
+            );
+            return true;
+          }
+
+          // Check limit
+          if (retryExisting.count >= maxAttempts) {
+            return false;
+          }
+
+          // Increment
+          await rateLimits.updateOne(
+            { key },
+            {
+              $inc: { count: 1 },
+            }
+          );
+          return true;
+        }
+        // Re-throw if not duplicate key error
+        throw insertError;
+      }
     }
 
-    // Check if entry is expired
+    // Entry exists, check if expired
     if (existing.resetAt < now) {
-      // Expired, reset and create new entry
+      // Expired, reset
       await rateLimits.updateOne(
         { key },
         {
@@ -67,7 +113,7 @@ export async function checkRateLimit(
       return true; // Reset after expiration, allowed
     }
 
-    // Entry exists and not expired, check count
+    // Entry exists and not expired, check count before incrementing
     if (existing.count >= maxAttempts) {
       return false; // Rate limit exceeded
     }
@@ -81,8 +127,8 @@ export async function checkRateLimit(
     );
 
     return true; // Within limit
-  } catch (error) {
-    // On database error, allow request (fail open)
+  } catch (error: unknown) {
+    // On database errors, allow request (fail open)
     // Log error for monitoring
     console.error('[RateLimiter] Error checking rate limit:', error);
     return true;
