@@ -441,14 +441,17 @@
 - [ ] Test: Dialog open/close, keyboard shortcuts, before unload (MANUAL TEST NEEDED)
 - [ ] Commit: "refactor: extract useQuickEditLifecycle"
 
-#### 3.5 useQuickEditVersionCheck.ts (Risk: ⚠️ LOW)
-- [ ] Create `hooks/useQuickEditVersionCheck.ts`
-- [ ] Move version polling logic
-- [ ] Move version mismatch detection
-- [ ] Move `checkProductVersion` function
-- [ ] Return: Version check helpers
-- [ ] Update component để dùng hook
-- [ ] Test: Version polling, mismatch detection
+#### 3.5 useQuickEditVersionCheck.ts (Risk: ⚠️ LOW) ✅ **COMPLETED**
+- [x] Create `hooks/useQuickEditVersionCheck.ts`
+- [x] Move version polling logic (pollingIntervalRef, setInterval, cleanup)
+- [x] Move version mismatch detection (check version change, auto-refresh or warning)
+- [x] Move `checkProductVersion` function
+- [x] Move refs: `pollingIntervalRef`, `lastCheckedVersionRef`, `isDirtyRef`
+- [x] Return: Version check helpers (none - side effects only)
+- [x] Update component để dùng hook
+- [x] Remove old definitions from main file (checkProductVersion, pollingIntervalRef, lastCheckedVersionRef, formIsDirtyRef, useEffect hooks)
+- [x] TypeScript check passed (npm run type-check)
+- [ ] Test: Version polling, mismatch detection (MANUAL TEST NEEDED)
 - [ ] Commit: "refactor: extract useQuickEditVersionCheck"
 
 ### Testing Checklist (Sau mỗi hook)

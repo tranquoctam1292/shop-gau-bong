@@ -57,6 +57,7 @@ import { useQuickEditForm } from './ProductQuickEditDialog/hooks/useQuickEditFor
 import { useQuickEditHandlers } from './ProductQuickEditDialog/hooks/useQuickEditHandlers';
 import { useQuickEditValidation } from './ProductQuickEditDialog/hooks/useQuickEditValidation';
 import { useQuickEditLifecycle } from './ProductQuickEditDialog/hooks/useQuickEditLifecycle';
+import { useQuickEditVersionCheck } from './ProductQuickEditDialog/hooks/useQuickEditVersionCheck';
 // PHASE 2: Extract Form Sections
 import { DimensionsSection } from './ProductQuickEditDialog/sections/DimensionsSection';
 import { ShippingSection } from './ProductQuickEditDialog/sections/ShippingSection';
@@ -311,11 +312,7 @@ export function ProductQuickEditDialog({
   // CRITICAL FIX: Track last fetched product ID to prevent infinite loop
   const lastFetchedProductIdRef = useRef<string | null>(null);
   
-  // PHASE 3: Client State Sync (7.12.7) - Polling interval ref
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastCheckedVersionRef = useRef<number | null>(null);
-  // PHASE 3: Client State Sync (7.12.7) - Track form dirty state for polling
-  const formIsDirtyRef = useRef<boolean>(false);
+  // PHASE 3.5: pollingIntervalRef, lastCheckedVersionRef, and formIsDirtyRef moved to useQuickEditVersionCheck hook
   // PHASE 3.4: isDirtyRef moved to useQuickEditLifecycle hook
   // PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Track which sections are loaded
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set());
@@ -545,6 +542,18 @@ export function ProductQuickEditDialog({
     reset,
     initialData,
     onClose,
+  });
+
+  // PHASE 3.5: Extract useQuickEditVersionCheck hook - Version checking moved to hook
+  useQuickEditVersionCheck({
+    open,
+    isBulkMode,
+    product: product ?? null,
+    productWithVariants,
+    setProductWithVariants,
+    isDirty: formIsDirty,
+    refetchProduct,
+    showToast,
   });
 
   // PHASE 3: Quick Actions & Shortcuts (7.11.15) - Reset form handler
@@ -1049,106 +1058,7 @@ export function ProductQuickEditDialog({
     };
   }, [open]); // Re-run cleanup when dialog opens/closes
 
-  // PHASE 3: Client State Sync (7.12.7) - Update formIsDirty ref when it changes
-  useEffect(() => {
-    formIsDirtyRef.current = formIsDirty;
-  }, [formIsDirty]);
-
-  // PHASE 3: Client State Sync (7.12.7) - Polling function to check version
-  // PERFORMANCE OPTIMIZATION: Use React Query refetch instead of direct fetch
-  const checkProductVersion = useCallback(async () => {
-    const productId = product?.id;
-    if (!open || !productId || isBulkMode || !refetchProduct) {
-      return;
-    }
-
-    try {
-      // PERFORMANCE OPTIMIZATION: Use React Query refetch instead of direct fetch
-      // This benefits from React Query cache and deduplication
-      const result = await refetchProduct();
-
-      if (result.error) {
-        // Silent fail for polling - don't interrupt user
-        return;
-      }
-
-      if (!result.data) {
-        return;
-      }
-
-      const serverVersion = result.data.version || 0;
-      const currentVersion = lastCheckedVersionRef.current ?? (productWithVariants?.version || product?.version || 0);
-
-      // Update last checked version
-      lastCheckedVersionRef.current = serverVersion;
-
-      // Only refresh if version changed
-      if (serverVersion !== currentVersion && currentVersion > 0) {
-        const isFormDirty = formIsDirtyRef.current;
-        
-        if (!isFormDirty) {
-          // Version mismatch detected - refresh product data
-          showToast(
-            `Sản phẩm đã được cập nhật từ nơi khác (version ${serverVersion}). Đang tải dữ liệu mới...`,
-            'warning'
-          );
-          
-          // Refresh product data - this will trigger initialData recalculation and form reset
-          // Note: fetchedProduct will also be updated via useEffect (line 405-487), but we set it here
-          // to ensure immediate update for version check
-          setProductWithVariants(result.data as ProductWithVariants);
-        } else {
-          // Version changed but form is dirty - show warning but don't auto-refresh
-          showToast(
-            `Sản phẩm đã được cập nhật từ nơi khác (version ${serverVersion}). Bạn đang có thay đổi chưa lưu. Lưu ý: Lưu có thể ghi đè các thay đổi khác.`,
-            'warning'
-          );
-        }
-      }
-    } catch (error) {
-      // Silent fail for polling - don't interrupt user
-      console.error('[ProductQuickEditDialog] Polling error:', error);
-    }
-  }, [open, product?.id, isBulkMode, productWithVariants, product?.version, showToast, refetchProduct]);
-
-  // PHASE 3: Client State Sync (7.12.7) - Setup polling when dialog opens
-  useEffect(() => {
-    if (!open || isBulkMode || !product?.id) {
-      // Clear polling when dialog closes
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-      lastCheckedVersionRef.current = null;
-      return;
-    }
-
-    // Initialize last checked version after productWithVariants is loaded
-    if (productWithVariants?.version !== undefined) {
-      const currentVersion = productWithVariants.version || 0;
-      if (lastCheckedVersionRef.current === null) {
-        lastCheckedVersionRef.current = currentVersion;
-      }
-    } else if (product?.version !== undefined) {
-      const currentVersion = product.version || 0;
-      if (lastCheckedVersionRef.current === null) {
-        lastCheckedVersionRef.current = currentVersion;
-      }
-    }
-
-    // Poll every 15 seconds
-    pollingIntervalRef.current = setInterval(() => {
-      checkProductVersion();
-    }, 15000); // 15 seconds interval
-
-    // Cleanup on unmount
-    return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current);
-        pollingIntervalRef.current = null;
-      }
-    };
-  }, [open, isBulkMode, product?.id, product?.version, productWithVariants?.version, checkProductVersion]);
+  // PHASE 3.5: Version checking logic moved to useQuickEditVersionCheck hook
 
   // PHASE 4: CSRF Protection (7.12.2) - Pre-fetch CSRF token when dialog opens
   useEffect(() => {
