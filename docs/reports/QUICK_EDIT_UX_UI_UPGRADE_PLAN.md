@@ -3,7 +3,7 @@
 **Ngày tạo:** 2025-01-XX  
 **Người review:** AI Assistant  
 **Module:** Product Management - Quick Edit Feature  
-**Trạng thái:** ✅ Implementation Complete - All P0 and P1 Tasks Completed
+**Trạng thái:** ✅ Phase 1-4 Complete (All P0 and P1 Tasks) | 📋 Phase 5: Layout Optimization - Planning Complete
 
 ---
 
@@ -28,6 +28,7 @@ Kế hoạch này tập trung vào nâng cấp **trải nghiệm người dùng 
 - ✅ **Performance Optimization:** Đã giảm thời gian mở dialog từ ~8s xuống <2s
 - ⚠️ **UX/UI Gaps:** 15 vấn đề UX/UI đã được identify trong `QUICK_EDIT_SAAS_GAP_ANALYSIS.md`
 - ✅ **Feature Completeness:** Tất cả tính năng cốt lõi đã implement
+- 📋 **Layout Optimization:** Phase 5 đã được thêm vào để giải quyết vấn đề dialog quá dài, cần cuộn nhiều
 
 **⚠️ QUAN TRỌNG - Phân biệt UX/UI Improvements vs Tính năng mới:**
 - **Kế hoạch này CHỦ YẾU là UX/UI improvements:** Làm lại giao diện, cải thiện trải nghiệm cho tính năng đã có
@@ -42,6 +43,7 @@ Kế hoạch này tập trung vào nâng cấp **trải nghiệm người dùng 
 - Mobile UX optimizations (touch targets, keyboard handling, scrolling)
 - Accessibility improvements (ARIA labels, keyboard navigation, screen readers)
 - Information architecture (grouping, labeling, help text)
+- **Layout Optimization:** Tabs/Accordion layout, grid optimization, field reorganization để giảm độ dài cuộn
 - **UX Enhancement Features (Optional):** Một số tính năng nhỏ để cải thiện UX (Quick Actions Menu, Section Navigation, Help Dialog)
 
 **Không bao gồm:**
@@ -515,6 +517,175 @@ Kế hoạch này tập trung vào nâng cấp **trải nghiệm người dùng 
 
 ---
 
+#### 4.5.3. Layout Optimization - Giảm độ dài cuộn và sắp xếp fields hợp lý ⚠️ CẦN CẢI THIỆN
+**Status:** ⚠️ Dialog hiện tại phải cuộn rất dài do có nhiều sections và fields
+
+**Vấn đề hiện tại:**
+- Dialog có 8+ sections (Basic Info, Pricing, Product Type, Shipping, Dimensions, Categories, Images, SEO, Variants)
+- Mỗi section có nhiều fields, tổng cộng 30+ input fields
+- User phải cuộn rất dài để tìm và edit fields
+- Không có cách nào để collapse/expand sections
+- Fields chưa được sắp xếp tối ưu về mặt không gian
+
+**Mục tiêu:**
+- Giảm độ dài cuộn xuống 50-60% bằng cách sử dụng tabs hoặc accordion
+- Sắp xếp lại fields hợp lý hơn, nhóm các fields liên quan
+- Tối ưu grid layout để hiển thị nhiều fields hơn trong cùng viewport
+- Cải thiện navigation giữa các sections
+
+**Tasks:**
+
+- [ ] **5.3.1** Implement Tabs layout cho sections (Option 1 - Recommended)
+  - **Current:** Tất cả sections hiển thị dọc, phải cuộn rất dài
+  - **Target:** 
+    - Chia sections thành tabs: "Thông tin cơ bản", "Giá & Tồn kho", "Vận chuyển & Kích thước", "Hình ảnh & SEO", "Biến thể"
+    - Tabs navigation ở top của dialog
+    - Mỗi tab chỉ hiển thị sections liên quan
+    - Smooth transition giữa các tabs
+    - Keyboard navigation: Ctrl/Cmd + Tab để switch tabs
+  - **Location:** Dialog content structure
+  - **Effort:** High (6-8 giờ)
+  - **Priority:** High (P1)
+  - **Benefits:**
+    - Giảm độ dài cuộn xuống 60-70%
+    - User chỉ thấy sections liên quan, giảm cognitive load
+    - Navigation rõ ràng hơn
+  - **Considerations:**
+    - Cần đảm bảo form validation hoạt động across tabs
+    - Cần highlight tab có errors
+    - Cần preserve scroll position khi switch tabs (optional)
+
+- [ ] **5.3.2** Implement Accordion layout cho sections (Option 2 - Alternative)
+  - **Current:** Tất cả sections expanded, chiếm nhiều không gian
+  - **Target:**
+    - Mỗi section là một accordion item, có thể collapse/expand
+    - Default: Basic Info và Pricing expanded, các sections khác collapsed
+    - Click vào section header để toggle
+    - Smooth animation khi expand/collapse
+    - Visual indicator (chevron icon) để show state
+    - Remember expanded state trong session (optional)
+  - **Location:** Section components
+  - **Effort:** Medium (4-5 giờ)
+  - **Priority:** Medium (P2)
+  - **Benefits:**
+    - User chỉ expand sections cần edit
+    - Giảm độ dài cuộn xuống 40-50%
+    - Vẫn giữ được overview của tất cả sections
+  - **Considerations:**
+    - Cần đảm bảo accessibility (keyboard navigation, ARIA attributes)
+    - Cần highlight sections có errors (auto-expand khi có error)
+
+- [ ] **5.3.3** Optimize Grid Layout cho fields
+  - **Current:** Một số sections dùng grid 2-3 cột, nhưng chưa tối ưu
+  - **Target:**
+    - Basic Info: Grid 2 cột (name + SKU), 3 cột (barcode + GTIN + EAN) - ✅ Đã có
+    - Pricing: Grid 3 cột (status + regularPrice + salePrice), costPrice riêng - ✅ Đã có
+    - **Cải thiện:**
+      - Dimensions: Grid 4 cột (weight + length + width + height) thay vì 2x2
+      - Product Type: Grid 2 cột (productType + visibility) thay vì vertical stack
+      - Shipping & Tax: Grid 2 cột (shippingClass + taxStatus), taxClass riêng
+      - SEO: Grid 2 cột (seoTitle + seoDescription) thay vì vertical stack
+    - Responsive: Mobile 1 cột, Tablet 2 cột, Desktop 3-4 cột
+  - **Location:** Section layouts
+  - **Effort:** Medium (3-4 giờ)
+  - **Priority:** Medium (P1)
+  - **Benefits:**
+    - Hiển thị nhiều fields hơn trong cùng viewport
+    - Giảm độ dài cuộn xuống 20-30%
+    - Better use of horizontal space trên desktop
+
+- [ ] **5.3.4** Reorganize fields theo logic grouping
+  - **Current:** Một số fields có thể được nhóm lại hợp lý hơn
+  - **Target:**
+    - **Basic Info Section:**
+      - Row 1: Name (full width) - ✅ Đã có
+      - Row 2: SKU (full width) - ✅ Đã có
+      - Row 3: Barcode + GTIN + EAN (3 cột) - ✅ Đã có
+    - **Pricing Section:**
+      - Row 1: Status + Regular Price + Sale Price (3 cột) - ✅ Đã có
+      - Row 2: Cost Price (full width với profit calculation) - ✅ Đã có
+    - **Inventory Section (NEW - tách từ Pricing):**
+      - Stock Quantity + Stock Status (2 cột)
+      - Low Stock Threshold (full width)
+      - Backorders (checkbox)
+    - **Product Type Section:**
+      - Product Type + Visibility (2 cột)
+      - Password (conditional, full width nếu visibility = password)
+    - **Shipping Section:**
+      - Shipping Class (full width)
+      - Weight + Length + Width + Height (4 cột grid)
+    - **Tax Section:**
+      - Tax Status + Tax Class (2 cột)
+    - **Categories & Tags Section:**
+      - Categories (full width)
+      - Tags (full width)
+    - **Images Section:**
+      - Featured Image (full width)
+      - Gallery (full width)
+    - **SEO Section:**
+      - SEO Title + SEO Description (2 cột grid)
+      - Slug (full width)
+  - **Location:** Form structure
+  - **Effort:** Medium (4-5 giờ)
+  - **Priority:** Medium (P1)
+  - **Benefits:**
+    - Logical grouping giúp user tìm fields nhanh hơn
+    - Related fields ở gần nhau, giảm cognitive load
+    - Better information architecture
+
+- [ ] **5.3.5** Add "Sticky Section Navigation" cho desktop
+  - **Current:** User phải cuộn để tìm sections
+  - **Target:**
+    - Sidebar navigation với danh sách sections (sticky)
+    - Click vào section → scroll to section
+    - Highlight active section khi scroll
+    - Show section có errors với badge
+    - Collapsible sidebar (optional)
+  - **Location:** Dialog sidebar (desktop only)
+  - **Effort:** Medium (3-4 giờ)
+  - **Priority:** Low (P2)
+  - **Benefits:**
+    - Quick navigation giữa sections
+    - Overview của tất cả sections
+    - Better UX cho long forms
+
+- [ ] **5.3.6** Mobile: Compact layout với better spacing
+  - **Current:** Mobile Sheet đã responsive nhưng có thể optimize thêm
+  - **Target:**
+    - Reduce padding trên mobile (p-3 thay vì p-4)
+    - Reduce section spacing (mb-4 thay vì mb-6)
+    - Compact grid: 1 cột trên mobile (đã có)
+    - Sticky section navigation (floating menu) trên mobile
+    - Better use of screen space
+  - **Location:** Mobile Sheet layout
+  - **Effort:** Low (2-3 giờ)
+  - **Priority:** Medium (P1)
+  - **Benefits:**
+    - Giảm độ dài cuộn trên mobile
+    - Better use of limited screen space
+    - Faster navigation
+
+**Expected Impact:**
+- Giảm độ dài cuộn xuống 50-60% với tabs layout
+- User tìm fields nhanh hơn 40-50%
+- Giảm thời gian edit sản phẩm xuống 20-30%
+- Better user satisfaction với form layout
+
+**Recommendation:**
+- **Option 1 (Tabs):** Recommended cho desktop, giảm độ dài cuộn nhiều nhất
+- **Option 2 (Accordion):** Alternative nếu muốn giữ overview của tất cả sections
+- **Grid Optimization:** Nên làm bất kể chọn option nào
+- **Field Reorganization:** Nên làm để improve information architecture
+
+**Implementation Order:**
+1. **5.3.3** - Optimize Grid Layout (quick win, 3-4 giờ)
+2. **5.3.4** - Reorganize fields (improve IA, 4-5 giờ)
+3. **5.3.1** - Implement Tabs layout (biggest impact, 6-8 giờ)
+4. **5.3.6** - Mobile compact layout (2-3 giờ)
+5. **5.3.2** - Accordion (alternative, 4-5 giờ) hoặc **5.3.5** - Sticky navigation (3-4 giờ)
+
+---
+
 ## 5. ƯU TIÊN TRIỂN KHAI
 
 ### 5.1. Priority Matrix
@@ -555,7 +726,13 @@ Kế hoạch này tập trung vào nâng cấp **trải nghiệm người dùng 
 | 4.2.1 - Improve keyboard navigation | 🟡 Medium | 🟡 Medium | **P1** | Phase 4 |
 | 4.1.3 - aria-live regions | 🟡 Medium | 🟢 Low | **P1** | Phase 4 |
 | 4.2.2 - Keyboard shortcuts docs | 🟢 Low | 🟢 Low | **P2** | Phase 4 |
-| **Phase 5: Polish** | | | | |
+| **Phase 5: Layout Optimization & Polish** | | | | |
+| 5.3.3 - Optimize Grid Layout | 🟡 Medium | 🟡 Medium | **P1** | Phase 5 |
+| 5.3.4 - Reorganize fields | 🟡 Medium | 🟡 Medium | **P1** | Phase 5 |
+| 5.3.1 - Implement Tabs layout | 🔴 High | 🔴 High | **P1** | Phase 5 |
+| 5.3.6 - Mobile compact layout | 🟡 Medium | 🟢 Low | **P1** | Phase 5 |
+| 5.3.2 - Accordion layout | 🟡 Medium | 🟡 Medium | **P2** | Phase 5 |
+| 5.3.5 - Sticky section navigation | 🟢 Low | 🟡 Medium | **P2** | Phase 5 |
 | 5.1.1 - Optimize animations | 🟢 Low | 🟢 Low | **P2** | Phase 5 |
 | 5.1.2 - Micro-interactions | 🟢 Low | 🟡 Medium | **P3** | Phase 5 |
 | 5.2.1 - Quick actions menu | 🟢 Low | 🟡 Medium | **P3** | Phase 5 |
@@ -588,7 +765,13 @@ Week 5: Phase 4 - Accessibility (P0 tasks)
 ├── Day 1-3: 4.1.1 - ARIA labels cho tất cả fields
 └── Day 4-5: 4.1.2 - Link error messages
 
-Week 6+: Phase 5 - Polish (P2/P3 tasks)
+Week 6-7: Phase 5 - Layout Optimization (P1 tasks)
+├── Day 1-2: 5.3.3 - Optimize Grid Layout
+├── Day 3-4: 5.3.4 - Reorganize fields
+├── Day 5-7: 5.3.1 - Implement Tabs layout
+└── Day 8-9: 5.3.6 - Mobile compact layout
+
+Week 8+: Phase 5 - Polish (P2/P3 tasks)
 └── Optional improvements based on user feedback
 ```
 
@@ -1120,7 +1303,7 @@ Week 6+: Phase 5 - Polish (P2/P3 tasks)
 
 ### 10.7. 📋 MITIGATION CHECKLIST
 
-#### Before Implementation
+#### Before Implementation (Phase 1-4)
 
 - [ ] **10.1.1:** Define state priority logic (Error > Success > Edited > Normal)
 - [ ] **10.1.2:** Verify section background consistency
@@ -1130,6 +1313,15 @@ Week 6+: Phase 5 - Polish (P2/P3 tasks)
 - [ ] **10.3.1:** Align colors với Design System hoặc document exceptions
 - [ ] **10.4.1:** Implement memoization cho field classNames
 - [ ] **10.5.1:** Add ARIA live regions cho state changes
+
+#### Before Phase 5.3 (Layout Optimization)
+
+- [ ] **10.11.1:** Decide Tabs vs Accordion (hoặc hybrid approach)
+- [ ] **10.11.2:** Implement form validation across tabs (error badges, auto-switch)
+- [ ] **10.11.3:** Plan state management strategy (lazy loading, preserve state)
+- [ ] **10.11.4:** Update section shortcuts để work với tabs
+- [ ] **10.11.6:** Plan field reorganization (backward compatibility, section IDs)
+- [ ] **10.11.8:** Plan ARIA attributes cho tabs/accordion
 
 #### During Implementation
 
@@ -1186,7 +1378,788 @@ Week 6+: Phase 5 - Polish (P2/P3 tasks)
 
 ---
 
-### 10.9. 📊 RISK ASSESSMENT SUMMARY
+### 10.13. 🔧 RECOMMENDED FIXES BEFORE PHASE 5.3 (Layout Optimization)
+
+**Critical (Must Fix Before Phase 5.3):**
+
+1. **10.11.1 - Tabs vs Accordion Decision** ⚠️ CRITICAL
+   - **Action:** Decide implementation approach (Tabs, Accordion, hoặc Hybrid)
+   - **Blocking:** Task 5.3.1 (Tabs layout) và 5.3.2 (Accordion layout)
+   - **Effort:** 2-3 giờ (decision + planning)
+   - **Recommendation:** Start với Tabs cho desktop, consider Accordion cho mobile
+
+2. **10.11.2 - Form Validation Across Tabs** ⚠️ CRITICAL
+   - **Action:** Implement error badges, auto-switch to error tab, error summary với tab links
+   - **Blocking:** Task 5.3.1 (Tabs layout) - MUST fix trước khi implement tabs
+   - **Effort:** 4-5 giờ
+   - **Impact:** User không thể submit form nếu có errors ở hidden tabs
+
+**High Priority (Should Fix Before/During Phase 5.3):**
+
+3. **10.11.3 - State Management khi Switch Tabs** 🟡 HIGH
+   - **Action:** Implement lazy loading, preserve form state, preserve scroll position
+   - **Blocking:** Task 5.3.1 (Tabs layout)
+   - **Effort:** 3-4 giờ
+   - **Impact:** Form state có thể bị mất nếu không handle đúng
+
+4. **10.11.6 - Field Reorganization Break Logic** 🟡 HIGH
+   - **Action:** Plan backward compatibility, update section IDs, update navigation
+   - **Blocking:** Task 5.3.4 (Reorganize fields)
+   - **Effort:** 3-4 giờ
+   - **Impact:** Break existing navigation nếu không handle đúng
+
+**Medium Priority (Can Fix During Phase 5.3):**
+
+5. **10.11.4 - Section Shortcuts Conflict** 🟢 MEDIUM
+   - **Action:** Update shortcuts để auto-switch tabs, update documentation
+   - **Effort:** 2-3 giờ
+
+6. **10.11.5 - Grid Layout Responsive Conflicts** 🟢 MEDIUM
+   - **Action:** Define breakpoints, test trên tablet, set min-width constraints
+   - **Effort:** 2-3 giờ
+
+7. **10.11.8 - Accessibility với Tabs/Accordion** 🟢 MEDIUM
+   - **Action:** Verify ARIA attributes, test với screen readers
+   - **Effort:** 3-4 giờ
+
+**Low Priority (Can Fix After Phase 5.3):**
+
+8. **10.11.7 - Sticky Navigation Conflict** 🔵 LOW
+   - **Action:** Decide conditional implementation (skip nếu dùng tabs)
+   - **Effort:** 1-2 giờ
+
+9. **10.11.9 - Mobile Touch Targets** 🔵 LOW
+   - **Action:** Test touch targets sau khi giảm spacing
+   - **Effort:** 2-3 giờ
+
+**Total Prerequisites Time for Phase 5.3:** 16-22 giờ (2-3 ngày)
+
+---
+
+### 10.11. 🔴 CRITICAL - Layout Optimization Risks (Phase 5.3)
+
+#### 10.11.1. ⚠️ Tabs vs Accordion Implementation Conflict
+
+**Vấn đề:**
+- Kế hoạch đề xuất 2 options: **Tabs layout (5.3.1)** và **Accordion layout (5.3.2)**
+- Cả 2 đều là alternative solutions cho cùng một vấn đề (giảm độ dài cuộn)
+- **Xung đột:** Nếu implement cả 2 → duplicate code, maintenance overhead, user confusion
+- **Decision needed:** Chọn 1 trong 2, không implement cả 2
+
+**Tình trạng hiện tại:**
+- ❌ Chưa có tabs hoặc accordion
+- ✅ Có section headers với icons
+- ✅ Có section navigation shortcuts (Ctrl/Cmd + 1-7)
+- ✅ Có 7-8 sections: Basic Info, Pricing, Product Type, Shipping, Dimensions, Inventory, Categories, Images, SEO
+
+**Rủi ro:**
+- **High:** Nếu implement cả 2 → code duplication, inconsistent UX
+- **Medium:** User confusion về navigation pattern
+- **Medium:** Maintenance overhead (2 code paths)
+
+**Decision Matrix:**
+
+| Criteria | Tabs Layout | Accordion Layout | Hybrid (Tabs Desktop + Accordion Mobile) |
+|----------|-------------|-----------------|------------------------------------------|
+| **Scroll Reduction** | 🔴 High (60-70%) | 🟡 Medium (40-50%) | 🔴 High (60-70% desktop, 40-50% mobile) |
+| **Desktop UX** | ✅ Excellent (better space usage) | 🟡 Good (overview visible) | ✅ Excellent |
+| **Mobile UX** | 🟡 Good (tabs can be cramped) | ✅ Excellent (easier touch, overview) | ✅ Excellent |
+| **Implementation Effort** | 🟡 Medium (6-8 giờ) | 🟡 Medium (4-5 giờ) | 🔴 High (10-12 giờ) |
+| **Maintenance** | ✅ Low (single code path) | ✅ Low (single code path) | 🔴 High (2 code paths) |
+| **Error Visibility** | ⚠️ Hidden (need badges) | ✅ Visible (all sections) | ⚠️ Mixed |
+| **Accessibility** | ✅ Good (ARIA tabs) | ✅ Good (ARIA accordion) | ✅ Good |
+| **Keyboard Navigation** | ✅ Excellent (Tab key) | 🟡 Good (Arrow keys) | ✅ Excellent |
+| **Form State Management** | ⚠️ Need lazy loading | ✅ Simple (all visible) | ⚠️ Complex (2 strategies) |
+| **Code Complexity** | 🟡 Medium | ✅ Low | 🔴 High |
+
+**Decision: ✅ Tabs Layout (Desktop & Mobile)**
+
+**Rationale:**
+1. **Bigger Impact:** Tabs giảm cuộn nhiều hơn (60-70% vs 40-50%)
+2. **Consistent UX:** Single navigation pattern cho cả desktop và mobile
+3. **Lower Maintenance:** Single code path, dễ maintain
+4. **Better for Long Forms:** Với 7-8 sections, tabs hiệu quả hơn
+5. **Error Handling:** Có thể implement error badges và auto-switch (Task 10.11.2)
+6. **Mobile Optimization:** Có thể optimize tabs cho mobile (horizontal scroll, compact tabs)
+
+**Implementation Plan:**
+1. **Desktop:** Standard tabs layout với horizontal tabs
+2. **Mobile:** Compact tabs với horizontal scroll nếu cần, hoặc dropdown tabs
+3. **Error Badges:** Show error count trên mỗi tab (Task 10.11.2)
+4. **Auto-Switch:** Auto-switch to tab có errors khi submit fails (Task 10.11.2)
+5. **Lazy Loading:** Load tab content khi tab được activate (Task 10.11.3)
+
+**Tab Structure (Proposed):**
+1. **Thông tin cơ bản** - Name, SKU, Barcode/GTIN/EAN
+2. **Giá & Tồn kho** - Pricing, Inventory, Stock settings
+3. **Loại & Hiển thị** - Product Type, Visibility, Password
+4. **Giao hàng & Thuế** - Shipping, Tax, Dimensions
+5. **Danh mục & Thẻ** - Categories, Tags
+6. **Hình ảnh** - Featured Image, Gallery
+7. **SEO** - Meta Title, Description, Slug
+8. **Tùy chọn** - Product Options, Attributes (optional, có thể merge vào tab khác)
+
+**Độ phức tạp:** 🟡 Medium  
+**Thời gian ước tính:** 2-3 giờ để decide và plan ✅ **COMPLETED**
+
+**Location:** Phase 5.3.1 task
+
+---
+
+#### 10.11.2. ⚠️ Form Validation Across Tabs - Critical Issue
+
+**Vấn đề:**
+- Form validation hiện tại validate toàn bộ form khi submit
+- Với Tabs layout, errors có thể ở tabs khác nhau (không visible)
+- User submit form → có errors ở tab khác → không thấy errors
+- **Critical:** User không biết có errors ở tabs khác
+
+**Tình trạng hiện tại:**
+- ✅ Form validation với `react-hook-form` và Zod schema
+- ✅ Error summary hiển thị tất cả errors (line 2066-2171)
+- ✅ Auto-scroll to first error (line 2119-2140)
+- ❌ Chưa có tab-based error handling
+
+**Rủi ro:**
+- **Critical:** User submit form với errors ở hidden tabs → không biết có errors
+- **High:** User experience rất tệ nếu errors ở tabs khác
+- **Medium:** Form submission fails nhưng user không biết tại sao
+
+**Giải pháp đề xuất:**
+
+### Strategy Overview
+
+**Core Requirements:**
+1. **Error Visibility:** User phải biết có errors ở tabs nào
+2. **Error Navigation:** User phải có thể navigate đến errors dễ dàng
+3. **Error Prevention:** Prevent submit nếu có errors
+4. **Error Feedback:** Clear feedback về errors và cách fix
+
+### Implementation Plan
+
+#### 1. Field-to-Tab Mapping
+
+**Create mapping function:**
+```typescript
+// Map field names to tab IDs
+const FIELD_TO_TAB_MAP: Record<string, string> = {
+  // Basic Info Tab
+  'name': 'basic',
+  'sku': 'basic',
+  'barcode': 'basic',
+  'gtin': 'basic',
+  'ean': 'basic',
+  
+  // Pricing & Inventory Tab
+  'status': 'pricing',
+  'regularPrice': 'pricing',
+  'salePrice': 'pricing',
+  'costPrice': 'pricing',
+  'stockQuantity': 'pricing',
+  'stockStatus': 'pricing',
+  'manageStock': 'pricing',
+  'lowStockThreshold': 'pricing',
+  'backorders': 'pricing',
+  
+  // Product Type Tab
+  'productType': 'product-type',
+  'visibility': 'product-type',
+  'password': 'product-type',
+  
+  // Shipping & Tax Tab
+  'shippingClass': 'shipping',
+  'taxStatus': 'shipping',
+  'taxClass': 'shipping',
+  'weight': 'shipping',
+  'length': 'shipping',
+  'width': 'shipping',
+  'height': 'shipping',
+  
+  // Categories & Tags Tab
+  'categories': 'categories',
+  'tags': 'categories',
+  
+  // Images Tab
+  '_thumbnail_id': 'images',
+  '_product_image_gallery': 'images',
+  
+  // SEO Tab
+  'seoTitle': 'seo',
+  'seoDescription': 'seo',
+  'slug': 'seo',
+  
+  // Variants (nested)
+  'variants': 'pricing', // Variants table in Pricing tab
+};
+
+const getTabForField = (fieldName: string): string => {
+  // Handle nested fields (e.g., variants.0.price)
+  const baseField = fieldName.split('.')[0];
+  return FIELD_TO_TAB_MAP[baseField] || 'basic';
+};
+```
+
+#### 2. Error Collection by Tab
+
+**Create helper function:**
+```typescript
+const getErrorsByTab = (errors: any): Record<string, Array<{field: string, message: string}>> => {
+  const errorsByTab: Record<string, Array<{field: string, message: string}>> = {};
+  
+  const extractErrors = (errorObj: any, prefix = '') => {
+    Object.keys(errorObj).forEach((key) => {
+      const error = errorObj[key];
+      if (error?.message) {
+        const fieldName = prefix ? `${prefix}.${key}` : key;
+        const tabId = getTabForField(fieldName);
+        
+        if (!errorsByTab[tabId]) {
+          errorsByTab[tabId] = [];
+        }
+        
+        errorsByTab[tabId].push({
+          field: fieldName,
+          message: error.message,
+        });
+      } else if (typeof error === 'object' && error !== null) {
+        extractErrors(error, prefix ? `${prefix}.${key}` : key);
+      }
+    });
+  };
+  
+  extractErrors(errors);
+  return errorsByTab;
+};
+
+const getErrorCountForTab = (tabId: string, errors: any): number => {
+  const errorsByTab = getErrorsByTab(errors);
+  return errorsByTab[tabId]?.length || 0;
+};
+```
+
+#### 3. Tab Error Badges
+
+**Update TabsList component:**
+```tsx
+<TabsList>
+  <TabsTrigger value="basic">
+    Thông tin cơ bản
+    {getErrorCountForTab('basic', errors) > 0 && (
+      <Badge variant="destructive" className="ml-2">
+        {getErrorCountForTab('basic', errors)}
+      </Badge>
+    )}
+  </TabsTrigger>
+  {/* Repeat for all tabs */}
+</TabsList>
+```
+
+#### 4. Auto-Switch to Error Tab
+
+**Update onError handler:**
+```typescript
+const onError = (errors: any) => {
+  // Get all errors by tab
+  const errorsByTab = getErrorsByTab(errors);
+  
+  // Find first error field
+  const firstErrorField = Object.values(errorsByTab)
+    .flat()
+    .find(err => err)?.field;
+  
+  if (firstErrorField) {
+    // Get tab for first error
+    const tabWithError = getTabForField(firstErrorField);
+    
+    // Switch to tab with error
+    setActiveTab(tabWithError);
+    
+    // Wait for tab content to render, then scroll to error
+    setTimeout(() => {
+      const errorElement = document.getElementById(`quick-edit-${firstErrorField.replace(/\./g, '-')}`);
+      if (errorElement) {
+        errorElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'center',
+          inline: 'nearest'
+        });
+        setTimeout(() => {
+          errorElement.focus();
+        }, 300);
+      }
+    }, 100);
+  }
+  
+  // Show error summary (existing code)
+  // ... existing error summary logic ...
+};
+```
+
+#### 5. Error Summary với Tab Links
+
+**Update Error Summary component:**
+```tsx
+{allValidationErrors.length > 0 && (
+  <div className="bg-red-50 border border-red-200 rounded-md p-3 md:p-4 space-y-2">
+    <div className="flex items-center gap-2">
+      <AlertCircle className="h-5 w-5 text-red-600" />
+      <h4 className="text-sm font-semibold text-red-900">
+        Có {allValidationErrors.length} lỗi validation cần sửa:
+      </h4>
+    </div>
+    <ul className="space-y-1">
+      {allValidationErrors.map((err, index) => {
+        const tabId = getTabForField(err.field);
+        const tabName = getTabName(tabId); // Helper to get tab display name
+        
+        return (
+          <li key={index}>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab(tabId);
+                setTimeout(() => {
+                  const errorElement = document.getElementById(`quick-edit-${err.field.replace(/\./g, '-')}`);
+                  if (errorElement) {
+                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => errorElement.focus(), 300);
+                  }
+                }, 100);
+              }}
+              className="text-left hover:underline hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded px-1 -ml-1 transition-colors min-h-[44px] py-2 w-full"
+            >
+              <span className="font-medium">{getFieldLabel(err.field)}:</span> {err.message}
+              <span className="text-xs text-red-600 ml-2">(Tab: {tabName})</span>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  </div>
+)}
+```
+
+#### 6. Prevent Submit với Error Count
+
+**Update Submit Button:**
+```tsx
+<Button
+  type="submit"
+  disabled={isLoading || allValidationErrors.length > 0}
+  className="min-h-[44px]"
+>
+  {isLoading ? (
+    <>
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      Đang lưu...
+    </>
+  ) : (
+    <>
+      <Save className="mr-2 h-4 w-4" />
+      Lưu thay đổi
+    </>
+  )}
+</Button>
+
+{allValidationErrors.length > 0 && (
+  <Tooltip>
+    <TooltipTrigger asChild>
+      <span>Có {allValidationErrors.length} lỗi cần sửa trước khi lưu</span>
+    </TooltipTrigger>
+    <TooltipContent>
+      <p>Vui lòng sửa tất cả lỗi validation trước khi lưu</p>
+    </TooltipContent>
+  </Tooltip>
+)}
+```
+
+### Implementation Checklist
+
+- [ ] Create `FIELD_TO_TAB_MAP` constant
+- [ ] Create `getTabForField()` helper function
+- [ ] Create `getErrorsByTab()` helper function
+- [ ] Create `getErrorCountForTab()` helper function
+- [ ] Update `onError` handler với auto-switch logic
+- [ ] Add error badges to TabsList
+- [ ] Update Error Summary với tab links
+- [ ] Update Submit button với error prevention
+- [ ] Test với multiple errors across tabs
+- [ ] Test auto-switch behavior
+- [ ] Test error badge updates
+- [ ] Test error summary navigation
+- [ ] Test accessibility (keyboard navigation, screen readers)
+
+### Testing Strategy
+
+1. **Single Error Test:** 1 error trong 1 tab → badge shows, auto-switch works
+2. **Multiple Errors Test:** Errors trong nhiều tabs → badges show on all tabs
+3. **Nested Field Errors Test:** Variant errors (variants.0.price) → map to correct tab
+4. **Error Resolution Test:** Fix error → badge disappears
+5. **Submit Prevention Test:** Errors present → submit button disabled
+6. **Accessibility Test:** Keyboard navigation, screen reader announcements
+
+**Độ phức tạp:** 🔴 High  
+**Thời gian ước tính:** 4-5 giờ để implement và test ✅ **PLANNED**
+
+**Location:** Form validation handler, Tabs component, Error summary
+
+**Blocking:** Task 5.3.1 (Tabs layout) - MUST fix trước khi implement tabs
+
+---
+
+#### 10.11.3. ⚠️ State Management khi Switch Tabs
+
+**Vấn đề:**
+- Form state được manage bởi `react-hook-form`
+- Khi switch tabs, form state cần được preserve
+- **Xung đột:** Nếu unmount tabs khi switch → mất form state
+- **Xung đột:** Nếu mount tất cả tabs → performance issue với large forms
+
+**Tình trạng hiện tại:**
+- ✅ Form state managed bởi `react-hook-form` với `useForm` hook
+- ✅ Form state persist khi re-render
+- ❌ Chưa có tab switching logic
+
+**Rủi ro:**
+- **High:** Form state có thể bị mất nếu unmount tabs
+- **Medium:** Performance issue nếu mount tất cả tabs cùng lúc (30+ fields)
+- **Medium:** Scroll position mất khi switch tabs (nếu không preserve)
+
+**Giải pháp đề xuất:**
+1. **Lazy Loading Tabs:** Chỉ mount tab đang active
+   ```tsx
+   <TabsContent value="basic" forceMount={activeTab === 'basic'}>
+     {/* Only mount when active */}
+   </TabsContent>
+   ```
+   - **Benefit:** Better performance, chỉ render active tab
+   - **Risk:** Form state có thể reset nếu unmount → cần preserve với `react-hook-form`
+
+2. **Preserve Form State:** `react-hook-form` tự động preserve state
+   - Form state được store trong `useForm` hook → không mất khi unmount
+   - **Note:** Cần verify với `react-hook-form` documentation
+
+3. **Preserve Scroll Position:** Store scroll position per tab
+   ```typescript
+   const [tabScrollPositions, setTabScrollPositions] = useState<Record<string, number>>({});
+   
+   const handleTabChange = (tab: string) => {
+     // Save current scroll position
+     const currentScroll = containerRef.current?.scrollTop || 0;
+     setTabScrollPositions(prev => ({ ...prev, [activeTab]: currentScroll }));
+     
+     // Restore scroll position for new tab
+     setTimeout(() => {
+       const savedScroll = tabScrollPositions[tab] || 0;
+       containerRef.current?.scrollTo({ top: savedScroll });
+     }, 100);
+   };
+   ```
+
+4. **Performance Optimization:** Use `React.memo` cho tab content
+   - Prevent unnecessary re-renders khi switch tabs
+   - Memoize expensive computations trong tabs
+
+**Độ phức tạp:** 🟡 Medium  
+**Thời gian ước tính:** 3-4 giờ để implement và test
+
+**Location:** Tabs component, form state management
+
+---
+
+#### 10.11.4. ⚠️ Section Shortcuts Conflict với Tabs Navigation
+
+**Vấn đề:**
+- Hiện tại có keyboard shortcuts: **Ctrl/Cmd + 1-7** để jump to sections (line 1285)
+- Với Tabs layout, sections được group vào tabs
+- **Xung đột:** Shortcuts 1-7 có thể conflict với tab navigation
+- **Xung đột:** Shortcut jump to section → section có thể ở tab khác (hidden)
+
+**Tình trạng hiện tại:**
+- ✅ Keyboard shortcuts đã implement: Ctrl/Cmd + 1-7
+- ✅ Section IDs đã có: `section-basic-info`, `section-pricing`, etc.
+- ✅ `scrollToSection` function đã có
+- ❌ Chưa có tab-aware navigation
+
+**Rủi ro:**
+- **Medium:** User press Ctrl+3 → section ở tab khác → không thấy section
+- **Medium:** Keyboard shortcuts không work với tabs layout
+- **Low:** User confusion về navigation
+
+**Giải pháp đề xuất:**
+1. **Tab-Aware Section Navigation:** Update shortcuts để switch tab trước
+   ```typescript
+   const handleSectionShortcut = (sectionNumber: number) => {
+     const section = sections[sectionNumber - 1];
+     const tab = getTabForSection(section.id);
+     
+     // Switch to tab first
+     if (tab !== activeTab) {
+       setActiveTab(tab);
+       // Wait for tab to mount
+       setTimeout(() => {
+         scrollToSection(section.id);
+       }, 100);
+     } else {
+       scrollToSection(section.id);
+     }
+   };
+   ```
+
+2. **Update Shortcuts Documentation:** Update help dialog với tab-aware shortcuts
+   - Document rằng shortcuts sẽ auto-switch tabs nếu cần
+
+3. **Alternative Shortcuts:** Use different shortcuts cho tab navigation
+   - Ctrl/Cmd + Tab: Switch tabs
+   - Ctrl/Cmd + 1-7: Jump to sections (auto-switch tab)
+
+**Độ phức tạp:** 🟢 Low  
+**Thời gian ước tính:** 2-3 giờ để implement và test
+
+**Location:** Keyboard shortcuts handler, help dialog
+
+---
+
+#### 10.11.5. ⚠️ Grid Layout Optimization Conflicts với Responsive Design
+
+**Vấn đề:**
+- Kế hoạch optimize grid: 4 cột cho Dimensions, 2 cột cho Product Type, SEO
+- **Xung đột:** 4 cột grid có thể quá narrow trên tablet (768px-1024px)
+- **Xung đột:** Fields có thể bị squished trên smaller screens
+- **Xung đột:** Mobile vẫn cần 1 cột (đã có) nhưng tablet breakpoint cần define
+
+**Tình trạng hiện tại:**
+- ✅ Responsive grid đã có: `grid-cols-1 md:grid-cols-2 lg:grid-cols-3`
+- ✅ Mobile: 1 cột (đã có)
+- ⚠️ Tablet breakpoint chưa được define rõ ràng
+
+**Rủi ro:**
+- **Medium:** 4 cột grid quá narrow trên tablet → fields bị squished
+- **Medium:** Text overflow hoặc labels bị cut off
+- **Low:** Poor UX trên tablet devices
+
+**Giải pháp đề xuất:**
+1. **Responsive Grid Breakpoints:** Define clear breakpoints
+   ```tsx
+   // Mobile: 1 cột (< 768px)
+   // Tablet: 2 cột (768px - 1024px)
+   // Desktop: 3-4 cột (> 1024px)
+   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+   ```
+
+2. **Field Width Constraints:** Set min-width cho fields
+   ```tsx
+   <div className="min-w-[120px]"> {/* Prevent squishing */}
+   ```
+
+3. **Test trên Tablet:** Test grid layout trên tablet devices (768px, 1024px)
+   - Verify fields không bị squished
+   - Verify labels không bị cut off
+   - Verify spacing adequate
+
+4. **Progressive Enhancement:** Start với 2-3 cột, add 4 cột chỉ trên large screens (> 1280px)
+   ```tsx
+   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+   ```
+
+**Độ phức tạp:** 🟢 Low  
+**Thời gian ước tính:** 2-3 giờ để implement và test
+
+**Location:** Grid layouts trong sections
+
+---
+
+#### 10.11.6. ⚠️ Field Reorganization có thể Break Existing Logic
+
+**Vấn đề:**
+- Kế hoạch tạo **Inventory Section mới** (tách từ Pricing)
+- **Xung đột:** Existing code có thể reference "Pricing section" → break nếu tách
+- **Xung đột:** Section IDs thay đổi → break scroll navigation, shortcuts
+- **Xung đột:** Form structure thay đổi → có thể break validation logic
+
+**Tình trạng hiện tại:**
+- ✅ Sections có IDs: `section-basic-info`, `section-pricing`, etc.
+- ✅ Scroll navigation dùng section IDs
+- ✅ Keyboard shortcuts dùng section order
+- ❌ Chưa có Inventory section riêng
+
+**Rủi ro:**
+- **High:** Break existing scroll navigation nếu section IDs thay đổi
+- **Medium:** Break keyboard shortcuts nếu section order thay đổi
+- **Medium:** Break existing tests nếu structure thay đổi
+- **Low:** User confusion nếu sections move
+
+**Giải pháp đề xuất:**
+1. **Backward Compatibility:** Giữ section IDs cũ, thêm IDs mới
+   ```tsx
+   <div id="section-pricing" id="section-inventory"> {/* Both IDs */}
+   ```
+   - **Note:** HTML không support multiple IDs → cần dùng data attributes
+   ```tsx
+   <div id="section-pricing" data-section="inventory">
+   ```
+
+2. **Gradual Migration:** Update references từ từ
+   - Keep old section IDs trong code
+   - Add new section IDs
+   - Update navigation logic để support cả 2
+   - Remove old IDs sau khi verify không break
+
+3. **Update All References:** Find và update tất cả references
+   - Search codebase cho `section-pricing`
+   - Update scroll navigation
+   - Update keyboard shortcuts
+   - Update tests
+
+4. **Test Thoroughly:** Test tất cả navigation paths
+   - Scroll to sections
+   - Keyboard shortcuts
+   - Error scrolling
+   - Tab navigation (nếu có)
+
+**Độ phức tạp:** 🟡 Medium  
+**Thời gian ước tính:** 3-4 giờ để refactor và test
+
+**Location:** Section components, navigation logic, tests
+
+---
+
+#### 10.11.7. ⚠️ Sticky Navigation Conflict với Tabs/Accordion
+
+**Vấn đề:**
+- Kế hoạch có **Sticky Section Navigation (5.3.5)** cho desktop
+- **Xung đột:** Với Tabs layout, sticky navigation có thể redundant
+- **Xung đột:** Với Accordion layout, sticky navigation có thể useful nhưng cần update logic
+- **Xung đột:** 2 navigation systems (tabs + sticky nav) có thể confuse users
+
+**Tình trạng hiện tại:**
+- ❌ Chưa có sticky navigation
+- ✅ Có section headers với scroll-mt-4
+- ✅ Có skip links navigation
+
+**Rủi ro:**
+- **Medium:** Redundant navigation với tabs (tabs đã là navigation)
+- **Low:** User confusion với 2 navigation systems
+- **Low:** Maintenance overhead
+
+**Giải pháp đề xuất:**
+1. **Conditional Implementation:** Chỉ implement sticky nav nếu KHÔNG dùng tabs
+   - If tabs → no sticky nav (tabs đã là navigation)
+   - If accordion → sticky nav useful (quick jump to sections)
+
+2. **Unified Navigation:** Combine tabs và sticky nav
+   - Tabs ở top
+   - Sticky nav ở sidebar với section list trong active tab
+   - **Note:** Có thể phức tạp, cần test với users
+
+3. **Skip Sticky Nav:** Defer task 5.3.5 nếu implement tabs
+   - Tabs đã provide navigation
+   - Sticky nav chỉ useful với accordion hoặc no-tabs layout
+
+**Độ phức tạp:** 🟢 Low  
+**Thời gian ước tính:** 1-2 giờ để decide và plan
+
+**Location:** Task 5.3.5 (Sticky navigation)
+
+---
+
+#### 10.11.8. ⚠️ Accessibility với Tabs/Accordion Layout
+
+**Vấn đề:**
+- Tabs và Accordion cần proper ARIA attributes để accessible
+- **Xung đột:** Nếu không implement đúng ARIA → screen reader users không thể navigate
+- **Xung đột:** Keyboard navigation cần work với tabs/accordion
+
+**Tình trạng hiện tại:**
+- ✅ Radix UI Tabs có built-in ARIA support
+- ✅ Radix UI Accordion có built-in ARIA support
+- ⚠️ Cần verify ARIA attributes đầy đủ
+- ❌ Chưa test với screen readers
+
+**Rủi ro:**
+- **High:** Accessibility regression nếu ARIA không đúng
+- **Medium:** Screen reader users không thể navigate tabs/accordion
+- **Medium:** Keyboard navigation không work
+
+**Giải pháp đề xuất:**
+1. **Use Radix UI Components:** Radix UI Tabs và Accordion có built-in ARIA
+   ```tsx
+   import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+   // Radix UI provides: role="tablist", role="tab", aria-selected, etc.
+   ```
+
+2. **ARIA Labels:** Add descriptive labels cho tabs
+   ```tsx
+   <TabsTrigger value="basic" aria-label="Thông tin cơ bản">
+     Thông tin cơ bản
+     {errorCount > 0 && (
+       <span className="sr-only">Có {errorCount} lỗi</span>
+     )}
+   </TabsTrigger>
+   ```
+
+3. **Keyboard Navigation:** Ensure keyboard navigation work
+   - Arrow keys để switch tabs (Radix UI có sẵn)
+   - Tab key để navigate fields trong tab
+   - Enter/Space để activate tab
+
+4. **Screen Reader Testing:** Test với screen readers
+   - NVDA (Windows)
+   - JAWS (Windows)
+   - VoiceOver (Mac/iOS)
+   - Verify tabs/accordion được announce correctly
+
+**Độ phức tạp:** 🟡 Medium  
+**Thời gian ước tính:** 3-4 giờ để implement và test
+
+**Location:** Tabs/Accordion components, ARIA attributes
+
+---
+
+#### 10.11.9. ⚠️ Mobile Compact Layout có thể Break Touch Targets
+
+**Vấn đề:**
+- Kế hoạch reduce padding: `p-3` thay vì `p-4` (giảm 4px)
+- Kế hoạch reduce spacing: `mb-4` thay vì `mb-6` (giảm 8px)
+- **Xung đột:** Giảm spacing có thể break touch targets < 44x44px
+- **Xung đột:** Fields có thể quá close nhau → accidental taps
+
+**Tình trạng hiện tại:**
+- ✅ Touch targets đã verify >= 44x44px (Phase 3.3.1)
+- ✅ Spacing đã optimize: gap-2 (8px) giữa touch targets
+- ⚠️ Padding và spacing hiện tại: p-4 (16px), mb-6 (24px)
+
+**Rủi ro:**
+- **Medium:** Touch targets có thể < 44x44px nếu giảm spacing quá nhiều
+- **Medium:** Accidental taps nếu fields quá close
+- **Low:** Poor UX trên mobile
+
+**Giải pháp đề xuất:**
+1. **Verify Touch Targets:** Test touch targets sau khi giảm spacing
+   - Ensure tất cả interactive elements >= 44x44px
+   - Test trên actual mobile devices
+
+2. **Gradual Reduction:** Giảm spacing từ từ
+   - Start với p-3.5 (14px) thay vì p-3 (12px)
+   - Test → nếu OK → giảm tiếp
+   - Stop nếu touch targets < 44x44px
+
+3. **Selective Reduction:** Chỉ giảm spacing ở non-interactive areas
+   - Keep spacing giữa buttons/inputs (touch targets)
+   - Reduce spacing giữa sections (non-interactive)
+
+4. **WCAG Compliance Check:** Verify vẫn meet WCAG 2.1 Level AA
+   - Touch targets >= 44x44px
+   - Spacing >= 8px giữa touch targets
+
+**Độ phức tạp:** 🟢 Low  
+**Thời gian ước tính:** 2-3 giờ để test và adjust
+
+**Location:** Mobile Sheet layout, spacing values
+
+---
+
+### 10.12. 📊 UPDATED RISK ASSESSMENT SUMMARY (Including Phase 5.3)
 
 | Risk Category | Count | Critical | High | Medium | Low |
 |---------------|-------|----------|------|--------|-----|
@@ -1196,11 +2169,23 @@ Week 6+: Phase 5 - Polish (P2/P3 tasks)
 | **Performance** | 2 | 0 | 1 | 0 | 1 |
 | **Accessibility** | 2 | 0 | 0 | 2 | 0 |
 | **Browser Compatibility** | 2 | 0 | 0 | 0 | 2 |
-| **TỔNG CỘNG** | **13** | **1** | **3** | **6** | **3** |
+| **Layout Optimization (Phase 5.3)** | 9 | 1 | 2 | 5 | 1 |
+| **TỔNG CỘNG** | **22** | **2** | **5** | **11** | **4** |
 
-**Overall Risk Level:** 🟡 **MEDIUM-HIGH**
+**Overall Risk Level:** 🔴 **HIGH** (tăng từ MEDIUM-HIGH do Phase 5.3 risks)
 
-**Recommendation:** Fix 2 Critical items (10.1.1, 10.2.1) và 2 High items (10.2.2, 10.4.1) trước khi bắt đầu Phase 1.
+**Critical Risks (Must Fix Before Phase 5.3):**
+1. **10.11.2** - Form Validation Across Tabs (CRITICAL - 4-5 giờ)
+2. **10.11.1** - Tabs vs Accordion Decision (HIGH - 2-3 giờ)
+
+**High Priority Risks (Should Fix Before Phase 5.3):**
+3. **10.11.3** - State Management khi Switch Tabs (HIGH - 3-4 giờ)
+4. **10.11.6** - Field Reorganization Break Logic (MEDIUM - 3-4 giờ)
+
+**Recommendation:** 
+- **Before Phase 5.3:** Fix 10.11.1 (decision) và 10.11.2 (validation)
+- **During Phase 5.3:** Fix 10.11.3 (state management) và 10.11.6 (reorganization)
+- **After Phase 5.3:** Test 10.11.8 (accessibility) và 10.11.9 (mobile touch targets)
 
 ---
 
@@ -1248,6 +2233,28 @@ Week 6+: Phase 5 - Polish (P2/P3 tasks)
 2. **Setup measurement tools** - Prepare for baseline metrics
 3. **Start Phase 1** - Begin với P0 tasks (1.1.1, 1.2.1) sau khi fix prerequisites
 
+### 8.4. Phase 5.3 Prerequisites (Before Layout Optimization)
+
+**⚠️ PHẢI HOÀN THÀNH TRƯỚC KHI BẮT ĐẦU PHASE 5.3:**
+
+1. **Fix Critical Issues (Section 10.11.1, 10.11.2)** - 6-8 giờ
+   - Decide Tabs vs Accordion approach
+   - Implement form validation across tabs (error badges, auto-switch)
+   - **Blocking:** Task 5.3.1 (Tabs layout)
+
+2. **Fix High Priority Issues (Section 10.11.3, 10.11.6)** - 6-8 giờ
+   - Plan state management strategy
+   - Plan field reorganization với backward compatibility
+   - **Blocking:** Task 5.3.1, 5.3.4
+
+**Total Prerequisites Time for Phase 5.3:** 16-22 giờ (2-3 ngày)
+
+### 8.5. Phase 5.3 Implementation (After Prerequisites)
+
+1. **Review layout optimization plan** - Validate approach và risks
+2. **Start Phase 5.3** - Begin với P1 tasks (5.3.3, 5.3.4) sau khi fix prerequisites
+3. **Implement Tabs layout** - Task 5.3.1 (sau khi fix 10.11.1, 10.11.2, 10.11.3)
+
 ### 8.3. Documentation Updates
 
 - Update `QUICK_EDIT_PROGRESS_TRACKING.md` với UX/UI improvements
@@ -1274,6 +2281,32 @@ Week 6+: Phase 5 - Polish (P2/P3 tasks)
 ---
 
 ## 11. UPDATE LOG
+
+### Version 2.13 (2025-01-XX) - Phase 5.3 Layout Optimization Deep Review
+- ✅ **Added Section 10.11:** Deep Review cho Layout Optimization (Phase 5.3)
+- ✅ Identified 9 new risks: 1 Critical, 2 High, 5 Medium, 1 Low
+- ✅ **Critical Risks:**
+  - 10.11.2: Form Validation Across Tabs (CRITICAL - user không thấy errors ở hidden tabs)
+  - 10.11.1: Tabs vs Accordion Decision (HIGH - cần decide trước khi implement)
+- ✅ **High Priority Risks:**
+  - 10.11.3: State Management khi Switch Tabs (form state có thể mất)
+  - 10.11.6: Field Reorganization Break Logic (section IDs thay đổi)
+- ✅ **Medium Priority Risks:**
+  - 10.11.4: Section Shortcuts Conflict với Tabs
+  - 10.11.5: Grid Layout Responsive Conflicts
+  - 10.11.7: Sticky Navigation Conflict với Tabs/Accordion
+  - 10.11.8: Accessibility với Tabs/Accordion
+  - 10.11.9: Mobile Touch Targets có thể break
+- ✅ Updated Risk Assessment Summary: 22 total risks (2 Critical, 5 High, 11 Medium, 4 Low)
+- ✅ Updated Overall Risk Level: HIGH (tăng từ MEDIUM-HIGH)
+- ✅ Added Section 10.13: Recommended Fixes Before Phase 5.3
+- ✅ Updated Mitigation Checklist với Phase 5.3 prerequisites
+- ✅ Updated Next Steps với Phase 5.3 prerequisites (16-22 giờ, 2-3 ngày)
+- ✅ **Key Findings:**
+  - Form validation across tabs là CRITICAL issue - MUST fix trước khi implement tabs
+  - Cần decide Tabs vs Accordion trước khi implement (không implement cả 2)
+  - Field reorganization cần backward compatibility để không break existing navigation
+  - Total prerequisites time: 16-22 giờ (2-3 ngày) trước khi bắt đầu Phase 5.3
 
 ### Version 2.12 (2025-01-XX) - Phase 4.2.2 Completed
 - ✅ **Phase 4.2.2:** Keyboard shortcuts documentation - COMPLETED

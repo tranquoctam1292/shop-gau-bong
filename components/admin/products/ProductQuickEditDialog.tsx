@@ -1,9 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { useForm, UseFormSetValue } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
+import { UseFormSetValue } from 'react-hook-form';
 import {
   Dialog,
   DialogContent,
@@ -51,125 +49,24 @@ import Image from 'next/image';
 // PERFORMANCE OPTIMIZATION (2.1.0): Use React Query hook for product fetching
 import { useProduct, type ProductWithVariants as UseProductWithVariants } from '@/lib/hooks/useProduct';
 
-// Helper to convert NaN to undefined for optional number fields
-const nanToUndefined = z.preprocess((val) => {
-  if (typeof val === 'number' && isNaN(val)) {
-    return undefined;
-  }
-  return val;
-}, z.number().optional());
-
-// Form schema with NaN protection
-const quickEditSchema = z.object({
-  name: z.string().min(1, 'Tên sản phẩm không được để trống'),
-  sku: z.string().optional(),
-  status: z.enum(['draft', 'publish', 'trash']),
-  manageStock: z.boolean(),
-  regularPrice: z.preprocess((val) => {
-    // Convert NaN to 0 for required field
-    if (typeof val === 'number' && isNaN(val)) {
-      return 0;
-    }
-    return val;
-  }, z.number({ invalid_type_error: 'Giá phải là số hợp lệ' })
-    .min(0, 'Giá phải >= 0')
-    .refine((val) => !isNaN(val) && isFinite(val), { message: 'Giá không hợp lệ' })),
-  salePrice: nanToUndefined
-    .pipe(z.number({ invalid_type_error: 'Giá khuyến mãi phải là số hợp lệ' })
-      .min(0, 'Giá khuyến mãi phải >= 0')
-      .optional()
-      .refine((val) => val === undefined || (!isNaN(val) && isFinite(val)), { message: 'Giá khuyến mãi không hợp lệ' })),
-  stockQuantity: z.preprocess((val) => {
-    // Convert NaN to 0 for required field
-    if (typeof val === 'number' && isNaN(val)) {
-      return 0;
-    }
-    return val;
-  }, z.number({ invalid_type_error: 'Số lượng phải là số hợp lệ' })
-    .min(0, 'Số lượng phải >= 0')
-    .refine((val) => !isNaN(val) && isFinite(val), { message: 'Số lượng không hợp lệ' })),
-  stockStatus: z.enum(['instock', 'outofstock', 'onbackorder']),
-  version: z.number().optional(),
-  bulkUpdate: z.boolean().default(false),
-  // PHASE 1: Weight & Dimensions (4.1.3)
-  weight: nanToUndefined.pipe(z.number({ invalid_type_error: 'Trọng lượng phải là số hợp lệ' }).min(0, 'Trọng lượng phải >= 0').optional()),
-  length: nanToUndefined.pipe(z.number({ invalid_type_error: 'Chiều dài phải là số hợp lệ' }).min(0, 'Chiều dài phải >= 0').optional()),
-  width: nanToUndefined.pipe(z.number({ invalid_type_error: 'Chiều rộng phải là số hợp lệ' }).min(0, 'Chiều rộng phải >= 0').optional()),
-  height: nanToUndefined.pipe(z.number({ invalid_type_error: 'Chiều cao phải là số hợp lệ' }).min(0, 'Chiều cao phải >= 0').optional()),
-  // PHASE 1: Low Stock Threshold (4.1.4)
-  lowStockThreshold: nanToUndefined.pipe(z.number({ invalid_type_error: 'Ngưỡng tồn kho thấp phải là số hợp lệ' }).int('Ngưỡng tồn kho thấp phải là số nguyên').nonnegative('Ngưỡng tồn kho thấp phải >= 0').optional()),
-  // PHASE 1: Categories & Tags (4.1.1)
-  categories: z.array(z.string()).optional(), // Array of category IDs
-  tags: z.array(z.string()).optional(), // Array of tag strings
-  // PHASE 1: Featured Image & Gallery (4.1.2)
-  _thumbnail_id: z.string().optional(), // Featured image ID
-  _product_image_gallery: z.string().optional(), // Comma-separated gallery image IDs
-  // PHASE 2: SEO Fields (4.2.1)
-  seoTitle: z.string().max(60, 'Meta Title không được vượt quá 60 ký tự').optional(),
-  seoDescription: z.string().max(160, 'Meta Description không được vượt quá 160 ký tự').optional(),
-  slug: z.string().min(1, 'URL Slug không được để trống').regex(/^[a-z0-9-]+$/, 'URL Slug chỉ được chứa chữ thường, số và dấu gạch ngang').optional(),
-  // PHASE 2: Cost Price (4.2.2)
-  costPrice: nanToUndefined.pipe(z.number({ invalid_type_error: 'Giá vốn phải là số hợp lệ' }).min(0, 'Giá vốn phải >= 0').optional()),
-  // PHASE 2: Product Type & Visibility (4.2.3)
-  productType: z.enum(['simple', 'variable', 'grouped', 'external']).optional(),
-  visibility: z.enum(['public', 'private', 'password']).optional(),
-  password: z.string().optional(),
-  // PHASE 2: Shipping Class & Tax Settings (4.2.4)
-  shippingClass: z.string().optional(),
-  taxStatus: z.enum(['taxable', 'shipping', 'none']).optional(),
-  taxClass: z.string().optional(),
-  // PHASE 3: Barcode/GTIN/EAN (4.3.1)
-  barcode: z.string().optional(),
-  gtin: z.string().optional(),
-  ean: z.string().optional(),
-  // PHASE 3: Product Options (4.3.2) - Attributes enable/disable
-  attributes: z.array(z.object({
-    name: z.string(),
-    visible: z.boolean().optional(),
-  })).optional(),
-  // PHASE 3: Sold Individually (4.3.3)
-  soldIndividually: z.boolean().optional(),
-  // PHASE 3: Backorders Settings (4.3.4)
-  backorders: z.enum(['no', 'notify', 'yes']).optional(),
-  variants: z.array(z.object({
-    id: z.string(),
-    sku: z.string().optional(),
-    price: nanToUndefined
-      .pipe(z.number({ invalid_type_error: 'Giá phải là số hợp lệ' })
-        .min(0, 'Giá phải >= 0')
-        .optional()
-        .refine((val) => val === undefined || (!isNaN(val) && isFinite(val)), { message: 'Giá không hợp lệ' })),
-    stock: nanToUndefined
-      .pipe(z.number({ invalid_type_error: 'Số lượng phải là số hợp lệ' })
-        .min(0, 'Số lượng phải >= 0')
-        .optional()
-        .refine((val) => val === undefined || (!isNaN(val) && isFinite(val)), { message: 'Số lượng không hợp lệ' })),
-    // Display-only fields (not editable in form, but needed for VariantQuickEditTable)
-    size: z.string().optional(),
-    color: z.string().optional(),
-    colorCode: z.string().optional(),
-    image: z.string().optional(),
-  })).optional(),
-}).refine(
-  (data) => {
-    if (data.salePrice !== undefined && data.regularPrice !== undefined) {
-      return data.salePrice < data.regularPrice;
-    }
-    return true;
-  },
-  { message: 'Giá khuyến mãi phải nhỏ hơn giá thường', path: ['salePrice'] }
-);
-
-type QuickEditFormData = z.infer<typeof quickEditSchema>;
-
-interface ProductQuickEditDialogProps {
-  product?: MappedProduct; // Optional for bulk mode
-  productIds?: string[]; // For bulk edit mode
-  open: boolean;
-  onClose: () => void;
-  onSuccess?: (updatedProduct: MappedProduct) => void;
-  onBulkSuccess?: (updatedCount: number) => void; // For bulk mode
-}
+// PHASE 1: Preparation - Import types and schema from extracted files
+import type { QuickEditFormData, ProductQuickEditDialogProps } from './ProductQuickEditDialog/types';
+import { QuickEditFormProvider } from './ProductQuickEditDialog/context/QuickEditFormProvider';
+// PHASE 3: Extract Hooks
+import { useQuickEditForm } from './ProductQuickEditDialog/hooks/useQuickEditForm';
+import { useQuickEditHandlers } from './ProductQuickEditDialog/hooks/useQuickEditHandlers';
+import { useQuickEditValidation } from './ProductQuickEditDialog/hooks/useQuickEditValidation';
+// PHASE 2: Extract Form Sections
+import { DimensionsSection } from './ProductQuickEditDialog/sections/DimensionsSection';
+import { ShippingSection } from './ProductQuickEditDialog/sections/ShippingSection';
+import { ProductTypeSection } from './ProductQuickEditDialog/sections/ProductTypeSection';
+import { SeoSection } from './ProductQuickEditDialog/sections/SeoSection';
+import { InventorySection } from './ProductQuickEditDialog/sections/InventorySection';
+import { PricingSection } from './ProductQuickEditDialog/sections/PricingSection';
+import { BasicInfoSection } from './ProductQuickEditDialog/sections/BasicInfoSection';
+import { CategoriesSection } from './ProductQuickEditDialog/sections/CategoriesSection';
+import { ImagesSection } from './ProductQuickEditDialog/sections/ImagesSection';
+import { VariantsSection } from './ProductQuickEditDialog/sections/VariantsSection';
 
 // Extended product type with variants (from API)
 // PERFORMANCE OPTIMIZATION (2.1.0): Use type from useProduct hook to avoid type conflicts
@@ -281,8 +178,9 @@ export function ProductQuickEditDialog({
       };
       
       // Reset form with updated data (including new version)
+      // PHASE 3.1: Use externalSnapshot to update snapshot in hook
+      setExternalSnapshot(updatedInitialData);
       reset(updatedInitialData);
-      setSnapshotInitialData(updatedInitialData);
       
       // PHASE 4: Undo/Redo (4.3.7) - Reset history after save
       if (resetHistory) {
@@ -408,12 +306,7 @@ export function ProductQuickEditDialog({
   // PHASE 2: Mobile Sheet Scrolling Issues (7.11.8)
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
-  // Store initial data snapshot when dialog opens to prevent comparison issues
-  const [snapshotInitialData, setSnapshotInitialData] = useState<QuickEditFormData | null>(null);
-  // CRITICAL FIX: Track if form has been initialized (reset completed) to prevent false positive isDirty
-  const [formInitialized, setFormInitialized] = useState(false);
-  // CRITICAL FIX: Track if form initialization check has been performed (prevents re-checking on every field change)
-  const formInitializedCheckedRef = useRef(false);
+  // PHASE 3.1: Extract useQuickEditForm hook - Form setup logic moved to hook
   // CRITICAL FIX: Track last fetched product ID to prevent infinite loop
   const lastFetchedProductIdRef = useRef<string | null>(null);
   
@@ -562,167 +455,81 @@ export function ProductQuickEditDialog({
     }
   }, [open, productId, isBulkMode, product?.version, fetchedProduct, isLoadingProduct, productError, product, showToast]);
 
-  // Initialize form data from product (single mode) or empty (bulk mode)
-  const initialData = useMemo<QuickEditFormData>(() => {
-    // PHASE 2: Bulk Edit Mode (4.2.5) - Start with empty/default values
-    if (isBulkMode) {
-      return {
-        name: '',
-        sku: '',
-        status: 'draft',
-        manageStock: false,
-        regularPrice: 0,
-        salePrice: undefined,
-        stockQuantity: 0,
-        stockStatus: 'instock',
-        version: 1,
-        bulkUpdate: true, // Mark as bulk update
-        weight: undefined,
-        length: undefined,
-        width: undefined,
-        height: undefined,
-        lowStockThreshold: undefined,
-        categories: [],
-        tags: [],
-        _thumbnail_id: undefined,
-        _product_image_gallery: undefined,
-        seoTitle: '',
-        seoDescription: '',
-        slug: '',
-        costPrice: undefined,
-        productType: 'simple',
-        visibility: 'public',
-        password: '',
-        shippingClass: '__none__',
-        taxStatus: 'taxable',
-        taxClass: '__none__',
-        variants: [],
+  // PHASE 3.1: Extract useQuickEditForm hook - Form setup logic moved to hook
+  // State to control external snapshot updates (for template loading, save success, etc.)
+  const [externalSnapshot, setExternalSnapshot] = useState<QuickEditFormData | null>(null);
+  
+  // Callback to update fieldOriginalValues when snapshot is reset
+  const handleSnapshotReset = useCallback((snapshot: QuickEditFormData | null) => {
+    if (snapshot) {
+      // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Store original values
+      const originalValues: Record<string, any> = {
+        name: snapshot.name || '',
+        sku: snapshot.sku || '',
+        status: snapshot.status || 'draft',
+        regularPrice: snapshot.regularPrice || 0,
+        salePrice: snapshot.salePrice,
+        stockQuantity: snapshot.stockQuantity || 0,
+        stockStatus: snapshot.stockStatus || 'instock',
+        weight: snapshot.weight,
+        length: snapshot.length,
+        width: snapshot.width,
+        height: snapshot.height,
+        lowStockThreshold: snapshot.lowStockThreshold,
+        categories: snapshot.categories || [],
+        tags: snapshot.tags || [],
+        _thumbnail_id: snapshot._thumbnail_id,
+        _product_image_gallery: snapshot._product_image_gallery,
+        seoTitle: snapshot.seoTitle,
+        seoDescription: snapshot.seoDescription,
+        slug: snapshot.slug,
+        costPrice: snapshot.costPrice,
+        productType: snapshot.productType,
+        visibility: snapshot.visibility,
+        shippingClass: snapshot.shippingClass,
+        taxStatus: snapshot.taxStatus,
+        taxClass: snapshot.taxClass,
+        barcode: snapshot.barcode,
+        gtin: snapshot.gtin,
+        ean: snapshot.ean,
+        soldIndividually: snapshot.soldIndividually,
+        backorders: snapshot.backorders,
       };
+      setFieldOriginalValues(originalValues);
+    } else {
+      setFieldOriginalValues({});
     }
-    
-    const currentProduct = productWithVariants || product;
-    if (!currentProduct) {
-      // Return empty form if no product
-      return {
-        name: '',
-        sku: '',
-        status: 'draft',
-        manageStock: false,
-        regularPrice: 0,
-        salePrice: undefined,
-        stockQuantity: 0,
-        stockStatus: 'instock',
-        version: 1,
-        bulkUpdate: false,
-        variants: [],
-      } as QuickEditFormData;
-    }
-    
-    // Get variants from productWithVariants (from API) or product (fallback)
-    const productVariants = (currentProduct as unknown as ProductWithVariants).variants || [];
-    
-    // Type-safe access to product properties
-    const productAny = currentProduct as Record<string, unknown>;
-    const regularPriceValue = productAny.regularPrice;
-    const salePriceValue = productAny.salePrice;
-    const weightValue = productAny.weight;
-    const categoriesValue = productAny.categories;
-    const tagsValue = productAny.tags;
-    const galleryImagesValue = productAny.galleryImages;
-    
-    // Type-safe access to string properties
-    const slugValue = productAny.slug;
-    const nameValue = productAny.name;
-    const skuValue = productAny.sku;
-    const shortDescriptionValue = productAny.shortDescription;
-    
-    return {
-      name: typeof nameValue === 'string' ? nameValue : '',
-      sku: typeof skuValue === 'string' ? skuValue : '',
-      status: currentProduct.status || 'draft',
-      manageStock: currentProduct.stockQuantity !== null && currentProduct.stockQuantity !== undefined,
-      // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe conversion helpers
-      regularPrice: parsePrice(regularPriceValue as string | number | null | undefined, 0),
-      salePrice: parsePriceOptional(salePriceValue as string | number | null | undefined),
-      stockQuantity: typeof currentProduct.stockQuantity === 'number' ? currentProduct.stockQuantity : 0,
-      stockStatus: (currentProduct.stockStatus as 'instock' | 'outofstock' | 'onbackorder') || 'instock',
-      // Fix #22: Default version to 1 if undefined (for optimistic locking)
-      version: currentProduct.version || 1,
-      bulkUpdate: false,
-      // PHASE 1: Weight & Dimensions (4.1.3)
-      weight: weightValue && typeof weightValue === 'string' ? parseFloat(weightValue) : undefined,
-      length: typeof currentProduct.length === 'number' ? currentProduct.length : undefined,
-      width: typeof currentProduct.width === 'number' ? currentProduct.width : undefined,
-      height: typeof currentProduct.height === 'number' ? currentProduct.height : undefined,
-      // PHASE 1: Low Stock Threshold (4.1.4) - Get from productDataMetaBox if available
-      lowStockThreshold: (currentProduct as any).productDataMetaBox?.lowStockThreshold ?? undefined,
-      // PHASE 1: Categories & Tags (4.1.1)
-      categories: Array.isArray(categoriesValue) 
-        ? categoriesValue.map((cat: any) => String(cat?.id || cat?.databaseId || cat)) 
-        : [],
-      tags: Array.isArray(tagsValue)
-        ? tagsValue.map((tag: any) => typeof tag === 'string' ? tag : tag?.name || '')
-        : [],
-      // PHASE 1: Featured Image & Gallery (4.1.2)
-      _thumbnail_id: (currentProduct as any)._thumbnail_id || ((currentProduct.image as any)?.id) || undefined,
-      _product_image_gallery: (currentProduct as any)._product_image_gallery || 
-        (Array.isArray(galleryImagesValue) && galleryImagesValue.length > 0
-          ? galleryImagesValue.map((img: any) => img?.id).filter(Boolean).join(',')
-          : undefined),
-      // PHASE 2: SEO Fields (4.2.1)
-      seoTitle: (currentProduct as any).seo?.seoTitle || (typeof nameValue === 'string' ? nameValue : ''),
-      seoDescription: (currentProduct as any).seo?.seoDescription || (typeof shortDescriptionValue === 'string' ? shortDescriptionValue : ''),
-      slug: typeof slugValue === 'string' ? slugValue : '',
-      // PHASE 2: Cost Price (4.2.2)
-      costPrice: (currentProduct as any).productDataMetaBox?.costPrice ?? undefined,
-      // PHASE 2: Product Type & Visibility (4.2.3)
-      productType: (currentProduct as any).productDataMetaBox?.productType || 'simple',
-      visibility: (currentProduct as any).visibility || 'public',
-      password: (currentProduct as any).password || '',
-      // PHASE 2: Shipping Class & Tax Settings (4.2.4)
-      shippingClass: (currentProduct as any).productDataMetaBox?.shippingClass || '__none__',
-      taxStatus: (currentProduct as any).productDataMetaBox?.taxStatus || 'taxable',
-      taxClass: (currentProduct as any).productDataMetaBox?.taxClass || '__none__',
-      // PHASE 3: Barcode/GTIN/EAN (4.3.1)
-      barcode: (currentProduct as any).productDataMetaBox?.barcode || undefined,
-      gtin: (currentProduct as any).productDataMetaBox?.gtin || undefined,
-      ean: (currentProduct as any).productDataMetaBox?.ean || undefined,
-      // PHASE 3: Sold Individually (4.3.3)
-      soldIndividually: (currentProduct as any).productDataMetaBox?.soldIndividually ?? false,
-      // PHASE 3: Backorders Settings (4.3.4)
-      backorders: (currentProduct as any).productDataMetaBox?.backorders || 'no',
-      // PHASE 3: Product Options (4.3.2) - Attributes for enable/disable (not stored in form, calculated from productDataMetaBox)
-      variants: productVariants.map((v: any) => ({
-        id: v.id || '',
-        sku: v.sku || '',
-        price: (typeof v.price === 'number' && !isNaN(v.price)) ? v.price : 0,
-        stock: (typeof v.stock === 'number' && !isNaN(v.stock)) 
-          ? v.stock 
-          : (typeof v.stockQuantity === 'number' && !isNaN(v.stockQuantity)) 
-            ? v.stockQuantity 
-            : 0,
-        // Include size, color, colorCode for display (not editable in form, but needed for VariantQuickEditTable)
-        size: v.size || '',
-        // Preserve color and colorCode (trim empty strings to undefined)
-        color: (v.color && typeof v.color === 'string' && v.color.trim()) ? v.color.trim() : undefined,
-        colorCode: (v.colorCode && typeof v.colorCode === 'string' && v.colorCode.trim()) ? v.colorCode.trim() : undefined,
-        image: v.image || undefined,
-      })),
-    };
-  }, [product, productWithVariants, isBulkMode]);
+  }, []);
 
+  // PHASE 3.1: Use extracted hook for form setup
   const {
     register,
-    handleSubmit,
-    formState: { errors, isDirty: formIsDirty },
     setValue,
     watch,
-    reset,
     getValues,
-  } = useForm<QuickEditFormData>({
-    resolver: zodResolver(quickEditSchema),
-    defaultValues: initialData,
+    reset,
+    handleSubmit,
+    errors,
+    formState,
+    initialData,
+    snapshotInitialData,
+    formInitialized,
+  } = useQuickEditForm({
+    product,
+    productWithVariants,
+    isBulkMode,
+    open,
+    onResetSnapshot: handleSnapshotReset,
+    externalSnapshot: externalSnapshot || undefined, // Pass external snapshot if set
   });
+
+  // Extract formState properties for backward compatibility
+  // Ensure formState includes errors (required by QuickEditFormProvider)
+  const formStateFull = {
+    ...formState,
+    errors,
+  };
+  const formIsDirty = formState.isDirty;
 
   // PHASE 3: Quick Actions & Shortcuts (7.11.15) - Reset form handler
   const handleResetForm = useCallback(() => {
@@ -809,24 +616,26 @@ export function ProductQuickEditDialog({
   // PHASE 3: Field Focus Visual Enhancement (7.11.13) - Track focused field
   const [focusedFieldId, setFocusedFieldId] = useState<string | null>(null);
   
-  // UX/UI UPGRADE PREREQUISITE 3 (10.2.2): Unified Focus Handler - Combines enhanced focus + mobile keyboard handling
-  // PHASE 3: Field Focus Visual Enhancement (7.11.13) - Enhanced focus handler
-  const handleFieldFocus = useCallback((fieldId: string, e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFocusedFieldId(fieldId);
-    // Call original handleInputFocus for mobile keyboard handling (only for Input/Textarea, not Select)
-    if (e && (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
-      handleInputFocus(e as React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>);
-    }
-  }, [handleInputFocus]);
+  // PHASE 3.3: Extract useQuickEditValidation hook - Validation helpers moved to hook
+  const {
+    normalizeValue,
+    isFieldEdited,
+    getFieldClassName,
+    getErrorCountForSection,
+    allValidationErrors,
+    getErrorsBySection,
+    scrollToErrorField,
+  } = useQuickEditValidation({
+    errors,
+    focusedFieldId,
+    savedFields,
+    flashingFields,
+    fieldOriginalValues,
+    setExpandedSections,
+    showToast,
+  });
   
-  // UX/UI UPGRADE PREREQUISITE 3 (10.2.2): Unified Focus Handler - Works with all input types
-  // PHASE 3: Field Focus Visual Enhancement (7.11.13) - Enhanced blur handler
-  const handleFieldBlur = useCallback((_e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-    setFocusedFieldId(null);
-  }, []);
-  
-  // State for UI (categoriesPopoverOpen already declared at line 698 for useCategories hook)
-  const [tagsInputValue, setTagsInputValue] = useState('');
+  // PHASE 2: tagsInputValue moved to CategoriesSection component
   const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
   const [mediaLibraryMode, setMediaLibraryMode] = useState<'featured' | 'gallery'>('featured');
   const variants = watch('variants');
@@ -1054,9 +863,9 @@ export function ProductQuickEditDialog({
       if (data.template && data.template.templateData) {
         const templateData = data.template.templateData as QuickEditFormData;
         // Apply template data to form
+        // PHASE 3.1: Use externalSnapshot to update snapshot in hook
+        setExternalSnapshot(templateData);
         reset(templateData, { keepDefaultValues: false });
-        // Update snapshot for dirty check
-        setSnapshotInitialData(templateData);
         // Reset history after loading template
         resetHistory(templateData);
         prevFormStateRef.current = templateData;
@@ -1069,7 +878,7 @@ export function ProductQuickEditDialog({
       console.error('Error loading template:', error);
       showToast('Có lỗi xảy ra khi tải template', 'error');
     }
-  }, [reset, resetHistory, showToast, setSnapshotInitialData]);
+  }, [reset, resetHistory, showToast]);
 
   // PHASE 4: Quick Edit Templates (4.3.8) - Delete template handler
   const handleDeleteTemplate = useCallback(async (templateId: string) => {
@@ -1339,131 +1148,22 @@ export function ProductQuickEditDialog({
     }
   }, [open, isBulkMode]);
 
+  // PHASE 3.1: Form initialization logic moved to useQuickEditForm hook
+  // Reset confirm dialog state when opening
   useEffect(() => {
-    if (open && initialData) {
-      // CRITICAL FIX: Reset form first, then set snapshot
-      // This ensures form values are ready before isDirty check
-      reset(initialData, { keepDefaultValues: false });
-      // Snapshot initial data after reset to ensure stable comparison
-      setSnapshotInitialData(initialData);
-      // CRITICAL FIX: Mark form as not initialized initially
-      // formInitialized will be set to true after a delay to ensure form is fully reset
-      setFormInitialized(false);
-      formInitializedCheckedRef.current = false;
-      setShowConfirmClose(false); // Reset confirm dialog state when opening
-      
-      // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Store original values
-      const originalValues: Record<string, any> = {
-        name: initialData.name || '',
-        sku: initialData.sku || '',
-        status: initialData.status || 'draft',
-        regularPrice: initialData.regularPrice || 0,
-        salePrice: initialData.salePrice,
-        stockQuantity: initialData.stockQuantity || 0,
-        stockStatus: initialData.stockStatus || 'instock',
-        weight: initialData.weight,
-        length: initialData.length,
-        width: initialData.width,
-        height: initialData.height,
-        lowStockThreshold: initialData.lowStockThreshold,
-        categories: initialData.categories || [],
-        tags: initialData.tags || [],
-        _thumbnail_id: initialData._thumbnail_id,
-        _product_image_gallery: initialData._product_image_gallery,
-        seoTitle: initialData.seoTitle,
-        seoDescription: initialData.seoDescription,
-        slug: initialData.slug,
-        costPrice: initialData.costPrice,
-        productType: initialData.productType,
-        visibility: initialData.visibility,
-        shippingClass: initialData.shippingClass,
-        taxStatus: initialData.taxStatus,
-        taxClass: initialData.taxClass,
-        barcode: initialData.barcode,
-        gtin: initialData.gtin,
-        ean: initialData.ean,
-        soldIndividually: initialData.soldIndividually,
-        backorders: initialData.backorders,
-      };
-      setFieldOriginalValues(originalValues);
-    } else if (!open) {
-      // Clear snapshot when dialog closes
-      setSnapshotInitialData(null);
-      setFieldOriginalValues({});
-      setFormInitialized(false); // Reset form initialized flag when dialog closes
-      formInitializedCheckedRef.current = false; // Reset checked flag when dialog closes
-    }
-    // Remove initialData from dependencies to prevent reset during editing
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, reset]);
-
-  // CRITICAL FIX: Set formInitialized to true after form has been reset
-  // Use a delay to ensure form values are fully synchronized after reset()
-  useEffect(() => {
-    if (open && snapshotInitialData && !formInitializedCheckedRef.current) {
-      // Use requestAnimationFrame twice + setTimeout to ensure form is fully reset
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          // Additional delay to ensure all form values are synchronized
-          const timer = setTimeout(() => {
-            setFormInitialized(true);
-            formInitializedCheckedRef.current = true;
-          }, 150); // 150ms delay to ensure form is fully reset
-          
-          // Cleanup function is not needed here as timer will complete
-          // If dialog closes before timer completes, the effect will re-run and reset formInitialized
-        });
-      });
-    } else if (!open) {
-      // Reset checked flag when dialog closes
-      formInitializedCheckedRef.current = false;
-    }
-  }, [open, snapshotInitialData]); // Only depend on open and snapshotInitialData
-
-  // Auto-sync stock status logic
-  const handleStockQuantityChange = (
-    newQty: number,
-    currentStatus: string,
-    setValue: UseFormSetValue<QuickEditFormData>
-  ) => {
-    // Only auto-sync if current status is NOT onbackorder
-    if (currentStatus !== 'onbackorder') {
-      if (newQty > 0) {
-        setValue('stockStatus', 'instock', { shouldDirty: true });
+    if (open) {
+      setShowConfirmClose(false);
+      // Clear external snapshot when dialog opens (will use initialData from hook)
+      setExternalSnapshot(null);
       } else {
-        setValue('stockStatus', 'outofstock', { shouldDirty: true });
-      }
+      // Clear external snapshot when dialog closes
+      setExternalSnapshot(null);
     }
-    // If onbackorder, respect user's manual choice (don't auto-sync)
-  };
+  }, [open]);
 
-  // Helper function to normalize values for comparison
-  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced normalizeValue với edge cases handling
-  const normalizeValue = useCallback((value: any): any => {
-    // Handle null/undefined
-    if (value === null || value === undefined) return undefined;
-    
-    // Handle empty strings
-    if (typeof value === 'string' && value.trim() === '') return '';
-    
-    // Handle NaN numbers
-    if (typeof value === 'number' && isNaN(value)) return 0;
-    
-    // Handle arrays - normalize to sorted string for comparison
-    if (Array.isArray(value)) {
-      if (value.length === 0) return [];
-      // Sort arrays to ensure consistent comparison (for categories, tags)
-      return [...value].sort().map(item => normalizeValue(item));
-    }
-    
-    // Handle objects - normalize nested objects
-    if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
-      // For objects, return as-is (will be compared by reference or deep comparison if needed)
-      return value;
-    }
-    
-    return value;
-  }, []);
+  // PHASE 2: handleStockQuantityChange extracted to InventorySection component
+
+  // PHASE 3.3: normalizeValue moved to useQuickEditValidation hook
 
   // PHASE 1: Dirty Check Optimization (7.7.2) - Optimized with early exit and memoization
   // Use snapshotInitialData for stable comparison (snapshot taken when dialog opens)
@@ -1660,148 +1360,9 @@ export function ProductQuickEditDialog({
     };
   }, [open, isDirty]);
     
-  // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Helper to check if field is edited
-  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced với edge cases handling
-  const isFieldEdited = useCallback((fieldName: string, currentValue: any): boolean => {
-    if (!fieldOriginalValues || Object.keys(fieldOriginalValues).length === 0) return false;
-    
-    const originalValue = fieldOriginalValues[fieldName];
-    
-    // Handle undefined field (field not in original values)
-    if (originalValue === undefined) {
-      // Field is edited if current value is not empty/null/undefined
-      const normalizedCurrent = normalizeValue(currentValue);
-      return normalizedCurrent !== undefined && normalizedCurrent !== '' && normalizedCurrent !== null;
-    }
-    
-    // Normalize both values for comparison
-    const normalizedOriginal = normalizeValue(originalValue);
-    const normalizedCurrent = normalizeValue(currentValue);
-    
-    // Deep comparison for arrays
-    if (Array.isArray(normalizedOriginal) && Array.isArray(normalizedCurrent)) {
-      if (normalizedOriginal.length !== normalizedCurrent.length) return true;
-      // Compare each element
-      for (let i = 0; i < normalizedOriginal.length; i++) {
-        if (normalizeValue(normalizedOriginal[i]) !== normalizeValue(normalizedCurrent[i])) {
-          return true;
-        }
-      }
-      return false;
-    }
-    
-    // Simple comparison for primitives
-    return normalizedOriginal !== normalizedCurrent;
-  }, [fieldOriginalValues, normalizeValue]);
+  // PHASE 3.3: isFieldEdited and getFieldClassName moved to useQuickEditValidation hook
 
-  // UX/UI UPGRADE PREREQUISITE 1 (10.1.1): State Priority Logic - Get field className with priority: Error > Success > Edited > Normal
-  // UX/UI UPGRADE PREREQUISITE 4 (10.4.1): Memoized để prevent re-renders
-  // FIX: Added optional isValid parameter to handle validation success state (e.g., SKU validation)
-  const getFieldClassName = useCallback((fieldName: string, currentValue: any, hasError: boolean, isSaved: boolean, fieldId?: string, isValid?: boolean): string => {
-    // Priority order: Error > Validation Success > Saved > Edited > Normal
-    const baseClasses = 'hover:border-slate-300';
-    const focusClasses = fieldId && focusedFieldId === fieldId ? 'ring-2 ring-slate-950 ring-offset-2' : '';
-    
-    // UX/UI UPGRADE Phase 2.2.1: Green flash animation cho saved fields
-    const isFlashing = flashingFields.has(fieldName);
-    const flashAnimationClass = isFlashing ? 'animate-pulse' : '';
-    
-    // 1. Error state (highest priority)
-    if (hasError) {
-      return `border-red-500 focus:ring-red-500 ${baseClasses} ${focusClasses}`;
-    }
-    
-    // 2. Validation Success state (e.g., SKU validation passed but not saved yet)
-    // This takes priority over edited state to show validation feedback
-    if (isValid === true && !isSaved) {
-      return `border-green-500 focus:ring-green-500 ${baseClasses} ${focusClasses}`;
-    }
-    
-    // 3. Success state (saved)
-    if (isSaved) {
-      // UX/UI UPGRADE Phase 2.2.1: Add flash animation when field is just saved
-      if (isFlashing) {
-        return `border-green-500 bg-green-100 transition-all duration-1000 ${flashAnimationClass} ${baseClasses} ${focusClasses}`;
-      }
-      return `border-green-500 bg-green-50/50 transition-all duration-300 ${baseClasses} ${focusClasses}`;
-    }
-    
-    // 4. Edited state (field has been modified)
-    if (isFieldEdited(fieldName, currentValue)) {
-      return `border-blue-400 bg-blue-50/50 ${baseClasses} ${focusClasses}`;
-    }
-    
-    // 5. Normal state (default)
-    return `border-slate-200 focus:ring-2 focus:ring-slate-950 ${baseClasses} ${focusClasses}`;
-  }, [focusedFieldId, isFieldEdited, flashingFields]);
 
-  // Helper function to format values for tooltip display
-  const formatValueForTooltip = useCallback((val: any): string => {
-    if (val === null || val === undefined || val === '') return '(trống)';
-    if (typeof val === 'number') {
-      if (isNaN(val)) return '(không hợp lệ)';
-      return val.toLocaleString('vi-VN');
-    }
-    if (Array.isArray(val)) {
-      if (val.length === 0) return '(trống)';
-      return val.map(item => formatValueForTooltip(item)).join(', ');
-    }
-    if (typeof val === 'object' && val !== null) {
-      return JSON.stringify(val);
-    }
-    return String(val);
-  }, []);
-
-  // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Get field change tooltip text
-  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced với edge cases handling
-  const getFieldChangeTooltip = useCallback((fieldName: string, currentValue: any): string => {
-    if (!fieldOriginalValues || Object.keys(fieldOriginalValues).length === 0) return '';
-    
-    const originalValue = fieldOriginalValues[fieldName];
-    
-    // Handle undefined field
-    if (originalValue === undefined) {
-      const normalizedCurrent = normalizeValue(currentValue);
-      if (normalizedCurrent === undefined || normalizedCurrent === '' || normalizedCurrent === null) {
-        return '';
-      }
-      return `Mới: ${formatValueForTooltip(currentValue)}`;
-    }
-    
-    const normalizedOriginal = normalizeValue(originalValue);
-    const normalizedCurrent = normalizeValue(currentValue);
-    
-    if (normalizedOriginal === normalizedCurrent) return '';
-    
-    return `Gốc: ${formatValueForTooltip(originalValue)} → Mới: ${formatValueForTooltip(currentValue)}`;
-  }, [fieldOriginalValues, normalizeValue, formatValueForTooltip]);
-
-  // PHASE 2: Visual Feedback for Edited Fields (7.11.2) - Reset field to original value
-  // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Enhanced với edge cases handling
-  const resetFieldToOriginal = useCallback((fieldName: string) => {
-    if (!fieldOriginalValues) return;
-    
-    // Handle undefined field - reset to empty/default value
-    if (fieldOriginalValues[fieldName] === undefined) {
-      // Determine default value based on field type
-      if (fieldName === 'salePrice' || fieldName === 'weight' || fieldName === 'length' || fieldName === 'width' || fieldName === 'height' || fieldName === 'lowStockThreshold' || fieldName === 'costPrice') {
-        setValue(fieldName as any, undefined, { shouldDirty: true });
-      } else if (fieldName === 'categories' || fieldName === 'tags' || fieldName === 'variants') {
-        setValue(fieldName as any, [], { shouldDirty: true });
-      } else if (fieldName === 'manageStock') {
-        setValue(fieldName as any, false, { shouldDirty: true });
-      } else {
-        setValue(fieldName as any, '', { shouldDirty: true });
-      }
-      return;
-    }
-    
-    const originalValue = fieldOriginalValues[fieldName];
-    
-    // Reset based on field type - use setValue for all fields
-    // Categories, tags, and images are handled via form state
-    setValue(fieldName as any, originalValue, { shouldDirty: true });
-  }, [fieldOriginalValues, setValue]);
 
   // Handle close from onOpenChange (backdrop click, ESC key)
   const handleOpenChange = (isOpen: boolean) => {
@@ -1856,482 +1417,42 @@ export function ProductQuickEditDialog({
     status: 'idle',
   });
 
-  const onSubmit = async (data: QuickEditFormData) => {
-    // PHASE 2: Loading Progress Indicator (7.9.3) - Set loading steps
-    setLoadingStep('validating');
-    try {
-      // PHASE 2: Bulk Edit Mode (4.2.5)
-      if (isBulkMode && productIds && productIds.length > 0) {
-        // Build updates object (only fields that can be bulk updated)
-        const updates: any = {};
-        
-        // Only include fields that have values (not empty/default)
-        if (data.status) updates.status = data.status;
-        if (data.regularPrice !== undefined && !isNaN(data.regularPrice) && data.regularPrice > 0) {
-          updates.regularPrice = data.regularPrice;
-        }
-        if (data.salePrice !== undefined && !isNaN(data.salePrice) && data.salePrice > 0) {
-          updates.salePrice = data.salePrice;
-        } else if (data.salePrice === null || data.salePrice === 0) {
-          updates.salePrice = null; // Clear sale price
-        }
-        if (data.stockQuantity !== undefined && !isNaN(data.stockQuantity)) {
-          updates.stockQuantity = data.stockQuantity;
-        }
-        if (data.stockStatus) updates.stockStatus = data.stockStatus;
-        if (data.categories && data.categories.length > 0) updates.categories = data.categories;
-        if (data.tags && data.tags.length > 0) updates.tags = data.tags;
-        
-        // Check if there are any updates
-        if (Object.keys(updates).length === 0) {
-          showToast('Vui lòng nhập ít nhất một thay đổi', 'warning');
-          return;
-        }
-        
-        // Show progress
-        setBulkUpdateProgress({
-          current: 0,
-          total: productIds.length,
-          status: 'updating',
-        });
-        
-        try {
-          const response = await fetch('/api/admin/products/bulk-action', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include',
-            body: JSON.stringify({
-              ids: productIds,
-              action: 'quick_update',
-              value: updates,
-            }),
-          });
-          
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || 'Failed to update products');
-          }
-          
-          const result = await response.json();
-          
-          setBulkUpdateProgress({
-            current: result.updated || 0,
-            total: productIds.length,
-            status: 'completed',
-          });
-          
-          showToast(
-            `Đã cập nhật ${result.updated || 0} sản phẩm${result.failed > 0 ? `, ${result.failed} sản phẩm thất bại` : ''}`,
-            result.failed > 0 ? 'warning' : 'success'
-          );
-          
-          onBulkSuccess?.(result.updated || 0);
-          
-          // Close dialog after a short delay
-          setTimeout(() => {
-            onClose();
-          }, 1500);
-        } catch (error: any) {
-          setBulkUpdateProgress({
-            current: 0,
-            total: productIds.length,
-            status: 'error',
-          });
-          showToast(error.message || 'Không thể cập nhật sản phẩm', 'error');
-        }
-        return;
-      }
-      
-      // Single product mode (existing logic)
-      // Filter out NaN values before sending to API
-      const updates: any = {
-        name: data.name,
-        sku: data.sku,
-        status: data.status,
-        manageStock: data.manageStock,
-        // Only include regularPrice if it's a valid number and > 0
-        // This prevents sending 0 which would be rejected by backend validation
-        ...(data.regularPrice !== undefined && !isNaN(data.regularPrice) && data.regularPrice > 0 && { regularPrice: data.regularPrice }),
-        stockQuantity: !isNaN(data.stockQuantity) ? data.stockQuantity : 0,
-        stockStatus: data.stockStatus,
-        // Fix #22: Default version to 1 if undefined
-        version: data.version || 1,
-      };
+  // PHASE 3.2: Extract useQuickEditHandlers hook - Form handlers moved to hook
+  const {
+    onSubmit,
+    onError,
+    handleFieldFocus,
+    handleFieldBlur,
+  } = useQuickEditHandlers({
+    product,
+    productIds,
+    isBulkMode,
+    reset,
+    quickUpdate,
+    setLoadingStep,
+    setBulkUpdateProgress,
+    setExternalSnapshot,
+    setProductWithVariants,
+    setLoadingProduct,
+    setLastSavedTime,
+    setShowSuccessIndicator,
+    setSavedFields,
+    setFlashingFields,
+    setFocusedFieldId,
+    onSuccess,
+    onBulkSuccess,
+    onClose,
+    showToast,
+    resetHistory,
+    refetchProduct,
+    handleInputFocus,
+    timeoutRefs,
+    savedUpdatesRef,
+  });
 
-      // Fix #18: Handle salePrice - send value if > 0, send null to clear if undefined and product has salePrice
-      // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe validation
-      if (data.salePrice !== undefined && isValidPrice(data.salePrice) && data.salePrice > 0) {
-        updates.salePrice = data.salePrice;
-      } else if (data.salePrice === undefined && product?.salePrice) {
-        // User wants to clear salePrice - send null to backend
-        updates.salePrice = null;
-      }
+  // PHASE 2: handleStockQtyChange extracted to InventorySection component
 
-      if (data.variants && data.variants.length > 0) {
-        // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe validation
-        updates.variants = data.variants.map((v) => ({
-          id: v.id,
-          ...(v.sku !== undefined && { sku: v.sku }),
-          ...(v.price !== undefined && isValidPrice(v.price) && { price: v.price }),
-          ...(v.stock !== undefined && isValidInteger(v.stock) && { stock: v.stock }),
-        }));
-      }
-
-      // PHASE 1: Weight & Dimensions (4.1.3)
-      // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe validation
-      if (data.weight !== undefined && isValidPrice(data.weight)) {
-        updates.weight = data.weight;
-      }
-      if (data.length !== undefined && isValidPrice(data.length)) {
-        updates.length = data.length;
-      }
-      if (data.width !== undefined && isValidPrice(data.width)) {
-        updates.width = data.width;
-      }
-      if (data.height !== undefined && isValidPrice(data.height)) {
-        updates.height = data.height;
-      }
-
-      // PHASE 1: Low Stock Threshold (4.1.4)
-      // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe validation
-      if (data.lowStockThreshold !== undefined && isValidInteger(data.lowStockThreshold)) {
-        updates.lowStockThreshold = data.lowStockThreshold;
-      }
-
-      // PHASE 2: Additional fields for single product mode
-      if (data.categories) updates.categories = data.categories;
-      if (data.tags) updates.tags = data.tags;
-      if (data.seoTitle) updates.seoTitle = data.seoTitle;
-      if (data.seoDescription) updates.seoDescription = data.seoDescription;
-      if (data.slug) updates.slug = data.slug;
-      // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe validation
-      if (data.costPrice !== undefined && isValidPrice(data.costPrice)) {
-        updates.costPrice = data.costPrice;
-      }
-      if (data.productType) updates.productType = data.productType;
-      if (data.visibility) updates.visibility = data.visibility;
-      if (data.password) updates.password = data.password;
-      if (data.shippingClass && data.shippingClass !== '__none__') {
-        updates.shippingClass = data.shippingClass;
-      }
-      if (data.taxStatus) updates.taxStatus = data.taxStatus;
-      if (data.taxClass && data.taxClass !== '__none__') {
-        updates.taxClass = data.taxClass;
-      }
-      
-      // PHASE 3: Barcode/GTIN/EAN (4.3.1)
-      if (data.barcode !== undefined) {
-        updates.barcode = data.barcode || undefined;
-      }
-      if (data.gtin !== undefined) {
-        updates.gtin = data.gtin || undefined;
-      }
-      if (data.ean !== undefined) {
-        updates.ean = data.ean || undefined;
-      }
-      
-      // PHASE 3: Product Options (4.3.2) - Attributes enable/disable
-      if (data.attributes !== undefined && Array.isArray(data.attributes)) {
-        updates.attributes = data.attributes;
-      }
-      
-      // PHASE 3: Sold Individually (4.3.3)
-      if (data.soldIndividually !== undefined) {
-        updates.soldIndividually = data.soldIndividually;
-      }
-      
-      // PHASE 3: Backorders Settings (4.3.4)
-      if (data.backorders !== undefined) {
-        updates.backorders = data.backorders;
-      }
-
-      if (!product?.id) {
-        showToast('Không tìm thấy sản phẩm', 'error');
-        return;
-      }
-
-      // PHASE 2: Loading Progress Indicator (7.9.3) - Update step to saving
-      setLoadingStep('saving');
-      await quickUpdate(product!.id, updates);
-      setLoadingStep('complete');
-      // Reset after brief delay to show completion
-      setTimeout(() => {
-        setLoadingStep('idle');
-      }, 500);
-    } catch (error: any) {
-      // Error handling is done in useQuickUpdateProduct hook
-      console.error('Error updating product:', error);
-      setLoadingStep('idle');
-    }
-  };
-
-  // PHASE 1: Error Message Details (7.6.3) - Handle form validation errors with detailed display
-  const onError = (errors: any) => {
-    // Collect all error messages with field names
-    const errorList: Array<{ field: string; message: string }> = [];
-    
-    // Helper to get field label
-    const getFieldLabel = (fieldName: string): string => {
-      const labels: Record<string, string> = {
-        name: 'Tên sản phẩm',
-        sku: 'SKU',
-        status: 'Trạng thái',
-        regularPrice: 'Giá gốc',
-        salePrice: 'Giá khuyến mãi',
-        costPrice: 'Giá vốn',
-        stockQuantity: 'Số lượng tồn kho',
-        stockStatus: 'Trạng thái kho',
-        weight: 'Trọng lượng',
-        length: 'Chiều dài',
-        width: 'Chiều rộng',
-        height: 'Chiều cao',
-        lowStockThreshold: 'Ngưỡng tồn kho thấp',
-        categories: 'Danh mục',
-        tags: 'Thẻ',
-        variants: 'Biến thể',
-      };
-      return labels[fieldName] || fieldName;
-    };
-    
-    // Helper to map field name to field ID
-    const getFieldId = (fieldName: string): string => {
-      // Handle nested fields (e.g., variants.0.price -> quick-edit-variants-0-price)
-      const normalizedField = fieldName.replace(/\./g, '-').replace(/\[|\]/g, '-');
-      return `quick-edit-${normalizedField}`;
-    };
-    
-    // Extract errors from react-hook-form errors object
-    const extractErrors = (errorObj: any, prefix = ''): void => {
-      Object.keys(errorObj).forEach((key) => {
-        const error = errorObj[key];
-        if (error?.message) {
-          errorList.push({
-            field: prefix ? `${prefix}.${key}` : key,
-            message: error.message,
-          });
-        } else if (error && typeof error === 'object') {
-          // Nested errors (e.g., variants[0].price)
-          extractErrors(error, prefix ? `${prefix}.${key}` : key);
-        }
-      });
-    };
-    
-    extractErrors(errors);
-    
-    if (errorList.length > 0) {
-      // UX/UI UPGRADE Phase 2.1.1: Auto-scroll to first error field
-      const firstErrorField = errorList[0].field;
-      const firstErrorFieldId = getFieldId(firstErrorField);
-      
-      // Use setTimeout to ensure DOM is updated with error messages
-      setTimeout(() => {
-        const errorElement = document.getElementById(firstErrorFieldId);
-        if (errorElement) {
-          errorElement.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center',
-            inline: 'nearest'
-          });
-          // Focus the field after scrolling
-          setTimeout(() => {
-            errorElement.focus();
-          }, 300);
-        } else {
-          // Fallback: Try to find by field name pattern
-          const fallbackElement = document.querySelector(`[id*="${firstErrorField}"]`) as HTMLElement;
-          if (fallbackElement) {
-            fallbackElement.scrollIntoView({ 
-              behavior: 'smooth', 
-              block: 'center',
-              inline: 'nearest'
-            });
-            setTimeout(() => {
-              fallbackElement.focus();
-            }, 300);
-          }
-        }
-      }, 100);
-      
-      // Show summary toast with all errors
-      if (errorList.length === 1) {
-        showToast(
-          `${getFieldLabel(errorList[0].field)}: ${errorList[0].message}`,
-          'error'
-        );
-      } else {
-        // Multiple errors - show summary
-        const errorSummary = errorList
-          .slice(0, 3) // Show first 3 errors in toast
-          .map((err) => `• ${getFieldLabel(err.field)}: ${err.message}`)
-          .join('\n');
-        const remainingCount = errorList.length - 3;
-        const summaryText = remainingCount > 0
-          ? `Có ${errorList.length} lỗi validation:\n${errorSummary}\n... và ${remainingCount} lỗi khác`
-          : `Có ${errorList.length} lỗi validation:\n${errorSummary}`;
-        showToast(summaryText, 'error');
-      }
-    }
-  };
-
-  // Handle stock quantity change with auto-sync
-  const handleStockQtyChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const newQty = parseInt(e.target.value, 10) || 0;
-    setValue('stockQuantity', newQty, { shouldDirty: true });
-    handleStockQuantityChange(newQty, currentStockStatus, setValue);
-    
-    // PHASE 3: Backorders Auto-sync (4.3.4) - Nếu "Do not allow" và stock = 0 → stockStatus = "outofstock"
-    const currentBackorders = watch('backorders') || 'no';
-    if (currentBackorders === 'no' && newQty === 0) {
-      setValue('stockStatus', 'outofstock', { shouldDirty: true });
-    }
-  };
-
-  // UX/UI UPGRADE Phase 2.1.2: Helper function to scroll to error field
-  const scrollToErrorField = useCallback((fieldName: string) => {
-    // Helper to map field name to field ID
-    const getFieldId = (field: string): string => {
-      // Handle nested fields (e.g., variants.0.price -> quick-edit-variants-0-price)
-      const normalizedField = field.replace(/\./g, '-').replace(/\[|\]/g, '-');
-      return `quick-edit-${normalizedField}`;
-    };
-    
-    const fieldId = getFieldId(fieldName);
-    const errorElement = document.getElementById(fieldId);
-    
-    if (errorElement) {
-      errorElement.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'center',
-        inline: 'nearest'
-      });
-      // Focus the field after scrolling
-      setTimeout(() => {
-        errorElement.focus();
-      }, 300);
-    } else {
-      // Fallback: Try to find by field name pattern
-      const fallbackElement = document.querySelector(`[id*="${fieldName}"]`) as HTMLElement;
-      if (fallbackElement) {
-        fallbackElement.scrollIntoView({ 
-          behavior: 'smooth', 
-          block: 'center',
-          inline: 'nearest'
-        });
-        setTimeout(() => {
-          fallbackElement.focus();
-        }, 300);
-      }
-    }
-  }, []);
-
-  // PHASE 1: Error Message Details (7.6.3) - Collect all validation errors for summary display
-  const allValidationErrors = useMemo(() => {
-    const errorList: Array<{ field: string; message: string; label: string }> = [];
-    
-    const getFieldLabel = (fieldName: string): string => {
-      const labels: Record<string, string> = {
-        name: 'Tên sản phẩm',
-        sku: 'SKU',
-        status: 'Trạng thái',
-        regularPrice: 'Giá gốc',
-        salePrice: 'Giá khuyến mãi',
-        costPrice: 'Giá vốn',
-        stockQuantity: 'Số lượng tồn kho',
-        stockStatus: 'Trạng thái kho',
-        weight: 'Trọng lượng',
-        length: 'Chiều dài',
-        width: 'Chiều rộng',
-        height: 'Chiều cao',
-        lowStockThreshold: 'Ngưỡng tồn kho thấp',
-        categories: 'Danh mục',
-        tags: 'Thẻ',
-        variants: 'Biến thể',
-        seoTitle: 'Meta Title',
-        seoDescription: 'Meta Description',
-        slug: 'URL Slug',
-        productType: 'Loại sản phẩm',
-        visibility: 'Hiển thị',
-        password: 'Mật khẩu',
-        shippingClass: 'Lớp giao hàng',
-        taxStatus: 'Trạng thái thuế',
-        taxClass: 'Loại thuế',
-      };
-      return labels[fieldName] || fieldName;
-    };
-    
-    const extractErrors = (errorObj: any, prefix = ''): void => {
-      Object.keys(errorObj).forEach((key) => {
-        const error = errorObj[key];
-        if (error?.message) {
-          const fieldName = prefix ? key : key;
-          errorList.push({
-            field: prefix ? `${prefix}.${key}` : key,
-            message: error.message,
-            label: getFieldLabel(fieldName),
-          });
-        } else if (error && typeof error === 'object') {
-          extractErrors(error, prefix ? `${prefix}.${key}` : key);
-        }
-      });
-    };
-    
-    extractErrors(errors);
-    return errorList;
-  }, [errors]);
-
-  // PHASE 5.3.2: Accordion Layout - Helper functions for error handling by section
-  const getErrorsBySection = useMemo(() => {
-    const errorsBySection: Record<string, Array<{field: string, message: string, label: string}>> = {};
-    
-    // Map fields to sections
-    const fieldToSection: Record<string, string> = {
-      'name': 'section-basic-info',
-      'sku': 'section-basic-info',
-      'barcode': 'section-basic-info',
-      'gtin': 'section-basic-info',
-      'ean': 'section-basic-info',
-      'status': 'section-pricing',
-      'regularPrice': 'section-pricing',
-      'salePrice': 'section-pricing',
-      'costPrice': 'section-pricing',
-      'stockQuantity': 'section-pricing',
-      'stockStatus': 'section-pricing',
-      'manageStock': 'section-pricing',
-      'lowStockThreshold': 'section-pricing',
-      'backorders': 'section-pricing',
-      'soldIndividually': 'section-pricing',
-      'productType': 'section-product-type',
-      'visibility': 'section-product-type',
-      'password': 'section-product-type',
-      'shippingClass': 'section-shipping',
-      'taxStatus': 'section-shipping',
-      'taxClass': 'section-shipping',
-      'weight': 'section-dimensions',
-      'length': 'section-dimensions',
-      'width': 'section-dimensions',
-      'height': 'section-dimensions',
-      'categories': 'section-categories',
-      'tags': 'section-categories',
-      'seoTitle': 'section-seo',
-      'seoDescription': 'section-seo',
-      'slug': 'section-seo',
-    };
-    
-    allValidationErrors.forEach((err) => {
-      const baseField = err.field.split('.')[0];
-      const sectionId = fieldToSection[baseField] || 'section-basic-info';
-      if (!errorsBySection[sectionId]) {
-        errorsBySection[sectionId] = [];
-      }
-      errorsBySection[sectionId].push(err);
-    });
-    
-    return errorsBySection;
-  }, [allValidationErrors]);
-
-  const getErrorCountForSection = useCallback((sectionId: string): number => {
-    return getErrorsBySection[sectionId]?.length || 0;
-  }, [getErrorsBySection]);
+  // PHASE 3.3: allValidationErrors, getErrorsBySection, getErrorCountForSection, scrollToErrorField moved to useQuickEditValidation hook
 
   // PHASE 5.3.2: Accordion Layout - Auto-expand sections with errors
   useEffect(() => {
@@ -2350,7 +1471,32 @@ export function ProductQuickEditDialog({
   }, [allValidationErrors, getErrorsBySection]);
 
   // PERFORMANCE OPTIMIZATION (3.3.1): Show skeleton loader while loading product data
+  // PHASE 0: Context API Setup - Wrap form content in Provider
   const formContent = (
+    <QuickEditFormProvider
+      register={register}
+      setValue={setValue}
+      watch={watch}
+      getValues={getValues}
+      reset={reset}
+      errors={errors}
+      formState={formStateFull}
+      handleFieldFocus={handleFieldFocus}
+      handleFieldBlur={handleFieldBlur}
+      getFieldClassName={getFieldClassName}
+      getErrorCountForSection={getErrorCountForSection}
+      savedFields={savedFields}
+      flashingFields={flashingFields}
+      fieldOriginalValues={fieldOriginalValues}
+      expandedSections={expandedSections}
+      setExpandedSections={setExpandedSections}
+      skuValidation={skuValidation}
+      categories={allCategories}
+      isLoadingCategories={isLoadingCategories}
+      variants={variants}
+      isBulkMode={isBulkMode}
+      isMobile={isMobile}
+    >
     <form id="quick-edit-form" onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4">
       {/* PERFORMANCE OPTIMIZATION (3.3.1): Show skeleton loader while loading */}
       {loadingProduct && !isBulkMode && (
@@ -2527,162 +1673,8 @@ export function ProductQuickEditDialog({
             </div>
           </AccordionTrigger>
           <AccordionContent className="pt-0 pb-4">
-      
-      {/* UX/UI UPGRADE Phase 1.1.1: Background colors cho sections */}
-      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
-      {/* Row 1: Thông tin cơ bản - Grid 2 cột */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-name" className="text-slate-900">Tên sản phẩm</Label>
-          </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Input
-            id="quick-edit-name"
-            {...register('name')}
-            onFocus={(e) => handleFieldFocus('quick-edit-name', e)}
-            onBlur={handleFieldBlur}
-            className={getFieldClassName('name', name, !!errors.name, savedFields.has('name'), 'quick-edit-name')}
-            aria-label="Tên sản phẩm"
-            aria-describedby={errors.name ? 'quick-edit-name-error' : 'quick-edit-name-help'}
-          />
-          {errors.name && (
-            <p id="quick-edit-name-error" className="text-xs text-red-500" role="alert">{errors.name.message}</p>
-          )}
-          <p id="quick-edit-name-help" className="sr-only">Nhập tên sản phẩm</p>
-        </div>
-
-        <div className="space-y-2">
-          {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="flex items-center gap-2 min-h-[21px]">
-            <Label htmlFor="quick-edit-sku" className="text-slate-900 flex-1">SKU</Label>
-            {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-            <button
-              type="button"
-              title="Mã sản phẩm duy nhất (Stock Keeping Unit). VD: GAU-BONG-001"
-              className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
-              aria-label="Thông tin về SKU"
-            >
-              <Info className="h-4 w-4 text-slate-400" />
-            </button>
-          </div>
-          <div className="relative">
-          <Input
-            id="quick-edit-sku"
-            {...register('sku')}
-              onFocus={(e) => handleFieldFocus('quick-edit-sku', e)}
-              onBlur={handleFieldBlur}
-              aria-label="Mã SKU sản phẩm"
-              aria-describedby={errors.sku ? 'quick-edit-sku-error' : skuValidation.error ? 'quick-edit-sku-validation-error' : 'quick-edit-sku-help'}
-              className={`${getFieldClassName('sku', sku, !!(errors.sku || (skuValidation.isValid === false && skuValidation.error)), savedFields.has('sku'), 'quick-edit-sku', skuValidation.isValid === true && !errors.sku ? true : undefined)} pr-10`}
-              placeholder="VD: GAU-BONG-001"
-          />
-            {/* PHASE 2: SKU Real-time Validation (7.8.2) - Visual feedback icons */}
-            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-              {skuValidation.isValidating && (
-                <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
-              )}
-              {!skuValidation.isValidating && skuValidation.isValid === true && (
-                <CheckCircle2 className="h-4 w-4 text-green-500" />
-              )}
-              {!skuValidation.isValidating && skuValidation.isValid === false && (
-                <AlertCircle className="h-4 w-4 text-red-500" />
-              )}
-            </div>
-          </div>
-          {/* PHASE 2: SKU Real-time Validation (7.8.2) - Error messages */}
-          {/* PHASE 3: ARIA Labels & Accessibility (7.9.1) - Link error messages with aria-describedby */}
-          {errors.sku && (
-            <div id="quick-edit-sku-error" className="flex items-center gap-1 text-sm text-red-600" role="alert">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-              <p>{errors.sku.message}</p>
-            </div>
-          )}
-          {!errors.sku && skuValidation.error && (
-            <div className="flex items-center gap-1 text-sm text-red-600">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" />
-              <p>{skuValidation.error}</p>
-        </div>
-          )}
-          {!errors.sku && !skuValidation.error && skuValidation.isValid === true && (
-            <div className="flex items-center gap-1 text-sm text-green-600">
-              <CheckCircle2 className="h-4 w-4 flex-shrink-0" />
-              <p>SKU có sẵn</p>
-            </div>
-          )}
-          <p className="text-xs text-slate-500">Mã sản phẩm duy nhất để quản lý tồn kho</p>
-        </div>
-      </div>
-
-      {/* PHASE 3: Barcode/GTIN/EAN (4.3.1) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div className="space-y-2">
-          <Label htmlFor="quick-edit-barcode" className="text-slate-900">Barcode</Label>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Input
-            id="quick-edit-barcode"
-            {...register('barcode')}
-            className={getFieldClassName('barcode', barcode, !!errors.barcode, savedFields.has('barcode'), 'quick-edit-barcode')}
-            placeholder="Nhập barcode..."
-            onFocus={(e) => handleFieldFocus('quick-edit-barcode', e)}
-            onBlur={handleFieldBlur}
-            aria-label="Barcode sản phẩm"
-            aria-describedby={errors.barcode ? 'quick-edit-barcode-error' : 'quick-edit-barcode-help'}
-          />
-          {errors.barcode && (
-            <p id="quick-edit-barcode-error" className="text-xs text-red-500" role="alert">{errors.barcode.message}</p>
-          )}
-          <p id="quick-edit-barcode-help" className="sr-only">Nhập mã barcode của sản phẩm</p>
-        </div>
-        
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-gtin" className="text-slate-900">GTIN</Label>
-          </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Input
-            id="quick-edit-gtin"
-            {...register('gtin')}
-            className={getFieldClassName('gtin', gtin, !!errors.gtin, savedFields.has('gtin'), 'quick-edit-gtin')}
-            placeholder="Nhập GTIN..."
-            onFocus={(e) => handleFieldFocus('quick-edit-gtin', e)}
-            onBlur={handleFieldBlur}
-            aria-label="GTIN (Global Trade Item Number)"
-            aria-describedby={errors.gtin ? 'quick-edit-gtin-error' : 'quick-edit-gtin-help'}
-          />
-          {errors.gtin && (
-            <p id="quick-edit-gtin-error" className="text-xs text-red-500" role="alert">{errors.gtin.message}</p>
-          )}
-          <p id="quick-edit-gtin-help" className="text-xs text-slate-500">Global Trade Item Number</p>
-        </div>
-        
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-ean" className="text-slate-900">EAN</Label>
-          </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Input
-            id="quick-edit-ean"
-            {...register('ean')}
-            className={getFieldClassName('ean', ean, !!errors.ean, savedFields.has('ean'), 'quick-edit-ean')}
-            placeholder="Nhập EAN..."
-            onFocus={(e) => handleFieldFocus('quick-edit-ean', e)}
-            onBlur={handleFieldBlur}
-            aria-label="EAN (European Article Number)"
-            aria-describedby={errors.ean ? 'quick-edit-ean-error' : 'quick-edit-ean-help'}
-          />
-          {errors.ean && (
-            <p id="quick-edit-ean-error" className="text-xs text-red-500" role="alert">{errors.ean.message}</p>
-          )}
-          <p id="quick-edit-ean-help" className="text-xs text-slate-500">European Article Number</p>
-        </div>
-      </div>
-      </div>
+      {/* PHASE 2: Extract Form Sections - BasicInfoSection */}
+      <BasicInfoSection skuValidation={skuValidation} />
           </AccordionContent>
         </AccordionItem>
 
@@ -2704,371 +1696,18 @@ export function ProductQuickEditDialog({
             </div>
           </AccordionTrigger>
           <AccordionContent className="pt-0 pb-4">
+      {/* PHASE 2: Extract Form Sections - PricingSection */}
+      <PricingSection
+        showStatusChangeWarning={showStatusChangeWarning}
+        setShowStatusChangeWarning={setShowStatusChangeWarning}
+        pendingStatus={pendingStatus}
+        setPendingStatus={setPendingStatus}
+        previousStatus={previousStatus}
+        setPreviousStatus={setPreviousStatus}
+      />
 
-      {/* UX/UI UPGRADE Phase 1.1.1: Background colors cho sections */}
-      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders - border-top cho sections (trừ section đầu tiên) */}
-      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
-      {/* Row 2: Giá & Trạng thái - Grid 3 cột */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="quick-edit-status" className="text-slate-900">Trạng thái</Label>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Select
-            value={formData.status}
-            onValueChange={(value) => {
-              const newStatus = value as 'draft' | 'publish' | 'trash';
-              const currentStatus = formData.status;
-              
-              // PHASE 3: Status Change Confirmation (7.10.3) - Show warning when changing from Publish to Draft
-              if (currentStatus === 'publish' && newStatus === 'draft') {
-                setPreviousStatus(currentStatus);
-                setPendingStatus(newStatus);
-                setShowStatusChangeWarning(true);
-              } else {
-                setValue('status', newStatus, { shouldDirty: true });
-              }
-            }}
-          >
-            <SelectTrigger 
-              id="quick-edit-status"
-              className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-              aria-label="Trạng thái sản phẩm"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="draft">Bản nháp</SelectItem>
-              <SelectItem value="publish">Đã xuất bản</SelectItem>
-              <SelectItem value="trash">Thùng rác</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-regular-price" className="text-slate-900">Giá gốc (đ)</Label>
-          </div>
-          <PriceInput
-            id="quick-edit-regular-price"
-            value={regularPrice}
-            onChange={(value) => {
-              setValue('regularPrice', value || 0, { shouldDirty: true });
-            }}
-            onFocus={(e) => handleFieldFocus('quick-edit-regular-price', e)}
-            onBlur={handleFieldBlur}
-            showCurrency={true}
-            showClearButton={true}
-            placeholder="Nhập giá gốc..."
-            aria-label="Giá gốc sản phẩm"
-            aria-describedby={errors.regularPrice ? 'quick-edit-regular-price-error' : 'quick-edit-regular-price-help'}
-            className={getFieldClassName('regularPrice', regularPrice, !!errors.regularPrice, savedFields.has('regularPrice'), 'quick-edit-regular-price')}
-          />
-          {errors.regularPrice && (
-            <p id="quick-edit-regular-price-error" className="text-xs text-red-500" role="alert">{errors.regularPrice.message}</p>
-          )}
-          {/* PHASE 2: Price Formatting Consistency (7.11.11) - Format hint */}
-          <p id="quick-edit-regular-price-help" className="text-xs text-slate-500">VD: 1.000.000 đ</p>
-        </div>
-
-        <div className="space-y-2">
-          {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="flex items-center gap-2 min-h-[21px]">
-            <Label htmlFor="quick-edit-sale-price" className="text-slate-900 flex-1">Giá khuyến mãi (đ)</Label>
-            {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-            <button
-              type="button"
-              title="Giá khuyến mãi phải nhỏ hơn giá gốc. Để trống để xóa khuyến mãi. VD: 800000"
-              className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
-              aria-label="Thông tin về giá khuyến mãi"
-            >
-              <Info className="h-4 w-4 text-slate-400" />
-            </button>
-          </div>
-          <PriceInput
-            id="quick-edit-sale-price"
-            value={salePrice}
-            onChange={(value) => {
-              setValue('salePrice', value, { shouldDirty: true });
-            }}
-            onFocus={(e) => handleFieldFocus('quick-edit-sale-price', e)}
-            onBlur={handleFieldBlur}
-            showCurrency={true}
-            showClearButton={true}
-            placeholder="Nhập giá khuyến mãi..."
-            aria-label="Giá khuyến mãi sản phẩm"
-            aria-describedby={errors.salePrice ? 'quick-edit-sale-price-error' : 'quick-edit-sale-price-help'}
-            className={getFieldClassName('salePrice', salePrice, !!errors.salePrice, savedFields.has('salePrice'), 'quick-edit-sale-price')}
-          />
-          {errors.salePrice && (
-            <div id="quick-edit-sale-price-error" className="flex items-center gap-1 text-sm text-red-600" role="alert">
-              <AlertCircle className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
-              <p>{errors.salePrice.message}</p>
-            </div>
-          )}
-          {/* PHASE 2: Price Formatting Consistency (7.11.11) - Format hint */}
-          <p id="quick-edit-sale-price-help" className="text-xs text-slate-500">Giá khuyến mãi (phải nhỏ hơn giá gốc). Để trống để xóa khuyến mãi. VD: 800.000 đ</p>
-        </div>
-
-        {/* PHASE 2: Cost Price (4.2.2) */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-cost-price" className="text-slate-900">Giá vốn (đ)</Label>
-          </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <PriceInput
-            id="quick-edit-cost-price"
-            value={costPrice}
-            onChange={(value) => {
-              setValue('costPrice', value, { shouldDirty: true });
-            }}
-            onFocus={(e) => handleFieldFocus('quick-edit-cost-price', e)}
-            onBlur={handleFieldBlur}
-            showCurrency={true}
-            className={getFieldClassName('costPrice', costPrice, !!errors.costPrice, savedFields.has('costPrice'), 'quick-edit-cost-price')}
-            aria-label="Giá vốn sản phẩm"
-            aria-describedby={errors.costPrice ? 'quick-edit-cost-price-error' : 'quick-edit-cost-price-help'}
-          />
-          {errors.costPrice && (
-            <p id="quick-edit-cost-price-error" className="text-xs text-red-500" role="alert">{errors.costPrice.message}</p>
-          )}
-          <p id="quick-edit-cost-price-help" className="sr-only">Giá vốn để tính lợi nhuận. VD: 500.000 đ</p>
-          {/* PHASE 2: Price Formatting Consistency (7.11.11) - Format hint */}
-          <p className="text-xs text-slate-500">VD: 500.000 đ</p>
-          {/* Profit Margin Calculation */}
-          {(() => {
-            const costPrice = watch('costPrice');
-            const regularPrice = watch('regularPrice');
-            if (costPrice && regularPrice && regularPrice > 0 && costPrice >= 0) {
-              const profitMargin = ((regularPrice - costPrice) / regularPrice) * 100;
-              const profit = regularPrice - costPrice;
-              return (
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500">
-                    Lợi nhuận: <span className="font-medium text-slate-700">{profit.toLocaleString('vi-VN')} đ</span>
-                  </p>
-                  <p className="text-xs text-slate-500">
-                    Tỷ suất lợi nhuận: <span className={`font-medium ${profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {profitMargin >= 0 ? '+' : ''}{profitMargin.toFixed(2)}%
-                    </span>
-                  </p>
-                </div>
-              );
-            }
-            return (
-              <p className="text-xs text-slate-500">
-                Giá vốn để tính lợi nhuận và tỷ suất lợi nhuận
-              </p>
-            );
-          })()}
-        </div>
-        </div>
-      </div>
-
-      {/* PHASE 5.3.2: Accordion Layout - Inventory section (part of Pricing tab) */}
-      {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Critical section - Always show inventory */}
-      <div className="flex items-center gap-2 mb-2 mt-6">
-        <Box className="h-5 w-5 text-slate-600" />
-        <h3 className="text-base font-semibold text-slate-900">Tồn kho</h3>
-      </div>
-
-      {/* Inventory Card */}
-      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
-        {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-        <div className="flex items-center space-x-2 min-h-[44px]">
-          <Checkbox
-            id="quick-edit-manage-stock"
-            checked={formData.manageStock || false}
-            onCheckedChange={(checked) => {
-              setValue('manageStock', checked === true, { shouldDirty: true });
-            }}
-          />
-          <Label 
-            htmlFor="quick-edit-manage-stock" 
-            className="text-sm font-medium text-slate-900 cursor-pointer"
-          >
-            Quản lý tồn kho
-          </Label>
-        </div>
-
-        {formData.manageStock && (
-          <>
-            {/* PHASE 5.3.4: Reorganize Inventory Section - Stock Quantity + Stock Status (2 cột) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-              <div className="space-y-2">
-                {/* UX/UI UPGRADE Phase 3.3.2: Minimum 8px spacing giữa touch targets */}
-                {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-                <div className="flex items-center gap-2 min-h-[21px]">
-                  <Label htmlFor="quick-edit-stock-quantity" className="text-slate-900 flex-1">Số lượng tồn kho</Label>
-                  {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-                  <button
-                    type="button"
-                    title="Số lượng sản phẩm hiện có trong kho. VD: 100"
-                    className="h-5 w-5 flex items-center justify-center cursor-help flex-shrink-0"
-                    aria-label="Thông tin về số lượng tồn kho"
-                  >
-                    <Info className="h-4 w-4 text-slate-400" />
-                  </button>
-                </div>
-                {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-                <Input
-                  id="quick-edit-stock-quantity"
-                  type="number"
-                  min="0"
-                  step="1"
-                  value={stockQuantity}
-                  onChange={handleStockQtyChange}
-                  onFocus={(e) => handleFieldFocus('quick-edit-stock-quantity', e)}
-                  onBlur={handleFieldBlur}
-                  className={getFieldClassName('stockQuantity', stockQuantity, !!errors.stockQuantity, savedFields.has('stockQuantity'), 'quick-edit-stock-quantity')}
-                  placeholder="Nhập số lượng tồn kho..."
-                  aria-label="Số lượng tồn kho"
-                  aria-describedby={errors.stockQuantity ? 'quick-edit-stock-quantity-error' : 'quick-edit-stock-quantity-help'}
-                />
-                {errors.stockQuantity && (
-                  <p id="quick-edit-stock-quantity-error" className="text-xs text-red-500" role="alert">{errors.stockQuantity.message}</p>
-                )}
-                <p id="quick-edit-stock-quantity-help" className="text-xs text-slate-500">Số lượng sản phẩm hiện có trong kho</p>
-              </div>
-
-              <div className="space-y-2">
-                {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-                <div className="min-h-[21px]">
-                  <Label htmlFor="quick-edit-stock-status" className="text-slate-900">Trạng thái kho</Label>
-                </div>
-                {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-                <Select
-                  value={formData.stockStatus}
-                  onValueChange={(value) => {
-                    setValue('stockStatus', value as 'instock' | 'outofstock' | 'onbackorder', { shouldDirty: true });
-                  }}
-                >
-                  <SelectTrigger 
-                    id="quick-edit-stock-status"
-                    className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                    aria-label="Trạng thái kho hàng"
-                  >
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="instock">Còn hàng</SelectItem>
-                    <SelectItem value="outofstock">Hết hàng</SelectItem>
-                    <SelectItem value="onbackorder">Đặt hàng trước</SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-slate-500">Trạng thái hiện tại của kho hàng</p>
-              </div>
-            </div>
-
-            {/* PHASE 5.3.4: Reorganize Inventory Section - Low Stock Threshold (full width) */}
-            {loadedSections.has('secondary') && (
-              <div className="space-y-2">
-                {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-                <div className="min-h-[21px]">
-                  <Label htmlFor="quick-edit-low-stock-threshold" className="text-slate-900">
-                    Ngưỡng tồn kho thấp
-                  </Label>
-                </div>
-                {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-                <Input
-                  id="quick-edit-low-stock-threshold"
-                  type="number"
-                  min="0"
-                  step="1"
-                  {...register('lowStockThreshold', { 
-                    valueAsNumber: true,
-                    setValueAs: (v) => {
-                      if (v === '' || (typeof v === 'number' && isNaN(v))) return undefined;
-                      return typeof v === 'number' ? Math.floor(v) : parseInt(v, 10);
-                    }
-                  })}
-                  className={`${getFieldClassName('lowStockThreshold', lowStockThreshold, !!errors.lowStockThreshold, savedFields.has('lowStockThreshold'), 'quick-edit-low-stock-threshold')} max-w-xs`}
-                  placeholder="Nhập ngưỡng tồn kho thấp..."
-                  aria-label="Ngưỡng tồn kho thấp"
-                  aria-describedby={errors.lowStockThreshold ? 'quick-edit-low-stock-threshold-error' : 'quick-edit-low-stock-threshold-help'}
-                />
-                {errors.lowStockThreshold && (
-                  <p id="quick-edit-low-stock-threshold-error" className="text-xs text-red-500" role="alert">{errors.lowStockThreshold.message}</p>
-                )}
-                <p id="quick-edit-low-stock-threshold-help" className="text-xs text-slate-500">
-                  Cảnh báo khi số lượng tồn kho &lt;= giá trị này
-                </p>
-              </div>
-            )}
-
-            {/* PHASE 5.3.4: Reorganize Inventory Section - Backorders (full width) */}
-            <div className="space-y-2">
-              {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-              <div className="min-h-[21px]">
-                <Label htmlFor="quick-edit-backorders" className="text-slate-900">
-                  Cho phép đặt hàng trước (Backorders)
-                </Label>
-              </div>
-              {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-              <Select
-                value={watch('backorders') || 'no'}
-                onValueChange={(value) => {
-                  setValue('backorders', value as 'no' | 'notify' | 'yes', { shouldDirty: true });
-                  const currentStockQty = watch('stockQuantity') || 0;
-                  if (value === 'no' && currentStockQty === 0) {
-                    setValue('stockStatus', 'outofstock', { shouldDirty: true });
-                  }
-                }}
-              >
-                <SelectTrigger 
-                  id="quick-edit-backorders"
-                  className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                  aria-label="Cho phép đặt hàng trước (Backorders)"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="no">Không cho phép</SelectItem>
-                  <SelectItem value="notify">Cho phép nhưng thông báo khách</SelectItem>
-                  <SelectItem value="yes">Cho phép</SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-slate-500">
-                Cho phép khách hàng đặt hàng khi sản phẩm hết hàng
-              </p>
-              {watch('backorders') === 'no' && (watch('stockQuantity') || 0) === 0 && (
-                <p className="text-xs text-amber-600 flex items-center gap-1">
-                  <AlertCircle className="h-3 w-3" />
-                  Trạng thái kho đã được tự động đặt thành &quot;Hết hàng&quot;
-                </p>
-              )}
-            </div>
-          </>
-        )}
-        
-        {/* PHASE 3: Sold Individually (4.3.3) - Not part of core inventory, but kept in section for now */}
-        {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-        <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-2">
-          <div className="flex items-center space-x-2">
-            <Checkbox
-              id="quick-edit-sold-individually"
-              checked={watch('soldIndividually') || false}
-              onCheckedChange={(checked) => {
-                setValue('soldIndividually', checked === true, { shouldDirty: true });
-              }}
-            />
-            <Label 
-              htmlFor="quick-edit-sold-individually" 
-              className="text-sm font-medium text-slate-900 cursor-pointer"
-            >
-              Chỉ bán từng cái (Sold Individually)
-            </Label>
-          </div>
-          <p className="text-xs text-slate-500 ml-6">
-            Khi bật, khách hàng chỉ có thể mua 1 sản phẩm mỗi đơn hàng
-          </p>
-        </div>
-      </div>
+      {/* PHASE 2: Extract Form Sections - InventorySection */}
+      <InventorySection loadedSections={loadedSections} />
           </AccordionContent>
         </AccordionItem>
 
@@ -3090,120 +1729,15 @@ export function ProductQuickEditDialog({
             </div>
           </AccordionTrigger>
           <AccordionContent className="pt-0 pb-4">
-      {/* PHASE 2: Product Type & Visibility Section (4.2.3) */}
+      {/* PHASE 2: Extract Form Sections - ProductTypeSection */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
-        <>
-      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-      {/* PHASE 5.3.3: Optimize Grid Layout - Product Type 2 cột */}
-      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
-        {/* Product Type & Visibility - Grid 2 cột */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Product Type */}
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-product-type" className="text-slate-900">Loại sản phẩm</Label>
-            </div>
-            <Select
-              value={watch('productType')}
-              onValueChange={(value) => {
-                const newType = value as 'simple' | 'variable' | 'grouped' | 'external';
-                const currentType = watch('productType') || 'simple';
-                const hasVariants = formData.variants && formData.variants.length > 0;
-                
-                // PHASE 2: Warning khi change từ variable sang simple/grouped/external (4.2.3)
-                if (currentType === 'variable' && newType !== 'variable' && hasVariants) {
-                  setPendingProductType(newType);
-                  setShowProductTypeWarning(true);
-                } else {
-                  setValue('productType', newType, { shouldDirty: true });
-                }
-              }}
-            >
-              <SelectTrigger 
-                id="quick-edit-product-type"
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                aria-label="Loại sản phẩm"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="simple">Đơn giản</SelectItem>
-                <SelectItem value="variable">Có biến thể</SelectItem>
-                <SelectItem value="grouped">Nhóm sản phẩm</SelectItem>
-                <SelectItem value="external">Sản phẩm ngoài</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-slate-500">
-              Loại sản phẩm xác định cách sản phẩm được bán và quản lý
-            </p>
-          </div>
-
-          {/* Visibility */}
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-visibility" className="text-slate-900">Hiển thị</Label>
-            </div>
-            <Select
-              value={watch('visibility')}
-              onValueChange={(value) => {
-                setValue('visibility', value as 'public' | 'private' | 'password', { shouldDirty: true });
-                // Clear password if not password-protected
-                if (value !== 'password') {
-                  setValue('password', '', { shouldDirty: true });
-                }
-              }}
-            >
-              <SelectTrigger 
-                id="quick-edit-visibility"
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                aria-label="Tùy chọn hiển thị sản phẩm"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="public">Công khai</SelectItem>
-                <SelectItem value="private">Riêng tư</SelectItem>
-                <SelectItem value="password">Bảo vệ bằng mật khẩu</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-slate-500">
-              Xác định ai có thể xem sản phẩm này
-            </p>
-          </div>
-        </div>
-
-        {/* Password (conditional) */}
-        {watch('visibility') === 'password' && (
-          <div className="space-y-2 animate-in fade-in slide-in-from-top-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-password" className="text-slate-900">Mật khẩu</Label>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <Input
-              id="quick-edit-password"
-              type="password"
-              {...register('password')}
-              className={getFieldClassName('password', password, !!errors.password, savedFields.has('password'), 'quick-edit-password')}
-              placeholder="Nhập mật khẩu để bảo vệ sản phẩm..."
-              aria-label="Mật khẩu bảo vệ sản phẩm"
-              aria-describedby={errors.password ? 'quick-edit-password-error' : 'quick-edit-password-help'}
-          />
-            {errors.password && (
-              <p id="quick-edit-password-error" className="text-xs text-red-500" role="alert">{errors.password.message}</p>
-          )}
-          <p id="quick-edit-password-help" className="sr-only">Mật khẩu để khách hàng truy cập sản phẩm này</p>
-            <p className="text-xs text-slate-500">
-              Mật khẩu để khách hàng truy cập sản phẩm này
-            </p>
-        </div>
-        )}
-      </div>
-        </>
+        <ProductTypeSection
+          showProductTypeWarning={showProductTypeWarning}
+          setShowProductTypeWarning={setShowProductTypeWarning}
+          pendingProductType={pendingProductType}
+          setPendingProductType={setPendingProductType}
+        />
       ) : (
         <div className="mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-48 bg-slate-200 rounded" />
@@ -3235,112 +1769,10 @@ export function ProductQuickEditDialog({
             </div>
           </AccordionTrigger>
           <AccordionContent className="pt-0 pb-4">
-      {/* PHASE 2: Shipping Class & Tax Settings Section (4.2.4) */}
+      {/* PHASE 2: Extract Form Sections - ShippingSection */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
-        <>
-      
-      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-      {/* PHASE 5.3.3: Optimize Grid Layout - Shipping & Tax */}
-      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
-        {/* Shipping Class - Full width */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-shipping-class" className="text-slate-900">Lớp giao hàng</Label>
-          </div>
-          <Select
-            value={watch('shippingClass') || '__none__'}
-            onValueChange={(value) => {
-              setValue('shippingClass', value === '__none__' ? undefined : value, { shouldDirty: true });
-            }}
-          >
-            <SelectTrigger 
-              id="quick-edit-shipping-class"
-              className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-              aria-label="Lớp giao hàng"
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="__none__">Không có</SelectItem>
-              <SelectItem value="standard">Hàng thường</SelectItem>
-              <SelectItem value="fragile">Hàng dễ vỡ</SelectItem>
-              <SelectItem value="bulky">Hàng cồng kềnh</SelectItem>
-              <SelectItem value="express">Giao hàng nhanh</SelectItem>
-            </SelectContent>
-          </Select>
-          <p className="text-xs text-slate-500">
-            Chọn lớp giao hàng phù hợp để tính phí vận chuyển chính xác
-          </p>
-        </div>
-
-        {/* Tax Status & Tax Class - Grid 2 cột */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Tax Status */}
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-tax-status" className="text-slate-900">Trạng thái thuế</Label>
-            </div>
-            <Select
-              value={watch('taxStatus') || 'taxable'}
-              onValueChange={(value) => {
-                setValue('taxStatus', value as 'taxable' | 'shipping' | 'none', { shouldDirty: true });
-              }}
-            >
-              <SelectTrigger 
-                id="quick-edit-tax-status"
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                aria-label="Trạng thái thuế"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="taxable">Có thuế</SelectItem>
-                <SelectItem value="shipping">Chỉ thuế vận chuyển</SelectItem>
-                <SelectItem value="none">Không có thuế</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-slate-500">
-              Xác định sản phẩm có chịu thuế hay không
-            </p>
-          </div>
-
-          {/* Tax Class */}
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-tax-class" className="text-slate-900">Loại thuế</Label>
-            </div>
-            <Select
-              value={watch('taxClass') || '__none__'}
-              onValueChange={(value) => {
-                setValue('taxClass', value === '__none__' ? undefined : value, { shouldDirty: true });
-              }}
-            >
-              <SelectTrigger 
-                id="quick-edit-tax-class"
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950 hover:border-slate-300"
-                aria-label="Loại thuế"
-              >
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Mặc định</SelectItem>
-                <SelectItem value="standard">Thuế tiêu chuẩn</SelectItem>
-                <SelectItem value="reduced-rate">Thuế giảm</SelectItem>
-                <SelectItem value="zero-rate">Thuế 0%</SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-xs text-slate-500">
-              Chọn loại thuế áp dụng cho sản phẩm (chỉ áp dụng khi trạng thái thuế = &quot;Có thuế&quot;)
-            </p>
-          </div>
-        </div>
-      </div>
-        </>
+        <ShippingSection />
       ) : (
         <div className="mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-40 bg-slate-200 rounded" />
@@ -3353,159 +1785,10 @@ export function ProductQuickEditDialog({
         </div>
       )}
 
-      {/* PHASE 5.3.2: Accordion Layout - Dimensions section (part of Shipping) */}
-      {/* PHASE 1: Weight & Dimensions Section (4.1.3) */}
+      {/* PHASE 2: Extract Form Sections - DimensionsSection */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
-        <>
-      {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
-      <div 
-        id="section-dimensions" 
-        className="mb-6 scroll-mt-4"
-        tabIndex={-1}
-        role="region"
-        aria-label="Kích thước & Trọng lượng"
-      >
-        {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-        <div className="flex items-center gap-2 mb-2 mt-6">
-          <Ruler className="h-5 w-5 text-slate-600" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-slate-900">Kích thước & Trọng lượng</h3>
-        </div>
-        {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-        {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-weight" className="text-slate-900">Trọng lượng (kg)</Label>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <Input
-              id="quick-edit-weight"
-              type="number"
-              step="0.1"
-              min="0"
-              {...register('weight', { 
-                valueAsNumber: true,
-                setValueAs: (v) => {
-                  if (v === '' || (typeof v === 'number' && isNaN(v))) return undefined;
-                  return typeof v === 'number' ? v : parseFloat(v);
-                }
-              })}
-              className={getFieldClassName('weight', weight, !!errors.weight, savedFields.has('weight'), 'quick-edit-weight')}
-              aria-label="Trọng lượng sản phẩm (kg)"
-              aria-describedby={errors.weight ? 'quick-edit-weight-error' : 'quick-edit-weight-help'}
-            />
-            {errors.weight && (
-              <p id="quick-edit-weight-error" className="text-xs text-red-500" role="alert">{errors.weight.message}</p>
-            )}
-            <p id="quick-edit-weight-help" className="sr-only">Nhập trọng lượng sản phẩm tính bằng kilogram</p>
-          </div>
-
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-length" className="text-slate-900">Chiều dài (cm)</Label>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <Input
-              id="quick-edit-length"
-              type="number"
-              step="0.1"
-              min="0"
-              {...register('length', { 
-                valueAsNumber: true,
-                setValueAs: (v) => {
-                  if (v === '' || (typeof v === 'number' && isNaN(v))) return undefined;
-                  return typeof v === 'number' ? v : parseFloat(v);
-                }
-              })}
-              className={getFieldClassName('length', length, !!errors.length, savedFields.has('length'), 'quick-edit-length')}
-              aria-label="Chiều dài sản phẩm (cm)"
-              aria-describedby={errors.length ? 'quick-edit-length-error' : 'quick-edit-length-help'}
-            />
-            {errors.length && (
-              <p id="quick-edit-length-error" className="text-xs text-red-500" role="alert">{errors.length.message}</p>
-            )}
-            <p id="quick-edit-length-help" className="sr-only">Nhập chiều dài sản phẩm tính bằng centimet</p>
-          </div>
-
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-width" className="text-slate-900">Chiều rộng (cm)</Label>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <Input
-              id="quick-edit-width"
-              type="number"
-              step="0.1"
-              min="0"
-              {...register('width', { 
-                valueAsNumber: true,
-                setValueAs: (v) => {
-                  if (v === '' || (typeof v === 'number' && isNaN(v))) return undefined;
-                  return typeof v === 'number' ? v : parseFloat(v);
-                }
-              })}
-              className={getFieldClassName('width', width, !!errors.width, savedFields.has('width'), 'quick-edit-width')}
-              aria-label="Chiều rộng sản phẩm (cm)"
-              aria-describedby={errors.width ? 'quick-edit-width-error' : 'quick-edit-width-help'}
-            />
-            {errors.width && (
-              <p id="quick-edit-width-error" className="text-xs text-red-500" role="alert">{errors.width.message}</p>
-            )}
-            <p id="quick-edit-width-help" className="sr-only">Nhập chiều rộng sản phẩm tính bằng centimet</p>
-          </div>
-
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="min-h-[21px]">
-              <Label htmlFor="quick-edit-height" className="text-slate-900">Chiều cao (cm)</Label>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <Input
-              id="quick-edit-height"
-              type="number"
-              step="0.1"
-              min="0"
-              {...register('height', { 
-                valueAsNumber: true,
-                setValueAs: (v) => {
-                  if (v === '' || (typeof v === 'number' && isNaN(v))) return undefined;
-                  return typeof v === 'number' ? v : parseFloat(v);
-                }
-              })}
-              className={getFieldClassName('height', height, !!errors.height, savedFields.has('height'), 'quick-edit-height')}
-              aria-label="Chiều cao sản phẩm (cm)"
-              aria-describedby={errors.height ? 'quick-edit-height-error' : 'quick-edit-height-help'}
-            />
-            {errors.height && (
-              <p id="quick-edit-height-error" className="text-xs text-red-500" role="alert">{errors.height.message}</p>
-            )}
-            <p id="quick-edit-height-help" className="sr-only">Nhập chiều cao sản phẩm tính bằng centimet</p>
-            {/* Display calculated volumetric weight */}
-            {(() => {
-              const length = watch('length');
-              const width = watch('width');
-              const height = watch('height');
-              if (length && width && height && length > 0 && width > 0 && height > 0) {
-                const volumetricWeight = (length * width * height) / 6000;
-                return (
-                  <p className="text-xs text-slate-500">
-                    Trọng lượng thể tích: {volumetricWeight.toFixed(2)} kg
-                  </p>
-                );
-              }
-              return null;
-            })()}
-          </div>
-        </div>
-        </div>
-      </div>
-        </>
+        <DimensionsSection />
       ) : (
         <div className="mb-6 mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-56 bg-slate-200 rounded" />
@@ -3545,181 +1828,17 @@ export function ProductQuickEditDialog({
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Categories already lazy loaded, but show skeleton if section not loaded */}
       {loadedSections.has('secondary') ? (
         <>
-      
-      {/* PHASE 1: Categories & Tags Section (4.1.1) */}
-      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
-      <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
-        
-        {/* Categories Multi-select */}
-        <div className="space-y-2">
-          <Label className="text-slate-900">Danh mục</Label>
-          <Popover open={categoriesPopoverOpen} onOpenChange={setCategoriesPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full justify-between border-slate-200 hover:border-slate-300"
-              >
-                <span className="text-slate-600">
-                  {selectedCategories.length > 0
-                    ? `${selectedCategories.length} danh mục đã chọn`
-                    : 'Chọn danh mục...'}
-                </span>
-                <Search className="h-4 w-4 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="start">
-              <div className="p-3 border-b">
-                <Input
-                  placeholder="Tìm danh mục..."
-                  className="h-9"
-                  onChange={(e) => {
-                    // Filter categories by search
-                    const query = e.target.value.toLowerCase();
-                    // This will be handled in the category list rendering
-                  }}
-                />
-              </div>
-              <div className="max-h-[300px] overflow-y-auto p-2">
-                {isLoadingCategories ? (
-                  <div className="flex items-center justify-center p-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                    <span className="ml-2 text-sm text-slate-500">Đang tải danh mục...</span>
-                  </div>
-                ) : allCategories.length === 0 ? (
-                  <p className="text-sm text-slate-500 p-2">Không có danh mục nào</p>
-                ) : (
-                  allCategories.map((category) => {
-                    const categoryId = String(category.id || category.databaseId || '');
-                    const isSelected = selectedCategories.includes(categoryId);
-                    return (
-                      // UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px
-                      <div
-                        key={categoryId}
-                        className="flex items-center space-x-2 p-2 hover:bg-slate-100 rounded cursor-pointer min-h-[44px]"
-                        onClick={() => {
-                          const newCategories = isSelected
-                            ? selectedCategories.filter((id) => id !== categoryId)
-                            : [...selectedCategories, categoryId];
-                          setValue('categories', newCategories, { shouldDirty: true });
-                        }}
-                      >
-                        <Checkbox checked={isSelected} />
-                        <span className="text-sm flex-1">{category.name}</span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-              {selectedCategories.length > 0 && (
-                <div className="p-3 border-t">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setValue('categories', [], { shouldDirty: true });
-                    }}
-                  >
-                    Xóa tất cả
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-          {selectedCategories.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2">
-              {selectedCategories.map((categoryId) => {
-                const category = allCategories.find(
-                  (cat) => String(cat.id || cat.databaseId || '') === categoryId
-                );
-                if (!category) return null;
-                return (
-                  <Badge
-                    key={categoryId}
-                    variant="secondary"
-                    className="flex items-center gap-1"
-                  >
-                    {category.name}
-                    {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setValue(
-                          'categories',
-                          selectedCategories.filter((id) => id !== categoryId),
-                          { shouldDirty: true }
-                        );
-                      }}
-                      className="ml-2 hover:bg-slate-200 rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center"
-                      aria-label={`Xóa danh mục ${category.name}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Tags Input */}
-        <div className="space-y-2">
-          <Label htmlFor="quick-edit-tags" className="text-slate-900">Thẻ</Label>
-          <div className="flex flex-wrap gap-2 p-2 border border-slate-200 rounded-md min-h-[44px]">
-            {selectedTags.map((tag, index) => (
-              <Badge key={index} variant="secondary" className="flex items-center gap-1">
-                {tag}
-                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue(
-                      'tags',
-                      selectedTags.filter((_, i) => i !== index),
-                      { shouldDirty: true }
-                    );
-                  }}
-                  className="ml-2 hover:bg-slate-200 rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center"
-                  aria-label={`Xóa thẻ ${tag}`}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </Badge>
-            ))}
-            <Input
-              id="quick-edit-tags"
-              placeholder="Nhập thẻ và nhấn Enter..."
-              value={tagsInputValue}
-              onChange={(e) => setTagsInputValue(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && tagsInputValue.trim()) {
-                  e.preventDefault();
-                  const newTag = tagsInputValue.trim();
-                  if (!selectedTags.includes(newTag)) {
-                    setValue('tags', [...selectedTags, newTag], { shouldDirty: true });
-                  }
-                  setTagsInputValue('');
-                }
-              }}
-              className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1 min-w-[120px]"
-            />
-          </div>
-          <p className="text-xs text-slate-500">
-            Nhấn Enter để thêm thẻ
-          </p>
-        </div>
-      </div>
+      {/* PHASE 2: Extract Form Sections - CategoriesSection */}
+      <CategoriesSection categories={allCategories} isLoadingCategories={isLoadingCategories} />
         </>
       ) : (
         <div className="mb-6 mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-32 bg-slate-200 rounded" />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="h-32 bg-slate-200 rounded" />
-          </div>
-        </div>
-      )}
+                      </div>
+                </div>
+              )}
           </AccordionContent>
         </AccordionItem>
 
@@ -3744,109 +1863,14 @@ export function ProductQuickEditDialog({
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
         <>
-        {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-        {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-        <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4">
-        
-        {/* Featured Image */}
-        <div className="space-y-2">
-          <Label className="text-slate-900">Ảnh đại diện</Label>
-          <div className="flex items-center gap-4">
-            {featuredImageId && product?.image?.sourceUrl ? (
-              <div className="relative w-24 h-24 border border-slate-200 rounded-md overflow-hidden">
-                <Image
-                  src={product.image.sourceUrl}
-                  alt={product.image.altText || product?.name || 'Product image'}
-                  fill
-                  className="object-cover"
-                />
-                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setValue('_thumbnail_id', undefined, { shouldDirty: true });
-                  }}
-                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-600"
-                  aria-label="Xóa ảnh đại diện"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </div>
-            ) : (
-              <div className="w-24 h-24 border-2 border-dashed border-slate-300 rounded-md flex items-center justify-center">
-                <ImageIcon className="h-8 w-8 text-slate-400" />
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setMediaLibraryMode('featured');
-                  setMediaLibraryOpen(true);
-                }}
-              >
-                {featuredImageId ? 'Thay đổi' : 'Chọn ảnh'}
-              </Button>
-              {featuredImageId && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setValue('_thumbnail_id', undefined, { shouldDirty: true });
-                  }}
-                >
-                  Xóa
-                </Button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Gallery Images */}
-        <div className="space-y-2">
-          <Label className="text-slate-900">Thư viện ảnh</Label>
-          <div className="flex flex-wrap gap-2">
-            {galleryImageIds && product?.galleryImages && product.galleryImages.length > 0
-              ? product!.galleryImages.map((img: any, index: number) => (
-                  <div key={index} className="relative w-20 h-20 border border-slate-200 rounded-md overflow-hidden">
-                    <Image
-                      src={img.sourceUrl}
-                      alt={img.altText || `Gallery ${index + 1}`}
-                      fill
-                      className="object-cover"
-                    />
-                    {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentIds = galleryImageIds.split(',').filter(Boolean);
-                        const newIds = currentIds.filter((id) => id !== img.id);
-                        setValue('_product_image_gallery', newIds.join(','), { shouldDirty: true });
-                      }}
-                      className="absolute top-1 right-1 bg-red-500 text-white rounded-full min-h-[44px] min-w-[44px] flex items-center justify-center hover:bg-red-600"
-                      aria-label={`Xóa ảnh ${index + 1}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))
-              : null}
-            <button
-              type="button"
-              onClick={() => {
-                setMediaLibraryMode('gallery');
-                setMediaLibraryOpen(true);
-              }}
-              className="w-20 h-20 border-2 border-dashed border-slate-300 rounded-md flex items-center justify-center hover:border-slate-400"
-            >
-              <Plus className="h-6 w-6 text-slate-400" />
-            </button>
-          </div>
-        </div>
-        </div>
+      {/* PHASE 2: Extract Form Sections - ImagesSection */}
+      <ImagesSection
+        product={product}
+        mediaLibraryOpen={mediaLibraryOpen}
+        setMediaLibraryOpen={setMediaLibraryOpen}
+        mediaLibraryMode={mediaLibraryMode}
+        setMediaLibraryMode={setMediaLibraryMode}
+      />
         </>
       ) : (
         <div className="mb-6 mt-6 space-y-4 animate-pulse">
@@ -3867,172 +1891,14 @@ export function ProductQuickEditDialog({
           </AccordionContent>
         </AccordionItem>
 
-      {/* PHASE 2: SEO Fields Section (4.2.1) */}
+      {/* PHASE 2: Extract Form Sections - SeoSection */}
       {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
       {loadedSections.has('secondary') ? (
-        <>
-      {/* PHASE 3: SEO Fields Conflict (7.3.1) - Limited fields with link to full form */}
-      {/* PHASE 3: Section Shortcuts (7.11.15) - Add id for section navigation */}
-      {/* UX/UI UPGRADE Phase 4.2.1: Make section headers focusable for keyboard navigation */}
-      <div 
-        id="section-seo" 
-        className="flex items-center justify-between mb-2 mt-6 scroll-mt-4"
-        tabIndex={-1}
-        role="region"
-        aria-label="SEO & URL"
-      >
-        <div className="flex items-center gap-2">
-          <Search className="h-5 w-5 text-slate-600" aria-hidden="true" />
-          <h3 className="text-base font-semibold text-slate-900">SEO & URL</h3>
-          {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-          <div className="group relative">
-            <button
-              type="button"
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center cursor-help"
-              aria-label="Thông tin về các trường SEO"
-            >
-              <Info className="h-4 w-4 text-slate-400" />
-            </button>
-            <div className="absolute left-0 bottom-full mb-2 w-64 p-2 bg-slate-900 text-white text-xs rounded-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-              <p className="font-semibold mb-1">Các trường có thể chỉnh sửa:</p>
-              <ul className="list-disc list-inside space-y-1">
-                <li>Meta Title (tối đa 60 ký tự)</li>
-                <li>Meta Description (tối đa 160 ký tự)</li>
-                <li>URL Slug</li>
-              </ul>
-              <p className="mt-2 pt-2 border-t border-slate-700">
-                Để chỉnh sửa các trường SEO nâng cao (Focus Keyword, Canonical URL, Open Graph, Schema Markup, v.v.), vui lòng sử dụng form chỉnh sửa đầy đủ.
-              </p>
-            </div>
-          </div>
-        </div>
-        {!isBulkMode && product?.id && (
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              router.push(`/admin/products/${product.id}/edit`);
-              onClose(); // Close quick edit dialog
-            }}
-            className="text-xs"
-          >
-            <ExternalLink className="h-3 w-3 mr-1" />
-            Chỉnh sửa SEO đầy đủ
-          </Button>
-        )}
-      </div>
-      
-      {/* UX/UI UPGRADE Phase 1.1.2: Section spacing và borders */}
-      {/* PHASE 5.3.3: Optimize Grid Layout - SEO Title & Description 2 cột */}
-      {/* PHASE 5.3.6: Mobile compact layout - Reduce padding and spacing on mobile */}
-      <div className="bg-slate-50 border border-slate-200 border-t-slate-300 rounded-md p-3 md:p-4 space-y-4 mb-4 md:mb-6">
-        {/* SEO Title & SEO Description - Grid 2 cột */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {/* Meta Title */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="quick-edit-seo-title" className="text-slate-900">Meta Title</Label>
-              <span className={`text-xs ${(watch('seoTitle')?.length || 0) > 60 ? 'text-red-500' : 'text-slate-500'}`}>
-                {(watch('seoTitle')?.length || 0)}/60
-              </span>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <Input
-              id="quick-edit-seo-title"
-              {...register('seoTitle')}
-              maxLength={60}
-              className={getFieldClassName('seoTitle', seoTitle, !!errors.seoTitle, savedFields.has('seoTitle'), 'quick-edit-seo-title')}
-              placeholder="Nhập meta title (tối đa 60 ký tự)..."
-              aria-label="Meta Title (SEO)"
-              aria-describedby={errors.seoTitle ? 'quick-edit-seo-title-error' : 'quick-edit-seo-title-help'}
-            />
-            {errors.seoTitle && (
-              <p id="quick-edit-seo-title-error" className="text-xs text-red-500" role="alert">{errors.seoTitle.message}</p>
-            )}
-            <p id="quick-edit-seo-title-help" className="text-xs text-slate-500">
-              Tiêu đề hiển thị trên kết quả tìm kiếm. Nếu để trống, sẽ dùng tên sản phẩm.
-            </p>
-          </div>
-
-          {/* Meta Description */}
-          <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-            <div className="flex items-center justify-between min-h-[21px]">
-              <Label htmlFor="quick-edit-seo-description" className="text-slate-900">Meta Description</Label>
-              <span className={`text-xs flex-shrink-0 ${(watch('seoDescription')?.length || 0) > 160 ? 'text-red-500' : 'text-slate-500'}`}>
-                {(watch('seoDescription')?.length || 0)}/160
-              </span>
-            </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-            <textarea
-              id="quick-edit-seo-description"
-              {...register('seoDescription')}
-              maxLength={160}
-              rows={3}
-              className={`flex w-full rounded-md border-2 bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 transition-colors resize-none ${getFieldClassName('seoDescription', seoDescription, !!errors.seoDescription, savedFields.has('seoDescription'), 'quick-edit-seo-description')}`}
-              placeholder="Nhập meta description (tối đa 160 ký tự)..."
-              aria-label="Meta Description (SEO)"
-              aria-describedby={errors.seoDescription ? 'quick-edit-seo-description-error' : 'quick-edit-seo-description-help'}
-            />
-            {errors.seoDescription && (
-              <p id="quick-edit-seo-description-error" className="text-xs text-red-500" role="alert">{errors.seoDescription.message}</p>
-            )}
-            <p id="quick-edit-seo-description-help" className="text-xs text-slate-500">
-              Mô tả ngắn hiển thị dưới tiêu đề trên kết quả tìm kiếm. Nếu để trống, sẽ dùng mô tả ngắn sản phẩm.
-            </p>
-          </div>
-        </div>
-
-        {/* URL Slug */}
-        <div className="space-y-2">
-          {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
-          <div className="min-h-[21px]">
-            <Label htmlFor="quick-edit-slug" className="text-slate-900">URL Slug</Label>
-          </div>
-          {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
-          <Input
-            id="quick-edit-slug"
-            {...register('slug')}
-            className={getFieldClassName('slug', slug, !!errors.slug, savedFields.has('slug'), 'quick-edit-slug')}
-            placeholder="gau-bong-tho-tai-dai"
-            aria-label="URL Slug (đường dẫn thân thiện)"
-            aria-describedby={errors.slug ? 'quick-edit-slug-error' : 'quick-edit-slug-help'}
-          />
-          {errors.slug && (
-            <p id="quick-edit-slug-error" className="text-xs text-red-500" role="alert">{errors.slug.message}</p>
-          )}
-          <p id="quick-edit-slug-help" className="text-xs text-slate-500">
-            URL thân thiện cho sản phẩm. Chỉ được chứa chữ thường, số và dấu gạch ngang.
-          </p>
-        </div>
-
-        {/* SEO Preview */}
-        {!isBulkMode && (() => {
-          const seoTitle = watch('seoTitle') || product?.name || 'Tên sản phẩm';
-          const seoDesc = watch('seoDescription') || product?.shortDescription || 'Mô tả sản phẩm';
-          const slug = watch('slug') || product?.slug || 'product-slug';
-          const previewUrl = `https://shop-gaubong.com/products/${slug}`;
-          
-          return (
-            <div className="mt-4 p-3 bg-white border border-slate-300 rounded-md">
-              <p className="text-xs font-medium text-slate-600 mb-2">Xem trước kết quả tìm kiếm:</p>
-              <div className="space-y-1">
-                <p className="text-sm text-blue-600 hover:underline cursor-pointer">
-                  {previewUrl}
-                </p>
-                <p className="text-lg text-blue-700 font-medium leading-tight">
-                  {seoTitle.length > 60 ? seoTitle.substring(0, 60) + '...' : seoTitle}
-                </p>
-                <p className="text-sm text-slate-600 leading-tight">
-                  {seoDesc.length > 160 ? seoDesc.substring(0, 160) + '...' : seoDesc}
-                </p>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
-        </>
+        <SeoSection
+          product={product}
+          isBulkMode={isBulkMode}
+          onClose={onClose}
+        />
       ) : (
         <div className="mt-6 space-y-4 animate-pulse">
           <div className="h-5 w-32 bg-slate-200 rounded" />
@@ -4045,86 +1911,12 @@ export function ProductQuickEditDialog({
       )}
       </Accordion>
 
-      {/* Variants section */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Variants are critical for variable products, but can be deferred for simple products */}
-      {loadedSections.has('secondary') || (formData.variants && formData.variants.length > 0) ? (
-        (() => {
-        // CRITICAL FIX: Always use formData.variants as source of truth (user edits)
-        // Only fallback to productWithVariants on initial load
-        // This ensures UI updates immediately when user edits variants
-        const variants = formData.variants && formData.variants.length > 0 
-          ? formData.variants 
-          : (productWithVariants?.variants || []);
-        const hasVariants = variants.length > 0;
-        
-        // NOTE: Debug logs removed to prevent console spam during re-renders
-        // If needed, add them back in useEffect when variants change
-        
-        if (!hasVariants) return null;
-        
-        // Map variants ensuring all fields are present (including color and colorCode for display)
-        const mappedVariants = variants.map((v: any) => {
-          const mapped = {
-            id: v.id || '',
-            size: v.size || '',
-            // Preserve color and colorCode (even if empty string, convert to undefined to match schema)
-            color: (v.color && v.color.trim()) ? v.color.trim() : undefined,
-            colorCode: (v.colorCode && v.colorCode.trim()) ? v.colorCode.trim() : undefined,
-            price: v.price || 0,
-            stock: v.stock || v.stockQuantity || 0,
-            image: v.image || undefined,
-            sku: v.sku || '',
-          };
-          
-          return mapped;
-        });
-        
-        return (
-          <div className="space-y-4">
-            {/* Variant Table Header */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <Label className="text-base font-semibold text-slate-900">Biến thể ({mappedVariants.length})</Label>
-                <span className="text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">
-                  Sửa trực tiếp trên bảng
-                </span>
-              </div>
-            </div>
-            <VariantQuickEditTable
-              variants={mappedVariants}
-              isLoading={loadingProduct}
-              onVariantsChange={(updatedVariants) => {
-                  // Fix #20: Get original variants from productWithVariants OR current mappedVariants (fallback for race condition)
-                  // This ensures we preserve size, color, colorCode, image even if productWithVariants hasn't loaded yet
-                  const originalVariants = productWithVariants?.variants || mappedVariants || [];
-                  
-                  // Update form state with edited values, preserving display fields from original
-                  setValue('variants', updatedVariants.map((v) => {
-                    // Find original variant to preserve display-only fields (with fallback to mappedVariants)
-                    const originalVariant = originalVariants.find((orig: any) => orig.id === v.id) ||
-                                           mappedVariants.find((mapped: any) => mapped.id === v.id);
-                    return {
-                      id: v.id,
-                      sku: v.sku,
-                      price: v.price,
-                      stock: v.stock,
-                      // Preserve display fields from original variant (with fallback chain)
-                      size: originalVariant?.size || v.size || '',
-                      color: originalVariant?.color || v.color || undefined,
-                      colorCode: originalVariant?.colorCode || v.colorCode || undefined,
-                      image: originalVariant?.image || v.image || undefined,
-                    };
-                  }), { shouldDirty: true, shouldValidate: false });
-                }}
-                bulkUpdate={formData.bulkUpdate}
-              onBulkUpdateChange={(enabled) => {
-                setValue('bulkUpdate', enabled, { shouldDirty: true });
-              }}
-            />
-          </div>
-        );
-        })()
-      ) : null}
+      {/* PHASE 2: Extract Form Sections - VariantsSection */}
+      <VariantsSection
+        productWithVariants={productWithVariants}
+        loadingProduct={loadingProduct}
+        loadedSections={loadedSections}
+      />
 
       {/* PHASE 3: Product Options (4.3.2) - Attributes Enable/Disable */}
       {(() => {
@@ -4226,6 +2018,7 @@ export function ProductQuickEditDialog({
         </>
       )}
     </form>
+    </QuickEditFormProvider>
   );
 
   // ✅ FIX: Only render Dialog/Sheet when open to prevent multiple dialogs
@@ -5099,35 +2892,7 @@ export function ProductQuickEditDialog({
         </DialogContent>
       </Dialog>
 
-      {/* PHASE 1: Media Library Modal (4.1.2) */}
-      <MediaLibraryModal
-        isOpen={mediaLibraryOpen}
-        onClose={() => setMediaLibraryOpen(false)}
-        onSelect={(items) => {
-          if (mediaLibraryMode === 'featured') {
-            const item = Array.isArray(items) ? items[0] : items;
-            if (item) {
-              setValue('_thumbnail_id', item.id, { shouldDirty: true });
-            }
-          } else {
-            // Gallery mode - multiple selection
-            const itemsArray = Array.isArray(items) ? items : [items];
-            const currentIds = galleryImageIds ? galleryImageIds.split(',').filter(Boolean) : [];
-            const newIds = [...currentIds, ...itemsArray.map((item) => item.id)];
-            setValue('_product_image_gallery', newIds.join(','), { shouldDirty: true });
-          }
-          setMediaLibraryOpen(false);
-        }}
-        mode={mediaLibraryMode === 'featured' ? 'single' : 'multiple'}
-        selectedIds={
-          mediaLibraryMode === 'featured'
-            ? featuredImageId ? [featuredImageId] : []
-            : galleryImageIds
-            ? galleryImageIds.split(',').filter(Boolean)
-            : []
-        }
-        buttonText={mediaLibraryMode === 'featured' ? 'Chọn ảnh đại diện' : 'Thêm vào thư viện'}
-      />
+      {/* PHASE 2: MediaLibraryModal moved to ImagesSection component */}
 
       {/* UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help dialog */}
       {isMobile ? (

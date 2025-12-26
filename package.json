@@ -26,6 +26,8 @@
     "test:phase3-quick-edit": "tsx scripts/test-phase3-quick-edit.ts",
     "test:mongodb": "tsx scripts/test-mongodb-connection.ts",
     "test:quick-edit-performance": "node scripts/test-quick-edit-performance.js",
+    "test:quick-edit-context": "node scripts/test-quick-edit-context.js",
+    "test:quick-edit-sections": "node scripts/test-quick-edit-sections.js",
     "verify:quick-edit-indexes": "node scripts/verify-quick-edit-indexes.js",
     "create:quick-edit-indexes": "node scripts/create-quick-edit-indexes-direct.js",
     "verify:mongodb-transactions": "tsx scripts/verify-mongodb-transactions.ts",

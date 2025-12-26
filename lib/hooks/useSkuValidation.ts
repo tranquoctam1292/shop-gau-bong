@@ -10,7 +10,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 
-interface SkuValidationResult {
+export interface SkuValidationResult {
   isValidating: boolean;
   isValid: boolean | null; // null = not validated yet, true = valid, false = invalid
   error: string | null;
