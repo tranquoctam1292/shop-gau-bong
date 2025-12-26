@@ -28,6 +28,7 @@
     "test:quick-edit-performance": "node scripts/test-quick-edit-performance.js",
     "test:quick-edit-context": "node scripts/test-quick-edit-context.js",
     "test:quick-edit-sections": "node scripts/test-quick-edit-sections.js",
+    "test:quick-edit-hooks": "node scripts/test-quick-edit-hooks.js",
     "verify:quick-edit-indexes": "node scripts/verify-quick-edit-indexes.js",
     "create:quick-edit-indexes": "node scripts/create-quick-edit-indexes-direct.js",
     "verify:mongodb-transactions": "tsx scripts/verify-mongodb-transactions.ts",
