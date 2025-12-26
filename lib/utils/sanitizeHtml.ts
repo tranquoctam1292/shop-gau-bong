@@ -68,6 +68,10 @@ export function sanitizeHtmlServer(html: string | null | undefined): string {
  * 
  * Useful for displaying HTML content as plain text (e.g., in lists, tables)
  * 
+ * ✅ FIX: Re-export from separate file to avoid ES Module issues on Vercel
+ * The actual implementation is in stripHtmlTags.ts to avoid importing
+ * isomorphic-dompurify when only stripHtmlTags is needed.
+ * 
  * @param html - HTML string to strip tags from
  * @returns Plain text without HTML tags
  * 
@@ -77,14 +81,7 @@ export function sanitizeHtmlServer(html: string | null | undefined): string {
  * <p>{plainText}</p>
  * ```
  */
-export function stripHtmlTags(html: string | null | undefined): string {
-  if (!html || typeof html !== 'string') {
-    return '';
-  }
-  
-  // Remove HTML tags using regex
-  return html.replace(/<[^>]*>/g, '').trim();
-}
+export { stripHtmlTags } from './stripHtmlTags';
 
 /**
  * ✅ PERFORMANCE: Clean HTML for storage to reduce data bloat

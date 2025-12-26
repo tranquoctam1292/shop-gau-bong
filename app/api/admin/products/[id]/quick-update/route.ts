@@ -10,7 +10,10 @@ import { getCollections, ObjectId } from '@/lib/db';
 import { mapMongoProduct, MongoProduct } from '@/lib/utils/productMapper';
 import { z } from 'zod';
 import { withAuthAdmin, AuthenticatedRequest } from '@/lib/middleware/authMiddleware';
-import { stripHtmlTags } from '@/lib/utils/sanitizeHtml';
+// ✅ FIX: Import stripHtmlTags from separate file to avoid ES Module issues
+// stripHtmlTags doesn't need DOMPurify, so we import it from a separate file
+// that doesn't import isomorphic-dompurify at top-level
+import { stripHtmlTags } from '@/lib/utils/stripHtmlTags';
 import { validateVariantObjects } from '@/lib/utils/variantIdValidator';
 import { withTransaction, getCollectionsWithSession } from '@/lib/utils/transactionHelper';
 import type { ClientSession } from 'mongodb';
