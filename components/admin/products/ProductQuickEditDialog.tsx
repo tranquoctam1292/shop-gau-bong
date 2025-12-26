@@ -69,6 +69,7 @@ import { BasicInfoSection } from './ProductQuickEditDialog/sections/BasicInfoSec
 import { CategoriesSection } from './ProductQuickEditDialog/sections/CategoriesSection';
 import { ImagesSection } from './ProductQuickEditDialog/sections/ImagesSection';
 import { VariantsSection } from './ProductQuickEditDialog/sections/VariantsSection';
+import { ProductOptionsSection } from './ProductQuickEditDialog/sections/ProductOptionsSection';
 
 // Extended product type with variants (from API)
 // PERFORMANCE OPTIMIZATION (2.1.0): Use type from useProduct hook to avoid type conflicts
@@ -1740,103 +1741,11 @@ export function ProductQuickEditDialog({
         loadedSections={loadedSections}
       />
 
-      {/* PHASE 3: Product Options (4.3.2) - Attributes Enable/Disable */}
-      {(() => {
-        // Only show for variable products with attributes
-        const productAttributes = (productWithVariants as any)?.productDataMetaBox?.attributes || 
-                                  (product as any)?.productDataMetaBox?.attributes || [];
-        const hasAttributes = productAttributes.length > 0;
-        const productType = watch('productType');
-        const isVariableProduct = productType === 'variable' || product?.type === 'variable';
-        const variants = formData.variants && formData.variants.length > 0 
-          ? formData.variants 
-          : (productWithVariants?.variants || []);
-        
-        if (!isVariableProduct || !hasAttributes) return null;
-        
-        return (
-          <div className="space-y-4 mb-6">
-            {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-            <div className="flex items-center gap-2 mb-2 mt-6">
-              <Tag className="h-5 w-5 text-slate-600" />
-              <h3 className="text-base font-semibold text-slate-900">Tùy chọn sản phẩm</h3>
-            </div>
-            
-            {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-            <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-3">
-              <p className="text-sm text-slate-600 mb-3">
-                Bật/tắt các thuộc tính (Size, Color, etc.) cho sản phẩm
-              </p>
-              
-              {productAttributes.map((attr: any, index: number) => {
-                const attrName = attr.name || '';
-                const isVisible = attr.visible !== false; // Default to true if not set
-                const isVariation = attr.variation === true;
-                
-                // Check if attribute has active variants
-                const hasActiveVariants = isVariation && variants.length > 0 && variants.some((variant: any) => {
-                  const attrNameLower = attrName.toLowerCase();
-                  if (attrNameLower === 'size' && variant.size) return true;
-                  if (attrNameLower === 'color' && variant.color) return true;
-                  return false;
-                });
-                
-                return (
-                  <div key={index} className="flex items-center justify-between p-3 bg-white rounded-md border border-slate-200">
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={isVisible}
-                        onCheckedChange={(checked) => {
-                          // Warning if disabling attribute with active variants
-                          if (!checked && hasActiveVariants) {
-                            const confirmMsg = `Thuộc tính "${attrName}" đang được sử dụng bởi ${variants.length} biến thể. Bạn có chắc muốn tắt không?`;
-                            if (!window.confirm(confirmMsg)) {
-                              return; // Don't update if user cancels
-                            }
-                          }
-                          
-                          // Update attributes array
-                          const currentAttributes = productAttributes.map((a: any, idx: number) => {
-                            if (idx === index) {
-                              return { ...a, visible: checked };
-                            }
-                            return a;
-                          });
-                          
-                          // Set form value
-                          const attributesToUpdate = currentAttributes.map((a: any) => ({
-                            name: a.name,
-                            visible: a.visible !== false,
-                          }));
-                          
-                          setValue('attributes', attributesToUpdate, { shouldDirty: true });
-                        }}
-                        id={`attribute-${index}`}
-                      />
-                      <Label 
-                        htmlFor={`attribute-${index}`} 
-                        className="text-sm font-medium text-slate-900 cursor-pointer"
-                      >
-                        {attrName}
-                        {isVariation && (
-                          <span className="ml-2 text-xs text-slate-500">(Dùng cho biến thể)</span>
-                        )}
-                      </Label>
-                    </div>
-                    
-                    {hasActiveVariants && !isVisible && (
-                      <span className="text-xs text-amber-600 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" />
-                        Có biến thể đang sử dụng
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
+      {/* PHASE 2.5: Extract ProductOptionsSection - Attributes Enable/Disable */}
+      <ProductOptionsSection 
+        product={product}
+        productWithVariants={productWithVariants}
+      />
         </>
       )}
     </form>

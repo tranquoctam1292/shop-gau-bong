@@ -237,15 +237,18 @@
 - [ ] Manual testing: Runtime test, visual comparison, SEO preview
 - [ ] Commit: "refactor: extract SeoSection"
 
-#### 2.5 ProductOptionsSection (Risk: ⚠️ LOW) ⚠️ SKIPPED
-- [ ] Create `sections/ProductOptionsSection.tsx`
-- [ ] Copy JSX code từ file gốc
-- [ ] Use Context API
-- [ ] Wrap với `React.memo`
-- [ ] Replace trong file gốc
-- [ ] Test: Manual testing
+#### 2.5 ProductOptionsSection (Risk: ⚠️ LOW) ✅ **COMPLETED**
+- [x] Create `sections/ProductOptionsSection.tsx`
+- [x] Copy JSX code từ file gốc (Attributes Enable/Disable)
+- [x] Use Context API (useQuickEditFormContext)
+- [x] Use useMemo for productAttributes and variants
+- [x] Wrap với `React.memo`
+- [x] Replace trong file gốc
+- [x] Pass props: product, productWithVariants
+- [x] TypeScript check passed (npm run type-check)
+- [ ] Test: Manual testing (Runtime test, visual comparison, attributes enable/disable)
 - [ ] Commit: "refactor: extract ProductOptionsSection"
-- **Note:** Section này chưa được implement trong UI (barcode, GTIN, EAN, attributes fields không có trong file gốc). "Sold Individually" đã được extract vào InventorySection. Có thể skip hoặc implement sau.
+- **Note:** Barcode/GTIN/EAN đã được extract vào BasicInfoSection. "Sold Individually" đã được extract vào InventorySection. Chỉ extract phần Attributes Enable/Disable.
 
 #### 2.6 InventorySection (Risk: ⚠️ MEDIUM) ✅ COMPLETED
 - [x] Create `sections/InventorySection.tsx`
