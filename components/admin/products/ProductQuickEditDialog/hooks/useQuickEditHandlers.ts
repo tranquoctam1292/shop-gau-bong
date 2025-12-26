@@ -192,18 +192,9 @@ export function useQuickEditHandlers({
           
           onBulkSuccess?.(result.updated || 0);
           
-          // MEMORY LEAK FIX + RACE CONDITION FIX: Store timeout ID and check mounted state
-          // Close dialog after a short delay
-          if (bulkUpdateTimeoutRef.current) {
-            clearTimeout(bulkUpdateTimeoutRef.current);
-          }
-          bulkUpdateTimeoutRef.current = setTimeout(() => {
-            bulkUpdateTimeoutRef.current = null;
-            // RACE CONDITION FIX: Only call onClose if component is still mounted
-            if (isMountedRef.current) {
-              onClose();
-            }
-          }, 1500);
+          // FIX: Dialog no longer auto-closes after bulk update
+          // User must manually close the dialog by clicking close button or cancel
+          // This allows user to continue editing or verify changes before closing
         } catch (error: any) {
           setBulkUpdateProgress({
             current: 0,
@@ -242,12 +233,22 @@ export function useQuickEditHandlers({
 
       if (data.variants && data.variants.length > 0) {
         // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe validation
-        updates.variants = data.variants.map((v) => ({
-          id: v.id,
-          ...(v.sku !== undefined && { sku: v.sku }),
-          ...(v.price !== undefined && isValidPrice(v.price) && { price: v.price }),
-          ...(v.stock !== undefined && isValidInteger(v.stock) && { stock: v.stock }),
-        }));
+        // FIX: Always include price if provided (even if 0) - don't use conditional spread
+        updates.variants = data.variants.map((v) => {
+          const variantUpdate: any = {
+            id: String(v.id || '').trim(), // Normalize variant ID
+            ...(v.sku !== undefined && { sku: v.sku }),
+            ...(v.stock !== undefined && isValidInteger(v.stock) && { stock: v.stock }),
+          };
+          
+          // FIX: Always include price if provided (even if 0)
+          // isValidPrice(0) returns true, so 0 is a valid price
+          if (v.price !== undefined && isValidPrice(v.price)) {
+            variantUpdate.price = v.price;
+          }
+          
+          return variantUpdate;
+        });
       }
 
       // PHASE 1: Weight & Dimensions (4.1.3)

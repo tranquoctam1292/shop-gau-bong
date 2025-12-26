@@ -27,7 +27,6 @@ import { ImagesSection } from '../sections/ImagesSection';
 import { SeoSection } from '../sections/SeoSection';
 import { VariantsSection } from '../sections/VariantsSection';
 import { ProductOptionsSection } from '../sections/ProductOptionsSection';
-import { QuickEditFormProvider } from '../context/QuickEditFormProvider';
 import type { UseFormReturn } from 'react-hook-form';
 import type { QuickEditFormData } from '../types';
 import type { MappedProduct, MappedCategory } from '@/lib/utils/productMapper';
@@ -157,32 +156,10 @@ export const QuickEditFormContent = React.memo<QuickEditFormContentProps>(({
   pendingProductType,
   setPendingProductType,
 }) => {
+  // CRITICAL FIX: QuickEditFormProvider is now wrapped outside this component
+  // in ProductQuickEditDialog to ensure context is available even with Portal
   return (
-    <QuickEditFormProvider
-      register={register}
-      setValue={setValue}
-      watch={watch}
-      getValues={getValues}
-      reset={reset}
-      errors={errors}
-      formState={formStateFull}
-      handleFieldFocus={handleFieldFocus}
-      handleFieldBlur={handleFieldBlur}
-      getFieldClassName={getFieldClassName}
-      getErrorCountForSection={getErrorCountForSection}
-      savedFields={savedFields}
-      flashingFields={flashingFields}
-      fieldOriginalValues={fieldOriginalValues}
-      expandedSections={expandedSections}
-      setExpandedSections={setExpandedSections}
-      skuValidation={skuValidation}
-      categories={(allCategories || []) as unknown as MappedCategory[]}
-      isLoadingCategories={isLoadingCategories}
-      variants={variants}
-      isBulkMode={isBulkMode}
-      isMobile={isMobile}
-    >
-      <form id="quick-edit-form" onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4">
+    <form id="quick-edit-form" onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4">
         {/* PERFORMANCE OPTIMIZATION (3.3.1): Show skeleton loader while loading */}
         {loadingProduct && !isBulkMode && (
           <ProductQuickEditSkeleton />
@@ -542,7 +519,6 @@ export const QuickEditFormContent = React.memo<QuickEditFormContentProps>(({
           </>
         )}
       </form>
-    </QuickEditFormProvider>
   );
 });
 

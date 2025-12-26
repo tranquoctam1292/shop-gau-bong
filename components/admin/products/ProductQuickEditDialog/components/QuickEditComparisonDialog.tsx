@@ -21,6 +21,7 @@ export interface QuickEditComparisonDialogProps {
   snapshotInitialData: QuickEditFormData | null;
   productId?: string;
   productName?: string;
+  getValues?: () => QuickEditFormData; // Pass getValues to QuickEditComparisonTab
 }
 
 export const QuickEditComparisonDialog = React.memo<QuickEditComparisonDialogProps>(({
@@ -29,6 +30,7 @@ export const QuickEditComparisonDialog = React.memo<QuickEditComparisonDialogPro
   snapshotInitialData,
   productId,
   productName,
+  getValues,
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
@@ -47,6 +49,7 @@ export const QuickEditComparisonDialog = React.memo<QuickEditComparisonDialogPro
             snapshotInitialData={snapshotInitialData}
             productId={productId}
             productName={productName}
+            getValues={getValues}
           />
         </div>
         <DialogFooter>

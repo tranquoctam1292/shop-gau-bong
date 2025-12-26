@@ -48,7 +48,13 @@ export function useQuickUpdateProduct(options: UseQuickUpdateProductOptions = {}
         timeoutId = setTimeout(() => controller.abort(), 30000); // 30 seconds timeout
         
         // PHASE 1: CSRF Protection (7.12.2) - Include CSRF token in headers
-        const { getCsrfTokenHeader } = await import('@/lib/utils/csrfClient');
+        // CRITICAL FIX: Clear cache on retry to ensure fresh token
+        const { getCsrfTokenHeader, clearCsrfTokenCache } = await import('@/lib/utils/csrfClient');
+        if (retryCount > 0) {
+          // Clear cache on retry to ensure we get a fresh token
+          clearCsrfTokenCache();
+        }
+        
         let csrfToken: string;
         try {
           csrfToken = await getCsrfTokenHeader();
@@ -57,8 +63,17 @@ export function useQuickUpdateProduct(options: UseQuickUpdateProductOptions = {}
           }
         } catch (tokenError: any) {
           console.error('[useQuickUpdateProduct] Failed to get CSRF token:', tokenError);
-          showToast('Không thể lấy CSRF token. Vui lòng tải lại trang', 'error');
-          throw new Error('CSRF_TOKEN_FETCH_FAILED');
+          // Clear cache and try one more time
+          clearCsrfTokenCache();
+          try {
+            csrfToken = await getCsrfTokenHeader();
+            if (!csrfToken || csrfToken.trim() === '') {
+              throw new Error('CSRF token is still empty after retry');
+            }
+          } catch (retryError: any) {
+            showToast('Không thể lấy CSRF token. Vui lòng tải lại trang', 'error');
+            throw new Error('CSRF_TOKEN_FETCH_FAILED');
+          }
         }
         
         const response = await fetch(`/api/admin/products/${productId}/quick-update`, {
@@ -98,8 +113,9 @@ export function useQuickUpdateProduct(options: UseQuickUpdateProductOptions = {}
             // Clear CSRF token cache and retry
             const { clearCsrfTokenCache } = await import('@/lib/utils/csrfClient');
             clearCsrfTokenCache();
-            // Longer delay on retry to ensure new token is generated and cached
-            const delay = retryCount === 0 ? 200 : 500;
+            // CRITICAL FIX: Longer delay on retry to ensure new token is generated and cached on server
+            // Server needs time to store token in MongoDB after hot reload
+            const delay = retryCount === 0 ? 500 : 1000; // Increased delay: 500ms, 1000ms
             await new Promise(resolve => setTimeout(resolve, delay));
             if (timeoutId) clearTimeout(timeoutId);
             return quickUpdate(productId, updates, retryCount + 1);

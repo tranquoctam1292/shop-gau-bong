@@ -13,6 +13,7 @@ export interface QuickEditComparisonTabProps {
   productId?: string;
   productName?: string;
   onExport?: (comparison: unknown) => void;
+  getValues?: () => QuickEditFormData; // Pass getValues via props instead of context
 }
 
 export const QuickEditComparisonTab = React.memo<QuickEditComparisonTabProps>(({
@@ -20,8 +21,25 @@ export const QuickEditComparisonTab = React.memo<QuickEditComparisonTabProps>(({
   productId,
   productName,
   onExport,
+  getValues: getValuesProp,
 }) => {
-  const { getValues } = useQuickEditFormContext();
+  // Try to get getValues from props first, fallback to context if available
+  let getValues: () => QuickEditFormData;
+  if (getValuesProp) {
+    getValues = getValuesProp;
+  } else {
+    // Fallback to context (for backward compatibility when used inside provider)
+    try {
+      const context = useQuickEditFormContext();
+      getValues = context.getValues;
+    } catch (error) {
+      // If context is not available, throw a more helpful error
+      throw new Error(
+        'QuickEditComparisonTab requires either getValues prop or QuickEditFormProvider. ' +
+        'Please pass getValues prop when using outside QuickEditFormProvider.'
+      );
+    }
+  }
 
   // Helper to normalize values for comparison
   const normalizeValue = (value: unknown): unknown => {

@@ -12,7 +12,8 @@ import type { SkuValidationResult } from '@/lib/hooks/useSkuValidation';
  * 
  * PHASE 2: Extract Form Sections - BasicInfoSection
  * 
- * Displays product name, SKU with validation, and barcode/GTIN/EAN fields
+ * Displays product name and SKU with validation
+ * Barcode/GTIN/EAN fields are hidden (not used)
  * Uses Context API to access form state and handlers
  * 
  * @param skuValidation - SKU validation result from useSkuValidation hook
@@ -21,7 +22,7 @@ interface BasicInfoSectionProps {
   skuValidation: SkuValidationResult;
 }
 
-export const BasicInfoSection = memo(function BasicInfoSection({
+const BasicInfoSectionComponent = function BasicInfoSection({
   skuValidation,
 }: BasicInfoSectionProps) {
   const {
@@ -36,9 +37,10 @@ export const BasicInfoSection = memo(function BasicInfoSection({
 
   const name = watch('name');
   const sku = watch('sku');
-  const barcode = watch('barcode');
-  const gtin = watch('gtin');
-  const ean = watch('ean');
+  // HIDDEN: Barcode/GTIN/EAN fields are not used
+  // const barcode = watch('barcode');
+  // const gtin = watch('gtin');
+  // const ean = watch('ean');
 
   return (
     <>
@@ -133,12 +135,10 @@ export const BasicInfoSection = memo(function BasicInfoSection({
           </div>
         </div>
 
-        {/* PHASE 3: Barcode/GTIN/EAN (4.3.1) */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Barcode */}
+        {/* HIDDEN: PHASE 3: Barcode/GTIN/EAN (4.3.1) - Not used, hidden from UI */}
+        {/* <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="space-y-2">
             <Label htmlFor="quick-edit-barcode" className="text-slate-900">Barcode</Label>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-barcode"
               {...register('barcode')}
@@ -155,13 +155,10 @@ export const BasicInfoSection = memo(function BasicInfoSection({
             <p id="quick-edit-barcode-help" className="sr-only">Nhập mã barcode của sản phẩm</p>
           </div>
           
-          {/* GTIN */}
           <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
             <div className="min-h-[21px]">
               <Label htmlFor="quick-edit-gtin" className="text-slate-900">GTIN</Label>
             </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-gtin"
               {...register('gtin')}
@@ -178,13 +175,10 @@ export const BasicInfoSection = memo(function BasicInfoSection({
             <p id="quick-edit-gtin-help" className="text-xs text-slate-500">Global Trade Item Number</p>
           </div>
           
-          {/* EAN */}
           <div className="space-y-2">
-            {/* FIX: Ensure Label alignment consistency - use min-h for label container */}
             <div className="min-h-[21px]">
               <Label htmlFor="quick-edit-ean" className="text-slate-900">EAN</Label>
             </div>
-            {/* UX/UI UPGRADE Phase 4.1.1: ARIA labels cho tất cả fields */}
             <Input
               id="quick-edit-ean"
               {...register('ean')}
@@ -200,11 +194,12 @@ export const BasicInfoSection = memo(function BasicInfoSection({
             )}
             <p id="quick-edit-ean-help" className="text-xs text-slate-500">European Article Number</p>
           </div>
-        </div>
+        </div> */}
       </div>
     </>
   );
-});
+};
 
-BasicInfoSection.displayName = 'BasicInfoSection';
+BasicInfoSectionComponent.displayName = 'BasicInfoSection';
 
+export const BasicInfoSection = memo(BasicInfoSectionComponent);

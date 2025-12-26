@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { UseFormSetValue } from 'react-hook-form';
 // PHASE 6: Most UI components moved to extracted components - only keep essential imports
-import type { MappedProduct } from '@/lib/utils/productMapper';
+import type { MappedProduct, MappedCategory } from '@/lib/utils/productMapper';
 import { useQuickUpdateProduct } from '@/lib/hooks/useQuickUpdateProduct';
 import { useToastContext } from '@/components/providers/ToastProvider';
 import { useSkuValidation } from '@/lib/hooks/useSkuValidation';
@@ -36,7 +36,6 @@ import { ProductTypeSection } from './ProductQuickEditDialog/sections/ProductTyp
 import { SeoSection } from './ProductQuickEditDialog/sections/SeoSection';
 import { InventorySection } from './ProductQuickEditDialog/sections/InventorySection';
 import { PricingSection } from './ProductQuickEditDialog/sections/PricingSection';
-import { BasicInfoSection } from './ProductQuickEditDialog/sections/BasicInfoSection';
 import { CategoriesSection } from './ProductQuickEditDialog/sections/CategoriesSection';
 import { ImagesSection } from './ProductQuickEditDialog/sections/ImagesSection';
 import { VariantsSection } from './ProductQuickEditDialog/sections/VariantsSection';
@@ -87,6 +86,103 @@ export function ProductQuickEditDialog({
   onSuccess,
   onBulkSuccess,
 }: ProductQuickEditDialogProps) {
+  // FIX: Track if we should prevent dialog from closing (after save)
+  const preventCloseRef = useRef<boolean>(false);
+  // FIX: Track when save was completed to force dialog to stay open for 10 seconds
+  const saveCompletedAtRef = useRef<number | null>(null);
+  // FIX: Use ref to track internalOpen for interval checks (avoid closure issues)
+  const internalOpenRef = useRef<boolean>(open);
+  
+  // FIX: Use internal state to control dialog open/close
+  // This allows us to prevent dialog from closing even if parent tries to close it
+  const [internalOpen, setInternalOpen] = useState(open);
+  
+  // Sync internalOpenRef with internalOpen state
+  useEffect(() => {
+    internalOpenRef.current = internalOpen;
+  }, [internalOpen]);
+  
+  // Sync internalOpen with external open prop
+  // FIX: Prevent dialog from closing if preventCloseRef is true
+  useEffect(() => {
+    const now = Date.now();
+    const saveCompletedAt = saveCompletedAtRef.current;
+    const isWithin10SecondsAfterSave = saveCompletedAt !== null && (now - saveCompletedAt) < 10000;
+    
+    if (open && !internalOpen) {
+      // Dialog is being opened - allow it
+      setInternalOpen(true);
+      preventCloseRef.current = false; // Reset prevent close when opening
+    } else if (!open && internalOpen) {
+      // Dialog is being closed - check if we should prevent it
+      if (preventCloseRef.current || isWithin10SecondsAfterSave) {
+        // CRITICAL: Don't allow dialog to close - keep it open
+        // Force internalOpen to stay true to prevent Radix UI from closing
+        setTimeout(() => {
+          setInternalOpen(true);
+        }, 0);
+        // Also set immediately
+        setInternalOpen(true);
+        return;
+      }
+      setInternalOpen(false);
+    }
+  }, [open, internalOpen]);
+  
+  // FIX: Force internalOpen to stay true if preventCloseRef is true OR if save was completed within last 10 seconds
+  // This prevents dialog from closing even if Radix UI tries to close it
+  // This is a safety net - if internalOpen somehow becomes false while preventCloseRef is true,
+  // we force it back to true immediately
+  useEffect(() => {
+    const now = Date.now();
+    const saveCompletedAt = saveCompletedAtRef.current;
+    const isWithin10SecondsAfterSave = saveCompletedAt !== null && (now - saveCompletedAt) < 10000;
+    const currentPreventClose = preventCloseRef.current;
+    
+    // Log every time this effect runs to see if it's being triggered
+    if (currentPreventClose || isWithin10SecondsAfterSave) {
+      console.log('[ProductQuickEditDialog] useEffect force open check', {
+        preventClose: currentPreventClose,
+        isWithin10SecondsAfterSave,
+        saveCompletedAt,
+        timeSinceSave: saveCompletedAt ? now - saveCompletedAt : null,
+        internalOpen,
+        internalOpenRef: internalOpenRef.current
+      });
+    }
+    
+    if ((currentPreventClose || isWithin10SecondsAfterSave) && !internalOpen) {
+      console.log('[ProductQuickEditDialog] CRITICAL: Force keeping dialog open', {
+        preventClose: currentPreventClose,
+        isWithin10SecondsAfterSave,
+        saveCompletedAt,
+        timeSinceSave: saveCompletedAt ? now - saveCompletedAt : null,
+        internalOpen,
+        internalOpenRef: internalOpenRef.current,
+        stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n')
+      });
+      // Use requestAnimationFrame to ensure this happens after any other state updates
+      requestAnimationFrame(() => {
+        console.log('[ProductQuickEditDialog] Force setting internalOpen to true');
+        setInternalOpen(true);
+      });
+    }
+  }, [internalOpen]);
+  
+  // FIX: Wrap onClose to track when it's called and prevent if just saved
+  // This is the ULTIMATE defense - no matter where onClose() is called from,
+  // we will intercept it and prevent dialog from closing if preventCloseRef is true
+  const wrappedOnClose = useCallback(() => {
+    if (preventCloseRef.current) {
+      // Don't close - keep internalOpen as true
+      // Force internalOpen to stay true to prevent any close attempts
+      setInternalOpen(true);
+      return; // Don't call onClose() if just saved
+    }
+    setInternalOpen(false); // Update internal state first
+    onClose(); // Then call parent's onClose
+  }, [onClose]);
+  
   // PHASE 2: Bulk Edit Mode (4.2.5)
   const isBulkMode = Boolean(productIds && productIds.length > 0);
   const bulkProductCount = productIds?.length || 0;
@@ -117,59 +213,239 @@ export function ProductQuickEditDialog({
     closeDialog?: NodeJS.Timeout;
   }>({});
   const { quickUpdate, isLoading } = useQuickUpdateProduct({
-    onSuccess: (updatedProduct) => {
-      // FIX: Update productWithVariants state with new version from API response
-      // This ensures the form uses the latest version for the next edit
-      // Critical for optimistic locking: version must be synced after each update
-      setProductWithVariants(updatedProduct as unknown as ProductWithVariants);
+    onSuccess: async (updatedProduct) => {
+      // FIX: Mark that save was just completed IMMEDIATELY to prevent auto-close
+      // This must be called first, before any other code that might trigger dialog close
+      console.log('[ProductQuickEditDialog] onSuccess called - marking just saved');
+      preventCloseRef.current = true; // Set prevent close flag immediately
+      saveCompletedAtRef.current = Date.now(); // Track when save was completed
+      markJustSaved();
+      console.log('[ProductQuickEditDialog] markJustSaved() called, preventCloseRef set to true, saveCompletedAt:', saveCompletedAtRef.current);
+      
+      // Force internalOpen to true immediately to prevent any close attempts
+      setInternalOpen(true);
+      
+      // CRITICAL FIX: Use interval to continuously force internalOpen = true for 10 seconds
+      // This ensures dialog stays open even if something tries to close it
+      console.log('[ProductQuickEditDialog] Starting interval to keep dialog open');
+      const intervalId = setInterval(() => {
+        // Use ref to get current value (avoid closure issues)
+        const currentInternalOpen = internalOpenRef.current;
+        const currentPreventClose = preventCloseRef.current;
+        // Log every check to see if interval is running
+        if (currentPreventClose) {
+          console.log('[ProductQuickEditDialog] Interval check', {
+            preventClose: currentPreventClose,
+            internalOpen: currentInternalOpen,
+            timeSinceSave: saveCompletedAtRef.current ? Date.now() - saveCompletedAtRef.current : null
+          });
+        }
+        if (currentPreventClose && !currentInternalOpen) {
+          console.log('[ProductQuickEditDialog] Interval: Force keeping dialog open', {
+            preventClose: currentPreventClose,
+            internalOpen: currentInternalOpen,
+            timeSinceSave: saveCompletedAtRef.current ? Date.now() - saveCompletedAtRef.current : null
+          });
+          setInternalOpen(true);
+        }
+      }, 100); // Check every 100ms
+      
+      // Reset prevent close flag after 10 seconds
+      setTimeout(() => {
+        clearInterval(intervalId);
+        preventCloseRef.current = false;
+        saveCompletedAtRef.current = null;
+      }, 10000);
+      
+      // FIX: Refetch product data from server after successful save
+      // This ensures we get the latest data including all variant details (price, stock, etc.)
+      // API response from /quick-update may not include full variant data
+      let updatedInitialData: QuickEditFormData;
+      
+      if (product?.id && !isBulkMode && refetchProduct) {
+        setLoadingProduct(true);
+        try {
+          const result = await refetchProduct();
+          if (result.data) {
+            // Update productWithVariants with fresh data from server
+            // This includes all variant details (price, stock, etc.) that may have been updated
+            setProductWithVariants(result.data as ProductWithVariants);
+            
+            // Build form data from fresh server data
+            const freshProduct = result.data;
+            updatedInitialData = {
+              name: freshProduct.name || '',
+              sku: freshProduct.sku || '',
+              status: freshProduct.status || 'draft',
+              manageStock: (typeof freshProduct.stockQuantity === 'number' && freshProduct.stockQuantity !== null && freshProduct.stockQuantity !== undefined),
+              regularPrice: (freshProduct.regularPrice && String(freshProduct.regularPrice) !== '') 
+                ? (() => {
+                    const parsed = parseFloat(String(freshProduct.regularPrice));
+                    return !isNaN(parsed) ? parsed : 0;
+                  })()
+                : 0,
+              salePrice: (freshProduct.salePrice && String(freshProduct.salePrice) !== '') 
+                ? (() => {
+                    const parsed = parseFloat(String(freshProduct.salePrice));
+                    return !isNaN(parsed) ? parsed : undefined;
+                  })()
+                : undefined,
+              stockQuantity: (typeof freshProduct.stockQuantity === 'number') ? freshProduct.stockQuantity : 0,
+              stockStatus: (freshProduct.stockStatus as 'instock' | 'outofstock' | 'onbackorder') || 'instock',
+              // CRITICAL: Use updated version from server
+              version: (typeof freshProduct.version === 'number') ? freshProduct.version : 1,
+              bulkUpdate: false,
+              variants: (freshProduct as unknown as ProductWithVariants).variants?.map((v: any) => ({
+                id: v.id || '',
+                sku: v.sku || '',
+                price: (typeof v.price === 'number' && !isNaN(v.price)) ? v.price : 0,
+                stock: (typeof v.stock === 'number' && !isNaN(v.stock)) 
+                  ? v.stock 
+                  : (typeof v.stockQuantity === 'number' && !isNaN(v.stockQuantity)) 
+                    ? v.stockQuantity 
+                    : 0,
+                size: v.size || '',
+                color: v.color || undefined,
+                colorCode: v.colorCode || undefined,
+                image: v.image || undefined,
+              })) || [],
+            };
+            
+            // Reset form with fresh data from server (including updated variant prices)
+            setExternalSnapshot(updatedInitialData);
+            reset(updatedInitialData);
+          } else {
+            // Fallback: Use updatedProduct from API response if refetch fails
+            setProductWithVariants(updatedProduct as unknown as ProductWithVariants);
+            updatedInitialData = {
+              name: updatedProduct.name || '',
+              sku: updatedProduct.sku || '',
+              status: updatedProduct.status || 'draft',
+              manageStock: updatedProduct.stockQuantity !== null && updatedProduct.stockQuantity !== undefined,
+              regularPrice: (updatedProduct.regularPrice && updatedProduct.regularPrice !== '') 
+                ? (() => {
+                    const parsed = parseFloat(updatedProduct.regularPrice);
+                    return !isNaN(parsed) ? parsed : 0;
+                  })()
+                : 0,
+              salePrice: (updatedProduct.salePrice && updatedProduct.salePrice !== '') 
+                ? (() => {
+                    const parsed = parseFloat(updatedProduct.salePrice);
+                    return !isNaN(parsed) ? parsed : undefined;
+                  })()
+                : undefined,
+              stockQuantity: updatedProduct.stockQuantity || 0,
+              stockStatus: (updatedProduct.stockStatus as 'instock' | 'outofstock' | 'onbackorder') || 'instock',
+              version: updatedProduct.version || 1,
+              bulkUpdate: false,
+              variants: (updatedProduct as unknown as ProductWithVariants).variants?.map((v: any) => ({
+                id: v.id || '',
+                sku: v.sku || '',
+                price: (typeof v.price === 'number' && !isNaN(v.price)) ? v.price : 0,
+                stock: (typeof v.stock === 'number' && !isNaN(v.stock)) 
+                  ? v.stock 
+                  : (typeof v.stockQuantity === 'number' && !isNaN(v.stockQuantity)) 
+                    ? v.stockQuantity 
+                    : 0,
+                size: v.size || '',
+                color: v.color || undefined,
+                colorCode: v.colorCode || undefined,
+                image: v.image || undefined,
+              })) || [],
+            };
+            setExternalSnapshot(updatedInitialData);
+            reset(updatedInitialData);
+          }
+        } catch (error) {
+          console.error('[ProductQuickEditDialog] Error refetching product after save:', error);
+          // Fallback: Use updatedProduct from API response
+          setProductWithVariants(updatedProduct as unknown as ProductWithVariants);
+          updatedInitialData = {
+            name: updatedProduct.name || '',
+            sku: updatedProduct.sku || '',
+            status: updatedProduct.status || 'draft',
+            manageStock: updatedProduct.stockQuantity !== null && updatedProduct.stockQuantity !== undefined,
+            regularPrice: (updatedProduct.regularPrice && updatedProduct.regularPrice !== '') 
+              ? (() => {
+                  const parsed = parseFloat(updatedProduct.regularPrice);
+                  return !isNaN(parsed) ? parsed : 0;
+                })()
+              : 0,
+            salePrice: (updatedProduct.salePrice && updatedProduct.salePrice !== '') 
+              ? (() => {
+                  const parsed = parseFloat(updatedProduct.salePrice);
+                  return !isNaN(parsed) ? parsed : undefined;
+                })()
+              : undefined,
+            stockQuantity: updatedProduct.stockQuantity || 0,
+            stockStatus: (updatedProduct.stockStatus as 'instock' | 'outofstock' | 'onbackorder') || 'instock',
+            version: updatedProduct.version || 1,
+            bulkUpdate: false,
+            variants: (updatedProduct as unknown as ProductWithVariants).variants?.map((v: any) => ({
+              id: v.id || '',
+              sku: v.sku || '',
+              price: (typeof v.price === 'number' && !isNaN(v.price)) ? v.price : 0,
+              stock: (typeof v.stock === 'number' && !isNaN(v.stock)) 
+                ? v.stock 
+                : (typeof v.stockQuantity === 'number' && !isNaN(v.stockQuantity)) 
+                  ? v.stockQuantity 
+                  : 0,
+              size: v.size || '',
+              color: v.color || undefined,
+              colorCode: v.colorCode || undefined,
+              image: v.image || undefined,
+            })) || [],
+          };
+          setExternalSnapshot(updatedInitialData);
+          reset(updatedInitialData);
+        } finally {
+          setLoadingProduct(false);
+        }
+      } else {
+        // Fallback for bulk mode or when refetchProduct is not available
+        setProductWithVariants(updatedProduct as unknown as ProductWithVariants);
+        updatedInitialData = {
+          name: updatedProduct.name || '',
+          sku: updatedProduct.sku || '',
+          status: updatedProduct.status || 'draft',
+          manageStock: updatedProduct.stockQuantity !== null && updatedProduct.stockQuantity !== undefined,
+          regularPrice: (updatedProduct.regularPrice && updatedProduct.regularPrice !== '') 
+            ? (() => {
+                const parsed = parseFloat(updatedProduct.regularPrice);
+                return !isNaN(parsed) ? parsed : 0;
+              })()
+            : 0,
+          salePrice: (updatedProduct.salePrice && updatedProduct.salePrice !== '') 
+            ? (() => {
+                const parsed = parseFloat(updatedProduct.salePrice);
+                return !isNaN(parsed) ? parsed : undefined;
+              })()
+            : undefined,
+          stockQuantity: updatedProduct.stockQuantity || 0,
+          stockStatus: (updatedProduct.stockStatus as 'instock' | 'outofstock' | 'onbackorder') || 'instock',
+          version: updatedProduct.version || 1,
+          bulkUpdate: false,
+          variants: (updatedProduct as unknown as ProductWithVariants).variants?.map((v: any) => ({
+            id: v.id || '',
+            sku: v.sku || '',
+            price: (typeof v.price === 'number' && !isNaN(v.price)) ? v.price : 0,
+            stock: (typeof v.stock === 'number' && !isNaN(v.stock)) 
+              ? v.stock 
+              : (typeof v.stockQuantity === 'number' && !isNaN(v.stockQuantity)) 
+                ? v.stockQuantity 
+                : 0,
+            size: v.size || '',
+            color: v.color || undefined,
+            colorCode: v.colorCode || undefined,
+            image: v.image || undefined,
+          })) || [],
+        };
+        setExternalSnapshot(updatedInitialData);
+        reset(updatedInitialData);
+      }
       
       // Update parent component state (for product list)
       onSuccess?.(updatedProduct);
-      
-      // Reset form with updated product data (including new version)
-      // This ensures if user opens dialog again, form will use latest version
-      const updatedInitialData: QuickEditFormData = {
-        name: updatedProduct.name || '',
-        sku: updatedProduct.sku || '',
-        status: updatedProduct.status || 'draft',
-        manageStock: updatedProduct.stockQuantity !== null && updatedProduct.stockQuantity !== undefined,
-        regularPrice: (updatedProduct.regularPrice && updatedProduct.regularPrice !== '') 
-          ? (() => {
-              const parsed = parseFloat(updatedProduct.regularPrice);
-              return !isNaN(parsed) ? parsed : 0;
-            })()
-          : 0,
-        salePrice: (updatedProduct.salePrice && updatedProduct.salePrice !== '') 
-          ? (() => {
-              const parsed = parseFloat(updatedProduct.salePrice);
-              return !isNaN(parsed) ? parsed : undefined;
-            })()
-          : undefined,
-        stockQuantity: updatedProduct.stockQuantity || 0,
-        stockStatus: (updatedProduct.stockStatus as 'instock' | 'outofstock' | 'onbackorder') || 'instock',
-        // CRITICAL: Use updated version from API response
-        version: updatedProduct.version || 1,
-        bulkUpdate: false,
-        variants: (updatedProduct as unknown as ProductWithVariants).variants?.map((v: any) => ({
-          id: v.id || '',
-          sku: v.sku || '',
-          price: (typeof v.price === 'number' && !isNaN(v.price)) ? v.price : 0,
-          stock: (typeof v.stock === 'number' && !isNaN(v.stock)) 
-            ? v.stock 
-            : (typeof v.stockQuantity === 'number' && !isNaN(v.stockQuantity)) 
-              ? v.stockQuantity 
-              : 0,
-          size: v.size || '',
-          color: v.color || undefined,
-          colorCode: v.colorCode || undefined,
-          image: v.image || undefined,
-        })) || [],
-      };
-      
-      // Reset form with updated data (including new version)
-      // PHASE 3.1: Use externalSnapshot to update snapshot in hook
-      setExternalSnapshot(updatedInitialData);
-      reset(updatedInitialData);
       
       // PHASE 6: Extract Undo/Redo - Reset history after save
       handleSaveSuccess(updatedInitialData);
@@ -201,28 +477,17 @@ export function ProductQuickEditDialog({
       }, 1000);
       
       // Hide success indicator after 3 seconds
-      // FIX: Store timeout ID and move before onClose() to prevent memory leak
+      // FIX: Store timeout ID to prevent memory leak
       timeoutRefs.current.successIndicator = setTimeout(() => {
         setShowSuccessIndicator(false);
         setSavedFields(new Set());
         timeoutRefs.current.successIndicator = undefined;
       }, 3000);
       
-      // Close dialog after showing success feedback (delay 2 seconds)
-      // FIX: Store timeout ID to allow cancellation if needed
-      timeoutRefs.current.closeDialog = setTimeout(() => {
-        // Clear all pending timeouts before closing to prevent state updates after unmount
-        if (timeoutRefs.current.flashAnimation) {
-          clearTimeout(timeoutRefs.current.flashAnimation);
-          timeoutRefs.current.flashAnimation = undefined;
-        }
-        if (timeoutRefs.current.successIndicator) {
-          clearTimeout(timeoutRefs.current.successIndicator);
-          timeoutRefs.current.successIndicator = undefined;
-        }
-        timeoutRefs.current.closeDialog = undefined;
-        onClose();
-      }, 2000);
+      // FIX: Dialog no longer auto-closes after save
+      // User must manually close the dialog by clicking close button or cancel
+      // This allows user to continue editing or verify changes before closing
+      // Note: markJustSaved() is already called at the beginning of onSuccess callback
     },
     onError: (error) => {
       if (error.message === 'VERSION_MISMATCH') {
@@ -408,13 +673,14 @@ export function ProductQuickEditDialog({
     handleOpenChange,
     handleCloseClick,
     handleConfirmClose,
+    markJustSaved, // Function to mark that save was just completed
   } = useQuickEditLifecycle({
     open,
     isDirty: formIsDirty,
     isLoading,
     reset,
     initialData,
-    onClose,
+    onClose: wrappedOnClose,
   });
 
   // PHASE 3.5: Extract useQuickEditVersionCheck hook - Version checking moved to hook
@@ -849,8 +1115,10 @@ export function ProductQuickEditDialog({
   }, [allValidationErrors, getErrorsBySection]);
 
   // PHASE 6: Extract Form Content
+  // CRITICAL FIX: Wrap QuickEditFormProvider outside QuickEditFormContent to ensure context is available
+  // even when Dialog/Sheet uses Portal
   const formContent = (
-    <QuickEditFormContent
+    <QuickEditFormProvider
       register={register}
       setValue={setValue}
       watch={watch}
@@ -858,49 +1126,74 @@ export function ProductQuickEditDialog({
       reset={reset}
       errors={errors}
       formState={formStateFull}
-      handleSubmit={handleSubmit}
-      handleFieldFocus={(fieldId: string, e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => handleFieldFocus(fieldId, e)}
-      handleFieldBlur={(e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => handleFieldBlur(e)}
-      onSubmit={onSubmit}
-      onError={onError}
+      handleFieldFocus={handleFieldFocus}
+      handleFieldBlur={handleFieldBlur}
       getFieldClassName={getFieldClassName}
       getErrorCountForSection={getErrorCountForSection}
-      scrollToErrorField={scrollToErrorField}
-      allValidationErrors={allValidationErrors}
       savedFields={savedFields}
       flashingFields={flashingFields}
       fieldOriginalValues={fieldOriginalValues}
       expandedSections={expandedSections}
       setExpandedSections={setExpandedSections}
       skuValidation={{ isValid: skuValidation.isValid, isValidating: skuValidation.isValidating, error: skuValidation.error }}
-      allCategories={allCategories}
+      categories={(allCategories || []) as unknown as MappedCategory[]}
       isLoadingCategories={isLoadingCategories}
       variants={variants}
       isBulkMode={isBulkMode}
       isMobile={isMobile}
-      loadingProduct={loadingProduct}
-      loadingStep={loadingStep}
-      showSuccessIndicator={showSuccessIndicator}
-      isDirty={isDirty}
-      lastSavedTime={lastSavedTime}
-      product={product || null}
-      productWithVariants={productWithVariants}
-      loadedSections={loadedSections}
-      mediaLibraryOpen={mediaLibraryOpen}
-      setMediaLibraryOpen={setMediaLibraryOpen}
-      mediaLibraryMode={mediaLibraryMode}
-      setMediaLibraryMode={setMediaLibraryMode}
+    >
+      <QuickEditFormContent
+        register={register}
+        setValue={setValue}
+        watch={watch}
+        getValues={getValues}
+        reset={reset}
+        errors={errors}
+        formState={formStateFull}
+        handleSubmit={handleSubmit}
+        handleFieldFocus={(fieldId: string, e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => handleFieldFocus(fieldId, e)}
+        handleFieldBlur={(e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => handleFieldBlur(e)}
+        onSubmit={onSubmit}
+        onError={onError}
+        getFieldClassName={getFieldClassName}
+        getErrorCountForSection={getErrorCountForSection}
+        scrollToErrorField={scrollToErrorField}
+        allValidationErrors={allValidationErrors}
+        savedFields={savedFields}
+        flashingFields={flashingFields}
+        fieldOriginalValues={fieldOriginalValues}
+        expandedSections={expandedSections}
+        setExpandedSections={setExpandedSections}
+        skuValidation={{ isValid: skuValidation.isValid, isValidating: skuValidation.isValidating, error: skuValidation.error }}
+        allCategories={allCategories}
+        isLoadingCategories={isLoadingCategories}
+        variants={variants}
+        isBulkMode={isBulkMode}
+        isMobile={isMobile}
+        loadingProduct={loadingProduct}
+        loadingStep={loadingStep}
+        showSuccessIndicator={showSuccessIndicator}
+        isDirty={isDirty}
+        lastSavedTime={lastSavedTime}
+        product={product || null}
+        productWithVariants={productWithVariants}
+        loadedSections={loadedSections}
+        mediaLibraryOpen={mediaLibraryOpen}
+        setMediaLibraryOpen={setMediaLibraryOpen}
+        mediaLibraryMode={mediaLibraryMode}
+        setMediaLibraryMode={setMediaLibraryMode}
         showStatusChangeWarning={showStatusChangeWarning}
         setShowStatusChangeWarning={setShowStatusChangeWarning}
         pendingStatus={pendingStatus}
         setPendingStatus={setPendingStatus}
         previousStatus={previousStatus}
         setPreviousStatus={setPreviousStatus}
-          showProductTypeWarning={showProductTypeWarning}
-          setShowProductTypeWarning={setShowProductTypeWarning}
-          pendingProductType={pendingProductType}
-          setPendingProductType={setPendingProductType}
-        />
+        showProductTypeWarning={showProductTypeWarning}
+        setShowProductTypeWarning={setShowProductTypeWarning}
+        pendingProductType={pendingProductType}
+        setPendingProductType={setPendingProductType}
+      />
+    </QuickEditFormProvider>
   );
 
   // PHASE 6: Extract Dialog Container
@@ -913,11 +1206,40 @@ export function ProductQuickEditDialog({
     setShowScrollToTop(scrollTop > 200);
   };
 
+  // CRITICAL FIX: Always pass open={true} to QuickEditDialogContainer if preventCloseRef is true
+  // This ensures Radix UI respects our prevent close logic, even if parent tries to close
+  const effectiveOpen = (preventCloseRef.current || (saveCompletedAtRef.current !== null && (Date.now() - saveCompletedAtRef.current) < 10000)) 
+    ? true 
+    : internalOpen;
+  
+  console.log('[ProductQuickEditDialog] Rendering QuickEditDialogContainer', {
+    open: open,
+    internalOpen,
+    effectiveOpen,
+    preventClose: preventCloseRef.current,
+    saveCompletedAt: saveCompletedAtRef.current,
+    timeSinceSave: saveCompletedAtRef.current ? Date.now() - saveCompletedAtRef.current : null
+  });
+
   return (
     <>
       <QuickEditDialogContainer
-        open={open}
-        onOpenChange={handleOpenChange}
+        open={effectiveOpen}
+        onOpenChange={(newOpen) => {
+          if (!newOpen && preventCloseRef.current) {
+            // Don't allow dialog to close - force it to stay open
+            // Set internalOpen back to true immediately to prevent Radix UI from closing
+            setTimeout(() => {
+              setInternalOpen(true);
+            }, 0);
+            // Don't call handleOpenChange - we're preventing the close
+            return;
+          }
+          // Update internal state
+          setInternalOpen(newOpen);
+          // Call handler which will check justSavedRef
+          handleOpenChange(newOpen);
+        }}
         isMobile={isMobile}
         isBulkMode={isBulkMode}
         bulkProductCount={bulkProductCount}
@@ -1070,6 +1392,7 @@ export function ProductQuickEditDialog({
         snapshotInitialData={snapshotInitialData}
         productId={product?.id}
         productName={product?.name}
+        getValues={getValues}
       />
 
       {/* PHASE 6: Extract Keyboard Shortcuts Dialog */}

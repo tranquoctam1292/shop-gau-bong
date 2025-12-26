@@ -455,17 +455,30 @@ export async function PATCH(
       }
       
       // Update variants (only fields that exist in MongoDB schema)
+      // FIX: Normalize variant IDs before comparison to handle string/ObjectId mismatches
       const updatedVariants = currentVariants.map((variant: any) => {
-        const updateVariant = variantsToUpdate.find((v: any) => v.id === variant.id);
+        // Normalize variant ID: convert to string and trim whitespace
+        const variantId = String(variant.id || '').trim();
+        const updateVariant = variantsToUpdate.find((v: any) => {
+          const updateId = String(v.id || '').trim();
+          return updateId === variantId;
+        });
         if (updateVariant) {
-          return {
+          const updatedVariant = {
             ...variant,
             ...(updateVariant.sku !== undefined && { sku: updateVariant.sku }),
-            ...(updateVariant.price !== undefined && { price: updateVariant.price }),
             ...(updateVariant.stock !== undefined && { stock: updateVariant.stock }),
             // NOTE: stockStatus removed - variants don't have this field
             // Variants inherit stockStatus from parent product
           };
+          
+          // FIX: Always update price if provided (even if 0)
+          // Don't use conditional spread for price - it should always be updated if provided
+          if (updateVariant.price !== undefined) {
+            updatedVariant.price = updateVariant.price;
+          }
+          
+          return updatedVariant;
         }
         return variant;
       });

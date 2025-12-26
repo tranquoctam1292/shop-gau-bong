@@ -65,13 +65,16 @@ export const QuickEditDialogContainer = React.memo<QuickEditDialogContainerProps
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  if (!open) {
-    return null;
-  }
+  // FIX: Don't return null when open is false - let Radix UI handle visibility
+  // Returning null causes immediate unmount, preventing controlled close behavior
+  // Radix UI Dialog/Sheet will handle hiding when open={false}
 
   if (isMobile) {
     return (
-      <Sheet open={open} onOpenChange={onOpenChange}>
+      <Sheet 
+        open={open} 
+        onOpenChange={onOpenChange}
+      >
         <SheetContent 
           side="bottom" 
           className="h-[90vh] rounded-t-2xl overflow-hidden flex flex-col p-0"
@@ -141,7 +144,11 @@ export const QuickEditDialogContainer = React.memo<QuickEditDialogContainerProps
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange} modal={true}>
+    <Dialog 
+      open={open} 
+      onOpenChange={onOpenChange}
+      modal={true}
+    >
       <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
         <QuickEditDialogHeader
           isMobile={false}
