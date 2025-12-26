@@ -105,25 +105,6 @@ export function useQuickEditProductSync({
         );
       }
       
-      // Debug: Log variants structure
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[ProductQuickEditDialog] API Response:', {
-          hasVariants: !!fetchedProduct.variants,
-          variantsCount: fetchedProduct.variants?.length || 0,
-          firstVariant: fetchedProduct.variants?.[0],
-          productDataMetaBox: fetchedProduct.productDataMetaBox ? {
-            hasVariations: !!fetchedProduct.productDataMetaBox.variations,
-            variationsCount: fetchedProduct.productDataMetaBox.variations?.length || 0,
-            firstVariation: fetchedProduct.productDataMetaBox.variations?.[0],
-            attributes: fetchedProduct.productDataMetaBox.attributes,
-          } : null,
-          version: {
-            server: serverVersion,
-            client: clientVersion,
-            mismatch: serverVersion !== clientVersion,
-          },
-        });
-      }
       
       // Mark as processed
       lastFetchedProductIdRef.current = productId;

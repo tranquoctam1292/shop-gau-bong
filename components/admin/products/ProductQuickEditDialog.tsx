@@ -139,31 +139,9 @@ export function ProductQuickEditDialog({
     const isWithin10SecondsAfterSave = saveCompletedAt !== null && (now - saveCompletedAt) < 10000;
     const currentPreventClose = preventCloseRef.current;
     
-    // Log every time this effect runs to see if it's being triggered
-    if (currentPreventClose || isWithin10SecondsAfterSave) {
-      console.log('[ProductQuickEditDialog] useEffect force open check', {
-        preventClose: currentPreventClose,
-        isWithin10SecondsAfterSave,
-        saveCompletedAt,
-        timeSinceSave: saveCompletedAt ? now - saveCompletedAt : null,
-        internalOpen,
-        internalOpenRef: internalOpenRef.current
-      });
-    }
-    
     if ((currentPreventClose || isWithin10SecondsAfterSave) && !internalOpen) {
-      console.log('[ProductQuickEditDialog] CRITICAL: Force keeping dialog open', {
-        preventClose: currentPreventClose,
-        isWithin10SecondsAfterSave,
-        saveCompletedAt,
-        timeSinceSave: saveCompletedAt ? now - saveCompletedAt : null,
-        internalOpen,
-        internalOpenRef: internalOpenRef.current,
-        stackTrace: new Error().stack?.split('\n').slice(0, 5).join('\n')
-      });
       // Use requestAnimationFrame to ensure this happens after any other state updates
       requestAnimationFrame(() => {
-        console.log('[ProductQuickEditDialog] Force setting internalOpen to true');
         setInternalOpen(true);
       });
     }
@@ -216,36 +194,20 @@ export function ProductQuickEditDialog({
     onSuccess: async (updatedProduct) => {
       // FIX: Mark that save was just completed IMMEDIATELY to prevent auto-close
       // This must be called first, before any other code that might trigger dialog close
-      console.log('[ProductQuickEditDialog] onSuccess called - marking just saved');
       preventCloseRef.current = true; // Set prevent close flag immediately
       saveCompletedAtRef.current = Date.now(); // Track when save was completed
       markJustSaved();
-      console.log('[ProductQuickEditDialog] markJustSaved() called, preventCloseRef set to true, saveCompletedAt:', saveCompletedAtRef.current);
       
       // Force internalOpen to true immediately to prevent any close attempts
       setInternalOpen(true);
       
       // CRITICAL FIX: Use interval to continuously force internalOpen = true for 10 seconds
       // This ensures dialog stays open even if something tries to close it
-      console.log('[ProductQuickEditDialog] Starting interval to keep dialog open');
       const intervalId = setInterval(() => {
         // Use ref to get current value (avoid closure issues)
         const currentInternalOpen = internalOpenRef.current;
         const currentPreventClose = preventCloseRef.current;
-        // Log every check to see if interval is running
-        if (currentPreventClose) {
-          console.log('[ProductQuickEditDialog] Interval check', {
-            preventClose: currentPreventClose,
-            internalOpen: currentInternalOpen,
-            timeSinceSave: saveCompletedAtRef.current ? Date.now() - saveCompletedAtRef.current : null
-          });
-        }
         if (currentPreventClose && !currentInternalOpen) {
-          console.log('[ProductQuickEditDialog] Interval: Force keeping dialog open', {
-            preventClose: currentPreventClose,
-            internalOpen: currentInternalOpen,
-            timeSinceSave: saveCompletedAtRef.current ? Date.now() - saveCompletedAtRef.current : null
-          });
           setInternalOpen(true);
         }
       }, 100); // Check every 100ms
@@ -1211,15 +1173,6 @@ export function ProductQuickEditDialog({
   const effectiveOpen = (preventCloseRef.current || (saveCompletedAtRef.current !== null && (Date.now() - saveCompletedAtRef.current) < 10000)) 
     ? true 
     : internalOpen;
-  
-  console.log('[ProductQuickEditDialog] Rendering QuickEditDialogContainer', {
-    open: open,
-    internalOpen,
-    effectiveOpen,
-    preventClose: preventCloseRef.current,
-    saveCompletedAt: saveCompletedAtRef.current,
-    timeSinceSave: saveCompletedAtRef.current ? Date.now() - saveCompletedAtRef.current : null
-  });
 
   return (
     <>
