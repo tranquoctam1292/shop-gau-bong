@@ -376,24 +376,6 @@ Before implementing any feature, you MUST reference the following sources based 
 - **Combining cron jobs:** If hitting limits, create a single route that calls multiple tasks: `/api/admin/cron/all-tasks`
 - **Documentation:** Always document cron job setup in `CRON_JOBS_SETUP.md` when adding new scheduled tasks.
 
-## 11. Dead Code & Legacy Code Management (CRITICAL)
-- **Dead Code Detection:** Regularly review and remove unused code to maintain codebase health.
-  - Check for unused components, functions, and imports
-  - Use code review findings from `BAO_CAO_REVIEW_CODE_TOAN_DIEN.md` as reference
-- **Deprecated Code:** Code marked with `@deprecated` should NOT be used in new implementations.
-  - **Deprecated Files:**
-    - `lib/api/woocommerce.ts` - Use Custom CMS API instead
-  - **Deprecated Functions:**
-    - `mapWooCommerceProduct()`, `mapWooCommerceProducts()`, `mapWooCommerceCategory()`, `mapWooCommerceCategories()` in `lib/utils/productMapper.ts`
-    - Use `mapMongoProduct()` and `mapMongoCategory()` instead
-  - **Migration Scripts:** Deprecated code is kept only for migration scripts in `scripts/` directory
-- **Test Scripts Organization:**
-  - Active test scripts remain in `scripts/` directory
-  - Legacy test scripts are moved to `scripts/legacy/` with documentation in `scripts/legacy/README.md`
-  - Only add test scripts to `package.json` if they are actively used
-- **Component Removal:** Removed components (e.g., `CustomerPhotos.tsx`) should not be referenced in new code.
-  - Check `app/page.tsx` and component imports before using removed components
-
 # BUSINESS LOGIC RULES
 - **Language:** UI text MUST be **Vietnamese**. Code comments in English/Vietnamese.
 - **Payment:** Prioritize **VietQR** & **MoMo**. COD and Bank Transfer are also supported.
@@ -577,7 +559,7 @@ Before implementing any feature, you MUST reference the following sources based 
   - *Implementation:* See `lib/hooks/useQuickUpdateProduct.ts` for reference
   - *Dialog handling:* Check for `CSRF_TOKEN_INVALID_AFTER_RETRY` error code và log appropriately (toast already shown in hook)
 
-## 9. Admin Layout & RBAC Rules (CRITICAL)
+## 10. Admin Layout & RBAC Rules (CRITICAL)
 - **AdminLayout Structure:** Always separate `SessionProvider` wrapper from content component
   - *Bad:* Calling `useSession` in same component as `SessionProvider`
   - *Good:* 
@@ -604,7 +586,7 @@ Before implementing any feature, you MUST reference the following sources based 
   - Pattern: `await fetch('/api/admin/auth/logout', { method: 'POST' }); await signOut();`
   - Use `finally` block to ensure `signOut()` always executes
 
-## 10. Rules Refresh & Consistency (CRITICAL)
+## 11. Rules Refresh & Consistency (CRITICAL)
 - **Rule Name:** `refresh-rules-pre-task`
 - **Purpose:** Ensure AI always operates with the most up-to-date rules and avoid behavioral errors (such as terminal connection failures due to complex piping). This rule ensures that all new or modified rules are applied from the very beginning of any task.
 - **When to Apply:** BEFORE starting ANY task, work item, or response to the user, including:
@@ -629,3 +611,367 @@ Before implementing any feature, you MUST reference the following sources based 
   - Before starting any task, use `read_file` tool to refresh `.cursorrules` context
   - Pay special attention to recently added rules (check file modification time or recent changes)
   - If multiple tasks are completed in sequence, refresh rules before each new task
+
+## 12. File Size & Code Organization Rules (CRITICAL)
+- **Rule Name:** `file-size-limits-and-folder-pattern`
+- **Purpose:** Prevent files from growing too large, ensure maintainability, and enforce Single Responsibility Principle. Based on lessons learned from ProductQuickEditDialog refactor (5,172 lines → 1,025 lines, took 22+ hours to refactor).
+- **Source:** ProductQuickEditDialog refactor experience - file grew to 5,172 lines, required extensive refactoring effort
+
+### 12.1 File Size Limits (STRICT)
+- **Component Files (.tsx):**
+  - **Maximum:** 300 lines per file
+  - **Warning Threshold:** 250 lines (should start planning refactor)
+  - **Critical Threshold:** 400 lines (MUST refactor immediately)
+  - **Exception:** Main entry point files (e.g., `index.tsx`) can be up to 500 lines if they only contain re-exports and minimal orchestration
+
+- **Hook Files (.ts):**
+  - **Maximum:** 200 lines per hook file
+  - **Warning Threshold:** 150 lines
+  - **Critical Threshold:** 250 lines
+  - **Rule:** One hook per file (unless hooks are tightly coupled and < 100 lines combined)
+
+- **Utility Files (.ts):**
+  - **Maximum:** 250 lines per utility file
+  - **Warning Threshold:** 200 lines
+  - **Rule:** Group related utilities, but split if file exceeds limit
+
+- **API Route Files (.ts):**
+  - **Maximum:** 300 lines per route file
+  - **Warning Threshold:** 250 lines
+  - **Rule:** Extract business logic to separate service/repository files
+
+- **Type/Schema Files (.ts):**
+  - **Maximum:** 400 lines per type file
+  - **Warning Threshold:** 300 lines
+  - **Rule:** Split into domain-specific type files if needed
+
+### 12.2 Single Responsibility Principle (STRICT)
+- **One File = One Responsibility:**
+  - *Bad:* A component file that handles form logic, API calls, validation, and UI rendering
+  - *Good:* Separate files for: Component (UI), Hook (logic), Utils (helpers), Types (definitions)
+
+- **One Function = One Responsibility:**
+  - *Bad:* `handleSubmit()` that validates, transforms data, calls API, updates state, shows toast, and closes dialog
+  - *Good:* Split into: `validateForm()`, `transformData()`, `submitToAPI()`, `handleSuccess()`, `handleError()`
+
+- **One Hook = One Concern:**
+  - *Bad:* `useProductForm()` that handles form state, API calls, validation, error handling, and lifecycle
+  - *Good:* Separate hooks: `useProductForm()` (form state), `useProductAPI()` (API calls), `useProductValidation()` (validation)
+
+### 12.3 Folder Pattern Organization (MANDATORY)
+- **When to Use Folder Pattern:** When a component/module has:
+  - Multiple related files (3+ components, hooks, or utilities)
+  - Complex state management
+  - Multiple sub-features
+  - File count > 5 files in same directory
+
+- **Standard Folder Structure:**
+  ```
+  ComponentName/
+  ├── index.tsx                    # Main component (orchestration only, < 300 lines)
+  ├── types.ts                     # Type definitions
+  ├── schema.ts                    # Validation schemas (if needed)
+  ├── components/                  # Sub-components
+  │   ├── ComponentNameHeader.tsx
+  │   ├── ComponentNameFooter.tsx
+  │   └── ComponentNameContent.tsx
+  ├── hooks/                       # Custom hooks
+  │   ├── useComponentNameState.ts
+  │   ├── useComponentNameAPI.ts
+  │   └── useComponentNameValidation.ts
+  ├── sections/                    # Form sections or feature sections
+  │   ├── BasicInfoSection.tsx
+  │   ├── AdvancedSection.tsx
+  │   └── SettingsSection.tsx
+  ├── context/                     # Context API (if needed)
+  │   ├── ComponentNameContext.tsx
+  │   └── ComponentNameProvider.tsx
+  └── utils/                       # Utility functions
+      ├── componentNameHelpers.ts
+      └── componentNameValidators.ts
+  ```
+
+- **Naming Conventions:**
+  - **Components:** PascalCase, descriptive name (e.g., `ProductQuickEditDialog.tsx`)
+  - **Hooks:** camelCase with `use` prefix (e.g., `useQuickEditForm.ts`)
+  - **Sections:** PascalCase with `Section` suffix (e.g., `PricingSection.tsx`)
+  - **Utils:** camelCase with descriptive suffix (e.g., `formHelpers.ts`, `dirtyCheckHelpers.ts`)
+  - **Types:** camelCase with `types.ts` or descriptive name (e.g., `types.ts`, `quickEditTypes.ts`)
+
+### 12.4 Refactoring Triggers (MANDATORY)
+- **Automatic Refactor Required When:**
+  1. File exceeds critical threshold (400 lines for components, 250 lines for hooks)
+  2. File has > 5 responsibilities (check comments/function names)
+  3. File imports > 20 dependencies
+  4. File has > 10 useState/useEffect hooks
+  5. File has > 3 nested levels of conditionals
+  6. File takes > 5 seconds to understand when reading
+
+- **Refactoring Strategy:**
+  1. **Identify Responsibilities:** List all things the file does
+  2. **Extract by Concern:** Group related code (UI, logic, data, validation)
+  3. **Create Folder Structure:** Use Folder Pattern if 3+ files needed
+  4. **Extract Incrementally:** One concern at a time, test after each extraction
+  5. **Update Imports:** Fix all import paths after extraction
+  6. **Verify:** Run type-check, lint, and build after each step
+
+### 12.5 Code Organization Best Practices
+- **Component Composition:**
+  - Main component should only orchestrate, not implement logic
+  - Extract complex JSX into separate components
+  - Extract form sections into `sections/` folder
+  - Extract dialog/modals into `components/` folder
+
+- **Hook Extraction:**
+  - Extract state management logic into custom hooks
+  - Extract API calls into separate hooks
+  - Extract validation logic into separate hooks
+  - Extract lifecycle logic into separate hooks
+  - One hook = one concern (form state, API, validation, lifecycle)
+
+- **Utility Extraction:**
+  - Extract pure functions (no side effects) into `utils/`
+  - Extract type conversion helpers into `utils/`
+  - Extract validation helpers into `utils/`
+  - Extract formatting helpers into `utils/`
+
+- **Context Usage:**
+  - Use Context API when props drilling > 3 levels
+  - Create Context Provider in `context/` folder
+  - Memoize context value to prevent unnecessary re-renders
+  - Export custom hook to access context (e.g., `useQuickEditFormContext`)
+
+### 12.6 Props Drilling Prevention (CRITICAL)
+- **Rule Name:** `props-drilling-threshold`
+- **Purpose:** Prevent excessive props drilling which makes components hard to maintain and test
+- **Threshold:** If a component receives **> 7 props**, consider refactoring
+
+- **When to Use Context API:**
+  - Component receives > 7 props
+  - Props are passed through > 3 component levels
+  - Same props are passed to multiple sibling components
+  - Props are mostly state setters or callbacks
+
+- **When to Group Props:**
+  - Related props can be grouped into objects (e.g., `formProps`, `apiProps`, `uiProps`)
+  - Props are always passed together
+  - Props form a logical unit (e.g., `validationConfig`, `formState`)
+
+- **Patterns:**
+  ```typescript
+  // ❌ BAD: Too many props
+  <Component 
+    name={name}
+    setName={setName}
+    email={email}
+    setEmail={setEmail}
+    phone={phone}
+    setPhone={setPhone}
+    address={address}
+    setAddress={setAddress}
+    onSubmit={onSubmit}
+    onCancel={onCancel}
+    errors={errors}
+    isLoading={isLoading}
+  />
+
+  // ✅ GOOD: Group related props
+  <Component 
+    formState={{ name, email, phone, address }}
+    formActions={{ setName, setEmail, setPhone, setAddress }}
+    formConfig={{ onSubmit, onCancel, errors, isLoading }}
+  />
+
+  // ✅ BETTER: Use Context API
+  <FormProvider>
+    <Component /> {/* Access via useFormContext() */}
+  </FormProvider>
+  ```
+
+- **Decision Tree:**
+  1. **< 5 props:** Keep as-is (props drilling acceptable)
+  2. **5-7 props:** Consider grouping related props into objects
+  3. **> 7 props:** **MUST** use Context API or group props
+  4. **Props through > 3 levels:** **MUST** use Context API
+
+### 12.7 Logic Coupling & State Management (CRITICAL)
+- **Rule Name:** `prevent-hook-coupling-and-state-fragmentation`
+- **Purpose:** Prevent hooks from becoming too coupled and state from becoming fragmented across many hooks
+- **Source:** ProductQuickEditDialog experience - 12 hooks can lead to dependency chains and state fragmentation
+
+- **Hook Coupling Prevention:**
+  - **Maximum Hooks per Component:** 8-10 hooks (warning threshold)
+  - **Critical Threshold:** > 12 hooks (MUST refactor)
+  - **Dependency Chain Detection:**
+    - If Hook A depends on Hook B's result, and Hook B depends on Hook C → Consider combining or using shared state
+    - If > 3 hooks form a dependency chain → Refactor to use Context or Reducer
+
+- **State Management Strategy:**
+  - **Centralized State (Recommended):**
+    - Use Context API for shared state across multiple hooks
+    - Use `useReducer` for complex state with multiple actions
+    - Create a single "state hook" that manages all related state
+    - Example: `useQuickEditForm()` manages all form state, other hooks access via Context
+
+  - **State Fragmentation Prevention:**
+    - **Bad:** 12 hooks each managing their own state, passing data between hooks
+    - **Good:** 1-2 main hooks manage state, other hooks are "read-only" or "action-only"
+    - **Pattern:**
+      ```typescript
+      // ❌ BAD: Fragmented state across hooks
+      const formState = useFormState();
+      const apiState = useAPIState();
+      const validationState = useValidationState();
+      const uiState = useUIState();
+      // ... 8 more hooks with their own state
+
+      // ✅ GOOD: Centralized state with Context
+      const { formState, apiState, validationState, uiState } = useFormContext();
+      // All state managed in one place, hooks access via Context
+      ```
+
+- **Hook Dependency Rules:**
+  - **Direct Dependencies:** Hook A can use Hook B's return value directly (acceptable)
+  - **Circular Dependencies:** NEVER allow (Hook A → Hook B → Hook A)
+  - **Long Chains:** If dependency chain > 3 hooks → Refactor to Context/Reducer
+  - **Shared State:** If 3+ hooks need same state → Use Context API
+
+- **State Management Patterns:**
+  ```typescript
+  // Pattern 1: Context API (Recommended for complex forms)
+  const FormProvider = ({ children }) => {
+    const formState = useReducer(formReducer, initialState);
+    const apiState = useAPIState();
+    const validationState = useValidationState();
+    
+    const contextValue = useMemo(() => ({
+      formState,
+      apiState,
+      validationState,
+      // ... actions
+    }), [formState, apiState, validationState]);
+    
+    return (
+      <FormContext.Provider value={contextValue}>
+        {children}
+      </FormContext.Provider>
+    );
+  };
+
+  // Pattern 2: useReducer for Complex State
+  const useFormState = () => {
+    const [state, dispatch] = useReducer(formReducer, initialState);
+    // All state updates go through dispatch
+    return { state, dispatch };
+  };
+
+  // Pattern 3: Single "Orchestrator" Hook
+  const useFormOrchestrator = () => {
+    // Manages all state internally
+    const formState = useState(...);
+    const apiState = useState(...);
+    const validationState = useState(...);
+    
+    // Returns only what's needed
+    return {
+      formState,
+      actions: { submit, validate, reset },
+      // ... computed values
+    };
+  };
+  ```
+
+- **Hook Organization Rules:**
+  - **Core Hooks (1-2):** Manage main state (form state, API state)
+  - **Derived Hooks (3-5):** Compute values from core state (validation, computed fields)
+  - **Action Hooks (2-3):** Handle side effects (API calls, navigation)
+  - **UI Hooks (1-2):** Handle UI-specific state (modals, tooltips)
+  - **Total:** Maximum 8-10 hooks per component
+
+- **Refactoring Triggers:**
+  - Component has > 12 hooks → MUST refactor to Context/Reducer
+  - Hook dependency chain > 3 levels → MUST refactor
+  - 3+ hooks need same state → MUST use Context API
+  - Props drilling > 3 levels with > 7 props → MUST use Context API
+
+### 12.8 State Management Decision Guide
+- **Use Context API When:**
+  - Multiple hooks need same state
+  - Props drilling > 3 levels
+  - Component receives > 7 props
+  - State is shared across many components
+  - Form state with multiple sections
+
+- **Use useReducer When:**
+  - Complex state with multiple actions
+  - State updates follow predictable patterns
+  - Need to track state history (undo/redo)
+  - State logic is complex (> 5 different actions)
+
+- **Use useState When:**
+  - Simple, isolated state
+  - State is only used in one component
+  - No sharing needed
+  - < 3 state variables
+
+- **Use Custom Hook When:**
+  - Logic can be reused
+  - Encapsulates related state + effects
+  - < 3 hooks needed for feature
+  - No tight coupling with other hooks
+
+### 12.9 File Size Monitoring
+- **Before Creating New Feature:**
+  1. Check if existing file can be extended (< 200 lines)
+  2. If file > 200 lines, create new file in appropriate folder
+  3. If creating new feature with multiple files, use Folder Pattern from start
+
+- **During Development:**
+  1. Monitor file size as you add code
+  2. If approaching warning threshold, plan extraction
+  3. Extract before reaching critical threshold
+
+- **Code Review Checklist:**
+  - [ ] File size < maximum limit
+  - [ ] File has single responsibility
+  - [ ] Functions have single responsibility
+  - [ ] Folder structure follows pattern (if applicable)
+  - [ ] No props drilling > 3 levels
+  - [ ] Hooks are focused (one concern per hook)
+
+### 12.11 Examples from ProductQuickEditDialog Refactor
+- **Before:** 5,172 lines in single file
+- **After:** 47 files organized in Folder Pattern:
+  - `components/` (14 files) - Dialog components, modals, tabs
+  - `hooks/` (12 files) - Form hooks, API hooks, lifecycle hooks
+  - `sections/` (10 files) - Form sections (BasicInfo, Pricing, Inventory, etc.)
+  - `context/` (2 files) - Context API setup
+  - `utils/` (4 files) - Helper functions
+  - `types.ts`, `schema.ts`, `index.tsx` - Core files
+- **Result:** 80.2% reduction in main file size, improved maintainability, easier testing
+
+### 12.12 Enforcement
+- **Pre-Commit Check:** Consider adding file size check to pre-commit hook (optional)
+- **Code Review:** Always check file size in code reviews
+- **Refactor Planning:** If file exceeds warning threshold, create refactor plan before adding more features
+- **Documentation:** Document folder structure in component/module README if complex
+
+**Rule Priority:** P0 (Critical) - Must follow to prevent technical debt accumulation
+
+## 13. Dead Code & Legacy Code Management (CRITICAL)
+- **Dead Code Detection:** Regularly review and remove unused code to maintain codebase health.
+  - Check for unused components, functions, and imports
+  - Use code review findings from `BAO_CAO_REVIEW_CODE_TOAN_DIEN.md` as reference
+- **Deprecated Code:** Code marked with `@deprecated` should NOT be used in new implementations.
+  - **Deprecated Files:**
+    - `lib/api/woocommerce.ts` - Use Custom CMS API instead
+  - **Deprecated Functions:**
+    - `mapWooCommerceProduct()`, `mapWooCommerceProducts()`, `mapWooCommerceCategory()`, `mapWooCommerceCategories()` in `lib/utils/productMapper.ts`
+    - Use `mapMongoProduct()` and `mapMongoCategory()` instead
+  - **Migration Scripts:** Deprecated code is kept only for migration scripts in `scripts/` directory
+- **Test Scripts Organization:**
+  - Active test scripts remain in `scripts/` directory
+  - Legacy test scripts are moved to `scripts/legacy/` with documentation in `scripts/legacy/README.md`
+  - Only add test scripts to `package.json` if they are actively used
+- **Component Removal:** Removed components (e.g., `CustomerPhotos.tsx`) should not be referenced in new code.
+  - Check `app/page.tsx` and component imports before using removed components

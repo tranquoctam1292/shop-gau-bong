@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 import type { QuickEditFormData } from '../types';
 import type { MappedProduct } from '@/lib/utils/productMapper';
 import type { ProductWithVariants } from '@/lib/hooks/useProduct';
@@ -25,6 +25,7 @@ interface UseQuickEditHandlersOptions {
   product?: MappedProduct;
   productIds?: string[];
   isBulkMode: boolean;
+  productWithVariants?: ProductWithVariants | null; // For accessing productDataMetaBox fields like costPrice
   
   // Form methods
   reset: (data: QuickEditFormData, options?: { keepDefaultValues?: boolean }) => void;
@@ -66,6 +67,7 @@ export function useQuickEditHandlers({
   product,
   productIds,
   isBulkMode,
+  productWithVariants,
   reset,
   quickUpdate,
   setLoadingStep,
@@ -88,6 +90,35 @@ export function useQuickEditHandlers({
   timeoutRefs,
   savedUpdatesRef,
 }: UseQuickEditHandlersOptions) {
+  // MEMORY LEAK FIX: Store timeout IDs for cleanup
+  const bulkUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const singleUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const errorScrollTimeoutRefs = useRef<{ outer?: NodeJS.Timeout; inner?: NodeJS.Timeout }>({});
+  // RACE CONDITION FIX: Track mounted state to prevent setState on unmounted component
+  const isMountedRef = useRef(true);
+  
+  // MEMORY LEAK FIX + RACE CONDITION FIX: Cleanup all timeouts and track mounted state
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      if (bulkUpdateTimeoutRef.current) {
+        clearTimeout(bulkUpdateTimeoutRef.current);
+        bulkUpdateTimeoutRef.current = null;
+      }
+      if (singleUpdateTimeoutRef.current) {
+        clearTimeout(singleUpdateTimeoutRef.current);
+        singleUpdateTimeoutRef.current = null;
+      }
+      if (errorScrollTimeoutRefs.current.outer) {
+        clearTimeout(errorScrollTimeoutRefs.current.outer);
+      }
+      if (errorScrollTimeoutRefs.current.inner) {
+        clearTimeout(errorScrollTimeoutRefs.current.inner);
+      }
+      errorScrollTimeoutRefs.current = {};
+    };
+  }, []);
   
   // Handle form submission (bulk + single mode)
   const onSubmit = useCallback(async (data: QuickEditFormData) => {
@@ -161,9 +192,17 @@ export function useQuickEditHandlers({
           
           onBulkSuccess?.(result.updated || 0);
           
+          // MEMORY LEAK FIX + RACE CONDITION FIX: Store timeout ID and check mounted state
           // Close dialog after a short delay
-          setTimeout(() => {
-            onClose();
+          if (bulkUpdateTimeoutRef.current) {
+            clearTimeout(bulkUpdateTimeoutRef.current);
+          }
+          bulkUpdateTimeoutRef.current = setTimeout(() => {
+            bulkUpdateTimeoutRef.current = null;
+            // RACE CONDITION FIX: Only call onClose if component is still mounted
+            if (isMountedRef.current) {
+              onClose();
+            }
           }, 1500);
         } catch (error: any) {
           setBulkUpdateProgress({
@@ -238,9 +277,14 @@ export function useQuickEditHandlers({
       if (data.seoTitle) updates.seoTitle = data.seoTitle;
       if (data.seoDescription) updates.seoDescription = data.seoDescription;
       if (data.slug) updates.slug = data.slug;
+      // PHASE 2: Cost Price (4.2.2) - Handle clear logic similar to salePrice
       // PHASE 2: Type Mismatch Fix (7.8.1) - Use type-safe validation
-      if (data.costPrice !== undefined && isValidPrice(data.costPrice)) {
+      if (data.costPrice !== undefined && isValidPrice(data.costPrice) && data.costPrice > 0) {
         updates.costPrice = data.costPrice;
+      } else if (data.costPrice === undefined && productWithVariants?.productDataMetaBox?.costPrice) {
+        // User wants to clear costPrice - send null to backend
+        // Check from productWithVariants which has productDataMetaBox structure
+        updates.costPrice = null;
       }
       if (data.productType) updates.productType = data.productType;
       if (data.visibility) updates.visibility = data.visibility;
@@ -293,10 +337,23 @@ export function useQuickEditHandlers({
         return;
       }
       setLoadingStep('complete');
+      // MEMORY LEAK FIX + RACE CONDITION FIX: Store timeout ID and check mounted state
       // Reset after brief delay to show completion
-      setTimeout(() => {
-        setLoadingStep('idle');
+      if (singleUpdateTimeoutRef.current) {
+        clearTimeout(singleUpdateTimeoutRef.current);
+      }
+      singleUpdateTimeoutRef.current = setTimeout(() => {
+        singleUpdateTimeoutRef.current = null;
+        // RACE CONDITION FIX: Only setState if component is still mounted
+        if (isMountedRef.current) {
+          setLoadingStep('idle');
+        }
       }, 500);
+      
+      // Call onSuccess callback if provided
+      if (onSuccess) {
+        onSuccess(updatedProduct);
+      }
     } catch (error: any) {
       // Error handling is done in useQuickUpdateProduct hook
       console.error('Error updating product:', error);
@@ -306,11 +363,13 @@ export function useQuickEditHandlers({
     isBulkMode,
     productIds,
     product,
+    productWithVariants, // Added: Used in costPrice clear logic (line 247)
     quickUpdate,
     setLoadingStep,
     setBulkUpdateProgress,
     showToast,
     onBulkSuccess,
+    onSuccess, // Added: Callback may be used in future or by parent component
     onClose,
   ]);
 
@@ -372,8 +431,16 @@ export function useQuickEditHandlers({
       const firstErrorField = errorList[0].field;
       const firstErrorFieldId = getFieldId(firstErrorField);
       
+      // MEMORY LEAK FIX: Cleanup previous timeouts before creating new ones
+      if (errorScrollTimeoutRefs.current.outer) {
+        clearTimeout(errorScrollTimeoutRefs.current.outer);
+      }
+      if (errorScrollTimeoutRefs.current.inner) {
+        clearTimeout(errorScrollTimeoutRefs.current.inner);
+      }
+      
       // Use setTimeout to ensure DOM is updated with error messages
-      setTimeout(() => {
+      errorScrollTimeoutRefs.current.outer = setTimeout(() => {
         const errorElement = document.getElementById(firstErrorFieldId);
         if (errorElement) {
           errorElement.scrollIntoView({ 
@@ -382,8 +449,9 @@ export function useQuickEditHandlers({
             inline: 'nearest'
           });
           // Focus the field after scrolling
-          setTimeout(() => {
+          errorScrollTimeoutRefs.current.inner = setTimeout(() => {
             errorElement.focus();
+            errorScrollTimeoutRefs.current.inner = undefined;
           }, 300);
         } else {
           // Fallback: Try to find by field name pattern
@@ -394,11 +462,13 @@ export function useQuickEditHandlers({
               block: 'center',
               inline: 'nearest'
             });
-            setTimeout(() => {
+            errorScrollTimeoutRefs.current.inner = setTimeout(() => {
               fallbackElement.focus();
+              errorScrollTimeoutRefs.current.inner = undefined;
             }, 300);
           }
         }
+        errorScrollTimeoutRefs.current.outer = undefined;
       }, 100);
       
       // Show summary toast with all errors

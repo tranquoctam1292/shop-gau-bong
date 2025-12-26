@@ -53,6 +53,9 @@ export function useQuickEditForm({
   
   // CRITICAL FIX: Track if form initialization check has been performed (prevents re-checking on every field change)
   const formInitializedCheckedRef = useRef(false);
+  // MEMORY LEAK FIX: Store timer and RAF IDs for cleanup
+  const formInitTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const formInitRafRefs = useRef<{ first?: number; second?: number }>({});
 
   // Initialize form data from product (single mode) or empty (bulk mode)
   const initialData = useMemo<QuickEditFormData>(() => {
@@ -292,27 +295,51 @@ export function useQuickEditForm({
   // CRITICAL FIX: Set formInitialized to true after form has been reset
   // Use a delay to ensure form values are fully synchronized after reset()
   useEffect(() => {
+    // MEMORY LEAK FIX: Cleanup previous timers and RAFs
+    if (formInitTimerRef.current) {
+      clearTimeout(formInitTimerRef.current);
+      formInitTimerRef.current = null;
+    }
+    if (formInitRafRefs.current.first) {
+      cancelAnimationFrame(formInitRafRefs.current.first);
+    }
+    if (formInitRafRefs.current.second) {
+      cancelAnimationFrame(formInitRafRefs.current.second);
+    }
+    formInitRafRefs.current = {};
+
     if (open && snapshotInitialData && !formInitializedCheckedRef.current) {
       // Use requestAnimationFrame twice + setTimeout to ensure form is fully reset
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
+      formInitRafRefs.current.first = requestAnimationFrame(() => {
+        formInitRafRefs.current.second = requestAnimationFrame(() => {
           // Additional delay to ensure all form values are synchronized
-          const timer = setTimeout(() => {
+          formInitTimerRef.current = setTimeout(() => {
             setFormInitialized(true);
             formInitializedCheckedRef.current = true;
+            formInitTimerRef.current = null;
+            formInitRafRefs.current = {};
           }, 150); // 150ms delay to ensure form is fully reset
-          
-          // Cleanup function is not needed here as timer will complete
-          // If dialog closes before timer completes, the effect will re-run and reset formInitialized
-          return () => {
-            clearTimeout(timer);
-          };
         });
       });
     } else if (!open) {
       // Reset checked flag when dialog closes
       formInitializedCheckedRef.current = false;
     }
+
+    // MEMORY LEAK FIX: Cleanup function to clear timers and RAFs on unmount or dependency change
+    return () => {
+      if (formInitTimerRef.current) {
+        clearTimeout(formInitTimerRef.current);
+        formInitTimerRef.current = null;
+      }
+      if (formInitRafRefs.current.first) {
+        cancelAnimationFrame(formInitRafRefs.current.first);
+      }
+      if (formInitRafRefs.current.second) {
+        cancelAnimationFrame(formInitRafRefs.current.second);
+      }
+      formInitRafRefs.current = {};
+    };
   }, [open, snapshotInitialData]); // Only depend on open and snapshotInitialData
 
   return {

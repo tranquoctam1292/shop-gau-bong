@@ -2,50 +2,15 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { UseFormSetValue } from 'react-hook-form';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogDescription,
-} from '@/components/ui/dialog';
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetFooter,
-} from '@/components/ui/sheet';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { PriceInput } from './PriceInput';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Loader2, X, Image as ImageIcon, Plus, Search, Check, Package, DollarSign, Box, Ruler, Tag, AlertCircle, Info, FileText, CheckCircle2, Clock, RotateCcw, Circle, Keyboard, ArrowUp, Undo2, Redo2, Save, FolderOpen, Trash2, GitCompare, Download } from 'lucide-react';
-import { LoadingProgressIndicator, type LoadingStep } from './LoadingProgressIndicator';
-// PERFORMANCE OPTIMIZATION (3.3.1): Skeleton loader for immediate dialog display
-import { ProductQuickEditSkeleton } from './ProductQuickEditSkeleton';
+// PHASE 6: Most UI components moved to extracted components - only keep essential imports
 import type { MappedProduct } from '@/lib/utils/productMapper';
-import { parsePrice, parsePriceOptional, parseInteger, parseIntegerOptional, isValidPrice, isValidInteger } from '@/lib/utils/typeConverters';
 import { useQuickUpdateProduct } from '@/lib/hooks/useQuickUpdateProduct';
 import { useToastContext } from '@/components/providers/ToastProvider';
 import { useSkuValidation } from '@/lib/hooks/useSkuValidation';
 import { useMobileKeyboard } from '@/lib/hooks/useMobileKeyboard';
-import { VariantQuickEditTable } from './VariantQuickEditTable';
 import { useCategories } from '@/lib/hooks/useCategories';
-import { MediaLibraryModal } from './MediaLibraryModal';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Textarea } from '@/components/ui/textarea';
 import { useProductHistory } from '@/lib/hooks/useProductHistory';
-import { useUndoRedo } from '@/lib/hooks/useUndoRedo';
-import { useRouter } from 'next/navigation';
-import { ExternalLink } from 'lucide-react';
-import Image from 'next/image';
+import { LoadingProgressIndicator, type LoadingStep } from './LoadingProgressIndicator';
 // PERFORMANCE OPTIMIZATION (2.1.0): Use React Query hook for product fetching
 import { useProduct, type ProductWithVariants as UseProductWithVariants } from '@/lib/hooks/useProduct';
 
@@ -58,6 +23,12 @@ import { useQuickEditHandlers } from './ProductQuickEditDialog/hooks/useQuickEdi
 import { useQuickEditValidation } from './ProductQuickEditDialog/hooks/useQuickEditValidation';
 import { useQuickEditLifecycle } from './ProductQuickEditDialog/hooks/useQuickEditLifecycle';
 import { useQuickEditVersionCheck } from './ProductQuickEditDialog/hooks/useQuickEditVersionCheck';
+import { useQuickEditKeyboardShortcuts } from './ProductQuickEditDialog/hooks/useQuickEditKeyboardShortcuts';
+import { useQuickEditTemplates } from './ProductQuickEditDialog/hooks/useQuickEditTemplates';
+import { useQuickEditUndoRedo } from './ProductQuickEditDialog/hooks/useQuickEditUndoRedo';
+import { useQuickEditProductSync } from './ProductQuickEditDialog/hooks/useQuickEditProductSync';
+import { useQuickEditProgressiveLoading } from './ProductQuickEditDialog/hooks/useQuickEditProgressiveLoading';
+import { useQuickEditFieldWatchers } from './ProductQuickEditDialog/hooks/useQuickEditFieldWatchers';
 // PHASE 2: Extract Form Sections
 import { DimensionsSection } from './ProductQuickEditDialog/sections/DimensionsSection';
 import { ShippingSection } from './ProductQuickEditDialog/sections/ShippingSection';
@@ -70,6 +41,22 @@ import { CategoriesSection } from './ProductQuickEditDialog/sections/CategoriesS
 import { ImagesSection } from './ProductQuickEditDialog/sections/ImagesSection';
 import { VariantsSection } from './ProductQuickEditDialog/sections/VariantsSection';
 import { ProductOptionsSection } from './ProductQuickEditDialog/sections/ProductOptionsSection';
+// PHASE 4: Extract Components
+import { QuickEditDialogHeader } from './ProductQuickEditDialog/components/QuickEditDialogHeader';
+import { QuickEditDialogFooter } from './ProductQuickEditDialog/components/QuickEditDialogFooter';
+import { QuickEditSkipLinks } from './ProductQuickEditDialog/components/QuickEditSkipLinks';
+import { QuickEditComparisonDialog } from './ProductQuickEditDialog/components/QuickEditComparisonDialog';
+import { QuickEditKeyboardShortcutsDialog } from './ProductQuickEditDialog/components/QuickEditKeyboardShortcutsDialog';
+import { QuickEditConfirmCloseDialog } from './ProductQuickEditDialog/components/QuickEditConfirmCloseDialog';
+import { QuickEditStatusChangeWarningDialog } from './ProductQuickEditDialog/components/QuickEditStatusChangeWarningDialog';
+import { QuickEditProductTypeWarningDialog } from './ProductQuickEditDialog/components/QuickEditProductTypeWarningDialog';
+import { QuickEditScheduleDialog } from './ProductQuickEditDialog/components/QuickEditScheduleDialog';
+import { QuickEditSaveTemplateDialog } from './ProductQuickEditDialog/components/QuickEditSaveTemplateDialog';
+import { QuickEditFormContent } from './ProductQuickEditDialog/components/QuickEditFormContent';
+import { QuickEditDialogContainer } from './ProductQuickEditDialog/components/QuickEditDialogContainer';
+// PHASE 5: Extract Utils
+import { createFormStateSnapshot } from './ProductQuickEditDialog/utils/formHelpers';
+import { isDirtyCheck } from './ProductQuickEditDialog/utils/dirtyCheckHelpers';
 
 // Extended product type with variants (from API)
 // PERFORMANCE OPTIMIZATION (2.1.0): Use type from useProduct hook to avoid type conflicts
@@ -100,7 +87,6 @@ export function ProductQuickEditDialog({
   onSuccess,
   onBulkSuccess,
 }: ProductQuickEditDialogProps) {
-  const router = useRouter();
   // PHASE 2: Bulk Edit Mode (4.2.5)
   const isBulkMode = Boolean(productIds && productIds.length > 0);
   const bulkProductCount = productIds?.length || 0;
@@ -185,10 +171,8 @@ export function ProductQuickEditDialog({
       setExternalSnapshot(updatedInitialData);
       reset(updatedInitialData);
       
-      // PHASE 4: Undo/Redo (4.3.7) - Reset history after save
-      if (resetHistory) {
-        resetHistory(updatedInitialData);
-      }
+      // PHASE 6: Extract Undo/Redo - Reset history after save
+      handleSaveSuccess(updatedInitialData);
       
       // PHASE 2: Success Feedback Enhancement (7.11.4)
       const now = new Date();
@@ -283,12 +267,6 @@ export function ProductQuickEditDialog({
   // PHASE 4: Quick Edit Templates (4.3.8)
   const [showSaveTemplateDialog, setShowSaveTemplateDialog] = useState(false);
   const [showLoadTemplateDialog, setShowLoadTemplateDialog] = useState(false);
-  const [templates, setTemplates] = useState<Array<{ _id: string; name: string; description?: string; category?: string; templateData: any; createdAt: string }>>([]);
-  const [loadingTemplates, setLoadingTemplates] = useState(false);
-  const [templateName, setTemplateName] = useState('');
-  const [templateDescription, setTemplateDescription] = useState('');
-  const [templateCategory, setTemplateCategory] = useState('');
-  const [templateSearchQuery, setTemplateSearchQuery] = useState('');
   // PHASE 4: Product Comparison (4.4.1)
   const [showComparisonDialog, setShowComparisonDialog] = useState(false);
   // PHASE 4: Scheduled Updates (4.4.2)
@@ -309,15 +287,9 @@ export function ProductQuickEditDialog({
   // PHASE 2: Mobile Sheet Scrolling Issues (7.11.8)
   const [scrollProgress, setScrollProgress] = useState(0);
   const [showScrollToTop, setShowScrollToTop] = useState(false);
-  // PHASE 3.1: Extract useQuickEditForm hook - Form setup logic moved to hook
-  // CRITICAL FIX: Track last fetched product ID to prevent infinite loop
-  const lastFetchedProductIdRef = useRef<string | null>(null);
-  
   // PHASE 3.5: pollingIntervalRef, lastCheckedVersionRef, and formIsDirtyRef moved to useQuickEditVersionCheck hook
   // PHASE 3.4: isDirtyRef moved to useQuickEditLifecycle hook
-  // PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Track which sections are loaded
-  const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set());
-  const progressiveLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // PHASE 6: Progressive loading moved to useQuickEditProgressiveLoading hook
 
   // PERFORMANCE OPTIMIZATION (2.1.0): Use React Query hook for product fetching
   // This enables caching and pre-fetching capabilities
@@ -331,127 +303,27 @@ export function ProductQuickEditDialog({
     }
   );
 
-  // PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load critical sections first, then secondary sections
-  useEffect(() => {
-    if (!open) {
-      // Reset loaded sections when dialog closes
-      setLoadedSections(new Set());
-      if (progressiveLoadTimeoutRef.current) {
-        clearTimeout(progressiveLoadTimeoutRef.current);
-        progressiveLoadTimeoutRef.current = null;
-      }
-      return;
-    }
+  // PHASE 6: Extract Progressive Loading Logic
+  const { loadedSections, setLoadedSections } = useQuickEditProgressiveLoading({
+    open,
+    loadingProduct,
+    isBulkMode,
+  });
 
-    if (loadingProduct || isBulkMode) {
-      // Don't start progressive loading while still loading product data
-      return;
-    }
-
-    // Critical sections: Load immediately when product data is ready
-    if (!loadedSections.has('critical')) {
-      setLoadedSections(prev => new Set([...prev, 'critical']));
-    }
-
-    // Secondary sections: Load after a short delay (100ms) to prioritize critical sections
-    if (!loadedSections.has('secondary')) {
-      progressiveLoadTimeoutRef.current = setTimeout(() => {
-        setLoadedSections(prev => new Set([...prev, 'secondary']));
-      }, 100);
-    }
-
-    return () => {
-      if (progressiveLoadTimeoutRef.current) {
-        clearTimeout(progressiveLoadTimeoutRef.current);
-        progressiveLoadTimeoutRef.current = null;
-      }
-    };
-  }, [open, loadingProduct, isBulkMode, loadedSections]);
-
-  // Sync fetched product data to local state and handle version checking
-  useEffect(() => {
-    if (!open || !productId || isBulkMode) {
-      // Reset ref when dialog closes
-      if (!open) {
-        lastFetchedProductIdRef.current = null;
-        setProductWithVariants(null);
-      }
-      return;
-    }
-
-    // Skip if we already processed this product
-    if (lastFetchedProductIdRef.current === productId) {
-      return;
-    }
-
-    // Update loading state based on React Query loading state
-    if (isLoadingProduct) {
-      setLoadingProduct(true);
-      setLoadingStep('fetching');
-      return;
-    }
-
-    // Handle error
-    if (productError) {
-      console.error('[ProductQuickEditDialog] Error fetching product:', productError);
-      // Reset ref on error so we can retry
-      lastFetchedProductIdRef.current = null;
-      setProductWithVariants(product as unknown as ProductWithVariants);
-      setLoadingProduct(false);
-      setLoadingStep('idle');
-      return;
-    }
-
-    // Handle successful fetch
-    if (fetchedProduct) {
-      // PHASE 0: Concurrent Edit Conflict Check (7.1.1) - Simplified version
-      // Check version khi mở dialog để detect concurrent edits
-      const serverVersion = fetchedProduct.version || 0;
-      const clientVersion = product.version || 0;
-      
-      if (serverVersion !== clientVersion && clientVersion > 0) {
-        // Version khác → product đã được update từ nơi khác
-        showToast(
-          `Sản phẩm đã được cập nhật (version ${serverVersion} vs ${clientVersion}). Đang tải dữ liệu mới...`,
-          'warning'
-        );
-      }
-      
-      // Debug: Log variants structure
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[ProductQuickEditDialog] API Response:', {
-          hasVariants: !!fetchedProduct.variants,
-          variantsCount: fetchedProduct.variants?.length || 0,
-          firstVariant: fetchedProduct.variants?.[0],
-          productDataMetaBox: fetchedProduct.productDataMetaBox ? {
-            hasVariations: !!fetchedProduct.productDataMetaBox.variations,
-            variationsCount: fetchedProduct.productDataMetaBox.variations?.length || 0,
-            firstVariation: fetchedProduct.productDataMetaBox.variations?.[0],
-            attributes: fetchedProduct.productDataMetaBox.attributes,
-          } : null,
-          version: {
-            server: serverVersion,
-            client: clientVersion,
-            mismatch: serverVersion !== clientVersion,
-          },
-        });
-      }
-      
-      // Mark as processed
-      lastFetchedProductIdRef.current = productId;
-      setProductWithVariants(fetchedProduct as ProductWithVariants);
-      setLoadingProduct(false);
-      // Delay reset to show completion briefly
-      setTimeout(() => {
-        setLoadingStep('idle');
-      }, 300);
-    } else {
-      // Fallback to prop product if fetch returns null
-      setProductWithVariants(product as unknown as ProductWithVariants);
-      setLoadingProduct(false);
-      setLoadingStep('idle');
-    }
-  }, [open, productId, isBulkMode, product?.version, fetchedProduct, isLoadingProduct, productError, product, showToast]);
+  // PHASE 6: Extract Product Sync Logic
+  useQuickEditProductSync({
+    open,
+    productId,
+    isBulkMode,
+    product,
+    fetchedProduct,
+    isLoadingProduct,
+    productError,
+    setProductWithVariants,
+    setLoadingProduct,
+    setLoadingStep,
+    showToast,
+  });
 
   // PHASE 3.1: Extract useQuickEditForm hook - Form setup logic moved to hook
   // State to control external snapshot updates (for template loading, save success, etc.)
@@ -568,51 +440,43 @@ export function ProductQuickEditDialog({
     showToast('Đã đặt lại form về giá trị ban đầu', 'info');
   }, [snapshotInitialData, reset, showToast]);
 
-  // Optimize: Watch specific fields instead of all fields to reduce re-renders
-  const name = watch('name');
-  const sku = watch('sku');
-  const status = watch('status');
-  const manageStock = watch('manageStock');
-  const regularPrice = watch('regularPrice');
-  const salePrice = watch('salePrice');
-  const costPrice = watch('costPrice');
-  const stockQuantity = watch('stockQuantity');
-  const currentStockStatus = watch('stockStatus');
-  // PHASE 1: Categories & Tags (4.1.1)
-  // Wrap in useMemo to prevent dependency issues in other hooks
-  const categoriesValue = watch('categories');
-  const tagsValue = watch('tags');
-  const selectedCategories = useMemo(() => categoriesValue || [], [categoriesValue]);
-  const selectedTags = useMemo(() => tagsValue || [], [tagsValue]);
-  // PHASE 1: Featured Image & Gallery (4.1.2)
-  const featuredImageId = watch('_thumbnail_id');
-  const galleryImageIds = watch('_product_image_gallery');
-  // PHASE 1: Weight & Dimensions (4.1.3) & Low Stock Threshold (4.1.4)
-  const weight = watch('weight');
-  const length = watch('length');
-  const width = watch('width');
-  const height = watch('height');
-  const lowStockThreshold = watch('lowStockThreshold');
-  // PHASE 2: SEO fields (4.2.1)
-  const seoTitle = watch('seoTitle');
-  const seoDescription = watch('seoDescription');
-  const slug = watch('slug');
-  // PHASE 2: Product Type & Visibility (4.2.3)
-  const productType = watch('productType');
-  const visibility = watch('visibility');
-  const password = watch('password');
-  // PHASE 2: Shipping Class & Tax Settings (4.2.4)
-  const shippingClass = watch('shippingClass');
-  const taxStatus = watch('taxStatus');
-  const taxClass = watch('taxClass');
-  // PHASE 3: Barcode/GTIN/EAN (4.3.1)
-  const barcode = watch('barcode');
-  const gtin = watch('gtin');
-  const ean = watch('ean');
-  // PHASE 3: Sold Individually (4.3.3)
-  const soldIndividually = watch('soldIndividually');
-  // PHASE 3: Backorders Settings (4.3.4)
-  const backorders = watch('backorders');
+  // PHASE 6: Extract Field Watchers - Centralize all watch() calls
+  const {
+    name,
+    sku,
+    status,
+    manageStock,
+    regularPrice,
+    salePrice,
+    costPrice,
+    stockQuantity,
+    currentStockStatus,
+    selectedCategories,
+    selectedTags,
+    featuredImageId,
+    galleryImageIds,
+    weight,
+    length,
+    width,
+    height,
+    lowStockThreshold,
+    seoTitle,
+    seoDescription,
+    slug,
+    productType,
+    visibility,
+    password,
+    shippingClass,
+    taxStatus,
+    taxClass,
+    barcode,
+    gtin,
+    ean,
+    soldIndividually,
+    backorders,
+    variants,
+    bulkUpdate,
+  } = useQuickEditFieldWatchers({ watch });
   
   // State for UI
   const [categoriesPopoverOpen, setCategoriesPopoverOpen] = useState(false);
@@ -664,8 +528,6 @@ export function ProductQuickEditDialog({
   // PHASE 2: tagsInputValue moved to CategoriesSection component
   const [mediaLibraryOpen, setMediaLibraryOpen] = useState(false);
   const [mediaLibraryMode, setMediaLibraryMode] = useState<'featured' | 'gallery'>('featured');
-  const variants = watch('variants');
-  const bulkUpdate = watch('bulkUpdate');
   
   // Create formData object for dirty check (wrapped in useMemo to prevent dependency changes)
   const formData = useMemo(() => ({
@@ -681,263 +543,97 @@ export function ProductQuickEditDialog({
     bulkUpdate,
   }), [name, sku, status, manageStock, regularPrice, salePrice, stockQuantity, currentStockStatus, variants, bulkUpdate]);
 
-  // PHASE 4: Undo/Redo (4.3.7) - Initialize undo/redo hook with form state
-  // Create a snapshot of current form state for undo/redo
+  // PHASE 5.1: Use formHelpers for form state snapshot
   const getFormStateSnapshot = useCallback((): QuickEditFormData => {
-    const values = getValues();
-    return {
-      ...values,
-      // Include watched values that might not be in getValues()
-      categories: selectedCategories || [],
-      tags: selectedTags || [],
-      _thumbnail_id: featuredImageId,
-      _product_image_gallery: galleryImageIds,
+    return createFormStateSnapshot(getValues, {
+      selectedCategories,
+      selectedTags,
+      featuredImageId,
+      galleryImageIds,
       weight,
       length,
       width,
       height,
       lowStockThreshold,
-    };
+    });
   }, [getValues, selectedCategories, selectedTags, featuredImageId, galleryImageIds, weight, length, width, height, lowStockThreshold]);
 
-  // Initialize undo/redo with initial form state
-  const initialFormState = useMemo(() => {
-    if (!open || !snapshotInitialData) return null;
-    return snapshotInitialData;
-  }, [open, snapshotInitialData]);
-
-  // PHASE 4: Memory Optimization (7.4.2) - Dynamic maxHistory based on form size
-  // Reduce maxHistory if form has many variants to save memory
-  const variantCount = variants?.length || 0;
-  const dynamicMaxHistory = useMemo(() => {
-    if (variantCount > 50) return 20; // Large forms: reduce to 20
-    if (variantCount > 20) return 30; // Medium forms: reduce to 30
-    return 50; // Small forms: keep 50
-  }, [variantCount]);
-
-  // CRITICAL FIX: Flag to prevent tracking form changes during undo/redo
-  const isUndoRedoInProgressRef = useRef(false);
-
+  // PHASE 6: Extract Undo/Redo Tracking Logic
+  // Convert types to match useQuickEditUndoRedo expectations (string for prices/weight)
   const {
-    currentState: undoRedoState,
-    addToHistory,
     undo,
     redo,
     canUndo,
     canRedo,
     resetHistory,
-  } = useUndoRedo<QuickEditFormData | null>(
-    initialFormState,
-    dynamicMaxHistory, // PHASE 4: Dynamic maxHistory based on form size
-    (state) => {
-      // CRITICAL FIX: Set flag to prevent tracking during undo/redo
-      isUndoRedoInProgressRef.current = true;
-      // When state changes (undo/redo), restore form values
-      if (state) {
-        reset(state, { keepDefaultValues: false });
-      }
-      // Reset flag after form values settle (use requestAnimationFrame for better timing)
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          isUndoRedoInProgressRef.current = false;
-        });
-      });
-    },
-    true // PHASE 4: Use shallow copy for memory optimization
-  );
+    handleSaveSuccess,
+  } = useQuickEditUndoRedo({
+    open,
+    formInitialized,
+    isBulkMode,
+    snapshotInitialData,
+    variants,
+    getFormStateSnapshot,
+    reset,
+    name,
+    sku,
+    status,
+    manageStock,
+    regularPrice: typeof regularPrice === 'number' ? String(regularPrice) : regularPrice,
+    salePrice: typeof salePrice === 'number' ? String(salePrice) : salePrice,
+    stockQuantity,
+    currentStockStatus,
+    selectedCategories,
+    selectedTags,
+    featuredImageId,
+    galleryImageIds,
+    weight: typeof weight === 'number' ? String(weight) : (weight ?? null),
+    length,
+    width,
+    height,
+    lowStockThreshold,
+  });
 
-  // PHASE 4: Undo/Redo (4.3.7) - Track form state changes and add to history
-  // Only track when form is initialized and dialog is open
+  // PHASE 6: Extract Template Handlers
+  // Create prevFormStateRef for template hook (not used but required by interface)
   const prevFormStateRef = useRef<QuickEditFormData | null>(null);
-  useEffect(() => {
-    // CRITICAL FIX: Prevent tracking during undo/redo to avoid infinite loop
-    if (!open || !formInitialized || isBulkMode || isUndoRedoInProgressRef.current) return;
+  const {
+    templates,
+    loadingTemplates,
+    templateName,
+    setTemplateName,
+    templateDescription,
+    setTemplateDescription,
+    templateCategory,
+    setTemplateCategory,
+    templateSearchQuery,
+    setTemplateSearchQuery,
+    fetchTemplates,
+    handleSaveTemplate: handleSaveTemplateFromHook,
+    handleLoadTemplate: handleLoadTemplateFromHook,
+    handleDeleteTemplate,
+  } = useQuickEditTemplates({
+    isBulkMode,
+    showLoadTemplateDialog,
+    getFormStateSnapshot,
+    setExternalSnapshot,
+    reset,
+    resetHistory,
+    prevFormStateRef,
+    showToast,
+  });
 
-    const currentState = getFormStateSnapshot();
-    
-    // Only add to history if state actually changed
-    if (prevFormStateRef.current) {
-      const prevState = prevFormStateRef.current;
-      // PHASE 4: Memory Optimization (7.4.2) - Use shallow comparison instead of JSON.stringify for better performance
-      // Compare key fields directly instead of full JSON stringify (which is expensive for large objects)
-      const hasChanged = 
-        prevState.name !== currentState.name ||
-        prevState.sku !== currentState.sku ||
-        prevState.status !== currentState.status ||
-        prevState.manageStock !== currentState.manageStock ||
-        prevState.regularPrice !== currentState.regularPrice ||
-        prevState.salePrice !== currentState.salePrice ||
-        prevState.stockQuantity !== currentState.stockQuantity ||
-        prevState.stockStatus !== currentState.stockStatus ||
-        JSON.stringify(prevState.categories) !== JSON.stringify(currentState.categories) ||
-        JSON.stringify(prevState.tags) !== JSON.stringify(currentState.tags) ||
-        prevState._thumbnail_id !== currentState._thumbnail_id ||
-        prevState._product_image_gallery !== currentState._product_image_gallery ||
-        prevState.weight !== currentState.weight ||
-        prevState.length !== currentState.length ||
-        prevState.width !== currentState.width ||
-        prevState.height !== currentState.height ||
-        prevState.lowStockThreshold !== currentState.lowStockThreshold ||
-        JSON.stringify(prevState.variants) !== JSON.stringify(currentState.variants);
-      
-      if (hasChanged && !isUndoRedoInProgressRef.current) {
-        // CRITICAL FIX: Double check flag before adding to history (defensive check)
-        addToHistory(currentState);
-      }
-    }
-    
-    // CRITICAL FIX: Only update prevFormStateRef if not in undo/redo to prevent tracking
-    if (!isUndoRedoInProgressRef.current) {
-      prevFormStateRef.current = currentState;
-    }
-  }, [open, formInitialized, isBulkMode, getFormStateSnapshot, addToHistory, name, sku, status, manageStock, regularPrice, salePrice, stockQuantity, currentStockStatus, variants, selectedCategories, selectedTags, featuredImageId, galleryImageIds, weight, length, width, height, lowStockThreshold]);
-
-  // PHASE 4: Undo/Redo (4.3.7) - Reset history when form is saved
-  const handleSaveSuccess = useCallback(() => {
-    if (!snapshotInitialData) return;
-    // Reset history to current state after save
-    resetHistory(snapshotInitialData);
-    prevFormStateRef.current = snapshotInitialData;
-  }, [snapshotInitialData, resetHistory]);
-
-  // PHASE 4: Quick Edit Templates (4.3.8) - Fetch templates
-  const fetchTemplates = useCallback(async () => {
-    setLoadingTemplates(true);
-    try {
-      const response = await fetch('/api/admin/products/templates', {
-        credentials: 'include',
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch templates');
-      }
-      const data = await response.json();
-      setTemplates(data.templates || []);
-    } catch (error: unknown) {
-      console.error('Error fetching templates:', error);
-      showToast('Không thể tải danh sách template', 'error');
-    } finally {
-      setLoadingTemplates(false);
-    }
-  }, [showToast]);
-
-  // PHASE 4: Quick Edit Templates (4.3.8) - Load templates only when user opens "Load template" dialog
-  // PERFORMANCE: Don't fetch templates on dialog open, fetch only when user clicks "Load template" button
-  useEffect(() => {
-    if (showLoadTemplateDialog && !isBulkMode) {
-      fetchTemplates(); // Only fetch when user opens the load template dialog
-    }
-  }, [showLoadTemplateDialog, isBulkMode, fetchTemplates]);
-
-  // PHASE 4: Quick Edit Templates (4.3.8) - Save template handler
+  // Wrapper to close dialog after save
   const handleSaveTemplate = useCallback(async () => {
-    if (!templateName.trim()) {
-      showToast('Vui lòng nhập tên template', 'error');
-      return;
-    }
+    await handleSaveTemplateFromHook();
+    setShowSaveTemplateDialog(false);
+  }, [handleSaveTemplateFromHook]);
 
-    try {
-      // PHASE 1: CSRF Protection (7.12.2) - Include CSRF token in headers
-      const { getCsrfTokenHeader } = await import('@/lib/utils/csrfClient');
-      const csrfToken = await getCsrfTokenHeader();
-      
-      const currentFormData = getFormStateSnapshot();
-      const response = await fetch('/api/admin/products/templates', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'X-CSRF-Token': csrfToken, // PHASE 1: CSRF Protection (7.12.2)
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          name: templateName.trim(),
-          description: templateDescription.trim() || undefined,
-          category: templateCategory.trim() || undefined,
-          templateData: currentFormData,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error?.error || 'Failed to save template');
-      }
-
-      showToast('Đã lưu template thành công', 'success');
-      setShowSaveTemplateDialog(false);
-      setTemplateName('');
-      setTemplateDescription('');
-      setTemplateCategory('');
-      fetchTemplates();
-    } catch (error: unknown) {
-      console.error('Error saving template:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi lưu template';
-      showToast(errorMessage, 'error');
-    }
-  }, [templateName, templateDescription, templateCategory, getFormStateSnapshot, showToast, fetchTemplates]);
-
-  // PHASE 4: Quick Edit Templates (4.3.8) - Load template handler
+  // Wrapper to close dialog after load
   const handleLoadTemplate = useCallback(async (templateId: string) => {
-    try {
-      const response = await fetch(`/api/admin/products/templates/${templateId}`, {
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to load template');
-      }
-
-      const data = await response.json();
-      if (data.template && data.template.templateData) {
-        const templateData = data.template.templateData as QuickEditFormData;
-        // Apply template data to form
-        // PHASE 3.1: Use externalSnapshot to update snapshot in hook
-        setExternalSnapshot(templateData);
-        reset(templateData, { keepDefaultValues: false });
-        // Reset history after loading template
-        resetHistory(templateData);
-        prevFormStateRef.current = templateData;
-        showToast('Đã tải template thành công', 'success');
-        setShowLoadTemplateDialog(false);
-      } else {
-        showToast('Template không hợp lệ', 'error');
-      }
-    } catch (error: unknown) {
-      console.error('Error loading template:', error);
-      showToast('Có lỗi xảy ra khi tải template', 'error');
-    }
-  }, [reset, resetHistory, showToast]);
-
-  // PHASE 4: Quick Edit Templates (4.3.8) - Delete template handler
-  const handleDeleteTemplate = useCallback(async (templateId: string) => {
-    if (!window.confirm('Bạn có chắc muốn xóa template này?')) {
-      return;
-    }
-
-    try {
-      // PHASE 1: CSRF Protection (7.12.2) - Include CSRF token in headers
-      const { getCsrfTokenHeader } = await import('@/lib/utils/csrfClient');
-      const csrfToken = await getCsrfTokenHeader();
-      
-      const response = await fetch(`/api/admin/products/templates/${templateId}`, {
-        method: 'DELETE',
-        headers: {
-          'X-CSRF-Token': csrfToken, // PHASE 1: CSRF Protection (7.12.2)
-        },
-        credentials: 'include',
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error?.error || 'Failed to delete template');
-      }
-
-      showToast('Đã xóa template thành công', 'success');
-      fetchTemplates();
-    } catch (error: unknown) {
-      console.error('Error deleting template:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Có lỗi xảy ra khi xóa template';
-      showToast(errorMessage, 'error');
-    }
-  }, [showToast, fetchTemplates]);
+    await handleLoadTemplateFromHook(templateId);
+    setShowLoadTemplateDialog(false);
+  }, [handleLoadTemplateFromHook]);
 
   // Reset form when dialog opens (only once, not when initialData changes)
   // CRITICAL FIX #17: Prevent form reset when initialData changes during editing
@@ -950,93 +646,23 @@ export function ProductQuickEditDialog({
     }
   }, [open]);
 
-  // PHASE 3: Keyboard Shortcuts (4.3.6)
-  // PHASE 4: Keyboard Shortcuts Browser Conflict (7.4.1) - Enhanced with preventDefault and stopPropagation
-  useEffect(() => {
-    if (!open || activeTab !== 'edit') return; // Only handle shortcuts when edit tab is active
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // PHASE 4: Browser detection for proper shortcut handling
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-      const isWindows = navigator.platform.toUpperCase().indexOf('WIN') >= 0;
-      const isLinux = navigator.platform.toUpperCase().indexOf('LINUX') >= 0;
-      const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
-      const shouldHandleShortcut = ctrlKey && (isMac || isWindows || isLinux);
-
-      // Ctrl/Cmd + S: Save changes
-      if (shouldHandleShortcut && e.key === 's' && !e.shiftKey && !e.altKey) {
-        // PHASE 4: Prevent default browser behavior (save page) and stop propagation
-        e.preventDefault();
-        e.stopPropagation();
-        if (formIsDirty && !isLoading) {
+  // PHASE 6: Extract Keyboard Shortcuts Handler
+  useQuickEditKeyboardShortcuts({
+    open,
+    activeTab,
+    formIsDirty,
+    isLoading,
+    onSave: () => {
           const form = document.getElementById('quick-edit-form') as HTMLFormElement;
           if (form) {
             form.requestSubmit();
           }
-        }
-        return;
-      }
-
-      // Ctrl/Cmd + 1-7: Jump to sections (already implemented in Phase 3)
-      if (shouldHandleShortcut && e.key >= '1' && e.key <= '7') {
-        e.preventDefault();
-        e.stopPropagation();
-        const sectionIndex = parseInt(e.key, 10) - 1;
-        const sectionIds = [
-          'section-basic-info',
-          'section-pricing',
-          'section-product-type',
-          'section-shipping',
-          'section-dimensions',
-          'section-categories',
-          'section-images',
-        ];
-        const targetSectionId = sectionIds[sectionIndex];
-        if (targetSectionId) {
-          const targetElement = document.getElementById(targetSectionId);
-          if (targetElement) {
-            targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            const sectionName = targetElement.querySelector('h3')?.textContent || targetSectionId;
-            showToast(`Chuyển đến mục: ${sectionName}`, 'info');
-          }
-        }
-        return;
-      }
-
-      // Esc: Close dialog (with confirm if dirty)
-      if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
-        // Check if focus is in an input/textarea (native Escape behavior should work there)
-        const activeElement = document.activeElement;
-        const isInputFocused = activeElement && (
-          activeElement.tagName === 'INPUT' || 
-          activeElement.tagName === 'TEXTAREA' ||
-          activeElement.tagName === 'SELECT' ||
-          activeElement.getAttribute('contenteditable') === 'true'
-        );
-        
-        if (isInputFocused) {
-          // Let native Escape behavior work (e.g., clear input, close dropdown)
-          return;
-        }
-        
-        // PHASE 4: Prevent default browser behavior and stop propagation when closing dialog
-        e.preventDefault();
-        e.stopPropagation();
-        if (isLoading) return;
-        if (formIsDirty) {
-          setShowConfirmClose(true);
-        } else {
-          onClose();
-        }
-        return;
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown, true); // Use capture phase to catch events early
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-    };
-  }, [open, activeTab, formIsDirty, isLoading, onClose, setShowConfirmClose, showToast, canUndo, canRedo, undo, redo]);
+    },
+    onShowShortcutsHelp: () => setShowShortcutsHelp(true),
+    onClose,
+    setShowConfirmClose,
+    showToast,
+  });
 
   // FIX: Cleanup timeouts on unmount or when dialog closes to prevent memory leaks
   useEffect(() => {
@@ -1092,133 +718,61 @@ export function ProductQuickEditDialog({
 
   // PHASE 3.3: normalizeValue moved to useQuickEditValidation hook
 
-  // PHASE 1: Dirty Check Optimization (7.7.2) - Optimized with early exit and memoization
-  // Use snapshotInitialData for stable comparison (snapshot taken when dialog opens)
+  // PHASE 6: Extract isDirty Check Function
+  // Convert types to match isDirtyCheck expectations (string for prices/weight, null for undefined)
   const isDirty = useMemo(() => {
-    // Early exit: If dialog is not open, always return false
-    if (!open) return false;
-    
-    // CRITICAL FIX: Only check isDirty if form has been initialized (reset completed)
-    // This prevents false positive when dialog just opened and form hasn't been reset yet
-    // formInitialized is set after reset() completes (150ms delay), ensuring form values are ready for comparison
-    if (!snapshotInitialData || !formInitialized) return false;
-    
-    const baseData = snapshotInitialData;
-    
-    // CRITICAL FIX: Compare all fields manually to avoid false positive from formIsDirty
-    // Use watched values instead of getValues() to ensure we have the latest form state
-    // react-hook-form's formIsDirty might be true even after reset due to internal state
-    // PHASE 1: Check registered fields (name, sku, status, manageStock, regularPrice, salePrice, stockQuantity, stockStatus)
-    // Use watched values (name, sku, status, etc.) which are already tracked and will trigger re-computation
-    if (normalizeValue(name) !== normalizeValue(baseData.name)) return true;
-    if (normalizeValue(sku) !== normalizeValue(baseData.sku)) return true;
-    if (status !== baseData.status) return true;
-    if (manageStock !== baseData.manageStock) return true;
-    if (normalizeValue(regularPrice) !== normalizeValue(baseData.regularPrice)) return true;
-    if (normalizeValue(salePrice) !== normalizeValue(baseData.salePrice)) return true;
-    if (normalizeValue(stockQuantity) !== normalizeValue(baseData.stockQuantity)) return true;
-    if (currentStockStatus !== baseData.stockStatus) return true;
-    
-    // PHASE 1: Check new fields (categories, tags, images, weight, dimensions, lowStockThreshold)
-    const currentCategories = selectedCategories || [];
-    const initialCategories = baseData.categories || [];
-    if (currentCategories.length !== initialCategories.length ||
-        currentCategories.some((id, i) => id !== initialCategories[i])) {
-      return true; // Early exit
-    }
-    
-    const currentTags = selectedTags || [];
-    const initialTags = baseData.tags || [];
-    if (currentTags.length !== initialTags.length ||
-        currentTags.some((tag, i) => tag !== initialTags[i])) {
-      return true; // Early exit
-    }
-    
-    const currentFeaturedImage = featuredImageId;
-    const initialFeaturedImage = baseData._thumbnail_id;
-    if (normalizeValue(currentFeaturedImage) !== normalizeValue(initialFeaturedImage)) {
-      return true; // Early exit
-    }
-    
-    const currentGallery = galleryImageIds || '';
-    const initialGallery = baseData._product_image_gallery || '';
-    if (normalizeValue(currentGallery) !== normalizeValue(initialGallery)) {
-      return true; // Early exit
-    }
-    
-    // Check weight & dimensions
-    if (normalizeValue(weight) !== normalizeValue(baseData.weight)) return true;
-    if (normalizeValue(length) !== normalizeValue(baseData.length)) return true;
-    if (normalizeValue(width) !== normalizeValue(baseData.width)) return true;
-    if (normalizeValue(height) !== normalizeValue(baseData.height)) return true;
-    if (normalizeValue(lowStockThreshold) !== normalizeValue(baseData.lowStockThreshold)) return true;
-    
-    // PHASE 2: Check SEO fields (seoTitle, seoDescription, slug)
-    if (normalizeValue(seoTitle) !== normalizeValue(baseData.seoTitle)) return true;
-    if (normalizeValue(seoDescription) !== normalizeValue(baseData.seoDescription)) return true;
-    if (normalizeValue(slug) !== normalizeValue(baseData.slug)) return true;
-    
-    // PHASE 2: Check Cost Price (4.2.2)
-    if (normalizeValue(costPrice) !== normalizeValue(baseData.costPrice)) return true;
-    
-    // PHASE 2: Check Product Type & Visibility (4.2.3)
-    if (productType !== baseData.productType) return true;
-    if (visibility !== baseData.visibility) return true;
-    if (normalizeValue(password) !== normalizeValue(baseData.password)) return true;
-    
-    // PHASE 2: Check Shipping Class & Tax Settings (4.2.4)
-    if (normalizeValue(shippingClass) !== normalizeValue(baseData.shippingClass)) return true;
-    if (taxStatus !== baseData.taxStatus) return true;
-    if (normalizeValue(taxClass) !== normalizeValue(baseData.taxClass)) return true;
-    
-    // PHASE 3: Check Barcode/GTIN/EAN (4.3.1)
-    if (normalizeValue(barcode) !== normalizeValue(baseData.barcode)) return true;
-    if (normalizeValue(gtin) !== normalizeValue(baseData.gtin)) return true;
-    if (normalizeValue(ean) !== normalizeValue(baseData.ean)) return true;
-    
-    // PHASE 3: Check Sold Individually (4.3.3)
-    if (soldIndividually !== baseData.soldIndividually) return true;
-    
-    // PHASE 3: Check Backorders Settings (4.3.4)
-    if (backorders !== baseData.backorders) return true;
-    
-    // Custom check for variants (not tracked by react-hook-form's isDirty)
-    const currentVariants = formData.variants || [];
-    const initialVariants = baseData.variants || [];
-    
-    // Early exit: Check length first
-    if (currentVariants.length !== initialVariants.length) return true;
-    
-    // Early exit: Check each variant and return immediately on first difference
-    for (let i = 0; i < currentVariants.length; i++) {
-      const v = currentVariants[i];
-        const initial = initialVariants[i];
-        if (!initial) return true;
-      
-      // Normalize and compare variant fields - early exit on first difference
-      if (v.id !== initial.id) return true;
-      if (normalizeValue(v.sku) !== normalizeValue(initial.sku)) return true;
-      if (normalizeValue(v.price) !== normalizeValue(initial.price)) return true;
-      if (normalizeValue(v.stock) !== normalizeValue(initial.stock)) return true;
-    }
-    
-    // No changes detected
-    return false;
+    return isDirtyCheck({
+      open,
+      snapshotInitialData,
+      formInitialized,
+      name: name || '',
+      sku: sku || '',
+      status: status || 'draft',
+      manageStock: manageStock ?? false,
+      regularPrice: typeof regularPrice === 'number' ? String(regularPrice) : (regularPrice || '0'),
+      salePrice: typeof salePrice === 'number' ? String(salePrice) : (salePrice || ''),
+      stockQuantity: typeof stockQuantity === 'number' ? stockQuantity : null,
+      currentStockStatus: currentStockStatus || 'instock',
+      costPrice: typeof costPrice === 'number' ? String(costPrice) : (costPrice ?? null),
+      formData,
+      selectedCategories,
+      selectedTags,
+      featuredImageId,
+      galleryImageIds,
+      weight: typeof weight === 'number' ? String(weight) : (weight ?? null),
+      length: typeof length === 'number' ? length : (length ?? null),
+      width: typeof width === 'number' ? width : (width ?? null),
+      height: typeof height === 'number' ? height : (height ?? null),
+      lowStockThreshold: typeof lowStockThreshold === 'number' ? lowStockThreshold : (lowStockThreshold ?? null),
+      seoTitle: seoTitle ?? null,
+      seoDescription: seoDescription ?? null,
+      slug: slug ?? null,
+      productType: productType || 'simple',
+      visibility: visibility || 'public',
+      password: password ?? null,
+      shippingClass: shippingClass ?? null,
+      taxStatus: taxStatus || 'taxable',
+      taxClass: taxClass ?? null,
+      barcode: barcode ?? null,
+      gtin: gtin ?? null,
+      ean: ean ?? null,
+      soldIndividually: soldIndividually ?? false,
+      backorders: backorders || 'no',
+      normalizeValue,
+    });
   }, [
     open, snapshotInitialData, formInitialized,
     name, sku, status, manageStock, regularPrice, salePrice, stockQuantity, currentStockStatus,
-    costPrice, // PHASE 2: Cost Price (4.2.2)
-    formData.variants,
+    costPrice,
+    formData,
     selectedCategories, selectedTags, featuredImageId, galleryImageIds,
     weight, length, width, height, lowStockThreshold,
-    // PHASE 2: SEO fields, Product Type & Visibility, Shipping & Tax
     seoTitle, seoDescription, slug,
     productType, visibility, password,
     shippingClass, taxStatus, taxClass,
-    // PHASE 3: Barcode/GTIN/EAN, Sold Individually, Backorders
     barcode, gtin, ean,
     soldIndividually, backorders,
-    normalizeValue, // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Add normalizeValue dependency
+    normalizeValue,
   ]);
 
   // PHASE 3.4: Before unload warning and navigation guard moved to useQuickEditLifecycle hook
@@ -1250,6 +804,7 @@ export function ProductQuickEditDialog({
     product,
     productIds,
     isBulkMode,
+    productWithVariants,
     reset,
     quickUpdate,
     setLoadingStep,
@@ -1293,10 +848,9 @@ export function ProductQuickEditDialog({
     }
   }, [allValidationErrors, getErrorsBySection]);
 
-  // PERFORMANCE OPTIMIZATION (3.3.1): Show skeleton loader while loading product data
-  // PHASE 0: Context API Setup - Wrap form content in Provider
+  // PHASE 6: Extract Form Content
   const formContent = (
-    <QuickEditFormProvider
+    <QuickEditFormContent
       register={register}
       setValue={setValue}
       watch={watch}
@@ -1304,854 +858,95 @@ export function ProductQuickEditDialog({
       reset={reset}
       errors={errors}
       formState={formStateFull}
-      handleFieldFocus={handleFieldFocus}
-      handleFieldBlur={handleFieldBlur}
+      handleSubmit={handleSubmit}
+      handleFieldFocus={(fieldId: string, e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => handleFieldFocus(fieldId, e)}
+      handleFieldBlur={(e?: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => handleFieldBlur(e)}
+      onSubmit={onSubmit}
+      onError={onError}
       getFieldClassName={getFieldClassName}
       getErrorCountForSection={getErrorCountForSection}
+      scrollToErrorField={scrollToErrorField}
+      allValidationErrors={allValidationErrors}
       savedFields={savedFields}
       flashingFields={flashingFields}
       fieldOriginalValues={fieldOriginalValues}
       expandedSections={expandedSections}
       setExpandedSections={setExpandedSections}
-      skuValidation={skuValidation}
-      categories={allCategories}
+      skuValidation={{ isValid: skuValidation.isValid, isValidating: skuValidation.isValidating, error: skuValidation.error }}
+      allCategories={allCategories}
       isLoadingCategories={isLoadingCategories}
       variants={variants}
       isBulkMode={isBulkMode}
       isMobile={isMobile}
-    >
-    <form id="quick-edit-form" onSubmit={handleSubmit(onSubmit, onError)} className="space-y-4">
-      {/* PERFORMANCE OPTIMIZATION (3.3.1): Show skeleton loader while loading */}
-      {loadingProduct && !isBulkMode && (
-        <ProductQuickEditSkeleton />
-      )}
-      
-      {/* UX/UI UPGRADE Phase 4.2.1: Skip links cho keyboard navigation */}
-      {!loadingProduct && (
-        <nav className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:top-2 focus-within:left-2 focus-within:z-50 focus-within:bg-white focus-within:border focus-within:border-slate-300 focus-within:rounded-md focus-within:shadow-lg focus-within:p-2" aria-label="Skip to sections">
-          <ul className="flex flex-wrap gap-2">
-            <li>
-              <a
-                href="#section-basic-info"
-                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const element = document.getElementById('section-basic-info');
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    element.focus();
-                  }
-                }}
-              >
-                Bỏ qua đến: Thông tin cơ bản
-              </a>
-            </li>
-            <li>
-              <a
-                href="#section-pricing"
-                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const element = document.getElementById('section-pricing');
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    element.focus();
-                  }
-                }}
-              >
-                Bỏ qua đến: Giá & Trạng thái
-              </a>
-            </li>
-            <li>
-              <a
-                href="#section-images"
-                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const element = document.getElementById('section-images');
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    element.focus();
-                  }
-                }}
-              >
-                Bỏ qua đến: Hình ảnh
-              </a>
-            </li>
-            <li>
-              <a
-                href="#section-seo"
-                className="px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded focus:outline-none focus:ring-2 focus:ring-slate-950 focus:ring-offset-2"
-                onClick={(e) => {
-                  e.preventDefault();
-                  const element = document.getElementById('section-seo');
-                  if (element) {
-                    element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    element.focus();
-                  }
-                }}
-              >
-                Bỏ qua đến: SEO & URL
-              </a>
-            </li>
-          </ul>
-        </nav>
-      )}
-      
-      {/* PHASE 2: Success Feedback Enhancement (7.11.4) - "All changes saved" message */}
-      {/* UX/UI UPGRADE Phase 4.1.3: aria-live region cho success message */}
-      {!loadingProduct && showSuccessIndicator && !isDirty && (
-        <div 
-          className="bg-green-50 border border-green-200 rounded-md p-3 md:p-4 space-y-2 animate-in slide-in-from-top-2"
-          role="status"
-          aria-live="polite"
-          aria-atomic="true"
-        >
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 text-green-600 flex-shrink-0" aria-hidden="true" />
-            <h4 className="text-sm font-semibold text-green-900">
-              Tất cả thay đổi đã được lưu
-            </h4>
-          </div>
-          {lastSavedTime && (
-            <p className="text-xs text-green-700 ml-7">
-              Đã lưu lúc: {lastSavedTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-            </p>
-          )}
-        </div>
-      )}
-      
-      {/* PHASE 1: Error Message Details (7.6.3) - Error Summary Section */}
-      {/* UX/UI UPGRADE Phase 4.1.3: aria-live region cho error summary */}
-      {!loadingProduct && allValidationErrors.length > 0 && (
-        <div 
-          className="bg-red-50 border border-red-200 rounded-md p-3 md:p-4 space-y-2 animate-in slide-in-from-top-2"
-          role="alert"
-          aria-live="assertive"
-          aria-atomic="true"
-        >
-          <div className="flex items-center gap-2">
-            <div className="h-5 w-5 rounded-full bg-red-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs font-bold">{allValidationErrors.length}</span>
-            </div>
-            <h4 className="text-sm font-semibold text-red-900">
-              Có {allValidationErrors.length} lỗi validation cần sửa:
-            </h4>
-          </div>
-          <ul className="list-disc list-inside space-y-1 text-sm text-red-800 ml-7">
-            {allValidationErrors.map((err, index) => (
-              <li key={index}>
-                {/* UX/UI UPGRADE Phase 2.1.2: Error summary với clickable links */}
-                {/* UX/UI UPGRADE Phase 3.3.1: Touch target >= 44x44px */}
-                <button
-                  type="button"
-                  onClick={() => scrollToErrorField(err.field)}
-                  className="text-left hover:underline hover:text-red-900 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded px-1 -ml-1 transition-colors min-h-[44px] py-2 w-full"
-                  aria-label={`Scroll to ${err.label} field`}
-                >
-                  <span className="font-medium">{err.label}:</span> {err.message}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      
-      {/* PHASE 2: Loading Progress Indicator (7.9.3) - Enhanced loading with progress steps */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.1): Only show overlay loader for bulk mode, skeleton for single mode */}
-      {loadingProduct && isBulkMode && (
-        <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center z-50 rounded-md">
-          <LoadingProgressIndicator 
-            step={loadingStep} 
-            showTimeEstimate={true}
-          />
-        </div>
-      )}
-      {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.1): Hide form content while loading (skeleton shown above) */}
-      {!loadingProduct && (
-        <>
-      {/* PHASE 5.3.2: Accordion Layout - Wrap sections in Accordion */}
-      <Accordion 
-        type="multiple" 
-        value={expandedSections} 
-        onValueChange={setExpandedSections}
-        className="w-full space-y-0"
-      >
-        {/* Basic Info Section */}
-        <AccordionItem value="section-basic-info" className="border-b border-slate-200">
-          <AccordionTrigger 
-            id="section-basic-info"
-            className="hover:no-underline py-4 scroll-mt-4"
-            aria-label="Thông tin cơ bản"
-          >
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
-              <h3 className="text-base font-semibold text-slate-900">Thông tin cơ bản</h3>
-              {getErrorCountForSection('section-basic-info') > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
-                  {getErrorCountForSection('section-basic-info')}
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-0 pb-4">
-      {/* PHASE 2: Extract Form Sections - BasicInfoSection */}
-      <BasicInfoSection skuValidation={skuValidation} />
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Pricing Section */}
-        <AccordionItem value="section-pricing" className="border-b border-slate-200">
-          <AccordionTrigger 
-            id="section-pricing"
-            className="hover:no-underline py-4 scroll-mt-4"
-            aria-label="Giá & Trạng thái"
-          >
-            <div className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5 text-slate-600" aria-hidden="true" />
-              <h3 className="text-base font-semibold text-slate-900">Giá & Trạng thái</h3>
-              {getErrorCountForSection('section-pricing') > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
-                  {getErrorCountForSection('section-pricing')}
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-0 pb-4">
-      {/* PHASE 2: Extract Form Sections - PricingSection */}
-      <PricingSection
+      loadingProduct={loadingProduct}
+      loadingStep={loadingStep}
+      showSuccessIndicator={showSuccessIndicator}
+      isDirty={isDirty}
+      lastSavedTime={lastSavedTime}
+      product={product || null}
+      productWithVariants={productWithVariants}
+      loadedSections={loadedSections}
+      mediaLibraryOpen={mediaLibraryOpen}
+      setMediaLibraryOpen={setMediaLibraryOpen}
+      mediaLibraryMode={mediaLibraryMode}
+      setMediaLibraryMode={setMediaLibraryMode}
         showStatusChangeWarning={showStatusChangeWarning}
         setShowStatusChangeWarning={setShowStatusChangeWarning}
         pendingStatus={pendingStatus}
         setPendingStatus={setPendingStatus}
         previousStatus={previousStatus}
         setPreviousStatus={setPreviousStatus}
-      />
-
-      {/* PHASE 2: Extract Form Sections - InventorySection */}
-      <InventorySection loadedSections={loadedSections} />
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Product Type Section */}
-        <AccordionItem value="section-product-type" className="border-b border-slate-200">
-          <AccordionTrigger 
-            id="section-product-type"
-            className="hover:no-underline py-4 scroll-mt-4"
-            aria-label="Loại sản phẩm & Hiển thị"
-          >
-            <div className="flex items-center gap-2">
-              <Package className="h-5 w-5 text-slate-600" aria-hidden="true" />
-              <h3 className="text-base font-semibold text-slate-900">Loại sản phẩm & Hiển thị</h3>
-              {getErrorCountForSection('section-product-type') > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
-                  {getErrorCountForSection('section-product-type')}
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-0 pb-4">
-      {/* PHASE 2: Extract Form Sections - ProductTypeSection */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
-      {loadedSections.has('secondary') ? (
-        <ProductTypeSection
           showProductTypeWarning={showProductTypeWarning}
           setShowProductTypeWarning={setShowProductTypeWarning}
           pendingProductType={pendingProductType}
           setPendingProductType={setPendingProductType}
         />
-      ) : (
-        <div className="mt-6 space-y-4 animate-pulse">
-          <div className="h-5 w-48 bg-slate-200 rounded" />
-          {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-          <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4">
-            <div className="h-10 bg-slate-200 rounded" />
-            <div className="h-10 bg-slate-200 rounded" />
-          </div>
-        </div>
-      )}
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Shipping & Tax Section */}
-        <AccordionItem value="section-shipping" className="border-b border-slate-200">
-          <AccordionTrigger 
-            id="section-shipping"
-            className="hover:no-underline py-4 scroll-mt-4"
-            aria-label="Giao hàng & Thuế"
-          >
-            <div className="flex items-center gap-2">
-              <Ruler className="h-5 w-5 text-slate-600" aria-hidden="true" />
-              <h3 className="text-base font-semibold text-slate-900">Giao hàng & Thuế</h3>
-              {getErrorCountForSection('section-shipping') > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
-                  {getErrorCountForSection('section-shipping')}
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-0 pb-4">
-      {/* PHASE 2: Extract Form Sections - ShippingSection */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
-      {loadedSections.has('secondary') ? (
-        <ShippingSection />
-      ) : (
-        <div className="mt-6 space-y-4 animate-pulse">
-          <div className="h-5 w-40 bg-slate-200 rounded" />
-          {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-          <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4">
-            <div className="h-10 bg-slate-200 rounded" />
-            <div className="h-10 bg-slate-200 rounded" />
-            <div className="h-10 bg-slate-200 rounded" />
-          </div>
-        </div>
-      )}
-
-      {/* PHASE 2: Extract Form Sections - DimensionsSection */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
-      {loadedSections.has('secondary') ? (
-        <DimensionsSection />
-      ) : (
-        <div className="mb-6 mt-6 space-y-4 animate-pulse">
-          <div className="h-5 w-56 bg-slate-200 rounded" />
-          {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-          <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="h-10 bg-slate-200 rounded" />
-              <div className="h-10 bg-slate-200 rounded" />
-              <div className="h-10 bg-slate-200 rounded" />
-              <div className="h-10 bg-slate-200 rounded" />
-            </div>
-          </div>
-        </div>
-      )}
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Categories & Tags Section */}
-        <AccordionItem value="section-categories" className="border-b border-slate-200">
-          <AccordionTrigger 
-            id="section-categories"
-            className="hover:no-underline py-4 scroll-mt-4"
-            aria-label="Danh mục & Thẻ"
-          >
-            <div className="flex items-center gap-2">
-              <Tag className="h-5 w-5 text-slate-600" aria-hidden="true" />
-              <h3 className="text-base font-semibold text-slate-900">Danh mục & Thẻ</h3>
-              {getErrorCountForSection('section-categories') > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
-                  {getErrorCountForSection('section-categories')}
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-0 pb-4">
-      {/* PHASE 1: Visual Hierarchy & Grouping (7.11.1) - Section Header */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Categories already lazy loaded, but show skeleton if section not loaded */}
-      {loadedSections.has('secondary') ? (
-        <>
-      {/* PHASE 2: Extract Form Sections - CategoriesSection */}
-      <CategoriesSection categories={allCategories} isLoadingCategories={isLoadingCategories} />
-        </>
-      ) : (
-        <div className="mb-6 mt-6 space-y-4 animate-pulse">
-          <div className="h-5 w-32 bg-slate-200 rounded" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="h-32 bg-slate-200 rounded" />
-                      </div>
-                </div>
-              )}
-          </AccordionContent>
-        </AccordionItem>
-
-        {/* Images Section */}
-        <AccordionItem value="section-images" className="border-b border-slate-200">
-          <AccordionTrigger 
-            id="section-images"
-            className="hover:no-underline py-4 scroll-mt-4"
-            aria-label="Hình ảnh sản phẩm"
-          >
-            <div className="flex items-center gap-2">
-              <ImageIcon className="h-5 w-5 text-slate-600" aria-hidden="true" />
-              <h3 className="text-base font-semibold text-slate-900">Hình ảnh sản phẩm</h3>
-              {getErrorCountForSection('section-images') > 0 && (
-                <Badge variant="destructive" className="ml-2 h-5 min-w-[20px] px-1.5 text-xs">
-                  {getErrorCountForSection('section-images')}
-                </Badge>
-              )}
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pt-0 pb-4">
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
-      {loadedSections.has('secondary') ? (
-        <>
-      {/* PHASE 2: Extract Form Sections - ImagesSection */}
-      <ImagesSection
-        product={product}
-        mediaLibraryOpen={mediaLibraryOpen}
-        setMediaLibraryOpen={setMediaLibraryOpen}
-        mediaLibraryMode={mediaLibraryMode}
-        setMediaLibraryMode={setMediaLibraryMode}
-      />
-        </>
-      ) : (
-        <div className="mb-6 mt-6 space-y-4 animate-pulse">
-          <div className="h-5 w-32 bg-slate-200 rounded" />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="h-32 bg-slate-200 rounded" />
-            <div className="space-y-2">
-              <div className="h-10 bg-slate-200 rounded" />
-              <div className="grid grid-cols-3 gap-2">
-                <div className="h-20 bg-slate-200 rounded" />
-                <div className="h-20 bg-slate-200 rounded" />
-                <div className="h-20 bg-slate-200 rounded" />
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-          </AccordionContent>
-        </AccordionItem>
-
-      {/* PHASE 2: Extract Form Sections - SeoSection */}
-      {/* PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Load secondary sections after critical sections */}
-      {loadedSections.has('secondary') ? (
-        <SeoSection
-          product={product}
-          isBulkMode={isBulkMode}
-          onClose={onClose}
-        />
-      ) : (
-        <div className="mt-6 space-y-4 animate-pulse">
-          <div className="h-5 w-32 bg-slate-200 rounded" />
-          <div className="space-y-4">
-            <div className="h-10 bg-slate-200 rounded" />
-            <div className="h-20 bg-slate-200 rounded" />
-            <div className="h-10 bg-slate-200 rounded" />
-          </div>
-        </div>
-      )}
-      </Accordion>
-
-      {/* PHASE 2: Extract Form Sections - VariantsSection */}
-      <VariantsSection
-        productWithVariants={productWithVariants}
-        loadingProduct={loadingProduct}
-        loadedSections={loadedSections}
-      />
-
-      {/* PHASE 2.5: Extract ProductOptionsSection - Attributes Enable/Disable */}
-      <ProductOptionsSection 
-        product={product}
-        productWithVariants={productWithVariants}
-      />
-        </>
-      )}
-    </form>
-    </QuickEditFormProvider>
   );
 
-  // ✅ FIX: Only render Dialog/Sheet when open to prevent multiple dialogs
-  // This prevents rendering multiple instances when many products are in the list
-  if (!open) {
-    return null;
-  }
+  // PHASE 6: Extract Dialog Container
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+                const target = e.currentTarget;
+                const scrollTop = target.scrollTop;
+                const scrollHeight = target.scrollHeight - target.clientHeight;
+                const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
+                setScrollProgress(progress);
+    setShowScrollToTop(scrollTop > 200);
+  };
 
   return (
     <>
-      {/* Mobile: Sheet - Only render on mobile */}
-      {isMobile && (
-        <Sheet open={open} onOpenChange={handleOpenChange}>
-          <SheetContent 
-            side="bottom" 
-            className="h-[90vh] rounded-t-2xl overflow-hidden flex flex-col p-0"
-          >
-            {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-            <SheetHeader className="px-4 pt-4 pb-3 md:px-6 md:pt-6 md:pb-4 border-b border-slate-200 flex-shrink-0">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <SheetTitle className="text-lg font-semibold text-slate-900">
-                    {isBulkMode ? `Sửa nhanh ${bulkProductCount} sản phẩm` : 'Sửa nhanh sản phẩm'}
-                  </SheetTitle>
-                  {!isBulkMode && <p className="text-sm text-slate-500 mt-1">ID: {product?.id || 'N/A'}</p>}
-                  {/* PHASE 4: Unsaved Changes Warning (7.11.10) - Visual warning banner */}
-                  {isDirty && (
-                    <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                      <p className="text-xs text-amber-800">Bạn có thay đổi chưa lưu</p>
-                    </div>
-                  )}
-                </div>
-                {/* UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowShortcutsHelp(true)}
-                  className="flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 min-h-[44px] min-w-[44px] flex-shrink-0"
-                  aria-label="Xem phím tắt bàn phím"
-                  title="Xem phím tắt bàn phím (?)"
-                >
-                  <Keyboard className="h-4 w-4" />
-                </Button>
-              </div>
-            </SheetHeader>
-            {/* UX/UI UPGRADE Phase 3.1.1: Improved scroll progress bar */}
-            {scrollProgress > 0 && scrollProgress < 100 && (
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100/50 z-50 rounded-b-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-slate-600 via-slate-500 to-slate-600 transition-all duration-300 ease-out rounded-r-full shadow-sm"
-                  style={{ width: `${scrollProgress}%` }}
-                />
-              </div>
-            )}
-            {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-            <div 
-              ref={containerRef}
-              className="flex-1 overflow-y-auto px-4 py-3 md:px-6 md:py-4 relative"
-              onScroll={(e) => {
-                // PHASE 2: Mobile Sheet Scrolling Issues (7.11.8) - Calculate scroll progress
-                const target = e.currentTarget;
-                const scrollTop = target.scrollTop;
-                const scrollHeight = target.scrollHeight - target.clientHeight;
-                const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
-                setScrollProgress(progress);
-                setShowScrollToTop(scrollTop > 200); // Show button after scrolling 200px
-              }}
+      <QuickEditDialogContainer
+        open={open}
+        onOpenChange={handleOpenChange}
+        isMobile={isMobile}
+        isBulkMode={isBulkMode}
+        bulkProductCount={bulkProductCount}
+        productId={product?.id}
+        isDirty={isDirty}
+        formIsDirty={formIsDirty}
+        isLoading={isLoading}
+        showSuccessIndicator={showSuccessIndicator}
+        lastSavedTime={lastSavedTime}
+        activeTab={activeTab}
+        scrollProgress={scrollProgress}
+        showScrollToTop={showScrollToTop}
+        onScroll={handleScroll}
+        onShowShortcutsHelp={() => setShowShortcutsHelp(true)}
+        onClose={handleCloseClick}
+        onReset={handleResetForm}
+        onShowComparison={!isBulkMode && isDirty ? () => setShowComparisonDialog(true) : undefined}
+        onShowSchedule={!isBulkMode && isDirty ? () => setShowScheduleDialog(true) : undefined}
             >
               {formContent}
-            </div>
-            {/* PHASE 2: Mobile Sheet Scrolling Issues (7.11.8) - Scroll to top button */}
-            {showScrollToTop && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => {
-                  if (containerRef.current) {
-                    containerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
-                className="fixed bottom-24 right-6 z-50 h-12 w-12 rounded-full shadow-lg bg-white border-slate-200 hover:bg-slate-50 md:hidden"
-                aria-label="Cuộn lên đầu"
-              >
-                <ArrowUp className="h-5 w-5" />
-              </Button>
-            )}
-            {/* PHASE 2: Button Placement & Hierarchy (7.11.5) - Sticky save button wrapper */}
-            {/* PHASE 3: Product History Tab (4.3.5) - Only show footer when edit tab is active or bulk mode */}
-            {(activeTab === 'edit' || isBulkMode) && (
-              <div className="sticky bottom-0 z-50 bg-white border-t border-slate-200 px-4 py-3 md:px-6 md:py-4 flex-shrink-0">
-                <SheetFooter className="px-0 py-0 border-0 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCloseClick}
-                disabled={isLoading}
-                  className="min-h-[44px] border-slate-200 text-slate-900 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Hủy
-              </Button>
-              {/* PHASE 4: Product Comparison (4.4.1) - Comparison button */}
-              {!isBulkMode && isDirty && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowComparisonDialog(true)}
-                  disabled={isLoading}
-                  className="min-h-[44px] border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  title="So sánh thay đổi"
-                >
-                  <GitCompare className="h-4 w-4" />
-                  So sánh
-                </Button>
-              )}
-              {/* PHASE 4: Scheduled Updates (4.4.2) - Schedule button */}
-              {!isBulkMode && isDirty && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowScheduleDialog(true)}
-                  disabled={isLoading}
-                  className="min-h-[44px] border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  title="Lên lịch cập nhật"
-                >
-                  <Clock className="h-4 w-4" />
-                  Lên lịch
-                </Button>
-              )}
-              {/* PHASE 3: Quick Actions & Shortcuts (7.11.15) - Reset form button */}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleResetForm}
-                disabled={!formIsDirty || isLoading}
-                className="min-h-[44px] border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Đặt lại
-              </Button>
-                <div className="flex flex-col items-end gap-1">
-              <Button
-                type="submit"
-                form="quick-edit-form"
-                disabled={!isDirty || isLoading}
-                    className={`min-h-[44px] bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
-                      showSuccessIndicator ? 'bg-green-600 hover:bg-green-700' : ''
-                    }`}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        <span>Đang xử lý...</span>
-                      </>
-                    ) : showSuccessIndicator ? (
-                      <>
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        <span>Đã lưu</span>
-                  </>
-                ) : (
-                  'Lưu thay đổi'
-                )}
-              </Button>
-                  {/* PHASE 2: Button Placement & Hierarchy (7.11.5) - Keyboard hint */}
-                  {!isLoading && !showSuccessIndicator && (
-                    <div className="flex items-center gap-1 text-xs text-slate-400">
-                      <Keyboard className="h-3 w-3" />
-                      <span>Ctrl+S để lưu</span>
-                    </div>
-                  )}
-                </div>
-            </SheetFooter>
-              {/* PHASE 2: Success Feedback Enhancement (7.11.4) - Last saved timestamp */}
-              {lastSavedTime && (
-                <div className="flex items-center gap-1 text-xs text-slate-500 mt-2 w-full justify-center">
-                  <Clock className="h-3 w-3" />
-                  <span>Đã lưu lúc: {lastSavedTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                </div>
-              )}
-            </div>
-            )}
-          </SheetContent>
-        </Sheet>
-      )}
+      </QuickEditDialogContainer>
 
-      {/* Desktop: Dialog - Only render on desktop */}
-      {!isMobile && (
-        <Dialog open={open} onOpenChange={handleOpenChange} modal={true}>
-          <DialogContent className="max-w-4xl max-h-[90vh] p-0 flex flex-col overflow-hidden">
-            <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-200 flex-shrink-0">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1">
-                  <DialogTitle className="text-lg font-semibold text-slate-900">
-                    {isBulkMode ? `Sửa nhanh ${bulkProductCount} sản phẩm` : 'Sửa nhanh sản phẩm'}
-                  </DialogTitle>
-                  {!isBulkMode && (
-                    <DialogDescription className="text-sm text-slate-500 mt-1">
-                      ID: {product?.id || 'N/A'}
-                    </DialogDescription>
-                  )}
-                  {/* PHASE 4: Unsaved Changes Warning (7.11.10) - Visual warning banner */}
-                  {isDirty && (
-                    <div className="mt-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md flex items-center gap-2">
-                      <AlertCircle className="h-4 w-4 text-amber-600 flex-shrink-0" />
-                      <p className="text-xs text-amber-800">Bạn có thay đổi chưa lưu</p>
-                    </div>
-                  )}
-                </div>
-                {/* UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowShortcutsHelp(true)}
-                  className="flex items-center gap-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 min-h-[44px] min-w-[44px]"
-                  aria-label="Xem phím tắt bàn phím"
-                  title="Xem phím tắt bàn phím (?)"
-                >
-                  <Keyboard className="h-4 w-4" />
-                  <span className="hidden sm:inline">Phím tắt</span>
-                </Button>
-              </div>
-            </DialogHeader>
-            {/* UX/UI UPGRADE Phase 3.1.1: Improved scroll progress bar */}
-            {scrollProgress > 0 && scrollProgress < 100 && (
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100/50 z-50 rounded-b-full overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-to-r from-slate-600 via-slate-500 to-slate-600 transition-all duration-300 ease-out rounded-r-full shadow-sm"
-                  style={{ width: `${scrollProgress}%` }}
-                />
-              </div>
-            )}
-            <div 
-              className="flex-1 overflow-y-auto px-6 py-4 relative"
-              onScroll={(e) => {
-                // PHASE 2: Mobile Sheet Scrolling Issues (7.11.8) - Calculate scroll progress
-                const target = e.currentTarget;
-                const scrollTop = target.scrollTop;
-                const scrollHeight = target.scrollHeight - target.clientHeight;
-                const progress = scrollHeight > 0 ? (scrollTop / scrollHeight) * 100 : 0;
-                setScrollProgress(progress);
-                setShowScrollToTop(scrollTop > 200); // Show button after scrolling 200px
-              }}
-            >
-              {formContent}
-            </div>
-            {/* PHASE 2: Mobile Sheet Scrolling Issues (7.11.8) - Scroll to top button (desktop) */}
-            {showScrollToTop && (
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => {
-                  // Find the scrollable container within DialogContent
-                  const dialogContent = document.querySelector('[class*="DialogContent"]');
-                  const scrollContainer = dialogContent?.querySelector('[class*="overflow-y-auto"]') as HTMLElement;
-                  if (scrollContainer) {
-                    scrollContainer.scrollTo({ top: 0, behavior: 'smooth' });
-                  }
-                }}
-                className="fixed bottom-24 right-6 z-50 h-12 w-12 rounded-full shadow-lg bg-white border-slate-200 hover:bg-slate-50 hidden md:flex"
-                aria-label="Cuộn lên đầu"
-              >
-                <ArrowUp className="h-5 w-5" />
-              </Button>
-            )}
-            {/* PHASE 2: Button Placement & Hierarchy (7.11.5) - Sticky save button wrapper */}
-            {/* PHASE 3: Product History Tab (4.3.5) - Only show footer when edit tab is active or bulk mode */}
-            {(activeTab === 'edit' || isBulkMode) && (
-              <div className="sticky bottom-0 z-50 bg-white border-t border-slate-200 px-6 py-4 flex-shrink-0">
-                <DialogFooter className="px-0 py-0 border-0 gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleCloseClick}
-                disabled={isLoading}
-                  className="min-h-[44px] border-slate-200 text-slate-900 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Hủy
-              </Button>
-              {/* PHASE 4: Product Comparison (4.4.1) - Comparison button */}
-              {!isBulkMode && isDirty && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowComparisonDialog(true)}
-                  disabled={isLoading}
-                  className="min-h-[44px] border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  title="So sánh thay đổi"
-                >
-                  <GitCompare className="h-4 w-4" />
-                  So sánh
-                </Button>
-              )}
-              {/* PHASE 4: Scheduled Updates (4.4.2) - Schedule button */}
-              {!isBulkMode && isDirty && (
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setShowScheduleDialog(true)}
-                  disabled={isLoading}
-                  className="min-h-[44px] border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                  title="Lên lịch cập nhật"
-                >
-                  <Clock className="h-4 w-4" />
-                  Lên lịch
-                </Button>
-              )}
-              {/* PHASE 3: Quick Actions & Shortcuts (7.11.15) - Reset form button */}
-              <Button
-                type="button"
-                variant="outline"
-                onClick={handleResetForm}
-                disabled={!formIsDirty || isLoading}
-                className="min-h-[44px] border-slate-200 text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-              >
-                <RotateCcw className="h-4 w-4" />
-                Đặt lại
-              </Button>
-                <div className="flex flex-col items-end gap-1">
-              <Button
-                type="submit"
-                form="quick-edit-form"
-                disabled={!isDirty || isLoading}
-                    className={`min-h-[44px] bg-slate-900 text-white hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all ${
-                      showSuccessIndicator ? 'bg-green-600 hover:bg-green-700' : ''
-                    }`}
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        <span>Đang xử lý...</span>
-                      </>
-                    ) : showSuccessIndicator ? (
-                      <>
-                        <CheckCircle2 className="mr-2 h-4 w-4" />
-                        <span>Đã lưu</span>
-                  </>
-                ) : (
-                  'Lưu thay đổi'
-                )}
-              </Button>
-                  {/* PHASE 2: Button Placement & Hierarchy (7.11.5) - Keyboard hint */}
-                  {!isLoading && !showSuccessIndicator && (
-                    <div className="flex items-center gap-1 text-xs text-slate-400">
-                      <Keyboard className="h-3 w-3" />
-                      <span>Ctrl+S để lưu</span>
-                    </div>
-                  )}
-                </div>
-            </DialogFooter>
-              {/* PHASE 2: Success Feedback Enhancement (7.11.4) - Last saved timestamp */}
-              {lastSavedTime && (
-                <div className="flex items-center gap-1 text-xs text-slate-500 mt-2 w-full justify-center">
-                  <Clock className="h-3 w-3" />
-                  <span>Đã lưu lúc: {lastSavedTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
-                </div>
-              )}
-            </div>
-            )}
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* PHASE 3: Status Change Confirmation (7.10.3) */}
-      <Dialog open={showStatusChangeWarning} onOpenChange={setShowStatusChangeWarning} modal={true}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-amber-600">
-              <AlertCircle className="h-5 w-5" />
-              Xác nhận thay đổi trạng thái
-            </DialogTitle>
-            <DialogDescription className="pt-2">
-              Bạn đang thay đổi trạng thái sản phẩm từ <strong>&quot;Đã xuất bản&quot;</strong> sang <strong>&quot;Bản nháp&quot;</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-slate-700 mb-2">
-              Sản phẩm sẽ không hiển thị trên website sau khi thay đổi. Bạn có chắc chắn muốn tiếp tục?
-            </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mt-3">
-              <p className="text-xs text-amber-800">
-                <strong>Lưu ý:</strong> Bạn có thể thay đổi lại trạng thái thành &quot;Đã xuất bản&quot; bất cứ lúc nào.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowStatusChangeWarning(false);
-                setPendingStatus(null);
-                setPreviousStatus(null);
-              }}
-            >
-              Hủy
-            </Button>
-            <Button 
-              variant="default"
-              onClick={() => {
+      {/* PHASE 6: Extract Status Change Warning Dialog */}
+      <QuickEditStatusChangeWarningDialog
+        open={showStatusChangeWarning}
+        onOpenChange={setShowStatusChangeWarning}
+        pendingStatus={pendingStatus}
+        previousStatus={previousStatus}
+        onConfirm={() => {
                 if (pendingStatus) {
                   setValue('status', pendingStatus, { shouldDirty: true });
                   setShowStatusChangeWarning(false);
@@ -2160,53 +955,20 @@ export function ProductQuickEditDialog({
                   showToast('Trạng thái đã được thay đổi. Nhớ lưu thay đổi để áp dụng.', 'info');
                 }
               }}
-            >
-              Xác nhận
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onCancel={() => {
+          setShowStatusChangeWarning(false);
+          setPendingStatus(null);
+          setPreviousStatus(null);
+        }}
+      />
 
-      {/* PHASE 3: Product Type Change Warning (7.3.2) */}
-      <Dialog open={showProductTypeWarning} onOpenChange={setShowProductTypeWarning} modal={true}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-amber-600">
-              <AlertCircle className="h-5 w-5" />
-              Cảnh báo: Thay đổi loại sản phẩm
-            </DialogTitle>
-            <DialogDescription className="pt-2">
-              Sản phẩm này đang có <strong>{formData.variants?.length || 0} biến thể</strong>. 
-              Việc thay đổi loại sản phẩm từ <strong>&quot;Có biến thể&quot;</strong> sang <strong>
-                {pendingProductType === 'simple' ? 'Đơn giản' : 
-                 pendingProductType === 'grouped' ? 'Nhóm sản phẩm' : 
-                 pendingProductType === 'external' ? 'Sản phẩm ngoài' : 'Loại khác'}
-              </strong> sẽ khiến tất cả các biến thể bị xóa và không thể khôi phục.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-slate-700 mb-2">
-              Bạn có chắc chắn muốn tiếp tục?
-            </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-md p-3 mt-3">
-              <p className="text-xs text-amber-800">
-                <strong>Lưu ý:</strong> Để thay đổi loại sản phẩm an toàn, vui lòng xóa hoặc quản lý các biến thể trước trong form chỉnh sửa đầy đủ.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button 
-              variant="outline" 
-              onClick={() => {
-                setShowProductTypeWarning(false);
-                setPendingProductType(null);
-              }}
-            >
-              Hủy
-            </Button>
-            <Button 
-              variant="destructive"
-              onClick={() => {
+      {/* PHASE 6: Extract Product Type Warning Dialog */}
+      <QuickEditProductTypeWarningDialog
+        open={showProductTypeWarning}
+        onOpenChange={setShowProductTypeWarning}
+        pendingProductType={pendingProductType}
+        variantCount={formData.variants?.length || 0}
+        onConfirm={() => {
                 if (pendingProductType) {
                   setValue('productType', pendingProductType, { shouldDirty: true });
                   setShowProductTypeWarning(false);
@@ -2217,169 +979,39 @@ export function ProductQuickEditDialog({
                   );
                 }
               }}
-            >
-              Xác nhận thay đổi
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onCancel={() => {
+          setShowProductTypeWarning(false);
+          setPendingProductType(null);
+        }}
+      />
 
-      {/* Confirm Close Dialog */}
-      <Dialog open={showConfirmClose} onOpenChange={setShowConfirmClose} modal={true}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Bạn có thay đổi chưa lưu</DialogTitle>
-            <DialogDescription>
-              Bạn có chắc muốn thoát? Các thay đổi sẽ bị mất.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowConfirmClose(false)}>
-              Hủy
-            </Button>
-            <Button onClick={handleConfirmClose}>Thoát</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* PHASE 6: Extract Confirm Close Dialog */}
+      <QuickEditConfirmCloseDialog
+        open={showConfirmClose}
+        onOpenChange={setShowConfirmClose}
+        onConfirm={handleConfirmClose}
+      />
 
-      {/* PHASE 4: Quick Edit Templates (4.3.8) - Save Template Dialog */}
-      <Dialog open={showSaveTemplateDialog} onOpenChange={setShowSaveTemplateDialog} modal={true}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Lưu template</DialogTitle>
-            <DialogDescription>
-              Lưu các giá trị form hiện tại làm template để sử dụng sau
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="template-name" className="text-slate-900">Tên template *</Label>
-              <Input
-                id="template-name"
-                value={templateName}
-                onChange={(e) => setTemplateName(e.target.value)}
-                placeholder="Ví dụ: Gấu bông cơ bản"
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="template-description" className="text-slate-900">Mô tả</Label>
-              <Textarea
-                id="template-description"
-                value={templateDescription}
-                onChange={(e) => setTemplateDescription(e.target.value)}
-                rows={2}
-                placeholder="Mô tả template..."
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="template-category" className="text-slate-900">Danh mục</Label>
-              <Input
-                id="template-category"
-                value={templateCategory}
-                onChange={(e) => setTemplateCategory(e.target.value)}
-                placeholder="Ví dụ: Gấu bông, Đồ chơi"
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowSaveTemplateDialog(false);
-                setTemplateName('');
-                setTemplateDescription('');
-                setTemplateCategory('');
-              }}
-            >
-              Hủy
-            </Button>
-            <Button
-              onClick={handleSaveTemplate}
-              disabled={!templateName.trim()}
-            >
-              Lưu template
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {/* PHASE 6: Extract Save Template Dialog */}
+      <QuickEditSaveTemplateDialog
+        open={showSaveTemplateDialog}
+        onOpenChange={setShowSaveTemplateDialog}
+        templateName={templateName}
+        templateDescription={templateDescription}
+        templateCategory={templateCategory}
+        onTemplateNameChange={setTemplateName}
+        onTemplateDescriptionChange={setTemplateDescription}
+        onTemplateCategoryChange={setTemplateCategory}
+        onSave={handleSaveTemplate}
+      />
 
-      {/* PHASE 4: Scheduled Updates (4.4.2) - Schedule Dialog */}
-      <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog} modal={true}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5" />
-              Lên lịch cập nhật
-            </DialogTitle>
-            <DialogDescription>
-              Lên lịch để áp dụng các thay đổi vào thời điểm cụ thể
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="schedule-datetime" className="text-slate-900">Ngày và giờ *</Label>
-              <Input
-                id="schedule-datetime"
-                type="datetime-local"
-                value={scheduledDateTime}
-                onChange={(e) => setScheduledDateTime(e.target.value)}
-                min={new Date().toISOString().slice(0, 16)}
-                className="border-slate-200 focus:ring-2 focus:ring-slate-950"
-              />
-              <p className="text-xs text-slate-500">
-                Chọn thời điểm để áp dụng các thay đổi. Thời gian phải trong tương lai.
-              </p>
-            </div>
-            {scheduledDateTime && (() => {
-              const scheduledDate = new Date(scheduledDateTime);
-              const now = new Date();
-              const diffMs = scheduledDate.getTime() - now.getTime();
-              const diffMins = Math.floor(diffMs / 60000);
-              const diffHours = Math.floor(diffMins / 60);
-              const diffDays = Math.floor(diffHours / 24);
-              
-              let timeUntil = '';
-              if (diffDays > 0) {
-                timeUntil = `Còn ${diffDays} ngày ${diffHours % 24} giờ`;
-              } else if (diffHours > 0) {
-                timeUntil = `Còn ${diffHours} giờ ${diffMins % 60} phút`;
-              } else if (diffMins > 0) {
-                timeUntil = `Còn ${diffMins} phút`;
-              } else {
-                timeUntil = 'Thời gian đã qua';
-              }
-              
-              return (
-                <div className="p-3 bg-blue-50 border border-blue-200 rounded-md">
-                  <p className="text-sm text-blue-900">
-                    <strong>Thời gian đã chọn:</strong> {scheduledDate.toLocaleString('vi-VN', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric', 
-                      hour: '2-digit', 
-                      minute: '2-digit' 
-                    })}
-                  </p>
-                  <p className="text-xs text-blue-700 mt-1">{timeUntil}</p>
-                </div>
-              );
-            })()}
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowScheduleDialog(false);
-                setScheduledDateTime('');
-              }}
-            >
-              Hủy
-            </Button>
-            <Button
-              onClick={async () => {
+      {/* PHASE 6: Extract Schedule Dialog */}
+      <QuickEditScheduleDialog
+        open={showScheduleDialog}
+        onOpenChange={setShowScheduleDialog}
+        scheduledDateTime={scheduledDateTime}
+        onDateTimeChange={setScheduledDateTime}
+        onConfirm={async () => {
                 if (!scheduledDateTime) {
                   showToast('Vui lòng chọn ngày và giờ', 'error');
                   return;
@@ -2397,7 +1029,6 @@ export function ProductQuickEditDialog({
                 }
 
                 try {
-                  // PHASE 1: CSRF Protection (7.12.2) - Include CSRF token in headers
                   const { getCsrfTokenHeader } = await import('@/lib/utils/csrfClient');
                   const csrfToken = await getCsrfTokenHeader();
                   
@@ -2406,7 +1037,7 @@ export function ProductQuickEditDialog({
                     method: 'POST',
                     headers: { 
                       'Content-Type': 'application/json',
-                      'X-CSRF-Token': csrfToken, // PHASE 1: CSRF Protection (7.12.2)
+                'X-CSRF-Token': csrfToken,
                     },
                     credentials: 'include',
                     body: JSON.stringify({
@@ -2430,401 +1061,23 @@ export function ProductQuickEditDialog({
                   showToast(errorMessage, 'error');
                 }
               }}
-              disabled={!scheduledDateTime}
-            >
-              Lên lịch
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      />
 
-      {/* PHASE 4: Product Comparison (4.4.1) - Comparison Dialog */}
-      <Dialog open={showComparisonDialog} onOpenChange={setShowComparisonDialog} modal={true}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <GitCompare className="h-5 w-5" />
-              So sánh thay đổi
-            </DialogTitle>
-            <DialogDescription>
-              Xem các thay đổi trước khi lưu
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto py-4">
-            {(() => {
-              if (!snapshotInitialData) {
-                return (
-                  <div className="text-center py-8 text-slate-500">
-                    Không có dữ liệu để so sánh
-                  </div>
-                );
-              }
+      {/* PHASE 6: Extract Comparison Dialog */}
+      <QuickEditComparisonDialog
+        open={showComparisonDialog}
+        onOpenChange={setShowComparisonDialog}
+        snapshotInitialData={snapshotInitialData}
+        productId={product?.id}
+        productName={product?.name}
+      />
 
-              const currentData = getFormStateSnapshot();
-              const oldData = snapshotInitialData;
-
-              // Helper to format values for display
-              const formatValue = (value: any): string => {
-                if (value === null || value === undefined) return '(trống)';
-                if (typeof value === 'boolean') return value ? 'Có' : 'Không';
-                if (typeof value === 'number') {
-                  if (value === 0) return '0';
-                  return value.toLocaleString('vi-VN');
-                }
-                if (Array.isArray(value)) {
-                  if (value.length === 0) return '(trống)';
-                  return value.map((v: any) => typeof v === 'object' && v?.name ? v.name : String(v)).join(', ');
-                }
-                if (typeof value === 'object') {
-                  return JSON.stringify(value);
-                }
-                return String(value);
-              };
-
-              // Helper to check if value changed
-              const hasChanged = (field: string): boolean => {
-                const oldVal = (oldData as any)[field];
-                const newVal = (currentData as any)[field];
-                if (Array.isArray(oldVal) && Array.isArray(newVal)) {
-                  return JSON.stringify(oldVal) !== JSON.stringify(newVal);
-                }
-                return normalizeValue(oldVal) !== normalizeValue(newVal);
-              };
-
-              // Get all fields to compare
-              const fieldsToCompare = [
-                { key: 'name', label: 'Tên sản phẩm' },
-                { key: 'sku', label: 'SKU' },
-                { key: 'status', label: 'Trạng thái' },
-                { key: 'regularPrice', label: 'Giá gốc', format: (v: any) => v ? `${v.toLocaleString('vi-VN')} đ` : '(trống)' },
-                { key: 'salePrice', label: 'Giá khuyến mãi', format: (v: any) => v ? `${v.toLocaleString('vi-VN')} đ` : '(trống)' },
-                { key: 'costPrice', label: 'Giá vốn', format: (v: any) => v ? `${v.toLocaleString('vi-VN')} đ` : '(trống)' },
-                { key: 'stockQuantity', label: 'Số lượng tồn kho' },
-                { key: 'stockStatus', label: 'Trạng thái kho' },
-                { key: 'manageStock', label: 'Quản lý kho' },
-                { key: 'weight', label: 'Trọng lượng (kg)' },
-                { key: 'length', label: 'Chiều dài (cm)' },
-                { key: 'width', label: 'Chiều rộng (cm)' },
-                { key: 'height', label: 'Chiều cao (cm)' },
-                { key: 'lowStockThreshold', label: 'Ngưỡng tồn kho thấp' },
-                { key: 'categories', label: 'Danh mục' },
-                { key: 'tags', label: 'Thẻ' },
-                { key: 'seoTitle', label: 'SEO Title' },
-                { key: 'seoDescription', label: 'SEO Description' },
-                { key: 'slug', label: 'URL Slug' },
-                { key: 'productType', label: 'Loại sản phẩm' },
-                { key: 'visibility', label: 'Hiển thị' },
-                { key: 'shippingClass', label: 'Hạng vận chuyển' },
-                { key: 'taxStatus', label: 'Trạng thái thuế' },
-                { key: 'taxClass', label: 'Hạng thuế' },
-                { key: 'barcode', label: 'Barcode' },
-                { key: 'gtin', label: 'GTIN' },
-                { key: 'ean', label: 'EAN' },
-                { key: 'soldIndividually', label: 'Bán riêng lẻ' },
-                { key: 'backorders', label: 'Cho phép đặt hàng khi hết' },
-              ];
-
-              const changedFields = fieldsToCompare.filter(f => hasChanged(f.key));
-
-              return (
-                <div className="space-y-4">
-                  {changedFields.length === 0 ? (
-                    <div className="text-center py-8 text-slate-500">
-                      Không có thay đổi nào
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-sm">
-                            {changedFields.length} thay đổi
-                          </Badge>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            // Export comparison report as JSON
-                            const comparison = {
-                              productId: product?.id,
-                              productName: product?.name,
-                              timestamp: new Date().toISOString(),
-                              changes: changedFields.map(f => ({
-                                field: f.label,
-                                oldValue: formatValue((oldData as any)[f.key]),
-                                newValue: formatValue((currentData as any)[f.key]),
-                              })),
-                            };
-                            const blob = new Blob([JSON.stringify(comparison, null, 2)], { type: 'application/json' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `comparison-${product?.id || 'product'}-${Date.now()}.json`;
-                            a.click();
-                            URL.revokeObjectURL(url);
-                            showToast('Đã xuất báo cáo so sánh', 'success');
-                          }}
-                          className="flex items-center gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                          Xuất báo cáo
-                        </Button>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* Old Values Column */}
-                        <div className="space-y-4">
-                          <div className="sticky top-0 bg-slate-50 border-b border-slate-200 p-3 rounded-t-md">
-                            <h3 className="font-semibold text-slate-900">Giá trị cũ</h3>
-                          </div>
-                          <div className="space-y-3">
-                            {changedFields.map((field) => {
-                              const oldVal = (oldData as any)[field.key];
-                              const formatted = field.format ? field.format(oldVal) : formatValue(oldVal);
-                              return (
-                                <div key={field.key} className="p-3 bg-slate-50 border border-slate-200 rounded-md">
-                                  <div className="text-xs font-medium text-slate-600 mb-1">{field.label}</div>
-                                  <div className="text-sm text-slate-900 break-words">{formatted}</div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                        {/* New Values Column */}
-                        <div className="space-y-4">
-                          <div className="sticky top-0 bg-green-50 border-b border-green-200 p-3 rounded-t-md">
-                            <h3 className="font-semibold text-green-900">Giá trị mới</h3>
-                          </div>
-                          <div className="space-y-3">
-                            {changedFields.map((field) => {
-                              const newVal = (currentData as any)[field.key];
-                              const formatted = field.format ? field.format(newVal) : formatValue(newVal);
-                              return (
-                                <div key={field.key} className="p-3 bg-green-50 border border-green-200 rounded-md">
-                                  <div className="text-xs font-medium text-green-700 mb-1">{field.label}</div>
-                                  <div className="text-sm text-green-900 break-words">{formatted}</div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowComparisonDialog(false)}>
-              Đóng
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* PHASE 2: MediaLibraryModal moved to ImagesSection component */}
-
-      {/* UX/UI UPGRADE Phase 4.2.2: Keyboard shortcuts help dialog */}
-      {isMobile ? (
-        <Sheet open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp}>
-          <SheetContent side="bottom" className="h-[80vh] rounded-t-2xl">
-            <SheetHeader>
-              <SheetTitle className="flex items-center gap-2">
-                <Keyboard className="h-5 w-5" />
-                Phím tắt bàn phím
-              </SheetTitle>
-            </SheetHeader>
-            <div className="mt-6 space-y-6 overflow-y-auto">
-              {(() => {
-                const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-                const modifierKey = isMac ? '⌘' : 'Ctrl';
-                return (
-                  <>
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-slate-900">Thao tác chính</h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Lưu thay đổi</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + S
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Đóng dialog</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            Esc
-                          </kbd>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-slate-900">Điều hướng</h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Thông tin cơ bản</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 1
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Giá & Trạng thái</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 2
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Loại sản phẩm</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 3
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Giao hàng & Thuế</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 4
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Kích thước & Trọng lượng</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 5
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Danh mục</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 6
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Hình ảnh</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 7
-                          </kbd>
-                        </div>
-                      </div>
-                    </div>
-                    {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4">
-                      <h3 className="text-sm font-semibold text-slate-900 mb-2">Mẹo</h3>
-                      <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
-                        <li>Sử dụng Tab để di chuyển giữa các trường</li>
-                        <li>Nhấn Enter để lưu thay đổi</li>
-                        <li>Nhấn Esc để đóng dialog (có xác nhận nếu có thay đổi chưa lưu)</li>
-                      </ul>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-            <SheetFooter className="mt-6">
-              <Button onClick={() => setShowShortcutsHelp(false)} className="w-full">
-                Đóng
-              </Button>
-            </SheetFooter>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Dialog open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp} modal={true}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <Keyboard className="h-5 w-5" />
-                Phím tắt bàn phím
-              </DialogTitle>
-            </DialogHeader>
-            <div className="mt-4 space-y-6 max-h-[60vh] overflow-y-auto">
-              {(() => {
-                const isMac = typeof window !== 'undefined' && navigator.platform.toUpperCase().indexOf('MAC') >= 0;
-                const modifierKey = isMac ? '⌘' : 'Ctrl';
-                return (
-                  <>
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-slate-900">Thao tác chính</h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Lưu thay đổi</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + S
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Đóng dialog</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            Esc
-                          </kbd>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="space-y-3">
-                      <h3 className="text-sm font-semibold text-slate-900">Điều hướng</h3>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Thông tin cơ bản</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 1
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Giá & Trạng thái</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 2
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Loại sản phẩm</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 3
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Giao hàng & Thuế</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 4
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Kích thước & Trọng lượng</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 5
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Danh mục</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 6
-                          </kbd>
-                        </div>
-                        <div className="flex items-center justify-between py-2 border-b border-slate-100">
-                          <span className="text-sm text-slate-700">Hình ảnh</span>
-                          <kbd className="px-2 py-1 text-xs font-semibold text-slate-700 bg-slate-100 border border-slate-300 rounded">
-                            {modifierKey} + 7
-                          </kbd>
-                        </div>
-                      </div>
-                    </div>
-                    {/* PHASE 5.3.6: Mobile compact layout - Reduce padding on mobile */}
-                    <div className="bg-slate-50 border border-slate-200 rounded-md p-3 md:p-4">
-                      <h3 className="text-sm font-semibold text-slate-900 mb-2">Mẹo</h3>
-                      <ul className="text-xs text-slate-600 space-y-1 list-disc list-inside">
-                        <li>Sử dụng Tab để di chuyển giữa các trường</li>
-                        <li>Nhấn Enter để lưu thay đổi</li>
-                        <li>Nhấn Esc để đóng dialog (có xác nhận nếu có thay đổi chưa lưu)</li>
-                      </ul>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-            <DialogFooter>
-              <Button onClick={() => setShowShortcutsHelp(false)}>
-                Đóng
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      )}
+      {/* PHASE 6: Extract Keyboard Shortcuts Dialog */}
+      <QuickEditKeyboardShortcutsDialog
+        open={showShortcutsHelp}
+        onOpenChange={setShowShortcutsHelp}
+        isMobile={isMobile}
+      />
     </>
   );
 }

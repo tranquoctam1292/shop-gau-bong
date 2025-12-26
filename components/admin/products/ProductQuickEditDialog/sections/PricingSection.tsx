@@ -197,13 +197,28 @@ export const PricingSection = memo(function PricingSection({
           {(() => {
             const currentCostPrice = watch('costPrice');
             const currentRegularPrice = watch('regularPrice');
-            if (currentCostPrice && currentRegularPrice && currentRegularPrice > 0 && currentCostPrice >= 0) {
-              const profitMargin = ((currentRegularPrice - currentCostPrice) / currentRegularPrice) * 100;
+            // PHASE 6: Fix profit margin calculation - Handle edge cases
+            // Only calculate if both values exist and are valid numbers
+            if (
+              currentCostPrice !== undefined && 
+              currentCostPrice !== null &&
+              currentRegularPrice !== undefined && 
+              currentRegularPrice !== null &&
+              !isNaN(currentRegularPrice) &&
+              !isNaN(currentCostPrice) &&
+              currentRegularPrice > 0 && 
+              currentCostPrice >= 0
+            ) {
               const profit = currentRegularPrice - currentCostPrice;
+              const profitMargin = currentRegularPrice > 0 
+                ? ((profit / currentRegularPrice) * 100)
+                : 0;
               return (
                 <div className="space-y-1">
                   <p className="text-xs text-slate-500">
-                    Lợi nhuận: <span className="font-medium text-slate-700">{profit.toLocaleString('vi-VN')} đ</span>
+                    Lợi nhuận: <span className={`font-medium ${profit >= 0 ? 'text-slate-700' : 'text-red-600'}`}>
+                      {profit.toLocaleString('vi-VN')} đ
+                    </span>
                   </p>
                   <p className="text-xs text-slate-500">
                     Tỷ suất lợi nhuận: <span className={`font-medium ${profitMargin >= 0 ? 'text-green-600' : 'text-red-600'}`}>

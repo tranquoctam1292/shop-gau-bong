@@ -1,8 +1,10 @@
 'use client';
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import type { FieldErrors } from 'react-hook-form';
 import type { QuickEditFormData } from '../types';
+import { getSectionIdForField } from '../utils/sectionHelpers';
+import { getFieldId } from '../utils/fieldStateHelpers';
 
 /**
  * Hook for Quick Edit Form Validation Helpers
@@ -166,42 +168,9 @@ export function useQuickEditValidation({
     const errorsBySection: Record<string, Array<{field: string, message: string, label: string}>> = {};
     
     // Map fields to sections
-    const fieldToSection: Record<string, string> = {
-      'name': 'section-basic-info',
-      'sku': 'section-basic-info',
-      'barcode': 'section-basic-info',
-      'gtin': 'section-basic-info',
-      'ean': 'section-basic-info',
-      'status': 'section-pricing',
-      'regularPrice': 'section-pricing',
-      'salePrice': 'section-pricing',
-      'costPrice': 'section-pricing',
-      'stockQuantity': 'section-pricing',
-      'stockStatus': 'section-pricing',
-      'manageStock': 'section-pricing',
-      'lowStockThreshold': 'section-pricing',
-      'backorders': 'section-pricing',
-      'soldIndividually': 'section-pricing',
-      'productType': 'section-product-type',
-      'visibility': 'section-product-type',
-      'password': 'section-product-type',
-      'shippingClass': 'section-shipping',
-      'taxStatus': 'section-shipping',
-      'taxClass': 'section-shipping',
-      'weight': 'section-dimensions',
-      'length': 'section-dimensions',
-      'width': 'section-dimensions',
-      'height': 'section-dimensions',
-      'categories': 'section-categories',
-      'tags': 'section-categories',
-      'seoTitle': 'section-seo',
-      'seoDescription': 'section-seo',
-      'slug': 'section-seo',
-    };
-    
+    // PHASE 5.3: Use sectionHelpers for field to section mapping
     allValidationErrors.forEach((err) => {
-      const baseField = err.field.split('.')[0];
-      const sectionId = fieldToSection[baseField] || 'section-basic-info';
+      const sectionId = getSectionIdForField(err.field);
       if (!errorsBySection[sectionId]) {
         errorsBySection[sectionId] = [];
       }
@@ -257,14 +226,19 @@ export function useQuickEditValidation({
   }, [focusedFieldId, isFieldEdited, flashingFields]);
 
   // UX/UI UPGRADE Phase 2.1.2: Helper function to scroll to error field
+  // PHASE 5.2: Use fieldStateHelpers for field ID generation
+  // MEMORY LEAK FIX: Store timeout IDs for cleanup
+  const scrollTimeoutRefs = useRef<{ outer?: NodeJS.Timeout; inner?: NodeJS.Timeout }>({});
+
   const scrollToErrorField = useCallback((fieldName: string) => {
-    // Helper to map field name to field ID
-    const getFieldId = (field: string): string => {
-      // Handle nested fields (e.g., variants.0.price -> quick-edit-variants-0-price)
-      const normalizedField = field.replace(/\./g, '-').replace(/\[|\]/g, '-');
-      return `quick-edit-${normalizedField}`;
-    };
-    
+    // MEMORY LEAK FIX: Cleanup previous timeouts
+    if (scrollTimeoutRefs.current.outer) {
+      clearTimeout(scrollTimeoutRefs.current.outer);
+    }
+    if (scrollTimeoutRefs.current.inner) {
+      clearTimeout(scrollTimeoutRefs.current.inner);
+    }
+
     const fieldId = getFieldId(fieldName);
     const errorElement = document.getElementById(fieldId);
     
@@ -275,8 +249,9 @@ export function useQuickEditValidation({
         inline: 'nearest'
       });
       // Focus the field after scrolling
-      setTimeout(() => {
+      scrollTimeoutRefs.current.inner = setTimeout(() => {
         errorElement.focus();
+        scrollTimeoutRefs.current.inner = undefined;
       }, 300);
     } else {
       // Fallback: Try to find by field name pattern
@@ -287,11 +262,25 @@ export function useQuickEditValidation({
           block: 'center',
           inline: 'nearest'
         });
-        setTimeout(() => {
+        scrollTimeoutRefs.current.inner = setTimeout(() => {
           fallbackElement.focus();
+          scrollTimeoutRefs.current.inner = undefined;
         }, 300);
       }
     }
+  }, []);
+
+  // MEMORY LEAK FIX: Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollTimeoutRefs.current.outer) {
+        clearTimeout(scrollTimeoutRefs.current.outer);
+      }
+      if (scrollTimeoutRefs.current.inner) {
+        clearTimeout(scrollTimeoutRefs.current.inner);
+      }
+      scrollTimeoutRefs.current = {};
+    };
   }, []);
 
   return {
