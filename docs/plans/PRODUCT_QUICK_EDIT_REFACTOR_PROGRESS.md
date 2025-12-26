@@ -427,15 +427,18 @@
 - [ ] Test: Field state, error counting (MANUAL TEST NEEDED)
 - [ ] Commit: "refactor: extract useQuickEditValidation"
 
-#### 3.4 useQuickEditLifecycle.ts (Risk: ⚠️ MEDIUM)
-- [ ] Create `hooks/useQuickEditLifecycle.ts`
-- [ ] Move `handleOpenChange` / `handleCloseClick`
-- [ ] Move before unload warning logic
-- [ ] Move keyboard shortcuts handlers
-- [ ] Move dialog state management
-- [ ] Return: Lifecycle handlers
-- [ ] Update component để dùng hook
-- [ ] Test: Dialog open/close, keyboard shortcuts, before unload
+#### 3.4 useQuickEditLifecycle.ts (Risk: ⚠️ MEDIUM) ✅ **COMPLETED**
+- [x] Create `hooks/useQuickEditLifecycle.ts`
+- [x] Move `handleOpenChange` / `handleCloseClick`
+- [x] Move `handleConfirmClose`
+- [x] Move `showConfirmClose` state
+- [x] Move before unload warning logic (isDirtyRef, beforeunload event handler)
+- [x] Move navigation guard logic (link click interception)
+- [x] Return: Lifecycle handlers (showConfirmClose, setShowConfirmClose, handleOpenChange, handleCloseClick, handleConfirmClose)
+- [x] Update component để dùng hook
+- [x] Remove old definitions from main file
+- [x] TypeScript check passed (npm run type-check)
+- [ ] Test: Dialog open/close, keyboard shortcuts, before unload (MANUAL TEST NEEDED)
 - [ ] Commit: "refactor: extract useQuickEditLifecycle"
 
 #### 3.5 useQuickEditVersionCheck.ts (Risk: ⚠️ LOW)

@@ -56,6 +56,7 @@ import { QuickEditFormProvider } from './ProductQuickEditDialog/context/QuickEdi
 import { useQuickEditForm } from './ProductQuickEditDialog/hooks/useQuickEditForm';
 import { useQuickEditHandlers } from './ProductQuickEditDialog/hooks/useQuickEditHandlers';
 import { useQuickEditValidation } from './ProductQuickEditDialog/hooks/useQuickEditValidation';
+import { useQuickEditLifecycle } from './ProductQuickEditDialog/hooks/useQuickEditLifecycle';
 // PHASE 2: Extract Form Sections
 import { DimensionsSection } from './ProductQuickEditDialog/sections/DimensionsSection';
 import { ShippingSection } from './ProductQuickEditDialog/sections/ShippingSection';
@@ -269,7 +270,7 @@ export function ProductQuickEditDialog({
     },
   });
 
-  const [showConfirmClose, setShowConfirmClose] = useState(false);
+  // PHASE 3.4: showConfirmClose moved to useQuickEditLifecycle hook
   // PHASE 2: Product Type Change Warning (4.2.3)
   const [showProductTypeWarning, setShowProductTypeWarning] = useState(false);
   const [pendingProductType, setPendingProductType] = useState<'simple' | 'variable' | 'grouped' | 'external' | null>(null);
@@ -315,8 +316,7 @@ export function ProductQuickEditDialog({
   const lastCheckedVersionRef = useRef<number | null>(null);
   // PHASE 3: Client State Sync (7.12.7) - Track form dirty state for polling
   const formIsDirtyRef = useRef<boolean>(false);
-  // PHASE 4: Unsaved Changes Warning (7.11.10) - Track isDirty in ref for beforeunload
-  const isDirtyRef = useRef<boolean>(false);
+  // PHASE 3.4: isDirtyRef moved to useQuickEditLifecycle hook
   // PERFORMANCE OPTIMIZATION (3.3.2): Progressive loading - Track which sections are loaded
   const [loadedSections, setLoadedSections] = useState<Set<string>>(new Set());
   const progressiveLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -530,6 +530,22 @@ export function ProductQuickEditDialog({
     errors,
   };
   const formIsDirty = formState.isDirty;
+
+  // PHASE 3.4: Extract useQuickEditLifecycle hook - Lifecycle handlers moved to hook
+  const {
+    showConfirmClose,
+    setShowConfirmClose,
+    handleOpenChange,
+    handleCloseClick,
+    handleConfirmClose,
+  } = useQuickEditLifecycle({
+    open,
+    isDirty: formIsDirty,
+    isLoading,
+    reset,
+    initialData,
+    onClose,
+  });
 
   // PHASE 3: Quick Actions & Shortcuts (7.11.15) - Reset form handler
   const handleResetForm = useCallback(() => {
@@ -1149,10 +1165,10 @@ export function ProductQuickEditDialog({
   }, [open, isBulkMode]);
 
   // PHASE 3.1: Form initialization logic moved to useQuickEditForm hook
-  // Reset confirm dialog state when opening
+  // PHASE 3.4: Reset confirm dialog state when opening moved to useQuickEditLifecycle hook
+  // Clear external snapshot when dialog opens/closes
   useEffect(() => {
     if (open) {
-      setShowConfirmClose(false);
       // Clear external snapshot when dialog opens (will use initialData from hook)
       setExternalSnapshot(null);
       } else {
@@ -1294,117 +1310,13 @@ export function ProductQuickEditDialog({
     normalizeValue, // UX/UI UPGRADE PREREQUISITE 2 (10.2.1): Add normalizeValue dependency
   ]);
 
-  // PHASE 4: Unsaved Changes Warning (7.11.10) - Update isDirty ref for beforeunload (after isDirty is defined)
-  useEffect(() => {
-    isDirtyRef.current = isDirty;
-  }, [isDirty]);
-
-  // PHASE 4: Unsaved Changes Warning (7.11.10) - beforeunload event handler
-  useEffect(() => {
-    if (!open) return; // Only handle when dialog is open
-
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isDirtyRef.current) {
-        // Standard way to show browser warning
-        e.preventDefault();
-        // Modern browsers ignore custom message, but we set it anyway
-        e.returnValue = 'Bạn có thay đổi chưa lưu. Bạn có chắc muốn rời trang?';
-        return e.returnValue;
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-
-    return () => {
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-    };
-  }, [open]);
-
-  // PHASE 4: Unsaved Changes Warning (7.11.10) - Navigation guard for Next.js App Router
-  useEffect(() => {
-    if (!open || !isDirty) return;
-
-    // Intercept link clicks within the dialog
-    const handleLinkClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement;
-      const link = target.closest('a[href]') as HTMLAnchorElement;
-      
-      if (link && link.href) {
-        // Check if it's an internal link (same origin)
-        try {
-          const linkUrl = new URL(link.href);
-          const currentUrl = new URL(window.location.href);
-          
-          // Only intercept internal navigation
-          if (linkUrl.origin === currentUrl.origin && linkUrl.pathname !== currentUrl.pathname) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Show confirmation dialog
-            if (window.confirm('Bạn có thay đổi chưa lưu. Bạn có chắc muốn rời khỏi trang này?')) {
-              // User confirmed, allow navigation
-              window.location.href = link.href;
-            }
-          }
-        } catch (error) {
-          // Invalid URL, ignore
-        }
-      }
-    };
-
-    // Add click listener to document when dialog is open and form is dirty
-    document.addEventListener('click', handleLinkClick, true);
-
-    return () => {
-      document.removeEventListener('click', handleLinkClick, true);
-    };
-  }, [open, isDirty]);
+  // PHASE 3.4: Before unload warning and navigation guard moved to useQuickEditLifecycle hook
     
   // PHASE 3.3: isFieldEdited and getFieldClassName moved to useQuickEditValidation hook
 
 
 
-  // Handle close from onOpenChange (backdrop click, ESC key)
-  const handleOpenChange = (isOpen: boolean) => {
-    // Prevent auto-close when dialog is being opened or when submitting
-    if (isOpen === true || isLoading) {
-      return;
-    }
-    
-    // Only show confirm dialog if there are actual unsaved changes
-    if (isOpen === false) {
-      if (isDirty) {
-        // Form has unsaved changes - show confirm dialog
-        setShowConfirmClose(true);
-      } else {
-        // No changes - close immediately without confirmation
-        onClose();
-      }
-    }
-  };
-
-  // Handle close from button click
-  const handleCloseClick = () => {
-    // Prevent close when submitting
-    if (isLoading) {
-      return;
-    }
-    
-    // Only show confirm dialog if there are actual unsaved changes
-    if (isDirty) {
-      // Form has unsaved changes - show confirm dialog
-      setShowConfirmClose(true);
-    } else {
-      // No changes - close immediately without confirmation
-      onClose();
-    }
-  };
-
-  const handleConfirmClose = () => {
-    setShowConfirmClose(false);
-    reset(initialData);
-    onClose();
-  };
+  // PHASE 3.4: handleOpenChange, handleCloseClick, handleConfirmClose moved to useQuickEditLifecycle hook
 
   // PHASE 2: Bulk Edit Progress (4.2.5)
   const [bulkUpdateProgress, setBulkUpdateProgress] = useState<{
