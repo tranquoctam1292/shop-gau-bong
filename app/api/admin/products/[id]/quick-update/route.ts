@@ -17,6 +17,40 @@ import type { ClientSession } from 'mongodb';
 
 export const dynamic = 'force-dynamic';
 
+// ✅ FIX: Helper function to ensure JSON response even for initialization errors
+// This prevents 405 Method Not Allowed errors on Vercel when module initialization fails
+async function safeHandler(
+  handler: () => Promise<NextResponse>
+): Promise<NextResponse> {
+  try {
+    return await handler();
+  } catch (error: unknown) {
+    console.error('[Admin Product Quick Update API] Handler initialization error:', error);
+    const errorMessage = error instanceof Error 
+      ? error.message 
+      : 'Internal server error';
+    
+    return NextResponse.json(
+      { 
+        error: errorMessage,
+        code: 'HANDLER_INIT_ERROR',
+        details: process.env.NODE_ENV === 'development' && error instanceof Error
+          ? { 
+              stack: error.stack,
+              name: error.name,
+            }
+          : undefined,
+      },
+      { 
+        status: 500,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+  }
+}
+
 // PHASE 1: productDataMetaBox Sync Pattern (7.2.3) - Helper function for consistent updates
 /**
  * Helper function to ensure productDataMetaBox exists in updateData and return it
@@ -115,9 +149,43 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  return withAuthAdmin(request, async (req: AuthenticatedRequest) => {
+  // ✅ FIX: Wrap entire handler in safeHandler to catch initialization errors
+  // This ensures JSON response even if withAuthAdmin or module imports fail
+  return safeHandler(async () => {
+    return await withAuthAdmin(request, async (req: AuthenticatedRequest) => {
     try {
-      const { products } = await getCollections();
+      // ✅ FIX: Ensure params.id exists and is a string
+      if (!params || !params.id || typeof params.id !== 'string') {
+        return NextResponse.json(
+          { error: 'Product ID is required' },
+          { status: 400 }
+        );
+      }
+      
+      // ✅ FIX: Wrap getCollections in try-catch to handle MongoDB connection errors
+      let products;
+      try {
+        const collections = await getCollections();
+        products = collections.products;
+      } catch (dbError) {
+        console.error('[Admin Product Quick Update API] MongoDB connection error:', dbError);
+        return NextResponse.json(
+          { 
+            error: 'Database connection failed',
+            code: 'DB_CONNECTION_ERROR',
+            details: process.env.NODE_ENV === 'development' && dbError instanceof Error
+              ? { message: dbError.message }
+              : undefined,
+          },
+          { 
+            status: 500,
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+      }
+      
     let { id } = params;
     const body = await request.json();
     
@@ -1151,5 +1219,6 @@ export async function PATCH(
     );
     }
   }, 'product:update');
+  });
 }
 
