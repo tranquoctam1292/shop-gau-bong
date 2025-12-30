@@ -20,7 +20,11 @@
       "Bash(npm view:*)",
       "Bash(npm install:*)",
       "Bash(cat:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run dev)",
+      "Bash(ls:*)",
+      "Bash(git mv:*)",
+      "Bash(git rm:*)"
     ]
   }
 }
