@@ -2,7 +2,7 @@
 
 **Tạo ngày:** 2025-12-30
 **Cập nhật lần cuối:** 2025-12-30
-**Trạng thái tổng:** 🟢 Phase 1 HOÀN THÀNH
+**Trạng thái tổng:** 🟢 Phase 1 + Phase 2 HOÀN THÀNH
 
 ---
 
@@ -11,7 +11,7 @@
 | Hạng mục | Tổng | Hoàn thành | Tiến độ |
 |----------|------|------------|---------|
 | Lỗi CRITICAL (Rules of Hooks) | 5 | 5 | ██████████ 100% |
-| Lỗi Bảo mật (npm audit) | 3 | 0 | ░░░░░░░░░░ 0% |
+| Lỗi Bảo mật (npm audit) | 3 | 3 | ██████████ 100% |
 | Lỗi WARNING (Missing Deps) | 26 | 0 | ░░░░░░░░░░ 0% |
 | Lỗi WARNING (Ref Cleanup) | 2 | 0 | ░░░░░░░░░░ 0% |
 | Lỗi WARNING (img tag) | 3 | 0 | ░░░░░░░░░░ 0% |
@@ -111,19 +111,21 @@
 
 ---
 
-## PHASE 2: LỖI BẢO MẬT
+## PHASE 2: LỖI BẢO MẬT ✅ HOÀN THÀNH
 
-### 2.1. npm audit vulnerabilities
+### 2.1. npm audit vulnerabilities ✅
 - **Package:** glob, @next/eslint-plugin-next, eslint-config-next
 - **Severity:** HIGH
 - **Loại:** Command Injection
 
 | Bước | Mô tả | Trạng thái | Ngày |
 |------|-------|------------|------|
-| [ ] | Chạy `npm audit fix` | ⬜ Chưa | |
-| [ ] | Nếu không fix được, kiểm tra version mới của next | ⬜ Chưa | |
-| [ ] | Ghi nhận nếu cần chờ upstream fix | ⬜ Chưa | |
-| [ ] | Chạy `npm audit` để verify | ⬜ Chưa | |
+| [x] | Chạy `npm audit fix` | ❌ Không fix được | 2025-12-30 |
+| [x] | Cập nhật eslint-config-next@14.2.35 | ❌ Vẫn còn lỗ hổng | 2025-12-30 |
+| [x] | Thêm `overrides: { "glob": "^10.5.0" }` vào package.json | ✅ Done | 2025-12-30 |
+| [x] | Xóa node_modules và cài lại | ✅ Done | 2025-12-30 |
+| [x] | Chạy `npm audit` để verify | ✅ **0 vulnerabilities** | 2025-12-30 |
+| [x] | Build production test | ✅ Pass | 2025-12-30 |
 
 ---
 
@@ -228,6 +230,7 @@
 |------|-----------------|----------|
 | 2025-12-30 | Claude Code | Tạo checklist ban đầu |
 | 2025-12-30 | Claude Opus 4.5 | ✅ Hoàn thành Phase 1: Sửa 5 lỗi CRITICAL Rules of Hooks |
+| 2025-12-30 | Claude Opus 4.5 | ✅ Hoàn thành Phase 2: Fix 3 lỗ hổng bảo mật HIGH (glob override) |
 
 ---
 

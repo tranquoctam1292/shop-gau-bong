@@ -13,7 +13,12 @@
       "Bash(npm audit)",
       "Bash(git stash push:*)",
       "Bash(git checkout:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm outdated:*)",
+      "Bash(npm ls:*)",
+      "Bash(npm view:*)",
+      "Bash(npm install:*)"
     ]
   }
 }
