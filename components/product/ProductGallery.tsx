@@ -17,10 +17,12 @@ interface ProductGalleryProps {
 export function ProductGallery({ images, productName, selectedVariationImage }: ProductGalleryProps) {
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  // Fallback to placeholder if no images
-  const baseImages = images.length > 0 
-    ? images 
-    : [{ sourceUrl: '/images/teddy-placeholder.png', altText: productName || 'Sản phẩm' }];
+  // Fallback to placeholder if no images - memoized to prevent recreation
+  const baseImages = useMemo(() => {
+    return images.length > 0
+      ? images
+      : [{ sourceUrl: '/images/teddy-placeholder.png', altText: productName || 'Sản phẩm' }];
+  }, [images, productName]);
 
   // Nếu có selectedVariationImage, đặt nó làm ảnh đầu tiên
   const allImages = useMemo(() => {

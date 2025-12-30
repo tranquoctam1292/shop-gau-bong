@@ -211,25 +211,21 @@ export function ProductCard({ product }: ProductCardProps) {
     const queryString = params.toString();
     return queryString ? `${baseUrl}?${queryString}` : baseUrl;
   }, [product, selectedSize, selectedColor, sizeAttribute, colorAttribute]);
-  
-  // Early return sau khi đã gọi tất cả hooks
-  if (!product || !product.name) return null;
-  
-  // FIX: Check stock at variant level if variation is selected
-  // Variant stock enforcement: If user selects a variant that's out of stock,
-  // disable "Add to Cart" button even if product level shows "in stock"
-  // SECURITY FIX: Strict stock checking with manageStock validation
-  // If variant stock field is missing (due to MongoDB migration), don't default to "in stock"
-  // Only consider "in stock" if stock is explicitly > 0
+
+  // ✅ FIX: Di chuyển useMemo lên TRƯỚC early return để tuân thủ Rules of Hooks
+  // Check stock at variant level if variation is selected
   const isOutOfStock = useMemo(() => {
+    // Handle null product
+    if (!product) return true;
+
     // If variation is selected, check variant stock strictly
     if (selectedVariation) {
       // MongoVariant has stock field (number) or stockQuantity field (number)
       // Support both fields for backward compatibility
-      const variantStock = selectedVariation.stockQuantity !== undefined 
-        ? selectedVariation.stockQuantity 
+      const variantStock = selectedVariation.stockQuantity !== undefined
+        ? selectedVariation.stockQuantity
         : (selectedVariation.stock !== undefined ? selectedVariation.stock : undefined);
-      
+
       // Strict check: Only consider "in stock" if stock is explicitly defined and > 0
       // If stock is undefined/null (missing data from migration), treat as out of stock
       // This prevents defaulting to "in stock" when data is missing
@@ -238,14 +234,17 @@ export function ProductCard({ product }: ProductCardProps) {
         // This handles cases where MongoDB data is incomplete after migration
         return true;
       }
-      
+
       // Stock is defined - check if it's > 0
       return variantStock <= 0;
     }
-    
+
     // For simple products or no variation selected, check product level stock
     return product.stockStatus === 'outofstock';
-  }, [product.stockStatus, selectedVariation]);
+  }, [product, selectedVariation]);
+
+  // Early return sau khi đã gọi tất cả hooks
+  if (!product || !product.name) return null;
 
   const handleQuickAdd = async (e: React.MouseEvent) => {
     e.preventDefault();

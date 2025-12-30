@@ -86,7 +86,8 @@ export function VariantQuickEditTable({
       originalMap.set(v.id, { ...v });
     });
     setOriginalVariants(originalMap);
-  }, []); // Only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only on mount - intentionally exclude variants to store initial snapshot
 
   // Focus input when editing starts
   useEffect(() => {

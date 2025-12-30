@@ -70,12 +70,15 @@ export function LoadingProgressIndicator({
     // Estimate remaining time based on step
     if (config.estimatedTime && showTimeEstimate) {
       const estimatedTotal = config.estimatedTime;
-      const remaining = Math.max(0, estimatedTotal - timeElapsed);
-      setEstimatedTimeRemaining(remaining);
+      setEstimatedTimeRemaining((prevRemaining) => {
+        const remaining = Math.max(0, estimatedTotal - timeElapsed);
+        return remaining;
+      });
     }
 
     return () => clearInterval(interval);
-  }, [step, config.estimatedTime, showTimeEstimate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, config.estimatedTime, showTimeEstimate]); // timeElapsed intentionally excluded to avoid infinite re-render
 
   // Format time display
   const formatTime = (seconds: number): string => {

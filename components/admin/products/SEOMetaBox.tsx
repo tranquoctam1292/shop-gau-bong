@@ -332,7 +332,8 @@ export function SEOMetaBox({
       },
     };
     return checks;
-  }, [productSku, productPrice, productSalePrice, productImage, productDescription, productShortDescription, data.focusKeyword, data.seoTitle, data.seoDescription]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productSku, productPrice, productSalePrice, productImage, productDescription, productShortDescription, data.focusKeyword, data.seoTitle, data.seoDescription]); // hasRelatedProducts is derived from data already included
 
   // Get current price for display
   const displayPrice = productSalePrice || productPrice || 0;

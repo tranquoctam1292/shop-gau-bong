@@ -159,7 +159,8 @@ export function AdvancedFilters({ className }: AdvancedFiltersProps) {
     }
     
     return active;
-  }, [filters, categories]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, categories, minPrice, maxPrice]); // minPrice and maxPrice added for accurate active filters
 
   const handleClearAll = () => {
     setSelectedCategories([]);

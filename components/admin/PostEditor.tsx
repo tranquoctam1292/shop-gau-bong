@@ -113,7 +113,8 @@ export function PostEditor({ postId, initialData }: PostEditorProps) {
       const slug = generateSlug(formData.title);
       setFormData((prev) => ({ ...prev, slug }));
     }
-  }, [formData.title, postId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.title, postId]); // formData.slug intentionally excluded to avoid infinite loop
 
   // Load post data if editing
   useEffect(() => {

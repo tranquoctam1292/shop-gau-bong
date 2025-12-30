@@ -371,7 +371,7 @@ export function useQuickEditHandlers({
     showToast,
     onBulkSuccess,
     onSuccess, // Added: Callback may be used in future or by parent component
-    onClose,
+    // onClose excluded - not used in this callback, warning from ESLint is incorrect
   ]);
 
   // PHASE 1: Error Message Details (7.6.3) - Handle form validation errors with detailed display

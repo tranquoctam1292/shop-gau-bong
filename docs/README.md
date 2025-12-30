@@ -1,143 +1,180 @@
-# 📚 Documentation Index
+# Documentation Index
 
-**Last updated:** 2025-01-XX  
-**Total files:** ~159 files (organized into subdirectories, optimized)
-
-## 📁 Directory Structure
-
-- **`docs/reports/`** - Project reports, summaries, and completion documents
-- **`docs/plans/`** - Project plans, specifications, and planning documents
-- **`docs/setup/`** - Setup guides, checklists, and configuration documentation
-- **`docs/modules/`** - Module-specific documentation
-- **`docs/progress/`** - Progress tracking and timeline documents
-- **`docs/phases/`** - Phase completion summaries and phase-related documentation
-- **`docs/testing/`** - Testing documentation, checklists, and test results
-- **`docs/implementation/`** - Implementation plans, progress tracking, and guides
-- **`docs/security/`** - Security documentation, audits, and security-related guides
-- **`docs/troubleshooting/`** - Troubleshooting guides and error fix documentation
-- **`docs/deployment/`** - Deployment guides, environment setup, and deployment-related documentation
-- **`docs/performance/`** - Performance optimization guides and documentation
-- **`docs/`** (root) - Core technical documentation and guides
+**Last updated:** 2025-12-30
+**Project:** Shop Gau Bong - Vietnamese Teddy Bear E-commerce
 
 ---
 
-## 🎯 QUICK NAVIGATION
+## Directory Structure
 
-### System Meta-Documentation
-- [Schema Context](./SCHEMA_CONTEXT.md) - Database schema reference (includes RBAC collections)
-- [Design System](./DESIGN_SYSTEM.md) - UI/UX design guidelines
-- [Product Module Reference](./PRODUCT_MODULE_REFERENCE.md) - Complete product module documentation
-- [Admin RBAC Complete](./ADMIN_ACCOUNT_RBAC_COMPLETE.md) - RBAC system documentation
+```
+docs/
+├── deployment/      # Deployment guides, Vercel setup
+├── fixes/           # Critical bug fixes documentation
+├── implementation/  # Implementation plans and specs
+├── modules/         # Module-specific docs (Media, SKU)
+├── performance/     # Performance optimization
+├── phases/          # Phase completion summaries
+├── plans/           # Project plans and specifications
+├── product-module/  # Product module detailed docs
+├── progress/        # Progress tracking
+├── reports/         # Project reports and audits
+├── security/        # Security audits and fixes
+├── setup/           # Setup guides and checklists
+├── testing/         # Testing docs and checklists
+└── troubleshooting/ # Error fixes and solutions
+```
 
-### Setup & Configuration
-- [MongoDB Setup Guide](./MONGODB_SETUP_GUIDE.md) - Setup MongoDB connection
-- [Vercel Environment Setup](./deployment/VERCEL_ENV_SETUP.md) - Configure environment variables
+---
 
-### Migration & CMS
-- [Plans Directory](./plans/README.md) - Project plans and specifications
-- [Migration to Custom CMS Plan](./MIGRATION_TO_CUSTOM_CMS_PLAN.md) - Complete migration plan
-- [CMS Integration Analysis](./CMS_INTEGRATION_ANALYSIS.md) - CMS integration analysis
-- [CMS Sync Plan](./CMS_SYNC_PLAN.md) - Feature synchronization plan
+## Quick Start
 
-### Phases & Completion
-- [Phases Directory](./phases/README.md) - Phase completion summaries and documentation
-- [Product Features Sync Analysis](./reports/PRODUCT_FEATURES_SYNC_ANALYSIS.md) - Feature comparison
-- [Phase 1: Core Advanced Sections](./phases/PHASE1_PRODUCT_FEATURES_COMPLETE.md) ✅
-- [Phase 2: Gift & Media Features](./phases/PHASE2_PRODUCT_FEATURES_COMPLETE.md) ✅
-- [Phase 3: Collections & Relations](./phases/PHASE3_PRODUCT_FEATURES_COMPLETE.md) ✅
-- [Phase 4: Advanced Operations](./phases/PHASE4_PRODUCT_FEATURES_COMPLETE.md) ✅
-- [Phase 5: Analytics & Reviews](./phases/PHASE5_PRODUCT_FEATURES_COMPLETE.md) ✅
-- [Phase 6: Import/Export](./phases/PHASE6_PRODUCT_FEATURES_COMPLETE.md) ✅
+| Document | Description |
+|----------|-------------|
+| [SCHEMA_CONTEXT.md](./SCHEMA_CONTEXT.md) | MongoDB schema reference |
+| [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) | UI/UX design guidelines |
+| [PRODUCT_MODULE_REFERENCE.md](./PRODUCT_MODULE_REFERENCE.md) | Product module complete reference |
 
-### CMS Sync Documentation
-- [Phase 1: CMS Sync Complete](./phases/PHASE1_CMS_SYNC_COMPLETE.md) ✅
-- [Phase 2: Blog System](./phases/PHASE2_BLOG_SYSTEM_COMPLETE.md) ✅
-- [Phase 5: Admin Panel](./phases/PHASE5_ADMIN_PANEL_COMPLETE.md) ✅
+---
 
-### Media Library
-- [Modules Directory](./modules/README.md) - Module-specific documentation
-- [Media Library Complete](./phases/MEDIA_LIBRARY_COMPLETE.md) ✅ - Complete implementation summary with issues review and proposals
-- [Media Library Implementation Plan](./implementation/MEDIA_LIBRARY_IMPLEMENTATION_PLAN.md) - Implementation plan
-- [Media Library API Documentation](./MEDIA_LIBRARY_API_DOCUMENTATION.md) - API reference
-- [Media Library Usage Guide](./MEDIA_LIBRARY_USAGE_GUIDE.md) - User guide
+## Core Documentation
 
-### Migration Phases
-- [Phase 1: Setup Complete](./phases/PHASE1_SETUP_COMPLETE.md) ✅
-- [Phase 2: Migration Complete](./phases/PHASE2_MIGRATION_COMPLETE.md) ✅
-- [Phase 3: Data Migration](./phases/PHASE3_COMPLETE.md) ✅
-- [Phase 3: Data Migration Guide](./phases/PHASE3_DATA_MIGRATION_GUIDE.md) - Detailed guide
-- [Phase 4: Frontend Update](./phases/PHASE4_FRONTEND_UPDATE_COMPLETE.md) ✅
-- [Phase Review & Fixes](./phases/PHASE_REVIEW_FIXES.md) - Review results
+### Database & Schema
+- [SCHEMA_CONTEXT.md](./SCHEMA_CONTEXT.md) - MongoDB collections and fields
+- [SCHEMA_CONTEXT_ORDERS.md](./SCHEMA_CONTEXT_ORDERS.md) - Order schema details
 
-### Testing
-- [Testing Directory](./testing/README.md) - Testing documentation and test results
-- [Phase 2: API Routes Test Results](./testing/PHASE2_API_ROUTES_TEST_RESULTS.md)
-- [Phase 4: Hooks Test Results](./testing/PHASE4_HOOKS_TEST_RESULTS.md)
-- [Product Module Complete](./PRODUCT_MODULE_COMPLETE.md) - Product module context, review, and improvements
-- [Validation Complete](./testing/VALIDATION_COMPLETE.md) - Validation update summary and test results
-- [Product Management Test Report](./testing/PRODUCT_MANAGEMENT_TEST_REPORT.md) - Test results
+### Design & UI
+- [DESIGN_SYSTEM.md](./DESIGN_SYSTEM.md) - Colors, typography, components
+- [UI_DESIGN_SPEC.md](./UI_DESIGN_SPEC.md) - UI specifications
 
-### Troubleshooting
-- [Troubleshooting Directory](./troubleshooting/README.md) - Troubleshooting guides and error fixes
-- [Troubleshooting Guide](./troubleshooting/TROUBLESHOOTING.md) - Common issues and solutions
-- [Troubleshooting 500 Error](./troubleshooting/TROUBLESHOOTING_500_ERROR.md) - 500 error fixes
-- [Troubleshooting Webpack Chunk](./troubleshooting/TROUBLESHOOTING_WEBPACK_CHUNK.md) - Webpack issues
-- [Fix 403 Forbidden Error](./troubleshooting/FIX_403_FORBIDDEN_ERROR.md) - 403 error fixes
-- [Fix Webpack Chunk Error](./troubleshooting/FIX_WEBPACK_CHUNK_ERROR.md) - Webpack fixes
-- **Recent Fixes (2025-01):**
-  - Fixed Vercel deployment: API routes now always return JSON (not HTML error pages)
-  - Fixed ProductForm data loading: Added `credentials: 'include'` to all fetch calls
-  - Fixed ES Module compatibility: Lazy load `cleanHtmlForStorage` to avoid `jsdom`/`parse5` errors
-  - Improved error handling: Added `safeHandler` wrapper and MongoDB connection error handling
+### Product Module
+- [PRODUCT_MODULE_REFERENCE.md](./PRODUCT_MODULE_REFERENCE.md) - Main reference
+- [product-module/API.md](./product-module/API.md) - API endpoints
+- [product-module/COMPONENTS.md](./product-module/COMPONENTS.md) - React components
+- [product-module/HOOKS.md](./product-module/HOOKS.md) - Custom hooks
+- [product-module/BUSINESS_LOGIC.md](./product-module/BUSINESS_LOGIC.md) - Business rules
+
+### Admin & RBAC
+- [ADMIN_ACCOUNT_RBAC_COMPLETE.md](./ADMIN_ACCOUNT_RBAC_COMPLETE.md) - RBAC system
+- [ADMIN_ACCOUNT_RBAC_USER_GUIDE.md](./ADMIN_ACCOUNT_RBAC_USER_GUIDE.md) - User guide
+- [quan_ly_tai_khoan.md](./quan_ly_tai_khoan.md) - Account management (Vietnamese)
+
+---
+
+## Setup & Deployment
+
+### Setup Guides
+- [setup/README.md](./setup/README.md) - Setup overview
+- [setup/CHECKLIST_KHOI_TAO.md](./setup/CHECKLIST_KHOI_TAO.md) - Init checklist
+- [setup/CRON_JOBS_SETUP.md](./setup/CRON_JOBS_SETUP.md) - Cron jobs configuration
+- [MONGODB_SETUP_GUIDE.md](./MONGODB_SETUP_GUIDE.md) - MongoDB setup
+- [TELEGRAM_NOTIFICATION_SETUP.md](./TELEGRAM_NOTIFICATION_SETUP.md) - Telegram notifications
+- [EMAIL_NOTIFICATION_SETUP.md](./EMAIL_NOTIFICATION_SETUP.md) - Email notifications
 
 ### Deployment
-- [Deployment Directory](./deployment/README.md) - Deployment guides and environment setup
-- [Deployment Guide](./deployment/DEPLOYMENT_GUIDE.md) - Complete deployment guide
-- [Pre-Deployment Checklist](./deployment/PRE_DEPLOYMENT_CHECKLIST.md) - Pre-deployment checklist
-
-### Testing (Additional)
-- [Phase 2 Testing Checklist](./testing/PHASE2_TESTING_CHECKLIST.md)
-- [Phase 3 Testing Checklist](./testing/PHASE3_TESTING_CHECKLIST.md)
-- [Test MoMo Payment](./testing/TEST_MOMO_PAYMENT.md) - MoMo payment testing
-- [Quick Start MoMo Test](./testing/QUICK_START_MOMO_TEST.md) - Quick MoMo test
-
-### Checklists
-- [Quick Setup Checklist](./QUICK_SETUP_CHECKLIST.md)
-- [Local Development Checklist](./LOCAL_DEVELOPMENT_CHECKLIST.md)
-- [Manual Tasks Checklist](./MANUAL_TASKS_CHECKLIST.md)
-
-### Performance
-- [Performance Directory](./performance/README.md) - Performance optimization guides
-- [Performance Optimization](./performance/PERFORMANCE_OPTIMIZATION.md) - Performance tips
-- [Performance Optimization Filtering](./performance/PERFORMANCE_OPTIMIZATION_FILTERING.md) - Filtering optimization
-
-### Reports & Summaries
-- [Reports Directory](./reports/README.md) - Project reports and completion summaries
-- [Project Status Summary](./reports/PROJECT_STATUS_SUMMARY.md) - Project status
-- [Development Strategy](./reports/DEVELOPMENT_STRATEGY.md) - Development approach
-- [Phase Summaries](./reports/PHASE_SUMMARIES.md) - All phases summary
+- [deployment/README.md](./deployment/README.md) - Deployment overview
+- [deployment/DEPLOYMENT_GUIDE.md](./deployment/DEPLOYMENT_GUIDE.md) - Full guide
+- [deployment/VERCEL_ENV_SETUP.md](./deployment/VERCEL_ENV_SETUP.md) - Vercel environment
+- [deployment/VERCEL_BLOB_SETUP.md](./deployment/VERCEL_BLOB_SETUP.md) - Vercel Blob storage
 
 ---
 
-## 🧹 DOCUMENTATION CLEANUP
+## Implementation & Plans
 
-**Status:** 📋 Cleanup plan ready
+### Implementation Plans
+- [implementation/README.md](./implementation/README.md) - Overview
+- [implementation/PRODUCT_QUICK_EDIT_PLAN.md](./implementation/PRODUCT_QUICK_EDIT_PLAN.md) - Quick Edit
+- [implementation/MEDIA_LIBRARY_IMPLEMENTATION_PLAN.md](./implementation/MEDIA_LIBRARY_IMPLEMENTATION_PLAN.md) - Media Library
+- [implementation/SMART_SKU_IMPLEMENTATION_PLAN.md](./implementation/SMART_SKU_IMPLEMENTATION_PLAN.md) - SKU System
 
-- [Cleanup Analysis](./DOCS_CLEANUP_ANALYSIS.md) - Detailed analysis of all files
-- [Cleanup Action Plan](./DOCS_CLEANUP_ACTION_PLAN.md) - Step-by-step cleanup guide
-- [Cleanup Script](./../scripts/cleanup-docs.ps1) - PowerShell cleanup script
-
-**Note:** Many files are marked for deletion or merging. See cleanup plans for details.
-
----
-
-## 📝 NOTES
-
-- Files marked with ✅ are completed phases
-- Files in **Troubleshooting** section may be merged into single `TROUBLESHOOTING.md`
-- Files in **Deployment** section may be merged into `DEPLOYMENT_GUIDE.md`
-- Old WordPress/WooCommerce specific files are marked for deletion (migrated to custom CMS)
+### Specifications
+- [plans/README.md](./plans/README.md) - Plans overview
+- [plans/SPEC_MODULE_ADMIN_ACCOUNT.md](./plans/SPEC_MODULE_ADMIN_ACCOUNT.md) - Admin account spec
+- [plans/SPEC_PRODUCT_QUICK_EDIT.md](./plans/SPEC_PRODUCT_QUICK_EDIT.md) - Quick Edit spec
 
 ---
 
-**Last cleanup:** See `DOCS_CLEANUP_ANALYSIS.md` for latest cleanup status
+## Bug Fixes & Troubleshooting
+
+### Critical Fixes
+- [fixes/CRITICAL_FIX_COSTPRICE_SNAPSHOT.md](./fixes/CRITICAL_FIX_COSTPRICE_SNAPSHOT.md) - Cost price snapshot
+- [fixes/CRITICAL_FIX_ORDER_OPTIMISTIC_LOCKING.md](./fixes/CRITICAL_FIX_ORDER_OPTIMISTIC_LOCKING.md) - Optimistic locking
+- [fixes/CRITICAL_FIX_PUBLIC_API_DATA_LEAK.md](./fixes/CRITICAL_FIX_PUBLIC_API_DATA_LEAK.md) - API data leak
+- [fixes/CRITICAL_FIX_REFUND_STOCK_RESTORATION.md](./fixes/CRITICAL_FIX_REFUND_STOCK_RESTORATION.md) - Refund stock
+- [fixes/CRITICAL_FIX_TOTAL_GRANDTOTAL_UNIFICATION.md](./fixes/CRITICAL_FIX_TOTAL_GRANDTOTAL_UNIFICATION.md) - Total unification
+- [fixes/CRITICAL_FIX_WEBHOOK_INVENTORY.md](./fixes/CRITICAL_FIX_WEBHOOK_INVENTORY.md) - Webhook inventory
+- [fixes/VALIDATION_ISSUE_VARIATIONS_STOCK.md](./fixes/VALIDATION_ISSUE_VARIATIONS_STOCK.md) - Variations stock
+
+### Troubleshooting
+- [troubleshooting/README.md](./troubleshooting/README.md) - Overview
+- [troubleshooting/TROUBLESHOOTING.md](./troubleshooting/TROUBLESHOOTING.md) - Common issues
+- [troubleshooting/FIX_VERCEL_NEXTAUTH_ERROR.md](./troubleshooting/FIX_VERCEL_NEXTAUTH_ERROR.md) - NextAuth on Vercel
+
+---
+
+## Security
+
+- [security/README.md](./security/README.md) - Security overview
+- [security/API_VALIDATION_AUDIT.md](./security/API_VALIDATION_AUDIT.md) - API validation
+- [security/XSS_PROTECTION_AUDIT.md](./security/XSS_PROTECTION_AUDIT.md) - XSS protection
+- [security/CSRF_PROTECTION_IMPLEMENTATION.md](./reports/CSRF_PROTECTION_IMPLEMENTATION.md) - CSRF protection
+- [security/SECURITY_AUDIT_REPORT_API.md](./security/SECURITY_AUDIT_REPORT_API.md) - API security audit
+- [RATE_LIMITING_SETUP.md](./RATE_LIMITING_SETUP.md) - Rate limiting
+
+---
+
+## Testing
+
+- [testing/README.md](./testing/README.md) - Testing overview
+- [testing/PRE_DEPLOYMENT_CHECKLIST.md](./testing/PRE_DEPLOYMENT_CHECKLIST.md) - Pre-deploy checks
+- [testing/SECURITY_CHECKLIST.md](./testing/SECURITY_CHECKLIST.md) - Security checklist
+- [testing/LOCAL_DEVELOPMENT_CHECKLIST.md](./testing/LOCAL_DEVELOPMENT_CHECKLIST.md) - Local dev setup
+
+---
+
+## Performance
+
+- [performance/README.md](./performance/README.md) - Performance overview
+- [performance/PERFORMANCE_OPTIMIZATION.md](./performance/PERFORMANCE_OPTIMIZATION.md) - Optimization guide
+- [performance/BUNDLE_OPTIMIZATION_TEST_RESULTS.md](./performance/BUNDLE_OPTIMIZATION_TEST_RESULTS.md) - Bundle analysis
+- [performance/hieu_nang.md](./performance/hieu_nang.md) - Performance notes (Vietnamese)
+
+---
+
+## Reports & Audits
+
+- [reports/README.md](./reports/README.md) - Reports overview
+- [reports/PROJECT_STATUS_SUMMARY.md](./reports/PROJECT_STATUS_SUMMARY.md) - Project status
+- [reports/FINAL_PROJECT_REPORT.md](./reports/FINAL_PROJECT_REPORT.md) - Final report
+- [reports/DRY_AUDIT_REPORT.md](./reports/DRY_AUDIT_REPORT.md) - DRY code audit
+- [reports/BAO_CAO_REVIEW_CODE_TOAN_DIEN.md](./reports/BAO_CAO_REVIEW_CODE_TOAN_DIEN.md) - Code review (Vietnamese)
+
+---
+
+## Phase Completion
+
+| Phase | Status | Document |
+|-------|--------|----------|
+| Phase 1 | Done | [PHASE1_PRODUCT_FEATURES_COMPLETE.md](./phases/PHASE1_PRODUCT_FEATURES_COMPLETE.md) |
+| Phase 2 | Done | [PHASE2_PRODUCT_FEATURES_COMPLETE.md](./phases/PHASE2_PRODUCT_FEATURES_COMPLETE.md) |
+| Phase 3 | Done | [PHASE3_PRODUCT_FEATURES_COMPLETE.md](./phases/PHASE3_PRODUCT_FEATURES_COMPLETE.md) |
+| Phase 4 | Done | [PHASE4_PRODUCT_FEATURES_COMPLETE.md](./phases/PHASE4_PRODUCT_FEATURES_COMPLETE.md) |
+| Phase 5 | Done | [PHASE5_PRODUCT_FEATURES_COMPLETE.md](./phases/PHASE5_PRODUCT_FEATURES_COMPLETE.md) |
+| Phase 6 | Done | [PHASE6_PRODUCT_FEATURES_COMPLETE.md](./phases/PHASE6_PRODUCT_FEATURES_COMPLETE.md) |
+
+---
+
+## Modules
+
+- [modules/README.md](./modules/README.md) - Modules overview
+- [modules/Media.md](./modules/Media.md) - Media Library module
+- [modules/SKU.md](./modules/SKU.md) - SKU generation module
+
+---
+
+## Legacy (Reference Only)
+
+These files are kept for reference but are no longer actively maintained:
+
+- `wordpress/` - Old WordPress/WooCommerce files
+- Files with `_LEGACY` or `_OLD` suffix

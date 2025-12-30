@@ -26,13 +26,15 @@ export function useClassicEditorPaste({
 
   useEffect(() => {
     isMountedRef.current = true;
+    // Capture ref value at effect setup time
+    const currentTimeouts = timeoutRefs.current;
     return () => {
       isMountedRef.current = false;
-      // Clear all pending timeouts
-      timeoutRefs.current.forEach((timeoutId) => {
+      // Clear all pending timeouts using captured value
+      currentTimeouts.forEach((timeoutId) => {
         clearTimeout(timeoutId);
       });
-      timeoutRefs.current.clear();
+      currentTimeouts.clear();
     };
   }, []);
 

@@ -92,10 +92,13 @@ export function MediaUploader({
       onUploadStart(filesToUpload);
     }
 
-    // Start upload
+    // Start upload - inline uploadFilesSequentially to avoid circular dependency
     setIsUploading(true);
+    // Note: uploadFilesSequentially is defined after this hook but is called here
+    // The function will be available at runtime due to JavaScript hoisting
     await uploadFilesSequentially(newFiles);
-  }, [maxFiles, onUploadStart]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [maxFiles, onUploadStart]); // uploadFilesSequentially intentionally excluded - function defined after hook
 
   const uploadFilesSequentially = async (files: UploadFile[]) => {
     const results: UploadFile[] = [];

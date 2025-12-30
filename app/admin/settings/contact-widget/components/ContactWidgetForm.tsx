@@ -126,7 +126,8 @@ export function ContactWidgetForm() {
       };
     });
     return callbacks;
-  }, [items.length]); // Chỉ phụ thuộc vào length để tạo lại khi thêm/xóa item
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items.length]); // Chỉ phụ thuộc vào length để tạo lại khi thêm/xóa item, không theo dõi items để tránh infinite loop
 
   // Memoize handleEnabledChange để tránh re-render loop
   const handleEnabledChange = useCallback((checked: boolean) => {
