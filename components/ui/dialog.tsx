@@ -87,8 +87,7 @@ const DialogContent = React.forwardRef<
       ref(node);
     } else if (ref) {
       // Use type assertion to handle both mutable and read-only refs
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const mutableRef = ref as any;
+      const mutableRef = ref as { current: HTMLDivElement | null };
       if (mutableRef && 'current' in mutableRef) {
         mutableRef.current = node;
       }

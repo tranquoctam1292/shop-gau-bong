@@ -7,7 +7,13 @@
       "Bash(npm run pre-deploy:*)",
       "Bash(git commit -m \"$\\(cat <<''EOF''\nsecurity: Sửa lỗi bảo mật xác thực và tối ưu quy trình Login \\(V1.4\\)\n\n## Nội dung thay đổi:\n\n1. **Sửa lỗi Bypass \"Buộc đổi mật khẩu\" \\(Bảo mật\\)**\n   - lib/authOptions.ts: Thêm trường mustChangePassword vào token JWT\n   - middleware.ts: Kiểm tra mustChangePassword và buộc redirect về /admin/change-password\n   - Ngăn chặn người dùng bypass quy trình đổi mật khẩu bắt buộc\n\n2. **Tối ưu hiệu năng xác thực \\(Xóa Redundancy\\)**\n   - Loại bỏ logic so khớp mật khẩu 2 lần \\(API + NextAuth\\)\n   - app/admin/login/page.tsx: Gọi signIn\\(\\) trực tiếp thay vì fetch API trung gian\n   - app/api/admin/auth/login/route.ts: Giữ lại chỉ để lấy metadata người dùng\n   - Tất cả logic xác thực tập trung vào NextAuth authorize function\n\n3. **Giảm độ trễ Token Revocation**\n   - Giảm cache TTL từ 120s xuống 30s\n   - Rút ngắn khoảng thời gian kẻ tấn công lợi dụng session khi tài khoản bị khóa\n\n4. **Di chuyển Rate Limiting**\n   - Di chuyển từ API cũ vào NextAuth authorize function\n   - Đảm bảo bảo vệ ngay cả khi client bypass UI\n\n5. **Cải thiện UX Login**\n   - Sử dụng router.push thay vì window.location.href\n   - Lỗi xác thực rõ ràng hơn \\(Tên đăng nhập, mật khẩu, hoặc tài khoản bị khóa\\)\n   - Middleware tự động redirect đến change-password nếu cần\n\n6. **Sửa lỗi TypeScript**\n   - app/api/admin/users/[id]/route.ts: Sửa lỗi undefined variable\n   - app/admin/users/[id]/reset-password/page.tsx: Thay ObjectId import với isValidObjectId\n   - lib/utils/validation.ts: Thêm hàm isValidObjectId client-safe\n\n## Bảo mật:\n- ✅ Ngăn bypass buộc đổi mật khẩu\n- ✅ Rate limiting tập trung tại NextAuth\n- ✅ Token revocation nhanh hơn\n- ✅ Không lộ logic xác thực trong API đơn lẻ\n\n## Hiệu năng:\n- ✅ Giảm số lần kiểm tra mật khẩu từ 2 xuống 1\n- ✅ Loại bỏ 1 HTTP request không cần thiết\n- ✅ Cache TTL tối ưu hơn \\(security vs performance balance\\)\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude Haiku 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(npm run build:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(npm run type-check)",
+      "Bash(npm run lint)",
+      "Bash(npm audit)",
+      "Bash(git stash push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git commit:*)"
     ]
   }
 }

@@ -1,11 +1,11 @@
 'use client';
 
-import React from 'react';
+import React, { useContext } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Download } from 'lucide-react';
 import type { QuickEditFormData } from '../types';
-import { useQuickEditFormContext } from '../hooks/useQuickEditFormContext';
+import { QuickEditFormContext } from '../context/QuickEditFormContext';
 import { formatValueForDisplay, formatPriceValue, getComparisonFields, hasFieldChanged } from '../utils/formHelpers';
 
 export interface QuickEditComparisonTabProps {
@@ -23,22 +23,19 @@ export const QuickEditComparisonTab = React.memo<QuickEditComparisonTabProps>(({
   onExport,
   getValues: getValuesProp,
 }) => {
-  // Try to get getValues from props first, fallback to context if available
-  let getValues: () => QuickEditFormData;
-  if (getValuesProp) {
-    getValues = getValuesProp;
-  } else {
-    // Fallback to context (for backward compatibility when used inside provider)
-    try {
-      const context = useQuickEditFormContext();
-      getValues = context.getValues;
-    } catch (error) {
-      // If context is not available, throw a more helpful error
-      throw new Error(
-        'QuickEditComparisonTab requires either getValues prop or QuickEditFormProvider. ' +
-        'Please pass getValues prop when using outside QuickEditFormProvider.'
-      );
-    }
+  // ✅ FIX: Sử dụng useContext trực tiếp (không throw) để tuân thủ Rules of Hooks
+  // useContext luôn được gọi, không có điều kiện
+  const contextValue = useContext(QuickEditFormContext);
+
+  // Quyết định dùng prop hay context SAU khi đã gọi hook
+  const getValues = getValuesProp || contextValue?.getValues;
+
+  // Validate: phải có một trong hai
+  if (!getValues) {
+    throw new Error(
+      'QuickEditComparisonTab requires either getValues prop or QuickEditFormProvider. ' +
+      'Please pass getValues prop when using outside QuickEditFormProvider.'
+    );
   }
 
   // Helper to normalize values for comparison

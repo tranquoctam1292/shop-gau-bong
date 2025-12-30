@@ -32,19 +32,10 @@ export const DynamicNavigationMenu = memo(function DynamicNavigationMenu({
   menu,
   fallbackToHardcoded = true,
 }: DynamicNavigationMenuProps) {
-  // If error or no menu, fallback to hardcoded menu
-  if (!menu || !menu.items || menu.items.length === 0) {
-    if (fallbackToHardcoded) {
-      return <HardcodedNavigationMenu />;
-    }
-    return null;
-  }
-
-  // Render menu from API
-  // Filter out ghost links (items with url === '#' or invalid references)
-  // ✅ FIX: Memoize validItems with stable key based on item IDs
-  const itemsKey = menu.items.map(item => item.id).join(',');
+  // ✅ FIX: Hooks phải được gọi TRƯỚC early return để tuân thủ Rules of Hooks
+  // Memoize validItems với stable key dựa trên item IDs
   const validItems = useMemo(() => {
+    if (!menu?.items) return [];
     return menu.items.filter((item) => {
       // Skip items with invalid URLs (ghost links from deleted references)
       if (!item.url || item.url === '#') {
@@ -52,7 +43,15 @@ export const DynamicNavigationMenu = memo(function DynamicNavigationMenu({
       }
       return true;
     });
-  }, [itemsKey]); // Use stable string key instead of array reference
+  }, [menu?.items]);
+
+  // Early return SAU tất cả hooks
+  if (!menu || !menu.items || menu.items.length === 0) {
+    if (fallbackToHardcoded) {
+      return <HardcodedNavigationMenu />;
+    }
+    return null;
+  }
 
   return (
     <nav className="hidden lg:flex items-center space-x-1 relative z-50 overflow-visible">
