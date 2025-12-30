@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,12 +39,7 @@ export default function AdminAttributeTermsPage() {
   const [editingTerm, setEditingTerm] = useState<Term | null>(null);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetchAttribute();
-    fetchTerms();
-  }, [attributeId, search]);
-
-  const fetchAttribute = async () => {
+  const fetchAttribute = useCallback(async () => {
     try {
       const response = await fetch(`/api/admin/attributes/${attributeId}`);
       if (response.ok) {
@@ -57,9 +52,9 @@ export default function AdminAttributeTermsPage() {
       console.error('Error fetching attribute:', error);
       router.push('/admin/attributes');
     }
-  };
+  }, [attributeId, router]);
 
-  const fetchTerms = async () => {
+  const fetchTerms = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -76,7 +71,12 @@ export default function AdminAttributeTermsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [attributeId, search]);
+
+  useEffect(() => {
+    fetchAttribute();
+    fetchTerms();
+  }, [fetchAttribute, fetchTerms]);
 
   const handleCreate = async (termData: Omit<Term, 'id' | 'attributeId'>) => {
     try {

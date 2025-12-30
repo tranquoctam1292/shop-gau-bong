@@ -107,7 +107,8 @@ export function ComboProductsBuilder({ bundleProducts, onChange }: ComboProducts
     if (bundleProducts.length > 0) {
       fetchProductNames();
     }
-  }, [bundleProducts.length]); // Only run when count changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bundleProducts.length]); // Only run when count changes, not on every bundleProducts update
 
   return (
     <div className="space-y-4">

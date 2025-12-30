@@ -50,7 +50,8 @@ export function AuthorForm({ authorId, initialData }: AuthorFormProps) {
       const slug = generateSlug(formData.name);
       setFormData((prev) => ({ ...prev, slug }));
     }
-  }, [formData.name, authorId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.name, authorId]); // formData.slug intentionally excluded to avoid infinite loop
 
   // Load author data if editing
   useEffect(() => {

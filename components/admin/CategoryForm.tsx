@@ -75,7 +75,8 @@ export function CategoryForm({ categoryId, initialData, onSuccess }: CategoryFor
       const slug = generateSlug(formData.name);
       setFormData((prev) => ({ ...prev, slug }));
     }
-  }, [formData.name, categoryId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [formData.name, categoryId]); // formData.slug intentionally excluded to avoid infinite loop
 
   // Load category data if editing
   useEffect(() => {

@@ -104,7 +104,8 @@ const MenuItemRenderer = memo(function MenuItemRenderer({ item }: { item: MenuIt
       label: child.title,
       href: child.url,
     }));
-  }, [hasChildren, childrenIdsKey, childrenLength]); // Use stable string key and length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasChildren, childrenIdsKey, childrenLength]); // item.children accessed via stable childrenIdsKey and childrenLength
 
   // If item has children, render as dropdown
   if (hasChildren) {

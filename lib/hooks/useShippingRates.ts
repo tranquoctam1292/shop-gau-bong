@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { getShippingRates, type ShippingItem, type ShippingAddress, type ShippingRate, type ShippingConfig } from '@/lib/services/shipping';
 import { useCartStore, type CartItem } from '@/lib/store/cartStore';
 
@@ -16,23 +16,23 @@ export function useShippingRates(
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Convert cart items to shipping items
-  const shippingItems: ShippingItem[] = items.map((item: CartItem) => ({
+  // Convert cart items to shipping items - memoized for stable dependency
+  const shippingItems: ShippingItem[] = useMemo(() => items.map((item: CartItem) => ({
     weight: item.weight || 0,
     length: item.length || 0,
     width: item.width || 0,
     height: item.height || 0,
     quantity: item.quantity,
-  }));
+  })), [items]);
 
-  // Get shipping config from environment or use defaults
-  const shippingConfig: ShippingConfig = {
+  // Get shipping config from environment or use defaults - memoized for stable dependency
+  const shippingConfig: ShippingConfig = useMemo(() => ({
     provider: (process.env.NEXT_PUBLIC_SHIPPING_PROVIDER as any) || 'custom',
     apiKey: process.env.NEXT_PUBLIC_SHIPPING_API_KEY,
     shopId: process.env.NEXT_PUBLIC_SHIPPING_SHOP_ID,
     defaultRate: parseInt(process.env.NEXT_PUBLIC_SHIPPING_DEFAULT_RATE || '30000'),
     ...config,
-  };
+  }), [config]);
 
   useEffect(() => {
     if (!address || shippingItems.length === 0) {
@@ -62,7 +62,7 @@ export function useShippingRates(
     // Debounce API calls
     const timeoutId = setTimeout(fetchRates, 500);
     return () => clearTimeout(timeoutId);
-  }, [address, JSON.stringify(shippingItems), JSON.stringify(shippingConfig)]);
+  }, [address, shippingItems, shippingConfig]);
 
   return {
     rates,

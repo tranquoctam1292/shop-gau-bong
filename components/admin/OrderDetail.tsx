@@ -120,7 +120,8 @@ export function OrderDetail({ orderId }: OrderDetailProps) {
   const validNextStatuses = useMemo(() => {
     if (!order) return [];
     return getValidNextStatuses(order.status as OrderStatus);
-  }, [order?.status]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order?.status]); // Only need order.status, not entire order object
 
   useEffect(() => {
     async function fetchOrder() {

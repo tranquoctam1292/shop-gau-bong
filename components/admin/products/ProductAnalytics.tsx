@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Eye, MousePointerClick, ShoppingCart, Search, TrendingUp } from 'lucide-react';
 
@@ -43,13 +43,7 @@ export function ProductAnalytics({ productId }: ProductAnalyticsProps) {
     setStartDate(start.toISOString().split('T')[0]);
   }, []);
 
-  useEffect(() => {
-    if (startDate && endDate) {
-      fetchAnalytics();
-    }
-  }, [productId, startDate, endDate]);
-
-  const fetchAnalytics = async () => {
+  const fetchAnalytics = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -68,7 +62,13 @@ export function ProductAnalytics({ productId }: ProductAnalyticsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [productId, startDate, endDate]);
+
+  useEffect(() => {
+    if (startDate && endDate) {
+      fetchAnalytics();
+    }
+  }, [startDate, endDate, fetchAnalytics]);
 
   if (loading) {
     return <div className="text-center py-8">Đang tải...</div>;

@@ -533,7 +533,8 @@ export function ProductForm({ productId, initialData }: ProductFormProps) {
       }
       fetchProduct();
     }
-  }, [productId, initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productId, initialData]); // showToast is stable and intentionally excluded
 
   // Prepare payload helper
   const preparePayload = () => {

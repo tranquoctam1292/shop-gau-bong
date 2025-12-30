@@ -18,7 +18,9 @@
       "Bash(npm outdated:*)",
       "Bash(npm ls:*)",
       "Bash(npm view:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(cat:*)",
+      "Bash(curl:*)"
     ]
   }
 }

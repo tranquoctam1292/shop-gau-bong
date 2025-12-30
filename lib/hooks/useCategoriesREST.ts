@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { type MappedCategory } from '@/lib/utils/productMapper';
 
 /**
  * Hook để fetch product categories từ CMS API
- * 
+ *
  * @param params - Optional query parameters (parent: '0' for top-level, parent ID for children)
  * @returns Categories, loading, error
  */
@@ -16,6 +16,9 @@ export function useCategoriesREST(params?: {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
+  // Memoize params key to avoid complex expression in deps
+  const paramsKey = useMemo(() => JSON.stringify(params), [params]);
+
   useEffect(() => {
     async function fetchCategories() {
       try {
@@ -24,7 +27,7 @@ export function useCategoriesREST(params?: {
 
         // Build API params for CMS API
         const apiParams: Record<string, string> = {};
-        
+
         // Parent filter: '0' or null for top-level, parent ID for children
         if (params?.parent !== undefined) {
           if (params.parent === '0' || params.parent === null) {
@@ -36,12 +39,12 @@ export function useCategoriesREST(params?: {
 
         // Fetch categories từ CMS API
         const queryString = new URLSearchParams(apiParams).toString();
-        const url = queryString 
+        const url = queryString
           ? `/api/cms/categories?${queryString}`
           : '/api/cms/categories';
 
         const response = await fetch(url);
-        
+
         if (!response.ok) {
           throw new Error(`Failed to fetch categories: ${response.status} ${response.statusText}`);
         }
@@ -59,7 +62,7 @@ export function useCategoriesREST(params?: {
     }
 
     fetchCategories();
-  }, [JSON.stringify(params)]);
+  }, [paramsKey, params?.parent]);
 
   return {
     categories,

@@ -76,7 +76,8 @@ export function useUndoRedo<T>(
 
   // Undo: Go back to previous state
   const undo = useCallback(() => {
-    if (canUndo()) {
+    // Check canUndo inline to avoid dependency
+    if (currentIndex > 0) {
       isUndoRedoRef.current = true;
       setCurrentIndex((prevIndex) => {
         const newIndex = prevIndex - 1;
@@ -87,11 +88,12 @@ export function useUndoRedo<T>(
         return newIndex;
       });
     }
-  }, [history, onStateChange]);
+  }, [currentIndex, history, onStateChange]);
 
   // Redo: Go forward to next state
   const redo = useCallback(() => {
-    if (canRedo()) {
+    // Check canRedo inline to avoid dependency
+    if (currentIndex < history.length - 1) {
       isUndoRedoRef.current = true;
       setCurrentIndex((prevIndex) => {
         const newIndex = prevIndex + 1;
@@ -102,7 +104,7 @@ export function useUndoRedo<T>(
         return newIndex;
       });
     }
-  }, [history, onStateChange]);
+  }, [currentIndex, history, onStateChange]);
 
   // Check if undo is possible
   const canUndo = useCallback(() => {

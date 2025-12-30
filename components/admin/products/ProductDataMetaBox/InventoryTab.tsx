@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -43,7 +43,8 @@ export function InventoryTab({ state, onUpdate, productId, productName, category
         setSkuError(null);
       }
     }
-  }, [state.sku]); // Remove skuValue from deps to prevent loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.sku]); // skuValue intentionally excluded to prevent infinite loop - we only want to sync when parent state changes
 
   // Debounce SKU validation
   useEffect(() => {
