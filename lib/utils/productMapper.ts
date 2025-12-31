@@ -298,7 +298,9 @@ export interface MongoProduct {
     color?: string;
     colorCode?: string;
     price: number;
-    stock: number;
+    stock?: number; // Legacy field - use stockQuantity for consistency
+    stockQuantity?: number; // Preferred field
+    reservedQuantity?: number; // For inventory reservation
     image?: string;
     sku?: string;
   }>;
@@ -355,6 +357,22 @@ export interface MongoProduct {
   material?: string;
   origin?: string;
   deletedAt?: Date | null; // Soft delete timestamp
+  // SEO fields (used by SEOMetaBox and Bulk SEO Editor)
+  seo?: {
+    focusKeyword?: string;
+    seoTitle?: string;
+    seoDescription?: string;
+    slug?: string;
+    canonicalUrl?: string;
+    robotsMeta?: string;
+    ogImage?: string;
+    ogImageId?: string;
+    socialDescription?: string;
+    // Calculated fields (set by SEO audit)
+    seoScore?: number; // 0-100
+    seoIssues?: string[]; // Array of issue codes
+    lastAuditAt?: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
 }

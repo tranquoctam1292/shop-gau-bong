@@ -5,6 +5,7 @@ import { TodayStatsCards } from '@/components/admin/dashboard/TodayStatsCards';
 import { RevenueChart } from '@/components/admin/dashboard/RevenueChart';
 import { TopProductsChart } from '@/components/admin/dashboard/TopProductsChart';
 import { TopCustomersList } from '@/components/admin/dashboard/TopCustomersList';
+import { InventoryWidget } from '@/components/admin/dashboard/InventoryWidget';
 import { DateRangeSelector } from '@/components/admin/dashboard/DateRangeSelector';
 import { getGroupByForDateRange } from '@/lib/utils/dateRange';
 import type { DashboardDateRange } from '@/types/dashboard';
@@ -27,17 +28,26 @@ export default function AdminDashboard() {
       <TodayStatsCards options={{ dateRange }} />
 
       {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Revenue Chart */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-3">
           <RevenueChart options={{ dateRange, groupBy }} />
         </div>
 
         {/* Top Products Chart */}
-        <TopProductsChart options={{ dateRange, limit: 10 }} />
+        <div className="lg:col-span-1">
+          <TopProductsChart options={{ dateRange, limit: 10 }} />
+        </div>
 
         {/* Top Customers List */}
-        <TopCustomersList options={{ dateRange, limit: 5 }} />
+        <div className="lg:col-span-1">
+          <TopCustomersList options={{ dateRange, limit: 5 }} />
+        </div>
+
+        {/* Inventory Widget */}
+        <div className="lg:col-span-1">
+          <InventoryWidget />
+        </div>
       </div>
     </div>
   );

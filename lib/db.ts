@@ -158,6 +158,9 @@ export interface Collections {
   contactWidgetSettings: Collection;
   // Site Settings (Global Configuration)
   siteSettings: Collection;
+  // Inventory Management
+  inventoryMovements: Collection;
+  inventoryAlerts: Collection;
 }
 
 /**
@@ -220,6 +223,9 @@ export async function getCollections(): Promise<Collections> {
     contactWidgetSettings: db.collection('contact_widget_settings'),
     // Site Settings (Global Configuration)
     siteSettings: db.collection('site_settings'),
+    // Inventory Management
+    inventoryMovements: db.collection('inventory_movements'),
+    inventoryAlerts: db.collection('inventory_alerts'),
   };
 }
 

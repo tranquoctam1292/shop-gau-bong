@@ -8,6 +8,7 @@
  */
 
 import { getCollections, ObjectId } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
 
 interface RateLimitEntry {
   _id?: ObjectId;
@@ -298,6 +299,49 @@ export function getRateLimitConfig(
       burstMaxAttempts: 2,
       burstWindowMs: 10 * 1000,
     },
+    // === INVENTORY ENDPOINTS (Phase 2) ===
+    // Stock adjustment - moderate limit (sensitive operation)
+    'POST:/api/admin/inventory/adjust': {
+      maxAttempts: 30,
+      windowMs: 60 * 1000, // 1 minute
+      burstMaxAttempts: 10,
+      burstWindowMs: 10 * 1000,
+    },
+    // SKU-based adjustment - same as regular adjustment
+    'POST:/api/admin/inventory/adjust-by-sku': {
+      maxAttempts: 30,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 10,
+      burstWindowMs: 10 * 1000,
+    },
+    // Import - strict limit (bulk operation)
+    'POST:/api/admin/inventory/import': {
+      maxAttempts: 5,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 2,
+      burstWindowMs: 10 * 1000,
+    },
+    // Export - moderate limit
+    '/api/admin/inventory/export': {
+      maxAttempts: 10,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 3,
+      burstWindowMs: 10 * 1000,
+    },
+    // Alerts - moderate limit
+    'POST:/api/admin/inventory/alerts': {
+      maxAttempts: 10,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 3,
+      burstWindowMs: 10 * 1000,
+    },
+    // Forecast - relaxed limit (read-only, expensive query)
+    '/api/admin/inventory/forecast': {
+      maxAttempts: 20,
+      windowMs: 60 * 1000,
+      burstMaxAttempts: 5,
+      burstWindowMs: 10 * 1000,
+    },
   };
 
   // Check for exact endpoint match first
@@ -391,4 +435,90 @@ export async function checkRateLimitWithBurst(
 
   // Check regular limit
   return await checkRateLimit(key, config.maxAttempts, config.windowMs);
+}
+
+/**
+ * Get IP address from request
+ * Handles various proxy headers (Vercel, Cloudflare, etc.)
+ */
+export function getClientIP(request: NextRequest): string {
+  // Check Vercel/Next.js specific header
+  const xForwardedFor = request.headers.get('x-forwarded-for');
+  if (xForwardedFor) {
+    // x-forwarded-for can contain multiple IPs, take the first one
+    return xForwardedFor.split(',')[0].trim();
+  }
+
+  // Check Cloudflare header
+  const cfConnectingIP = request.headers.get('cf-connecting-ip');
+  if (cfConnectingIP) {
+    return cfConnectingIP;
+  }
+
+  // Check standard real-ip header
+  const xRealIP = request.headers.get('x-real-ip');
+  if (xRealIP) {
+    return xRealIP;
+  }
+
+  // Fallback (may not be accurate in serverless)
+  return 'unknown';
+}
+
+/**
+ * Middleware wrapper to apply rate limiting to API routes
+ *
+ * @param request - NextRequest
+ * @param handler - The actual route handler
+ * @param options - Optional custom rate limit config
+ * @returns NextResponse
+ */
+export async function withRateLimit<T>(
+  request: NextRequest,
+  handler: () => Promise<T>,
+  options?: {
+    keyPrefix?: string;
+    config?: RateLimitConfig;
+  }
+): Promise<T | NextResponse> {
+  const ip = getClientIP(request);
+  const pathname = new URL(request.url).pathname;
+  const method = request.method;
+
+  // Get rate limit config (custom or from endpoint config)
+  const config = options?.config || getRateLimitConfig(pathname, method);
+
+  // Build rate limit key
+  const keyPrefix = options?.keyPrefix || pathname;
+  const key = `${keyPrefix}:${ip}`;
+
+  // Check rate limit with burst protection
+  const withinLimit = await checkRateLimitWithBurst(key, config);
+
+  if (!withinLimit) {
+    // Get rate limit status for headers
+    const status = await getRateLimitStatus(key, config.maxAttempts);
+
+    const response = NextResponse.json(
+      {
+        error: 'Quá nhiều yêu cầu. Vui lòng thử lại sau.',
+        code: 'RATE_LIMIT_EXCEEDED',
+        retryAfter: status?.resetAt ? Math.ceil((status.resetAt.getTime() - Date.now()) / 1000) : 60
+      },
+      { status: 429 }
+    );
+
+    // Add rate limit headers
+    response.headers.set('X-RateLimit-Limit', String(config.maxAttempts));
+    response.headers.set('X-RateLimit-Remaining', '0');
+    if (status?.resetAt) {
+      response.headers.set('X-RateLimit-Reset', String(Math.ceil(status.resetAt.getTime() / 1000)));
+      response.headers.set('Retry-After', String(Math.ceil((status.resetAt.getTime() - Date.now()) / 1000)));
+    }
+
+    return response;
+  }
+
+  // Proceed with handler
+  return handler();
 }

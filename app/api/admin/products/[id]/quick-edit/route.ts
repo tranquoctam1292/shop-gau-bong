@@ -227,7 +227,9 @@ export async function GET(
           color?: string;
           colorCode?: string;
           price: number;
-          stock: number;
+          stock?: number; // Legacy - use stockQuantity
+          stockQuantity?: number;
+          reservedQuantity?: number;
           image?: string;
           sku?: string;
         }> | undefined = undefined;

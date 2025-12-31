@@ -46,6 +46,7 @@ import { unstable_cache } from 'next/cache';
 import type { SiteSettings } from '@/types/siteSettings';
 import { safeToISOString } from '@/lib/utils/dateUtils';
 import { getCachedMenu } from '@/lib/utils/menuServer';
+import { generateOrganizationSchema, generateWebSiteSchema } from '@/lib/utils/schema';
 
 const defaultMetadata = getDefaultMetadata();
 const ogTags = generateOpenGraphTags(defaultMetadata);
@@ -172,8 +173,38 @@ export default async function RootLayout({
   // ✅ PERFORMANCE: Fetch menu data server-side to prevent render blocking
   const menu = await getCachedMenu('primary');
 
+  // SEO: Generate Organization and WebSite structured data
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://shop-gaubong.com';
+  const organizationSchema = generateOrganizationSchema({
+    name: SITE_CONFIG.name,
+    url: siteUrl,
+    logo: siteSettings.header?.logo?.url || `${siteUrl}/logo.png`,
+    description: SITE_CONFIG.description,
+    contactPoint: {
+      telephone: siteSettings.footer?.phone,
+      email: siteSettings.footer?.email,
+      contactType: 'Customer Service',
+    },
+    sameAs: siteSettings.footer?.socialLinks
+      ?.filter((link) => !!link.url)
+      .map((link) => link.url) || [],
+  });
+  const webSiteSchema = generateWebSiteSchema(siteUrl);
+
   return (
     <html lang="vi" className={`${inter.variable} ${nunito.variable} ${fredoka.variable} overflow-x-hidden`}>
+      <head>
+        {/* SEO: Organization Schema */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+        />
+        {/* SEO: WebSite Schema with SearchAction */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(webSiteSchema) }}
+        />
+      </head>
       <body className="min-h-screen bg-background flex flex-col overflow-x-hidden">
         {/* Header Scripts - Injected at beginning of body (Next.js App Router limitation) */}
         <HeaderScripts headerScripts={headerScripts} />

@@ -71,7 +71,9 @@ export interface ProductWithVariants {
     color?: string;
     colorCode?: string;
     price: number;
-    stock: number;
+    stock?: number; // Legacy - use stockQuantity
+    stockQuantity?: number;
+    reservedQuantity?: number;
     image?: string;
     sku?: string;
   }>;

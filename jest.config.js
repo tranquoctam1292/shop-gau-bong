@@ -20,6 +20,10 @@ const customJestConfig = {
     '!**/node_modules/**',
     '!**/.next/**',
   ],
+  // Transform ESM modules from node_modules
+  transformIgnorePatterns: [
+    '/node_modules/(?!(mongodb|bson)/)',
+  ],
 };
 
 // createJestConfig is exported this way to ensure that next/jest can load the Next.js config which is async

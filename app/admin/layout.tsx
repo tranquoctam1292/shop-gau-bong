@@ -33,6 +33,14 @@ import {
   Hash,
   Palette,
   Loader2,
+  Warehouse,
+  History,
+  AlertTriangle,
+  BarChart3,
+  TrendingUp,
+  Search,
+  Settings,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { AdminRole } from '@/types/admin';
 
@@ -100,15 +108,28 @@ function AdminLayoutContent({
         { href: '/admin/attributes', label: 'Thuộc tính', icon: Tags },
       ],
     },
-    { 
-      href: '/admin/orders', 
-      label: 'Đơn hàng', 
+    {
+      href: '/admin/orders',
+      label: 'Đơn hàng',
       icon: ShoppingCart,
       roles: [AdminRole.ORDER_MANAGER, AdminRole.SUPER_ADMIN],
     },
-    { 
-      href: '/admin/media', 
-      label: 'Media', 
+    {
+      href: '/admin/inventory',
+      label: 'Tồn kho',
+      icon: Warehouse,
+      roles: [AdminRole.PRODUCT_MANAGER, AdminRole.ORDER_MANAGER, AdminRole.SUPER_ADMIN],
+      submenu: [
+        { href: '/admin/inventory', label: 'Tổng quan', icon: List },
+        { href: '/admin/inventory/movements', label: 'Lịch sử', icon: History },
+        { href: '/admin/inventory/history', label: 'Biểu đồ', icon: BarChart3 },
+        { href: '/admin/inventory/forecast', label: 'Dự báo', icon: TrendingUp },
+        { href: '/admin/inventory/low-stock', label: 'Cảnh báo', icon: AlertTriangle },
+      ],
+    },
+    {
+      href: '/admin/media',
+      label: 'Media',
       icon: Image,
       // Accessible to all admin roles except VIEWER
       roles: [AdminRole.PRODUCT_MANAGER, AdminRole.ORDER_MANAGER, AdminRole.CONTENT_EDITOR, AdminRole.SUPER_ADMIN],
@@ -124,11 +145,24 @@ function AdminLayoutContent({
         { href: '/admin/authors', label: 'Tác giả', icon: User },
       ],
     },
-    { 
-      href: '/admin/comments', 
-      label: 'Bình luận', 
+    {
+      href: '/admin/comments',
+      label: 'Bình luận',
       icon: MessageSquare,
       roles: [AdminRole.CONTENT_EDITOR, AdminRole.SUPER_ADMIN],
+    },
+    {
+      href: '/admin/seo',
+      label: 'SEO',
+      icon: Search,
+      roles: [AdminRole.CONTENT_EDITOR, AdminRole.SUPER_ADMIN],
+      submenu: [
+        { href: '/admin/seo', label: 'Tổng quan', icon: BarChart3 },
+        { href: '/admin/seo/products', label: 'SEO Sản phẩm', icon: Package },
+        { href: '/admin/seo/categories', label: 'SEO Categories', icon: FolderTree },
+        { href: '/admin/seo/redirects', label: 'Redirects', icon: ArrowLeftRight },
+        { href: '/admin/seo/settings', label: 'Cài đặt', icon: Settings },
+      ],
     },
     {
       href: '/admin/users',

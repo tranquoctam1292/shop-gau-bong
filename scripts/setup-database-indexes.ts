@@ -334,6 +334,39 @@ async function setupIndexes() {
     await collections.skuHistory.createIndex({ variantId: 1 }); // For variant history lookup
     await collections.skuHistory.createIndex({ changedAt: -1 }); // Sort by change date
     console.log('   ✅ SKU history indexes created');
+
+    // Inventory Movements indexes (Inventory Module Phase 1)
+    console.log('📦 Setting up inventory_movements indexes...');
+    await collections.inventoryMovements.createIndex({ productId: 1, createdAt: -1 }); // Product history
+    await collections.inventoryMovements.createIndex({ productId: 1, variationId: 1, createdAt: -1 }); // Variant history
+    await collections.inventoryMovements.createIndex({ type: 1, createdAt: -1 }); // Filter by type
+    await collections.inventoryMovements.createIndex({ referenceType: 1, referenceId: 1 }); // Reference lookup
+    await collections.inventoryMovements.createIndex({ createdAt: -1 }); // Sort by date
+    await collections.inventoryMovements.createIndex({ sku: 1 }); // SKU lookup
+    await collections.inventoryMovements.createIndex({ createdBy: 1 }); // Filter by admin
+    console.log('   ✅ Inventory movements indexes created');
+
+    // Inventory Alerts indexes (Inventory Module Phase 2)
+    console.log('📦 Setting up inventory_alerts indexes...');
+    await collections.inventoryAlerts.createIndex({ productId: 1 }); // Product alerts
+    await collections.inventoryAlerts.createIndex({ productId: 1, variationId: 1 }); // Variant alerts
+    await collections.inventoryAlerts.createIndex({ status: 1 }); // Filter by status
+    await collections.inventoryAlerts.createIndex({ alertType: 1 }); // Filter by type
+    await collections.inventoryAlerts.createIndex({ createdAt: -1 }); // Sort by date
+    console.log('   ✅ Inventory alerts indexes created');
+
+    // Products: Add inventory-related indexes
+    console.log('📦 Adding inventory indexes to products...');
+    await collections.products.createIndex({ stockQuantity: 1 }, { name: 'stockQuantity' });
+    await collections.products.createIndex({ reservedQuantity: 1 }, { name: 'reservedQuantity' });
+    await collections.products.createIndex({ 'productDataMetaBox.manageStock': 1 }, { name: 'manageStock' });
+    await collections.products.createIndex({
+      status: 1,
+      deletedAt: 1,
+      'productDataMetaBox.manageStock': 1,
+      stockQuantity: 1
+    }, { name: 'status_deletedAt_manageStock_stockQuantity' });
+    console.log('   ✅ Products inventory indexes created');
     
     // Products: Add sku_normalized index (CRITICAL for race condition prevention)
     console.log('📦 Adding sku_normalized index to products...');
@@ -360,6 +393,31 @@ async function setupIndexes() {
         console.error('   ⚠️  Error creating categories code index:', error.message);
       }
     }
+
+    // SEO Module indexes
+    console.log('📦 Setting up SEO module indexes...');
+
+    // Products: Add SEO-related indexes
+    await collections.products.createIndex({ 'seo.seoScore': 1 }, { name: 'seo_seoScore', sparse: true });
+    await collections.products.createIndex({ 'seo.lastAuditAt': 1 }, { name: 'seo_lastAuditAt', sparse: true });
+    await collections.products.createIndex({
+      status: 1,
+      deletedAt: 1,
+      'seo.seoScore': 1
+    }, { name: 'status_deletedAt_seoScore' });
+    console.log('   ✅ Products SEO indexes created');
+
+    // SEO Settings (singleton - no special index needed)
+    // Just ensure collection exists
+    const seoSettings = collections.db.collection('seoSettings');
+    console.log('   ✅ SEO settings collection ready');
+
+    // SEO Redirects indexes
+    const seoRedirects = collections.db.collection('seoRedirects');
+    await seoRedirects.createIndex({ source: 1 }, { unique: true });
+    await seoRedirects.createIndex({ enabled: 1, source: 1 });
+    await seoRedirects.createIndex({ createdAt: -1 });
+    console.log('   ✅ SEO redirects indexes created');
 
     console.log('\n🎉 All indexes created successfully!\n');
 

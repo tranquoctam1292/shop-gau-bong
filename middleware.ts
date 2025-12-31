@@ -4,8 +4,9 @@ import { getToken } from 'next-auth/jwt';
 
 /**
  * Middleware for:
- * 1. Content Security Policy (CSP) - prevents XSS attacks
- * 2. Authentication - forced password change protection
+ * 1. SEO Redirects - 301/302 redirects from seoRedirects collection
+ * 2. Content Security Policy (CSP) - prevents XSS attacks
+ * 3. Authentication - forced password change protection
  *
  * CSP helps prevent XSS attacks by controlling which resources can be loaded.
  * External services that may need to be whitelisted:
@@ -14,11 +15,115 @@ import { getToken } from 'next-auth/jwt';
  * - CDN/Image hosting: Add domains when configured
  * - Sentry: https://*.sentry.io (if error tracking is added)
  */
+
+// In-memory redirects cache for Edge runtime
+let redirectsCache: Record<string, { destination: string; type: 301 | 302 }> = {};
+let cacheLastFetch = 0;
+let fetchInProgress: Promise<void> | null = null;
+const CACHE_TTL = 60 * 1000; // 1 minute
+
+/**
+ * Fetch redirects from API and update cache
+ * Note: This runs on Edge, so we fetch from our own API
+ */
+async function refreshRedirectsCache(request: NextRequest): Promise<void> {
+  try {
+    const baseUrl = request.nextUrl.origin;
+    const response = await fetch(`${baseUrl}/api/seo/redirects-cache`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      // Short timeout to avoid blocking middleware
+      signal: AbortSignal.timeout(3000),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      redirectsCache = data.redirects || {};
+      cacheLastFetch = Date.now();
+    }
+  } catch {
+    // Silently fail - redirects are not critical
+    // Keep using stale cache if available
+  }
+}
+
+/**
+ * Ensure cache is fresh, with proper deduplication
+ */
+async function ensureCacheRefresh(request: NextRequest): Promise<void> {
+  // Cache is fresh
+  if (Date.now() - cacheLastFetch <= CACHE_TTL) {
+    return;
+  }
+
+  // Another refresh is in progress - wait for it
+  if (fetchInProgress) {
+    await fetchInProgress;
+    return;
+  }
+
+  // Start new refresh
+  fetchInProgress = refreshRedirectsCache(request);
+  try {
+    await fetchInProgress;
+  } finally {
+    fetchInProgress = null;
+  }
+}
+
+/**
+ * Check if we have a redirect for this path
+ */
+function getRedirect(pathname: string): { destination: string; type: 301 | 302 } | null {
+  return redirectsCache[pathname] || null;
+}
+
 export async function middleware(request: NextRequest) {
-  // 🔒 SECURITY FIX: Check if user must change password
   const pathname = request.nextUrl.pathname;
 
-  // Only check auth for /admin routes
+  // Skip for specific paths
+  if (
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/_next') ||
+    pathname === '/favicon.ico' ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml'
+  ) {
+    return NextResponse.next();
+  }
+
+  // 1. Check SEO Redirects (for non-admin routes)
+  if (!pathname.startsWith('/admin')) {
+    // Ensure cache is refreshed (with proper await to fix race condition)
+    await ensureCacheRefresh(request);
+
+    // Check for redirect
+    const redirect = getRedirect(pathname);
+    if (redirect) {
+      // Validate destination before redirecting
+      const isValidDestination =
+        redirect.destination.startsWith('/') ||
+        redirect.destination.startsWith('http://') ||
+        redirect.destination.startsWith('https://');
+
+      if (isValidDestination) {
+        // Handle relative vs absolute destinations
+        let destinationUrl: URL;
+        if (redirect.destination.startsWith('http')) {
+          destinationUrl = new URL(redirect.destination);
+        } else {
+          destinationUrl = new URL(redirect.destination, request.url);
+        }
+
+        return NextResponse.redirect(destinationUrl, {
+          status: redirect.type,
+        });
+      }
+    }
+  }
+
+  // 2. 🔒 SECURITY FIX: Check if user must change password
   if (pathname.startsWith('/admin')) {
     const token = await getToken({
       req: request,
@@ -33,7 +138,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Generate nonce for each request (for inline scripts with nonce)
+  // 3. Generate nonce for each request (for inline scripts with nonce)
   const nonce = Buffer.from(crypto.randomUUID()).toString('base64');
 
   // Build CSP directives
@@ -75,7 +180,7 @@ export async function middleware(request: NextRequest) {
 
 /**
  * Middleware matcher configuration
- * 
+ *
  * Matches all routes except:
  * - /api/* (API routes - CSP not needed for API responses)
  * - /_next/static/* (Next.js static files)
